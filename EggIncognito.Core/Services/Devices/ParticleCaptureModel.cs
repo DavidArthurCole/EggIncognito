@@ -3,10 +3,6 @@ using System.Text.Json.Nodes;
 
 namespace EggIncognito.Core.Services.Devices;
 
-//
-
-//
-
 public static class ParticleCaptureModel {
     public static Model Parse(string ndjson) {
         if (string.IsNullOrWhiteSpace(ndjson))

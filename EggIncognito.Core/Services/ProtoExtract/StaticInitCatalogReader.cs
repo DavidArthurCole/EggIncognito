@@ -42,7 +42,7 @@ public static class StaticInitCatalogReader {
         }
 
         var entries = new List<(string Id, string? Name, string? Desc)>();
-        foreach ((ulong Va, string Str) in kept) {
+        foreach ((_, string Str) in kept) {
             if (isId(Str)) {
                 entries.Add((Str, null, null));
                 continue;

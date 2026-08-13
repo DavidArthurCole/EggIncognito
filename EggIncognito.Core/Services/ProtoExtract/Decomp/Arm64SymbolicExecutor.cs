@@ -197,8 +197,6 @@ public static class Arm64SymbolicExecutor {
             }
         }
 
-        public IReadOnlyDictionary<long, ExprNode> RetVec => _retVec;
-
         public ExecResult Result(string diag) =>
             new(_regs, _stack, _retVec, SinkArg, SinkStackPtr, Opaque, _calls, diag);
 

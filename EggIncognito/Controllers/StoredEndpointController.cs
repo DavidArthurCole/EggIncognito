@@ -66,11 +66,11 @@ public sealed class StoredEndpointController(ICurrentUser currentUser, IServiceP
             Path = body.Path,
             RequestType = body.RequestType,
             ResponseType = body.ResponseType,
-            RequestWrapped = body.RequestWrapped,
-            ResponseWrapped = body.ResponseWrapped,
+            RequestWrapped = body.RequestWrapped ?? false,
+            ResponseWrapped = body.ResponseWrapped ?? false,
             RawResponse = body.RawResponse,
-            PathParam = body.PathParam,
-            PathParamOnly = body.PathParamOnly,
+            PathParam = body.PathParam ?? false,
+            PathParamOnly = body.PathParamOnly ?? false,
             Source = "db",
             OwnerUserId = currentUser.UserId
         });
@@ -107,9 +107,9 @@ public sealed class StoredEndpointController(ICurrentUser currentUser, IServiceP
         string Path,
         string? RequestType,
         string? ResponseType,
-        bool RequestWrapped,
-        bool ResponseWrapped,
+        bool? RequestWrapped,
+        bool? ResponseWrapped,
         string? RawResponse,
-        bool PathParam,
-        bool PathParamOnly);
+        bool? PathParam,
+        bool? PathParamOnly);
 }

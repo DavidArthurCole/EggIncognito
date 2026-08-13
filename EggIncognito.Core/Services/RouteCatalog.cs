@@ -91,7 +91,8 @@ public sealed partial class RouteCatalog : IRouteCatalog {
 
     private static void ApplyLine(Block b, string line) {
         string? V(string key) {
-            var m = Regex.Match(line, @"^\s+" + Regex.Escape(key) + @":\s*([^#]*?)\s*(?:#.*)?$");
+            var m = Regex.Match(line, @"^\s+" + Regex.Escape(key) + @":\s*([^#]*?)\s*(?:#.*)?$",
+                RegexOptions.None, TimeSpan.FromSeconds(2));
             return m.Success ? m.Groups[1].Value : null;
         }
 

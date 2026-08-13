@@ -142,19 +142,27 @@ public static class ApkVersionCode {
 
 
     private static string[] ReadStringPool(byte[] data, int chunkPos) {
+        if (chunkPos < 0 || chunkPos + 28 > data.Length) return [];
         int stringCount = (int)ReadU32(data, chunkPos + 8);
         uint flags = ReadU32(data, chunkPos + 16);
         int stringsStart = (int)ReadU32(data, chunkPos + 20);
         bool isUtf8 = (flags & 0x100) != 0;
 
-        string[] result = new string[stringCount];
         int offsetsBase = chunkPos + 28;
+        if (stringCount < 0 || (long)offsetsBase + (long)stringCount * 4 > data.Length) return [];
+
+        string[] result = new string[stringCount];
         int dataBase = chunkPos + stringsStart;
 
         for (int i = 0; i < stringCount; i++) {
             int off = (int)ReadU32(data, offsetsBase + i * 4);
-            int strPos = dataBase + off;
-            result[i] = isUtf8 ? ReadUtf8String(data, strPos) : ReadUtf16String(data, strPos);
+            long strPos = (long)dataBase + off;
+            if (strPos < 0 || strPos >= data.Length) {
+                result[i] = "";
+                continue;
+            }
+
+            result[i] = isUtf8 ? ReadUtf8String(data, (int)strPos) : ReadUtf16String(data, (int)strPos);
         }
 
         return result;

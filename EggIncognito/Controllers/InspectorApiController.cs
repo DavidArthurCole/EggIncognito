@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using EggIncognito.Services;
 using EggIncognito.Services.Auth;
 using Google.Protobuf;
@@ -232,7 +233,7 @@ public sealed class InspectorApiController(
     public sealed record BuildRequest(
         string Path,
         string RequestType,
-        bool Wrap,
+        [property: JsonRequired] bool Wrap,
         JsonElement? Fields,
         JsonElement? Env,
         string? Salt);

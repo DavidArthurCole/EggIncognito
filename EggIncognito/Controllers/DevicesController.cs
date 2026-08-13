@@ -375,7 +375,7 @@ public sealed class DevicesController(
         var (carve, err) = await CarveFromHarvestAsync(device, state, logger);
         if (err is not null) return err;
 
-        string appVersion = state.AppVersion!;
+        string appVersion = state.AppVersion;
         string build = carve!.Build;
         string sha = carve.ProtoSha ?? Hashes.Sha256Hex(carve.Proto);
 
@@ -435,7 +435,7 @@ public sealed class DevicesController(
             if (string.IsNullOrEmpty(state.Build))
                 return (null, StatusCode(409, new { error = "harvested state has no android build number" }));
 
-            return (new CarveResult(carved.Proto, state.Build!, carved.ClientVersion, carved.ProtoSha), null);
+            return (new CarveResult(carved.Proto, state.Build, carved.ClientVersion, carved.ProtoSha), null);
         }
 
         var binaries = (GameBinaryProvider)services.GetRequiredService(typeof(GameBinaryProvider));
@@ -452,7 +452,7 @@ public sealed class DevicesController(
             return (null, StatusCode(500, new { error = $"proto carve failed: {iosCarve.Diagnostics}" }));
         }
 
-        string iosBuild = !string.IsNullOrEmpty(state.Build) ? state.Build! : Hashes.Sha256HexShort(bin.Bytes, 16);
+        string iosBuild = !string.IsNullOrEmpty(state.Build) ? state.Build : Hashes.Sha256HexShort(bin.Bytes, 16);
         return (new CarveResult(iosCarve.Proto, iosBuild, LibegincClientVersion.ReadFromBinary(bin.Bytes),
             iosCarve.ProtoSha), null);
     }

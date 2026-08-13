@@ -19,7 +19,7 @@ public static partial class Redactor {
 
     private static readonly Regex FieldRegex = new(
         "\"(" + string.Join('|', SensitiveFields) + ")\":\\s*\"((?:[^\"\\\\]|\\\\.)+)\"",
-        RegexOptions.Compiled);
+        RegexOptions.Compiled, TimeSpan.FromSeconds(2));
 
 
     public static IReadOnlyList<string> SensitiveFieldNames => SensitiveFields;

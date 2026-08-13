@@ -41,7 +41,8 @@ public sealed partial class RoutesYamlEditor {
         string legacy = LegacyAlias(key);
         for (int k = start + 1; k < end; k++) {
             var m = Regex.Match(_lines[k],
-                @"^(\s*)(" + Regex.Escape(key) + "|" + Regex.Escape(legacy) + @"):\s*([^#]*?)\s*(?:#.*)?$");
+                @"^(\s*)(" + Regex.Escape(key) + "|" + Regex.Escape(legacy) + @"):\s*([^#]*?)\s*(?:#.*)?$",
+                RegexOptions.None, TimeSpan.FromSeconds(2));
             if (!m.Success) continue;
 
             string existing = m.Groups[3].Value.Trim();
@@ -63,7 +64,8 @@ public sealed partial class RoutesYamlEditor {
         if (start < 0) return false;
 
         for (int k = start + 1; k < end; k++) {
-            var m = Regex.Match(_lines[k], @"^\s*" + Regex.Escape(key) + @":\s*([^#]*?)\s*(?:#.*)?$");
+            var m = Regex.Match(_lines[k], @"^\s*" + Regex.Escape(key) + @":\s*([^#]*?)\s*(?:#.*)?$",
+                RegexOptions.None, TimeSpan.FromSeconds(2));
             if (m.Success) return false;
         }
 
@@ -148,7 +150,8 @@ public sealed partial class RoutesYamlEditor {
         (int start, int end) = RouteBlock(path);
         if (start >= 0) {
             for (int k = start + 1; k < end; k++) {
-                if (Regex.IsMatch(_lines[k], @"^\s*request:\s*" + Regex.Escape(NoneMarker) + @"\s*$"))
+                if (Regex.IsMatch(_lines[k], @"^\s*request:\s*" + Regex.Escape(NoneMarker) + @"\s*$",
+                        RegexOptions.None, TimeSpan.FromSeconds(2)))
                     return false;
             }
         }
@@ -188,7 +191,8 @@ public sealed partial class RoutesYamlEditor {
     };
 
     private int FindRouteStart(string path) =>
-        _lines.FindIndex(l => Regex.IsMatch(l, @"^\s*-\s+path:\s+" + Regex.Escape(path) + @"\s*$"));
+        _lines.FindIndex(l => Regex.IsMatch(l, @"^\s*-\s+path:\s+" + Regex.Escape(path) + @"\s*$",
+            RegexOptions.None, TimeSpan.FromSeconds(2)));
 
 
     private (int start, int end) RouteBlock(string path) {

@@ -17,7 +17,7 @@ public sealed class DeviceCaptureManager(
     IEnumerable<IDeviceCaInstaller>? caInstallers = null,
     IReadOnlySet<string>? liveRoutes = null,
     IEndpointWriteObserver? writeObserver = null,
-    IRouteCatalog? catalog = null) : IHostedService {
+    IRouteCatalog? catalog = null) : IHostedService, IDisposable {
     public const int PortsPerDevice = 3;
 
     private readonly Dictionary<string, IDeviceCaInstaller> _caInstallers =
@@ -51,6 +51,11 @@ public sealed class DeviceCaptureManager(
     public async Task StopAsync(CancellationToken cancellationToken) {
         _cts?.Cancel();
         foreach (string id in _captures.Keys.ToList()) await TeardownAsync(id);
+    }
+
+    public void Dispose() {
+        _cts?.Dispose();
+        _cts = null;
     }
 
     public int PortFor(string deviceId) => _captures.TryGetValue(deviceId, out var c) ? c.Port : 0;

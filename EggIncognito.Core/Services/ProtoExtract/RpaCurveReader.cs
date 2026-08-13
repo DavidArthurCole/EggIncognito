@@ -1,7 +1,5 @@
 namespace EggIncognito.Services.ProtoExtract;
 
-//
-
 public static class RpaCurveReader {
     public static Curve Read(byte[] bin) {
         if (bin is null || bin.Length < 0x18) return new Curve(false, 0, 0, [], "too short");

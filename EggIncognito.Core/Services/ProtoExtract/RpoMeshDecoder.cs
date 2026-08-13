@@ -4,10 +4,6 @@ using System.Text.Json;
 
 namespace EggIncognito.Services.ProtoExtract;
 
-//
-
-//
-
 public static class RpoMeshDecoder {
     private const uint Rpo1Magic = 0x314F5052;
     private const long MaxDecompressedBytes = 200_000_000L;

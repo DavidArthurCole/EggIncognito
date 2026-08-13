@@ -2,7 +2,6 @@ using Gee.External.Capstone.Arm64;
 
 namespace EggIncognito.Services.ProtoExtract;
 
-//
 public static class MachoArm64Disassembler {
     public static AnalysisResult Analyze(byte[] bin, ulong startVa, ulong endVa, ulong textVmAddr, int textFileOff) {
         var floats = new List<FloatConst>();

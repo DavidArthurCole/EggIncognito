@@ -29,12 +29,15 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
     public async Task<IActionResult> Create([FromBody] CreateReq req, CancellationToken ct) {
         if (Store is null) return StatusCode(503, new { error = "no database configured" });
         if (string.IsNullOrWhiteSpace(req.WebhookUrl) ||
-            !req.WebhookUrl.StartsWith("https://discord.com/api/webhooks/", StringComparison.OrdinalIgnoreCase)) {
+            !Uri.TryCreate(req.WebhookUrl, UriKind.Absolute, out var webhook) ||
+            webhook.Scheme != Uri.UriSchemeHttps ||
+            !string.Equals(webhook.Host, "discord.com", StringComparison.OrdinalIgnoreCase) ||
+            !webhook.AbsolutePath.StartsWith("/api/webhooks/", StringComparison.Ordinal)) {
             return BadRequest(new { error = "a Discord webhook URL is required" });
         }
 
         var http = httpFactory.CreateClient("discord-api");
-        var test = await http.PostAsync(req.WebhookUrl,
+        var test = await http.PostAsync(webhook,
             new StringContent("""{"content":"EggIncognito proto feed connected."}""",
                 Encoding.UTF8, "application/json"), ct);
         if (!test.IsSuccessStatusCode)
@@ -44,7 +47,7 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
         var sub = await Store.AddAsync(new FeedSubscription {
             Kind = "discord",
             EventKind = kind,
-            TargetUrl = req.WebhookUrl,
+            TargetUrl = webhook.ToString(),
             Platforms = req.Platforms is { Length: > 0 } ? req.Platforms : ["android", "ios"],
             Trigger = FeedEventKinds.NormalizeTrigger(kind, req.Trigger),
             Label = req.Label,

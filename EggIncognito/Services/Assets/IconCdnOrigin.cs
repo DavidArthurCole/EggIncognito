@@ -1,9 +1,14 @@
+using System.Text.RegularExpressions;
 using EggIncognito.Core.Services.Assets;
 
 namespace EggIncognito.Services.Assets;
 
-public sealed class IconCdnOrigin(IHttpClientFactory httpFactory, ILogger<IconCdnOrigin> logger) : IGameAssetOrigin {
+public sealed partial class IconCdnOrigin(IHttpClientFactory httpFactory, ILogger<IconCdnOrigin> logger)
+    : IGameAssetOrigin {
     private const string ArtifactsBase = AuxbrainHosts.Origin + "/dlc/artifacts/1/";
+
+    [GeneratedRegex(@"^[A-Za-z0-9_-]+$", RegexOptions.None, matchTimeoutMilliseconds: 2000)]
+    private static partial Regex SafeAssetName();
 
     public bool CanHandle(GameAssetKey key) =>
         key.Kind == "icon"
@@ -11,6 +16,7 @@ public sealed class IconCdnOrigin(IHttpClientFactory httpFactory, ILogger<IconCd
             || key.Name.StartsWith("egg_", StringComparison.Ordinal));
 
     public async Task<GameAsset?> FetchAsync(GameAssetKey key, CancellationToken ct) {
+        if (string.IsNullOrEmpty(key.Name) || !SafeAssetName().IsMatch(key.Name)) return null;
         string url = ArtifactsBase + key.Name + ".png";
         try {
             var client = httpFactory.CreateClient("inspector");

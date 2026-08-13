@@ -1,6 +1,7 @@
 using System.Data.Common;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using EggIdentity.Contract;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
@@ -188,5 +189,5 @@ public sealed class EnvDesignController(ICurrentUser currentUser, IServiceProvid
 
     public sealed record SaveDesign(string Payload, string? Note);
 
-    public sealed record RollbackBody(int VersionNo);
+    public sealed record RollbackBody([property: JsonRequired] int VersionNo);
 }

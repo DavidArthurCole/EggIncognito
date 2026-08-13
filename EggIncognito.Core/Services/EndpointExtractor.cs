@@ -382,7 +382,8 @@ public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string 
     public static string ScrubEid(string text, string? eid, string placeholder) =>
         string.IsNullOrEmpty(eid)
             ? text
-            : Regex.Replace(text, Regex.Escape(eid), _ => placeholder, RegexOptions.IgnoreCase);
+            : Regex.Replace(text, Regex.Escape(eid), _ => placeholder, RegexOptions.IgnoreCase,
+                TimeSpan.FromSeconds(2));
 
     private static string EndpointFile(string slug) => slug + ".json";
 

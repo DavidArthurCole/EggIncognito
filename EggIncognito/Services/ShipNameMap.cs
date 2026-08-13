@@ -1,6 +1,5 @@
 namespace EggIncognito.Services;
 
-//
 public static class ShipNameMap {
     public static readonly IReadOnlyList<Ship> All = [
         new(0, "ChickenOne", "Chicken One", "ei_ship_chicken_one", "afx_ship_chicken_1"),

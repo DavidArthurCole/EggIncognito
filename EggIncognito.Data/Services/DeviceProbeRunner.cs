@@ -24,7 +24,7 @@ public static class DeviceProbeRunner {
         if (Platforms.Matches(platform, Platforms.Ios)) {
             return extractedLatestAppVersion is null
                 ? "new_version"
-                : DeviceParsing.CompareVersions(r.InstalledAppVersion!, extractedLatestAppVersion) > 0
+                : DeviceParsing.CompareVersions(r.InstalledAppVersion, extractedLatestAppVersion) > 0
                     ? "new_version"
                     : "no_change";
         }
@@ -33,7 +33,7 @@ public static class DeviceProbeRunner {
             ? "new_version"
             : long.TryParse(r.InstalledBuild, out long inst) && long.TryParse(extractedLatestBuild, out long ext)
                 ? inst > ext ? "new_version" : "no_change"
-                : DeviceParsing.CompareVersions(r.InstalledAppVersion!, extractedLatestAppVersion ?? "") > 0
+                : DeviceParsing.CompareVersions(r.InstalledAppVersion, extractedLatestAppVersion ?? "") > 0
                     ? "new_version"
                     : "no_change";
     }

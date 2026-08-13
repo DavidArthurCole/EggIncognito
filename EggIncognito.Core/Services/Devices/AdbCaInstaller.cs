@@ -3,8 +3,6 @@ using System.Text;
 
 namespace EggIncognito.Core.Services.Devices;
 
-//
-
 public sealed class AdbCaInstaller(IProcessRunner runner, string? installScriptTemplate = null) : IDeviceCaInstaller {
     private const string RemoteScript = "/data/local/tmp/eggincognito-ca-magisk.sh";
 

@@ -1,7 +1,6 @@
 using System.Text.RegularExpressions;
 
 namespace EggIncognito.Services;
-//
 
 public static partial class MarkdownRenderer {
     private static readonly Regex EscapeChars = EscapeCharsRegex();

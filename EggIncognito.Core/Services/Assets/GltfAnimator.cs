@@ -4,8 +4,6 @@ using SharpGLTF.Transforms;
 
 namespace EggIncognito.Services.Assets;
 
-//
-
 public static class GltfAnimator {
     public enum AnimationKind {
         SpinY,

@@ -33,7 +33,7 @@ public sealed class ImportController(
         if (!appMode.CanWrite) return StatusCode(403, new { error = "imports are disabled in hosted mode" });
         if (file is null || file.Length == 0) return BadRequest(new { error = "no file uploaded" });
 
-        string tmp = Path.GetTempFileName();
+        string tmp = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         try {
             await using (var fs = System.IO.File.Create(tmp)) await file.CopyToAsync(fs);
             string? eid = config["EGG_INC_EID"] ?? Environment.GetEnvironmentVariable("EGG_INC_EID");

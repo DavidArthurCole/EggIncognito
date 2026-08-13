@@ -337,11 +337,11 @@ public sealed class DecompController(
         if (string.IsNullOrWhiteSpace(name)) return BadRequest(new { error = "name required" });
         if (instructions <= 0) instructions = 8;
         try {
-            (bool ok, byte[]? refBytes, _, string? diag) =
+            (_, byte[]? refBytes, _, string? diag) =
                 await binaries.GetRecoveryInputsAsync(refVersion, "/dev/null", ct);
 
             if (refBytes is null) {
-                (bool rok, byte[]? rb, string? rdiag) = await binaries.GetBinaryAsync(null, ct);
+                (_, byte[]? rb, string? rdiag) = await binaries.GetBinaryAsync(null, ct);
                 refBytes = rb;
                 if (refBytes is null) return Ok(new { ok = false, diagnostics = rdiag ?? diag });
             }

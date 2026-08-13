@@ -9,8 +9,6 @@ public enum IngestOutcome {
     ProtoRefreshNeeded
 }
 
-//
-
 public sealed class NewVersionIngestService(
     string expectedProtoSha,
     ISyncNotifier notifier,

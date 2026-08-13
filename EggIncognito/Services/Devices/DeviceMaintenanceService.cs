@@ -169,14 +169,14 @@ public sealed class DeviceMaintenanceService(
                 continue;
             }
 
-            _lastClimbHarvest[d.Id] = (probe.InstalledBuild!, time.GetUtcNow());
+            _lastClimbHarvest[d.Id] = (probe.InstalledBuild, time.GetUtcNow());
 
             try {
                 logger.LogInformation(
                     "device capture: {Id} installed build {Build} not yet harvested (had {Prev}); launching app for fresh capture",
                     d.Id, probe.InstalledBuild, harvested?.Build ?? "none");
                 var rinfo = await HarvestAsync(d, TimeSpan.FromSeconds(40), ct);
-                await BackfillClientVersionAsync(sp, d, probe.InstalledBuild!, rinfo, ct);
+                await BackfillClientVersionAsync(sp, d, probe.InstalledBuild, rinfo, ct);
             } catch (OperationCanceledException) {
                 throw;
             } catch (Exception ex) {

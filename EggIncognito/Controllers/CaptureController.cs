@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using EggIdentity.Contract;
 using EggIncognito.Capture;
 using EggIncognito.Data.Models;
@@ -145,12 +146,12 @@ public sealed class CaptureController(
         }
 
         var store = Credentials;
-        await RestoreCaAsync(session, store, currentUser.UserId!.Value, ct);
+        await RestoreCaAsync(session, store, currentUser.UserId.Value, ct);
         var result = await session.StartAsync(ct);
         if (result.FreshCa && store is not null)
-            await PersistFreshCaAsync(session, store, currentUser.UserId!.Value, result.RootThumbprint, ct);
+            await PersistFreshCaAsync(session, store, currentUser.UserId.Value, result.RootThumbprint, ct);
 
-        await DeliverSetupAsync(session, currentUser.DiscordId, currentUser.UserId!.Value, ct);
+        await DeliverSetupAsync(session, currentUser.DiscordId, currentUser.UserId.Value, ct);
         return Ok(result);
     }
 
@@ -167,7 +168,7 @@ public sealed class CaptureController(
         var session = manager.Get(currentUser.DiscordId);
         if (session is null) return StatusCode(409, new { error = "start a capture session first" });
         session.CaDmFailed = false;
-        await DeliverSetupAsync(session, currentUser.DiscordId, currentUser.UserId!.Value, ct);
+        await DeliverSetupAsync(session, currentUser.DiscordId, currentUser.UserId.Value, ct);
         return Ok(new { sent = !session.CaDmFailed });
     }
 
@@ -373,5 +374,5 @@ public sealed class CaptureController(
         }
     }
 
-    public sealed record SaveEndpointRequest(long Id);
+    public sealed record SaveEndpointRequest([property: JsonRequired] long Id);
 }

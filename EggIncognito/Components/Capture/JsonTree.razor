@@ -30,8 +30,10 @@
 
     async Task OnSearchInput(ChangeEventArgs e) {
         _search = e.Value?.ToString() ?? "";
-        _debounceCts?.Cancel();
+        var previous = _debounceCts;
         var cts = _debounceCts = new CancellationTokenSource();
+        previous?.Cancel();
+        previous?.Dispose();
         try {
             await Task.Delay(250, cts.Token);
         }
@@ -45,6 +47,8 @@
 
     public void Dispose() {
         _debounceCts?.Cancel();
+        _debounceCts?.Dispose();
+        _debounceCts = null;
     }
 
     void ExpandAll() {

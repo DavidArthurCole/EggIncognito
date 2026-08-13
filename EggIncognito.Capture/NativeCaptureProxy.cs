@@ -12,9 +12,6 @@ using EggIncognito.Services;
 
 namespace EggIncognito.Capture;
 
-//
-
-//
 public sealed class NativeCaptureProxy(bool verbose = false) : ICaptureProxy {
     private const string RootCaName = "EggIncognito Capture Root";
 
@@ -338,7 +335,7 @@ public sealed class NativeCaptureProxy(bool verbose = false) : ICaptureProxy {
         if (notAfter <= notBefore) notBefore = notAfter.AddDays(-1);
         byte[] serial = new byte[8];
         RandomNumberGenerator.Fill(serial);
-        using var signed = req.Create(_rootCa!, notBefore, notAfter, serial);
+        using var signed = req.Create(_rootCa, notBefore, notAfter, serial);
 
         using var withKey = signed.CopyWithPrivateKey(rsa);
         return X509CertificateLoader.LoadPkcs12(

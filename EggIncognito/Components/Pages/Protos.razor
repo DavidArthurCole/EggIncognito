@@ -631,12 +631,6 @@
         return _selected.Any(k => k.Platform == r.Platform && k.Build == r.Build);
     }
 
-    void ToggleRow(VersionRow r) {
-        var existing = _selected.FirstOrDefault(k => k.Platform == r.Platform && k.Build == r.Build);
-        if (existing is not null) _selected.Remove(existing);
-        else _selected.Add(new VersionKey(r.Platform, r.Build));
-    }
-
     bool AllSelected => Sorted.Count > 0 && Sorted.All(IsSelected);
 
     void ToggleAll(ChangeEventArgs e) {
@@ -710,12 +704,6 @@
 
     static int ReleaseKey(VersionRow r) {
         return r.CanonicalId ?? r.Id;
-    }
-
-    List<Release> GroupedReleases(IEnumerable<VersionRow> rows) {
-        return rows.GroupBy(ReleaseKey)
-            .Select(g => new Release(g.Key, g.OrderBy(m => m.Platform).ToList()))
-            .ToList();
     }
 
 }

@@ -8,7 +8,6 @@ public static class MachoSymbols {
     private const uint FatMagicLe = 0xBEBAFECA;
     private const uint CpuArm64 = 0x0100000C;
     private const uint LcSymtab = 0x02;
-    private const uint LcSegment64 = 0x19;
 
     public static IReadOnlyList<Symbol> Read(byte[] bin) {
         var outp = new List<Symbol>();
