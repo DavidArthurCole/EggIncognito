@@ -1,6 +1,6 @@
-using EggIncognito.Core.Services.Devices;
+using Microsoft.Extensions.Logging;
 
-namespace EggIncognito.Services.Devices;
+namespace EggIncognito.Core.Services.Devices;
 
 public sealed class IosPlatform(
     IDeviceConnectionFactory connections,
@@ -46,6 +46,97 @@ public sealed class IosPlatform(
             _ => []
         };
         return DeviceResult<IReadOnlyList<string>>.Success(names);
+    }
+
+    private const string PackageUnsupported = "ios ships the app binary, not an installable package";
+
+    public override IReadOnlyList<HarvestEntry> Manifest() => [
+        new(HarvestEntries.AppBinary, DeviceAssetKinds.Binary),
+        new(HarvestEntries.AppPackage, DeviceAssetKinds.Package, false, PackageUnsupported),
+        new(HarvestEntries.Meshes, DeviceAssetKinds.Mesh),
+        new(HarvestEntries.Textures, DeviceAssetKinds.Icon),
+        new(HarvestEntries.PackageManifest, DeviceAssetKinds.Manifest)
+    ];
+
+    public override async Task<DeviceResult<string>> FingerprintAsync(DeviceTarget target, HarvestEntry entry,
+        CancellationToken ct) {
+        if (!entry.Supported) return DeviceResult<string>.Unsupported(entry.UnsupportedNote);
+        if (connections.Ios(target.Target) is not { } conn)
+            return DeviceResult<string>.Unreachable("ios ssh not configured");
+        var listing = await ListingAsync(conn, target.Package, entry, ct);
+        return listing.Count == 0
+            ? DeviceResult<string>.Unreachable($"no files listed for '{entry.Name}'")
+            : DeviceResult<string>.Success(Hashes.Sha256Hex(Canonical(listing)));
+    }
+
+    public override async Task<DeviceResult<HarvestBatch>> HarvestAsync(DeviceTarget target, HarvestEntry entry,
+        IReadOnlyDictionary<string, string> known, CancellationToken ct) {
+        if (!entry.Supported) return DeviceResult<HarvestBatch>.Unsupported(entry.UnsupportedNote);
+        if (connections.Ios(target.Target) is not { } conn)
+            return DeviceResult<HarvestBatch>.Unreachable("ios ssh not configured");
+        var listing = await ListingAsync(conn, target.Package, entry, ct);
+        if (listing.Count == 0) return DeviceResult<HarvestBatch>.Unreachable($"no files listed for '{entry.Name}'");
+
+        var items = new List<HarvestItem>();
+        string contentType = entry.Name switch {
+            HarvestEntries.Textures => "image/png",
+            HarvestEntries.PackageManifest => "application/xml",
+            _ => "application/octet-stream"
+        };
+
+        foreach ((string name, RemoteFile file) in listing) {
+            if (known.TryGetValue(name, out string? have) && string.Equals(have, file.Sha, StringComparison.Ordinal))
+                continue;
+            byte[]? bytes = await conn.PullBytesAsync(file.Path, ct);
+            if (bytes is not null) items.Add(new HarvestItem(name, bytes, contentType));
+        }
+
+        return DeviceResult<HarvestBatch>.Success(new HarvestBatch(items, [.. listing.Keys], true));
+    }
+
+    private readonly record struct RemoteFile(string Sha, string Path);
+
+    private static string Canonical(IReadOnlyDictionary<string, RemoteFile> listing) =>
+        string.Join('\n', listing.OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => $"{kv.Key}:{kv.Value.Sha}"));
+
+    private async Task<IReadOnlyDictionary<string, RemoteFile>> ListingAsync(SshDeviceConnection conn, string bundleId,
+        HarvestEntry entry, CancellationToken ct) {
+        string find = entry.Name switch {
+            HarvestEntries.AppBinary => "exe=\"$app/$(basename \"$app\" .app)\"; [ -f \"$exe\" ] && printf '%s\\n' \"$exe\"",
+            HarvestEntries.Meshes => "find \"$app\" \\( -iname '*.rpo' -o -iname '*.rpoz' \\) 2>/dev/null",
+            HarvestEntries.Textures => "find \"$app\" -iname '*.png' 2>/dev/null",
+            HarvestEntries.PackageManifest => "[ -f \"$app/Info.plist\" ] && printf '%s\\n' \"$app/Info.plist\"",
+            _ => ""
+        };
+        if (find.Length == 0) return new Dictionary<string, RemoteFile>(StringComparer.Ordinal);
+
+        var r = await conn.ShellAsync(
+            DeviceShell.LocateIosApp(bundleId) + $"{find} | tr '\\n' '\\0' | xargs -0 shasum -a 256 2>/dev/null", ct);
+        if (r.ExitCode != 0 || r.Stdout.Trim().Length == 0) {
+            logger.LogWarning("ios harvest: shasum unavailable for '{Entry}', falling back to size+mtime", entry.Name);
+            r = await conn.ShellAsync(
+                DeviceShell.LocateIosApp(bundleId) + $"{find} | tr '\\n' '\\0' | xargs -0 stat -f '%z-%m %N' 2>/dev/null",
+                ct);
+        }
+
+        return Parse(r.Stdout);
+    }
+
+    private static Dictionary<string, RemoteFile> Parse(string output) {
+        var map = new Dictionary<string, RemoteFile>(StringComparer.Ordinal);
+        foreach (string line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)) {
+            int split = line.IndexOf(' ');
+            if (split <= 0) continue;
+            string sha = line[..split];
+            string path = line[(split + 1)..].Trim();
+            if (path.Length == 0) continue;
+            string leaf = path[(path.LastIndexOf('/') + 1)..];
+            int dot = leaf.LastIndexOf('.');
+            string name = dot > 0 ? leaf[..dot] : leaf;
+            map[name] = new RemoteFile(sha, path);
+        }
+
+        return map;
     }
 
     public override Task<DeviceProbeResult> ProbeAsync(DeviceTarget target, CancellationToken ct) =>

@@ -1,6 +1,5 @@
-using EggIncognito.Core.Services.Devices;
 
-namespace EggIncognito.Services.Devices;
+namespace EggIncognito.Core.Services.Devices;
 
 public abstract class DevicePlatformBase : IDevicePlatform {
     protected DevicePlatformBase(
@@ -54,6 +53,14 @@ public abstract class DevicePlatformBase : IDevicePlatform {
 
     public abstract Task<DeviceResult<IReadOnlyList<string>>> ListAssetsAsync(DeviceTarget target, DeviceAssetKind kind,
         CancellationToken ct);
+
+    public abstract IReadOnlyList<HarvestEntry> Manifest();
+
+    public abstract Task<DeviceResult<string>> FingerprintAsync(DeviceTarget target, HarvestEntry entry,
+        CancellationToken ct);
+
+    public abstract Task<DeviceResult<HarvestBatch>> HarvestAsync(DeviceTarget target, HarvestEntry entry,
+        IReadOnlyDictionary<string, string> known, CancellationToken ct);
 
     public abstract Task<DeviceProbeResult> ProbeAsync(DeviceTarget target, CancellationToken ct);
     public abstract Task<DeviceResult> RestartAppAsync(DeviceTarget target, CancellationToken ct);

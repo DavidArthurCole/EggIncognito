@@ -6,7 +6,7 @@ public sealed class GameDataAutoRebuildService(
     TimeProvider time,
     ILogger<GameDataAutoRebuildService> logger) : BackgroundService {
     private bool Enabled => config.GetValue("GameData:AutoRebuild:Enabled", true);
-    private int IntervalMinutes => config.GetValue("GameData:AutoRebuild:IntervalMinutes", 60);
+    private int IntervalMinutes => config.GetValue("GameData:AutoRebuild:IntervalMinutes", 5);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken) {
         if (!Enabled) {
@@ -14,7 +14,7 @@ public sealed class GameDataAutoRebuildService(
             return;
         }
 
-        using var timer = new PeriodicTimer(TimeSpan.FromMinutes(Math.Max(5, IntervalMinutes)), time);
+        using var timer = new PeriodicTimer(TimeSpan.FromMinutes(Math.Max(1, IntervalMinutes)), time);
         try {
             await RunOnceAsync(stoppingToken);
             while (await timer.WaitForNextTickAsync(stoppingToken))
@@ -33,10 +33,13 @@ public sealed class GameDataAutoRebuildService(
         int built = results.Count(r => r.Status == "built");
         int failed = results.Count(r => r.Status == "failed");
         int skipped = results.Count(r => r.Status == "skipped");
+        int current = results.Count(r => r.Status == "current");
+
+        if (built + failed + skipped == 0) return;
 
         logger.LogInformation(
-            "game data auto-rebuild: {Built} built, {Skipped} skipped, {Failed} failed ({Binary})",
-            built, skipped, failed, binaryNote ?? "no binary");
+            "game data auto-rebuild: {Built} built, {Current} current, {Skipped} skipped, {Failed} failed ({Binary})",
+            built, current, skipped, failed, binaryNote ?? "no binary");
 
         foreach (var r in results.Where(r => r.Status == "failed"))
             logger.LogWarning("game data auto-rebuild: {Id} failed: {Note}", r.Id, r.Note);

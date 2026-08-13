@@ -1,6 +1,5 @@
-using EggIncognito.Core.Services.Devices;
 
-namespace EggIncognito.Services.Devices;
+namespace EggIncognito.Core.Services.Devices;
 
 public sealed class DeviceApkPuller(IProcessRunner runner) {
     public Task<byte[]?> PullArmSplitAsync(string serial, string package, CancellationToken ct) =>

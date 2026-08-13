@@ -12,10 +12,13 @@ public sealed class EndpointCatalogRebuilder(
     GameBinaryProvider binaries,
     RouteCatalog yaml) {
     public async Task<EndpointRebuildResult> RebuildAsync(CancellationToken ct) {
-        var candidates = await binaries.GetExtractionCandidatesAsync(ct);
-        if (candidates.Count == 0) return new EndpointRebuildResult(0, 0, 0, null, "no extraction binary available");
+        var found = await binaries.GetExtractionCandidatesAsync(ct);
+        if (found.Candidates.Count == 0) {
+            return new EndpointRebuildResult(0, 0, 0, null,
+                found.Rejected.Count == 0 ? "no extraction binary available" : found.Diagnostics);
+        }
 
-        var cand = candidates[0];
+        var cand = found.Candidates[0];
         bool elf = IsElf(cand.Bytes);
         var syms = elf ? ElfSymbols.Read(cand.Bytes) : cand.Symbols ?? MachoSymbols.Read(cand.Bytes);
         var extracted = EndpointCatalogExtractor.ExtractWith(cand.Bytes, syms);

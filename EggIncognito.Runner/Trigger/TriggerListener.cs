@@ -1,9 +1,11 @@
 using EggIncognito.Runner.Extract;
+using EggIncognito.Runner.Harvest;
 
 namespace EggIncognito.Runner.Trigger;
 
 public static class TriggerListener {
-    public static WebApplication Build(string urls, DeviceResyncHandler handler, ApkPureExtractHandler? extract = null, DeviceProbeApi? probe = null) {
+    public static WebApplication Build(string urls, DeviceResyncHandler handler, ApkPureExtractHandler? extract = null,
+        DeviceProbeApi? probe = null, HarvestApi? harvest = null) {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseUrls(urls);
         builder.Logging.ClearProviders();
@@ -41,6 +43,28 @@ public static class TriggerListener {
                 await ctx.Response.WriteAsJsonAsync(r.Status == 200 ? r.Body! : new { error = r.Error });
             });
         }
+        if (harvest is not null) {
+            app.MapPost("/devices/{id}/poke", async (HttpContext ctx, string id) => {
+                var force = await ReadForce(ctx);
+                string? auth = ctx.Request.Headers.Authorization;
+                var r = await harvest.PokeAsync(auth, id, force);
+                ctx.Response.StatusCode = r.Status;
+                await ctx.Response.WriteAsJsonAsync(r.Body ?? new { device = r.DeviceId, error = r.Error });
+            });
+            app.MapPost("/devices/poke-all", async (HttpContext ctx) => {
+                string? auth = ctx.Request.Headers.Authorization;
+                var r = await harvest.PokeAllAsync(auth);
+                ctx.Response.StatusCode = r.Status;
+                await ctx.Response.WriteAsJsonAsync(r.Body ?? new { error = r.Error });
+            });
+            app.MapGet("/devices/{id}/state", async (HttpContext ctx, string id) => {
+                string? auth = ctx.Request.Headers.Authorization;
+                var r = await harvest.StateAsync(auth, id);
+                ctx.Response.StatusCode = r.Status;
+                await ctx.Response.WriteAsJsonAsync(r.Body ?? new { device = r.DeviceId, error = r.Error });
+            });
+        }
+
         if (extract is not null) {
             app.MapPost("/extract", async (HttpContext ctx) => {
                 var body = await ReadExtractBody(ctx);

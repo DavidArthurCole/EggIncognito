@@ -437,21 +437,6 @@ public sealed class DecompController(
         }
     }
 
-    [HttpGet("live-pull")]
-    [EnableRateLimiting("read")]
-    public async Task<IActionResult> LivePull(CancellationToken ct) {
-        if (!currentUser.IsAtLeast(UserRole.Admin))
-            return StatusCode(403, new { error = "admin role required" });
-        (bool ok, byte[]? bytes, var syms, bool grafted, string? diag) = await binaries.GetLiveBinaryAsync(ct);
-        return Ok(new {
-            ok,
-            bytes = bytes?.Length ?? 0,
-            symbols = syms?.Count ?? 0,
-            grafted,
-            diagnostics = diag
-        });
-    }
-
     [HttpGet("stored-binaries")]
     [EnableRateLimiting("read")]
     public async Task<IActionResult> StoredBinaries(CancellationToken ct) {
@@ -487,33 +472,31 @@ public sealed class DecompController(
             : NotFound(new { ok = false, error = $"no stored binary {platform} {version}" });
     }
 
-    [HttpPost("pull-store")]
+    [HttpGet("harvested")]
     [EnableRateLimiting("read")]
-    public async Task<IActionResult> PullStore(CancellationToken ct) {
+    public async Task<IActionResult> Harvested(CancellationToken ct) {
         if (!currentUser.IsAtLeast(UserRole.Admin))
             return StatusCode(403, new { error = "admin role required" });
-
-        (bool lok, _, _, _, string? ldiag) = await binaries.GetLiveBinaryAsync(ct);
-        if (!lok) return Ok(new { ok = false, diagnostics = $"live pull failed: {ldiag}" });
-
-        (bool ok, byte[]? bin, var syms, string version, string? diag) = await binaries.GetExtractionBinaryAsync(ct);
-        if (!ok || bin is null) return Ok(new { ok = false, diagnostics = diag });
+        var found = await binaries.GetExtractionCandidatesAsync(ct);
         return Ok(new {
-            ok = true,
-            version,
-            bytes = bin.Length,
-            symbols = syms?.Count ?? MachoSymbols.Read(bin).Count,
-            diagnostics = $"force-pulled; {diag}"
+            ok = found.Candidates.Count > 0,
+            candidates = found.Candidates.Select(c => new {
+                c.Platform,
+                c.Version,
+                bytes = c.Bytes.Length,
+                symbols = c.Symbols?.Count ?? 0,
+                diagnostics = c.Diagnostics
+            }),
+            rejected = found.Rejected
         });
     }
 
     private async Task<(bool Ok, byte[]? Bin, IReadOnlyList<MachoSymbols.Symbol>? Syms, string Source, string? Diag)>
         ResolveBinaryAsync(string? device, bool live, CancellationToken ct) {
         if (live) {
-            (bool lok, byte[]? lbytes, var lsyms, bool grafted, string? ldiag) = await binaries.GetLiveBinaryAsync(ct);
-            if (lok && lbytes is not null)
-                return (true, lbytes, lsyms, grafted ? "device-grafted" : "device", ldiag);
-            return (false, null, null, "device", ldiag);
+            (bool hok, byte[]? hbytes, var hsyms, _, string? hdiag) = await binaries.GetExtractionBinaryAsync(ct);
+            if (hok && hbytes is not null) return (true, hbytes, hsyms, "harvested", hdiag);
+            return (false, null, null, "harvested", hdiag);
         }
 
         (bool ok, byte[]? bin, string? diag) = await binaries.GetBinaryAsync(device, ct);

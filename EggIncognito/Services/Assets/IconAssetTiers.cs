@@ -1,24 +1,21 @@
 using EggIncognito.Core.Services.Assets;
+using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
-using Microsoft.EntityFrameworkCore;
 
 namespace EggIncognito.Services.Assets;
 
 public sealed class IconDbTier(IServiceProvider services, ILogger<IconDbTier> logger) : IGameAssetTier {
-    private EggIncognitoDbContext? Db => services.GetService(typeof(EggIncognitoDbContext)) as EggIncognitoDbContext;
+    private DeviceAssetStore? Store => services.GetService(typeof(DeviceAssetStore)) as DeviceAssetStore;
     public int Priority => 0;
 
     public bool CanHandle(GameAssetKey key) => key.Kind == "icon";
 
     public async Task<GameAsset?> TryGetAsync(GameAssetKey key, CancellationToken ct) {
-        var db = Db;
-        if (db is null) return null;
+        var store = Store;
+        if (store is null) return null;
         try {
-            var row = await db.StoredIcons.AsNoTracking()
-                .Where(m => m.Name == key.Name)
-                .OrderByDescending(m => m.CreatedAt)
-                .FirstOrDefaultAsync(ct);
+            var row = await store.GetAsync(DeviceAssetKinds.Icon, key.Name, key.Platform, ct);
             return row is null ? null : ToAsset(key, row);
         } catch (Exception ex) {
             logger.LogWarning(ex, "icon db read failed {Name}", key.Name);
@@ -27,34 +24,18 @@ public sealed class IconDbTier(IServiceProvider services, ILogger<IconDbTier> lo
     }
 
     public async Task PutAsync(GameAsset asset, CancellationToken ct) {
-        var db = Db;
-        if (db is null) return;
+        var store = Store;
+        if (store is null) return;
         try {
-            var existing = await db.StoredIcons.FirstOrDefaultAsync(m => m.Name == asset.Key.Name, ct);
-            if (existing is null) {
-                db.StoredIcons.Add(new StoredIcon {
-                    Name = asset.Key.Name,
-                    ContentType = asset.ContentType,
-                    Bytes = asset.Bytes,
-                    ByteSize = asset.Bytes.Length,
-                    Provenance = asset.Provenance
-                });
-            } else {
-                existing.Bytes = asset.Bytes;
-                existing.ByteSize = asset.Bytes.Length;
-                existing.ContentType = asset.ContentType;
-                existing.Provenance = asset.Provenance;
-            }
-
-            await db.SaveChangesAsync(ct);
+            await store.PutAsync(asset.Key.Platform ?? DeviceAssetKinds.AnyPlatform, DeviceAssetKinds.Icon,
+                asset.Key.Name, asset.Bytes, asset.ContentType, asset.Key.Version, ct);
         } catch (Exception ex) {
             logger.LogWarning(ex, "icon db write failed {Name}", asset.Key.Name);
         }
     }
 
-    private static GameAsset ToAsset(GameAssetKey key, StoredIcon row) =>
-        new(key, row.Bytes, row.ContentType, $"db@{row.Name}",
-            new DateTimeOffset(row.CreatedAt.UtcDateTime, TimeSpan.Zero));
+    private static GameAsset ToAsset(GameAssetKey key, DeviceAsset row) =>
+        new(key, row.Bytes, row.ContentType, $"db@{row.Name}", row.UpdatedAt);
 }
 
 public sealed class IconDiskTier(IconAssetCache cache) : IGameAssetTier {

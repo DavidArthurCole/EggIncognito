@@ -221,15 +221,23 @@ public class PlaygroundTests(SharedAppFactory f) {
     }
 
     [Fact]
-    public async Task Precache_RequiresAdmin() {
+    public async Task Poke_RequiresAdmin() {
         var c = _factory.CreateClient();
-        var r = await c.PostAsync("/api/devices/x/precache-meshes", null);
+        var r = await c.PostAsync("/api/devices/x/poke", null);
+        Assert.Equal(HttpStatusCode.Forbidden, r.StatusCode);
+    }
+
+    [Fact]
+    public async Task HarvestState_RequiresAdmin() {
+        var c = _factory.CreateClient();
+        var r = await c.GetAsync("/api/devices/x/harvest");
         Assert.Equal(HttpStatusCode.Forbidden, r.StatusCode);
     }
 
     [Fact]
     public async Task DeviceMeshRoutes_AreGone() {
         var c = _factory.CreateClient();
+        AssertRouteGone(await c.PostAsync("/api/devices/x/precache-meshes", null));
         AssertRouteGone(await c.PostAsync("/api/devices/x/pull-meshes", null));
         AssertRouteGone(await c.GetAsync("/api/devices/x/mesh/ei_farm_ground"));
         AssertRouteGone(await c.GetAsync("/api/devices/x/cached-meshes"));

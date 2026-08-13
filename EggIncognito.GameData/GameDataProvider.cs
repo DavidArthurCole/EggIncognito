@@ -70,14 +70,21 @@ public sealed class GameDataProvider(
 
     public static readonly ImmutableArray<string> AuxiliaryDocumentIds = ["farm-placement"];
 
+    public static readonly ImmutableArray<string> OptionalDocumentIds = ["boosts", "artifacts"];
+
+    public static readonly ImmutableArray<string> RequiredDocumentIds =
+        [.. DocumentIds.Where(id => !OptionalDocumentIds.Contains(id)), .. AuxiliaryDocumentIds];
+
     public static readonly ImmutableArray<string> ImportableIds = [.. DocumentIds, .. AuxiliaryDocumentIds];
+
+    private const string EmptyEffectData = """{"binaryVersion":"none","rows":[]}""";
 
     public static GameDataProvider FromDocuments(IReadOnlyDictionary<string, string> docs) {
         return new GameDataProvider([
-                new BoostFamily(EffectDataLoader.Parse(Doc(docs, "boosts"))),
+                new BoostFamily(EffectDataLoader.Parse(OptionalDoc(docs, "boosts"))),
                 new ResearchFamily(EffectDataLoader.Parse(Doc(docs, "research"))),
                 new HabFamily(EffectDataLoader.Parse(Doc(docs, "habs"))),
-                new ArtifactFamily(EffectDataLoader.Parse(Doc(docs, "artifacts")))
+                new ArtifactFamily(EffectDataLoader.Parse(OptionalDoc(docs, "artifacts")))
             ], ColleggtibleCatalog.Parse(Doc(docs, "colleggtibles")),
             GameData.BoostCatalog.Parse(Doc(docs, "boost-catalog")),
             GameData.EggCatalog.Parse(Doc(docs, "eggs")),
@@ -102,6 +109,9 @@ public sealed class GameDataProvider(
             _ => throw new GameDataSchemaException($"Unknown game data document id '{id}'.")
         });
     }
+
+    private static string OptionalDoc(IReadOnlyDictionary<string, string> docs, string id) =>
+        docs.TryGetValue(id, out string? json) ? json : EmptyEffectData;
 
     private static string Doc(IReadOnlyDictionary<string, string> docs, string id) =>
         docs.TryGetValue(id, out string? json)

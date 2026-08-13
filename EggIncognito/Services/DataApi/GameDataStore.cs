@@ -39,7 +39,7 @@ public sealed class GameDataStore(IServiceScopeFactory scopeFactory, ILogger<Gam
     public IReadOnlyList<string> MissingIds() {
         var present = WithDb(db => db.GameDataDocuments.AsNoTracking().Select(d => d.Id).ToHashSet(StringComparer.Ordinal))
                       ?? [];
-        return [.. GameDataProvider.DocumentIds.Where(id => !present.Contains(id))];
+        return [.. GameDataProvider.RequiredDocumentIds.Where(id => !present.Contains(id))];
     }
 
     public IReadOnlyList<GameDataDocInfo> List() =>
@@ -64,7 +64,13 @@ public sealed class GameDataStore(IServiceScopeFactory scopeFactory, ILogger<Gam
         var docs = WithDb(db => db.GameDataDocuments.AsNoTracking()
             .ToDictionary(d => d.Id, d => d.Json, StringComparer.Ordinal));
         if (docs is null) return null;
-        if (GameDataProvider.DocumentIds.Any(id => !docs.ContainsKey(id))) return null;
+        var missing = GameDataProvider.RequiredDocumentIds.Where(id => !docs.ContainsKey(id)).ToList();
+        if (missing.Count > 0) {
+            logger.LogWarning("game data provider unavailable, missing documents {Missing}",
+                string.Join(", ", missing));
+            return null;
+        }
+
         try {
             return GameDataProvider.FromDocuments(docs);
         } catch (GameDataSchemaException ex) {

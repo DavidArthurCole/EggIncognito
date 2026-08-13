@@ -1,4 +1,7 @@
-namespace EggIncognito.Services.Devices;
+using System.Globalization;
+using Microsoft.Extensions.Configuration;
+
+namespace EggIncognito.Core.Services.Devices;
 
 public sealed record DeviceCaptureConfig {
     public bool Enabled { get; init; }
@@ -28,9 +31,9 @@ public sealed record DeviceCaptureConfig {
         var upd = config.GetSection("DeviceUpdate").GetSection("Ios");
 
         return new DeviceCaptureConfig {
-            Enabled = dc.GetValue("Enabled", false),
-            BasePort = dc.GetValue("BasePort", 9100),
-            Verbose = dc.GetValue("Verbose", false),
+            Enabled = Flag(dc, "Enabled", false),
+            BasePort = Num(dc, "BasePort", 9100),
+            Verbose = Flag(dc, "Verbose", false),
             HostIp = Nz(dc["HostIp"]),
             IosSshHost = Nz(ios["SshHost"]) ?? Nz(upd["SshHost"]),
             IosSshPort = Nz(ios["SshPort"]) ?? Nz(upd["SshPort"]) ?? "2222",
@@ -49,4 +52,13 @@ public sealed record DeviceCaptureConfig {
     }
 
     private static string? Nz(string? s) => string.IsNullOrWhiteSpace(s) ? null : s;
+
+    private static bool Flag(IConfiguration config, string key, bool fallback) {
+        string? raw = Nz(config[key]);
+        if (raw is null) return fallback;
+        return bool.TryParse(raw, out bool parsed) ? parsed : raw == "1";
+    }
+
+    private static int Num(IConfiguration config, string key, int fallback) =>
+        int.TryParse(Nz(config[key]), CultureInfo.InvariantCulture, out int parsed) ? parsed : fallback;
 }

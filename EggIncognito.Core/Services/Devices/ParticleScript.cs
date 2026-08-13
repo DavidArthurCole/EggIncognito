@@ -1,6 +1,5 @@
-using EggIncognito.Core.Services.Devices;
 
-namespace EggIncognito.Services.Devices;
+namespace EggIncognito.Core.Services.Devices;
 
 public static class ParticleScript {
     public static async Task<string?> BuildStagedAsync(string scriptBody, string? addrOffset, CancellationToken ct) {

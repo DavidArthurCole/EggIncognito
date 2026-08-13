@@ -26,9 +26,10 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
     public DbSet<Device> Devices => Set<Device>();
     public DbSet<DeviceProbe> DeviceProbes => Set<DeviceProbe>();
     public DbSet<DeviceUpdate> DeviceUpdates => Set<DeviceUpdate>();
+    public DbSet<DeviceState> DeviceStates => Set<DeviceState>();
+    public DbSet<DeviceAsset> DeviceAssets => Set<DeviceAsset>();
+    public DbSet<DeviceHarvestLog> DeviceHarvestLogs => Set<DeviceHarvestLog>();
     public DbSet<StagedProto> StagedProtos => Set<StagedProto>();
-    public DbSet<StoredMesh> StoredMeshes => Set<StoredMesh>();
-    public DbSet<StoredIcon> StoredIcons => Set<StoredIcon>();
     public DbSet<EnvDesign> EnvDesigns => Set<EnvDesign>();
     public DbSet<EnvDesignVersion> EnvDesignVersions => Set<EnvDesignVersion>();
     public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
@@ -115,19 +116,24 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.DeviceId, x.AttemptedAt });
         });
+        modelBuilder.Entity<DeviceState>(e => {
+            e.HasKey(x => x.DeviceId);
+            e.Property(x => x.UpdatedAt).HasDefaultValueSql("now()");
+        });
+        modelBuilder.Entity<DeviceAsset>(e => {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.Platform, x.Kind, x.Name }).IsUnique();
+            e.HasIndex(x => x.Sha256);
+            e.Property(x => x.UpdatedAt).HasDefaultValueSql("now()");
+        });
+        modelBuilder.Entity<DeviceHarvestLog>(e => {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.DeviceId, x.RanAt });
+            e.Property(x => x.RanAt).HasDefaultValueSql("now()");
+        });
         modelBuilder.Entity<StagedProto>(e => {
             e.HasIndex(x => x.ProtoSha);
             e.HasIndex(x => x.Status);
-        });
-        modelBuilder.Entity<StoredMesh>(e => {
-            e.HasKey(x => x.Id);
-            e.HasIndex(x => new { x.Platform, x.Stem }).IsUnique();
-            e.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
-        });
-        modelBuilder.Entity<StoredIcon>(e => {
-            e.HasKey(x => x.Id);
-            e.HasIndex(x => x.Name).IsUnique();
-            e.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
         });
         modelBuilder.Entity<EnvDesign>(e => {
             e.HasKey(x => x.Id);

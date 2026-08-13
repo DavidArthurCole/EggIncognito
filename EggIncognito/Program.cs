@@ -123,15 +123,12 @@ builder.Services.AddSingleton<MeshAssetCache>();
 builder.Services.AddSingleton<IconAssetCache>();
 
 builder.Services.AddScoped<IDeviceResolver, DeviceResolver>();
-builder.Services.AddScoped<DeviceAssetService>();
 
 builder.Services.AddScoped<IGameAssetTier, MeshDbTier>();
 builder.Services.AddScoped<IGameAssetTier, MeshDiskTier>();
 builder.Services.AddScoped<IGameAssetTier, ConfigDiskTier>();
 builder.Services.AddScoped<IGameAssetTier, IconDbTier>();
 builder.Services.AddScoped<IGameAssetTier, IconDiskTier>();
-builder.Services.AddScoped<IGameAssetOrigin, MeshDeviceOrigin>();
-builder.Services.AddScoped<IGameAssetOrigin, IconDeviceOrigin>();
 builder.Services.AddScoped<IGameAssetOrigin, IconCdnOrigin>();
 builder.Services.AddScoped<GameAssetProvider>();
 
@@ -200,6 +197,8 @@ if (dbEnabled) {
         .PersistKeysToDbContext<EggIncognitoDbContext>();
 
     builder.Services.AddScoped<GameBinaryStore>();
+    builder.Services.AddScoped<DeviceAssetStore>();
+    builder.Services.AddScoped<DeviceStateStore>();
     builder.Services.AddScoped<DbEndpointSource>();
     builder.Services.AddScoped(sp =>
         new DbEndpointSourceMarker(sp.GetRequiredService<DbEndpointSource>()));

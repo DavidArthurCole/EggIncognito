@@ -1,5 +1,5 @@
 using System.Globalization;
-using EggIncognito.Services.Devices;
+using EggIncognito.Core.Services.Devices;
 
 namespace EggIncognito.Tests.Devices;
 

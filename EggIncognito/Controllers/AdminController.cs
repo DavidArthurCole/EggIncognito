@@ -398,11 +398,12 @@ public sealed partial class AdminController(ICurrentUser currentUser, IServicePr
     }
 
     [HttpPost("gamedata/rebuild")]
-    public async Task<IActionResult> RebuildGameDataDocuments(CancellationToken ct) {
+    public async Task<IActionResult> RebuildGameDataDocuments([FromQuery] bool force = true,
+        CancellationToken ct = default) {
         if (RequireAdmin() is { } no) return no;
         if (Db is null) return StatusCode(503, new { error = "no database configured" });
         var rebuilder = services.GetRequiredService<GameDataRebuilder>();
-        (var results, string? binaryNote) = await rebuilder.RebuildAsync(ct);
+        (var results, string? binaryNote) = await rebuilder.RebuildAsync(force, ct);
         var store = services.GetRequiredService<GameDataStore>();
         return Ok(new { results, binary = binaryNote, missing = store.MissingIds() });
     }
@@ -453,14 +454,16 @@ public sealed partial class AdminController(ICurrentUser currentUser, IServicePr
         if (RequireAdmin() is { } no) return no;
         var db = Db;
         if (db is null) return StatusCode(503, new { error = "no database configured" });
-        var icons = await db.StoredIcons.AsNoTracking()
+        var icons = await db.DeviceAssets.AsNoTracking()
+            .Where(i => i.Kind == DeviceAssetKinds.Icon)
             .OrderBy(i => i.Name)
             .Select(i => new {
                 name = i.Name,
+                platform = i.Platform,
                 bytes = i.ByteSize,
                 contentType = i.ContentType,
-                provenance = i.Provenance,
-                createdAt = i.CreatedAt
+                sha256 = i.Sha256,
+                updatedAt = i.UpdatedAt
             })
             .ToListAsync(ct);
         return Ok(new { icons });
@@ -486,23 +489,8 @@ public sealed partial class AdminController(ICurrentUser currentUser, IServicePr
                    && data[4] == 0x0D && data[5] == 0x0A && data[6] == 0x1A && data[7] == 0x0A;
         if (!png) return BadRequest(new { error = "not a png" });
 
-        var row = await db.StoredIcons.FirstOrDefaultAsync(i => i.Name == name, ct);
-        if (row is null) {
-            db.StoredIcons.Add(new StoredIcon {
-                Name = name,
-                ContentType = "image/png",
-                Bytes = data,
-                ByteSize = data.Length,
-                Provenance = "admin-import"
-            });
-        } else {
-            row.Bytes = data;
-            row.ByteSize = data.Length;
-            row.ContentType = "image/png";
-            row.Provenance = "admin-import";
-        }
-
-        await db.SaveChangesAsync(ct);
+        await new DeviceAssetStore(db).PutAsync(DeviceAssetKinds.AnyPlatform, DeviceAssetKinds.Icon, name, data,
+            "image/png", null, ct);
         return Ok(new { name, bytes = data.Length });
     }
 

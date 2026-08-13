@@ -362,28 +362,25 @@ public sealed class DevicesController(
 
         logger.LogInformation("device save: {Id} start (by {Who})", id, who);
 
-        var runner = (IProcessRunner)services.GetRequiredService(typeof(IProcessRunner));
-        var probe = await DeviceProbeRunner.ProbeFor(device, runner).ProbeAsync(HttpContext.RequestAborted);
+        if (services.GetService(typeof(DeviceStateStore)) is not DeviceStateStore states)
+            return StatusCode(503, new { error = "no database configured" });
 
-        bool needBuild = device.Platform == PlatformAndroid;
-        if (!probe.Reachable || string.IsNullOrEmpty(probe.InstalledAppVersion) ||
-            (needBuild && string.IsNullOrEmpty(probe.InstalledBuild))) {
-            logger.LogWarning("device save: {Id} aborted: unreachable or no version ({Note})", id, probe.Note);
-            return StatusCode(502, new { error = $"device unreachable or no version read: {probe.Note}" });
+        var state = await states.GetAsync(id, HttpContext.RequestAborted);
+        if (state is null || string.IsNullOrEmpty(state.AppVersion)) {
+            return StatusCode(409, new {
+                error = "device has not been harvested yet; poke the device agent and retry"
+            });
         }
 
-        var (carve, err) = await PullAndCarveAsync(device, probe, runner, logger);
+        var (carve, err) = await CarveFromHarvestAsync(device, state, logger);
         if (err is not null) return err;
 
-        string appVersion = probe.InstalledAppVersion!;
+        string appVersion = state.AppVersion!;
         string build = carve!.Build;
         string sha = carve.ProtoSha ?? Hashes.Sha256Hex(carve.Proto);
 
-
-        string? clientVersion = carve.ClientVersion?.ToString()
-                                ?? await HarvestClientVersionAsync(device, HttpContext.RequestAborted);
-        logger.LogInformation("device save: {Id} clientVersion={Cv} (source={Src})", id, clientVersion ?? "(none)",
-            carve.ClientVersion is not null ? "binary" : "harvest");
+        string? clientVersion = carve.ClientVersion?.ToString() ?? state.ClientVersion?.ToString();
+        logger.LogInformation("device save: {Id} clientVersion={Cv}", id, clientVersion ?? "(none)");
 
         try {
             (var row, bool created, bool protoChanged) = await registry.UpsertAsync(
@@ -410,94 +407,55 @@ public sealed class DevicesController(
             return StatusCode(500, new { error = $"registry write failed: {ex.Message}" });
         }
 
-        var db = Db!;
-        var time = (TimeProvider)services.GetRequiredService(typeof(TimeProvider));
-        var reprobe = await DeviceProbeRunner.ProbeOneAsync(
-            device, $"admin-save:{who}", runner, store, db, logger, time, HttpContext.RequestAborted);
-
-        return Ok(new { saved = true, appVersion, build, result = reprobe.Result });
+        return Ok(new { saved = true, appVersion, build });
     }
 
 
-    private async Task<(CarveResult? carve, IActionResult? err)> PullAndCarveAsync(
-        Device device, DeviceProbeResult probe, IProcessRunner runner, ILogger logger) {
+    private async Task<(CarveResult? carve, IActionResult? err)> CarveFromHarvestAsync(
+        Device device, DeviceState state, ILogger logger) {
+        var ct = HttpContext.RequestAborted;
+        if (services.GetService(typeof(DeviceAssetStore)) is not DeviceAssetStore assets)
+            return (null, StatusCode(503, new { error = "no database configured" }));
+
         if (device.Platform == PlatformAndroid) {
-            byte[]? apk =
-                await new DeviceApkPuller(runner).PullArmSplitAsync(device.Target, device.Package,
-                    HttpContext.RequestAborted);
-            if (apk is null) {
-                logger.LogWarning("device save: {Id} aborted: arm split pull failed", device.Id);
-                return (null, StatusCode(502, new { error = "could not pull the arm split apk from the device" }));
+            var row = await assets.GetAsync(DeviceAssetKinds.Package, HarvestEntries.AndroidArmSplit, device.Platform,
+                ct);
+            if (row is null) {
+                return (null, StatusCode(409, new {
+                    error = "no harvested arm split for this device; poke the device agent and retry"
+                }));
             }
 
-            logger.LogInformation("device save: {Id} pulled arm split ({Bytes} bytes), carving proto", device.Id,
-                apk.Length);
-            var carved = ArchiveProtoExtractor.Extract(apk);
+            var carved = ArchiveProtoExtractor.Extract(row.Bytes);
             if (!carved.Ok || string.IsNullOrEmpty(carved.Proto)) {
-                logger.LogWarning("device save: {Id} carve failed: {Diag}", device.Id, carved.Diagnostics);
+                logger.LogWarning("device save: {Id} carve failed ({Diag})", device.Id, carved.Diagnostics);
                 return (null, StatusCode(500, new { error = $"proto carve failed: {carved.Diagnostics}" }));
             }
 
-            return (new CarveResult(carved.Proto, probe.InstalledBuild!, carved.ClientVersion, carved.ProtoSha), null);
+            if (string.IsNullOrEmpty(state.Build))
+                return (null, StatusCode(409, new { error = "harvested state has no android build number" }));
+
+            return (new CarveResult(carved.Proto, state.Build!, carved.ClientVersion, carved.ProtoSha), null);
         }
 
-        if (IosConn(device) is not { } conn) {
-            logger.LogWarning("device save: {Id} aborted: ios ssh key not configured (DeviceUpdate:Ios:SshKeyPath)",
-                device.Id);
-            return (null,
-                StatusCode(503, new { error = "ios extraction needs DeviceUpdate:Ios:SshKeyPath configured" }));
+        var binaries = (GameBinaryProvider)services.GetRequiredService(typeof(GameBinaryProvider));
+        var bin = await binaries.GetExtractionBinaryAsync(device.Platform, ct);
+        if (!bin.Ok || bin.Bytes is null) {
+            return (null, StatusCode(409, new {
+                error = $"no harvested {device.Platform} binary: {bin.Diagnostics}"
+            }));
         }
 
-        byte[]? bin = await new IosBinaryPuller(conn).PullBinaryAsync(device.Package, HttpContext.RequestAborted);
-        if (bin is null) {
-            logger.LogWarning("device save: {Id} aborted: ios binary pull failed", device.Id);
-            return (null, StatusCode(502, new { error = "could not pull the egginc binary from the device over ssh" }));
-        }
-
-        logger.LogInformation("device save: {Id} pulled ios binary ({Bytes} bytes), carving proto", device.Id,
-            bin.Length);
-
-
-        string? stashPath =
-            (services.GetService(typeof(IConfiguration)) as IConfiguration)?["Runner:IosBinaryStashPath"];
-        if (!string.IsNullOrEmpty(stashPath)) {
-            try {
-                await System.IO.File.WriteAllBytesAsync(stashPath, bin, HttpContext.RequestAborted);
-            } catch (Exception ex) {
-                logger.LogWarning(ex, "device save: {Id} could not stash ios binary to {Path}", device.Id, stashPath);
-            }
-        }
-
-        var iosCarve = MachoProtoExtractor.Extract(bin);
+        var iosCarve = MachoProtoExtractor.Extract(bin.Bytes);
         if (!iosCarve.Ok || string.IsNullOrEmpty(iosCarve.Proto)) {
-            logger.LogWarning("device save: {Id} carve failed: {Diag}", device.Id, iosCarve.Diagnostics);
+            logger.LogWarning("device save: {Id} carve failed ({Diag})", device.Id, iosCarve.Diagnostics);
             return (null, StatusCode(500, new { error = $"proto carve failed: {iosCarve.Diagnostics}" }));
         }
 
-
-        string iosBuild = !string.IsNullOrEmpty(probe.InstalledBuild)
-            ? probe.InstalledBuild!
-            : Hashes.Sha256HexShort(bin, 16);
-        return (new CarveResult(iosCarve.Proto, iosBuild, LibegincClientVersion.ReadFromBinary(bin), iosCarve.ProtoSha), null);
+        string iosBuild = !string.IsNullOrEmpty(state.Build) ? state.Build! : Hashes.Sha256HexShort(bin.Bytes, 16);
+        return (new CarveResult(iosCarve.Proto, iosBuild, LibegincClientVersion.ReadFromBinary(bin.Bytes),
+            iosCarve.ProtoSha), null);
     }
-
-
-    private async Task<string?> HarvestClientVersionAsync(Device device, CancellationToken ct) {
-        if (services.GetService(typeof(DeviceProxyPusher)) is not DeviceProxyPusher pusher ||
-            services.GetService(typeof(DeviceConfig)) is not DeviceConfig devCfg) {
-            return null;
-        }
-
-        var entry = devCfg.Devices.FirstOrDefault(d => d.Id == device.Id);
-        if (entry is null) return null;
-
-        var rinfo = await pusher.ForceHarvestAsync(entry, TimeSpan.FromSeconds(5), ct);
-        return rinfo?.ClientVersion?.ToString();
-    }
-
-
-    private SshDeviceConnection? IosConn(Device device) =>
-        ((IDeviceConnectionFactory)services.GetRequiredService(typeof(IDeviceConnectionFactory))).Ios(device.Target);
 
 
     [HttpGet("{id}/list-meshes")]
@@ -509,72 +467,81 @@ public sealed class DevicesController(
         if (store is null) return StatusCode(503, new { error = "no database configured" });
         var device = await store.GetAsync(id);
         if (device is null) return NotFound(new { error = "unknown device" });
+        if (services.GetService(typeof(DeviceAssetStore)) is not DeviceAssetStore assets)
+            return StatusCode(503, new { error = "no database configured" });
 
-        var runner = (IProcessRunner)services.GetRequiredService(typeof(IProcessRunner));
-        var ct = HttpContext.RequestAborted;
-
-        if (device.Platform == PlatformIos) {
-            if (IosConn(device) is not { } conn)
-                return StatusCode(503, new { error = "ios mesh listing needs DeviceUpdate:Ios:SshKeyPath configured" });
-            var names = await new IosAssetPuller(conn).ListRposAsync(device.Package, ct);
-            return Ok(new { meshes = names });
-        }
-
-        if (device.Platform == PlatformAndroid) {
-            byte[]? apk = await new DeviceApkPuller(runner).PullBaseSplitAsync(device.Target, device.Package, ct);
-            if (apk is null) return StatusCode(502, new { error = "could not pull base.apk from the device" });
-            var names = RpoAssetLister.ListStems(apk);
-            return Ok(new { meshes = names });
-        }
-
-        return StatusCode(501, new { error = $"no mesh listing for platform {device.Platform}" });
+        var heads = await assets.ListAsync(DeviceAssetKinds.Mesh, device.Platform, HttpContext.RequestAborted);
+        return Ok(new { meshes = heads.Select(h => h.Name), harvested = heads.Count });
     }
 
 
-    [HttpPost("{id}/precache-meshes")]
+    [HttpPost("{id}/poke")]
     [ApiAccess(ApiAccessLevel.Admin)]
     [EnableRateLimiting("write")]
-    public async Task<IActionResult> PrecacheMeshes(string id) {
+    public async Task<IActionResult> Poke(string id) {
         if (RequireAdmin() is { } no) return no;
         var store = Store;
         if (store is null) return StatusCode(503, new { error = "no database configured" });
-        var device = await store.GetAsync(id);
-        if (device is null) return NotFound(new { error = "unknown device" });
+        if (await store.GetAsync(id) is null) return NotFound(new { error = "unknown device" });
+        if (services.GetService(typeof(IDeviceAgentClient)) is not IDeviceAgentClient { Enabled: true } agent)
+            return StatusCode(503, new { error = "no device agent configured (set DeviceAgent:Url + DeviceAgent:Secret)" });
 
-        if (services.GetService(typeof(MeshAssetCache)) is not MeshAssetCache cache || !cache.Enabled)
-            return StatusCode(503, new { error = "mesh cache needs ShipAssets:OutputDir configured" });
+        bool queued = await agent.PokeAsync(id, HttpContext.RequestAborted);
+        return queued
+            ? Accepted(new { ok = true, device = id, queued = true })
+            : StatusCode(502, new { error = "device agent did not accept the poke" });
+    }
 
-        var runner = (IProcessRunner)services.GetRequiredService(typeof(IProcessRunner));
+
+    [HttpPost("poke-all")]
+    [ApiAccess(ApiAccessLevel.Admin)]
+    [EnableRateLimiting("write")]
+    public async Task<IActionResult> PokeAll() {
+        if (RequireAdmin() is { } no) return no;
+        if (services.GetService(typeof(IDeviceAgentClient)) is not IDeviceAgentClient { Enabled: true } agent)
+            return StatusCode(503, new { error = "no device agent configured (set DeviceAgent:Url + DeviceAgent:Secret)" });
+
+        bool queued = await agent.PokeAsync(null, HttpContext.RequestAborted);
+        return queued
+            ? Accepted(new { ok = true, queued = true })
+            : StatusCode(502, new { error = "device agent did not accept the poke" });
+    }
+
+
+    [HttpGet("{id}/harvest")]
+    [ApiAccess(ApiAccessLevel.Admin)]
+    [EnableRateLimiting("read")]
+    public async Task<IActionResult> Harvest(string id) {
+        if (RequireAdmin() is { } no) return no;
+        if (services.GetService(typeof(DeviceStateStore)) is not DeviceStateStore states)
+            return StatusCode(503, new { error = "no database configured" });
+
         var ct = HttpContext.RequestAborted;
-
-        RpoAssetExtractor.ExtractResult extract;
-        if (device.Platform == PlatformAndroid) {
-            byte[]? apk = await new DeviceApkPuller(runner).PullBaseSplitAsync(device.Target, device.Package, ct);
-            if (apk is null) return StatusCode(502, new { error = "could not pull base.apk from the device" });
-            extract = RpoAssetExtractor.Extract(apk);
-        } else if (device.Platform == PlatformIos) {
-            if (IosConn(device) is not { } conn)
-                return StatusCode(503, new { error = "ios mesh pull needs DeviceUpdate:Ios:SshKeyPath configured" });
-            byte[]? tar = await new IosAssetPuller(conn).PullRposTarAsync(device.Package, ct);
-            if (tar is null) return StatusCode(502, new { error = "could not pull the rpos meshes over ssh" });
-            extract = RpoAssetExtractor.FromEntries(
-                TarReader.Read(tar).Select(e => (e.Name, e.Bytes)));
-        } else {
-            return StatusCode(501, new { error = $"no mesh pull for platform {device.Platform}" });
-        }
-
-        int cached = 0;
-        var failed = new List<string>();
-        foreach (var asset in extract.Assets) {
-            if (asset.Decode.Ok && asset.Decode.Glb is { } g) {
-                await cache.PutAsync(device.Platform, asset.Key, g, ct);
-                cached++;
-            } else {
-                failed.Add(asset.Key);
-            }
-        }
-
-        return Ok(new { ok = true, platform = device.Platform, cached, failed = failed.Count, failedKeys = failed.Take(20) });
+        var row = await states.GetAsync(id, ct);
+        if (row is null) return NotFound(new { error = "no harvest state for device" });
+        var entries = await states.RecentLogAsync(id, 40, ct);
+        return Ok(new {
+            device = row.DeviceId,
+            platform = row.Platform,
+            appVersion = row.AppVersion,
+            revision = row.Revision,
+            harvestedRevision = row.HarvestedRevision,
+            stale = !string.Equals(row.Revision, row.HarvestedRevision, StringComparison.Ordinal),
+            dirty = row.Dirty,
+            harvesting = row.Harvesting,
+            lastHarvestAt = row.LastHarvestAt,
+            lastHarvestStatus = row.LastHarvestStatus,
+            lastHarvestNote = row.LastHarvestNote,
+            entries = entries.Select(e => new {
+                ranAt = e.RanAt,
+                entry = e.Entry,
+                kind = e.Kind,
+                outcome = e.Outcome,
+                note = e.Note,
+                bytes = e.ByteSize,
+                sha256 = e.Sha256
+            })
+        });
     }
 
 

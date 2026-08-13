@@ -1,6 +1,5 @@
-using EggIncognito.Core.Services.Devices;
 
-namespace EggIncognito.Services.Devices;
+namespace EggIncognito.Core.Services.Devices;
 
 public sealed class IosBinaryPuller(SshDeviceConnection conn) {
     public async Task<byte[]?> PullBinaryAsync(string bundleId, CancellationToken ct) {

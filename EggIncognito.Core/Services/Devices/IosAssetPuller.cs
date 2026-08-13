@@ -1,6 +1,5 @@
-using EggIncognito.Core.Services.Devices;
 
-namespace EggIncognito.Services.Devices;
+namespace EggIncognito.Core.Services.Devices;
 
 public sealed class IosAssetPuller(SshDeviceConnection conn) {
     private const string RemoteTar = "/tmp/egi-rpos.tar";

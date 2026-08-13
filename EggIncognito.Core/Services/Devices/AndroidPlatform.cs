@@ -1,8 +1,9 @@
 using System.IO.Compression;
-using EggIncognito.Core.Services.Devices;
 using EggIncognito.Services.ProtoExtract;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
-namespace EggIncognito.Services.Devices;
+namespace EggIncognito.Core.Services.Devices;
 
 public sealed class AndroidPlatform(
     IProcessRunner runner,
@@ -13,7 +14,7 @@ public sealed class AndroidPlatform(
     ILogger<AndroidPlatform> logger)
     : DevicePlatformBase(Platforms.Android, storeCheckers, proxyConfigurators, caInstallers) {
     private readonly bool _particleCaptureEnabled =
-        appConfig.GetValue("DeviceCapture:AndroidParticleCapture", true);
+        !bool.TryParse(appConfig["DeviceCapture:AndroidParticleCapture"], out bool enabled) || enabled;
 
     public override async Task<DeviceResult<byte[]>> PullAppBinaryAsync(DeviceTarget target, CancellationToken ct) {
         var puller = new DeviceApkPuller(runner);
@@ -55,6 +56,81 @@ public sealed class AndroidPlatform(
             _ => []
         };
         return DeviceResult<IReadOnlyList<string>>.Success(stems);
+    }
+
+    private const string AndroidBinaryName = "libegginc.so";
+    private const string ManifestUnsupported = "probe owns android package metadata";
+
+    public override IReadOnlyList<HarvestEntry> Manifest() => [
+        new(HarvestEntries.AppBinary, DeviceAssetKinds.Binary),
+        new(HarvestEntries.AppPackage, DeviceAssetKinds.Package),
+        new(HarvestEntries.Meshes, DeviceAssetKinds.Mesh),
+        new(HarvestEntries.Textures, DeviceAssetKinds.Icon),
+        new(HarvestEntries.PackageManifest, DeviceAssetKinds.Manifest, false, ManifestUnsupported)
+    ];
+
+    public override async Task<DeviceResult<string>> FingerprintAsync(DeviceTarget target, HarvestEntry entry,
+        CancellationToken ct) {
+        if (!entry.Supported) return DeviceResult<string>.Unsupported(entry.UnsupportedNote);
+        var conn = new AdbDeviceConnection(runner, target.Target);
+        var r = await conn.ShellAsync(
+            $"pm path {target.Package} | sed 's/^package://' | sort | xargs sha256sum 2>/dev/null", ct);
+        if (r.ExitCode != 0 || r.Stdout.Trim().Length == 0)
+            return DeviceResult<string>.Unreachable(DeviceParsing.TrimNote(r.Stderr + r.Stdout));
+        return DeviceResult<string>.Success(Hashes.Sha256Hex(r.Stdout.Trim()));
+    }
+
+    public override async Task<DeviceResult<HarvestBatch>> HarvestAsync(DeviceTarget target, HarvestEntry entry,
+        IReadOnlyDictionary<string, string> known, CancellationToken ct) {
+        if (!entry.Supported) return DeviceResult<HarvestBatch>.Unsupported(entry.UnsupportedNote);
+        var puller = new DeviceApkPuller(runner);
+
+        if (entry.Name == HarvestEntries.AppBinary) {
+            byte[]? apk = await puller.PullArmSplitAsync(target.Target, target.Package, ct)
+                          ?? await puller.PullBaseSplitAsync(target.Target, target.Package, ct);
+            if (apk is null) return DeviceResult<HarvestBatch>.Unreachable("no apk pulled");
+            byte[]? so = ExtractLibFromApk(apk);
+            return so is null
+                ? DeviceResult<HarvestBatch>.Error("libegginc.so not found inside apk")
+                : DeviceResult<HarvestBatch>.Success(
+                    new HarvestBatch([new HarvestItem(AndroidBinaryName, so, "application/octet-stream")],
+                        [AndroidBinaryName], true));
+        }
+
+        if (entry.Name == HarvestEntries.AppPackage) {
+            byte[]? arm = await puller.PullArmSplitAsync(target.Target, target.Package, ct);
+            byte[]? baseApk = await puller.PullBaseSplitAsync(target.Target, target.Package, ct);
+            var parts = new List<HarvestItem>(2);
+            if (arm is not null)
+                parts.Add(new HarvestItem(HarvestEntries.AndroidArmSplit, arm, "application/vnd.android.package-archive"));
+            if (baseApk is not null)
+                parts.Add(new HarvestItem(HarvestEntries.AndroidBaseSplit, baseApk, "application/vnd.android.package-archive"));
+            return parts.Count == 0
+                ? DeviceResult<HarvestBatch>.Unreachable("no apk splits pulled")
+                : DeviceResult<HarvestBatch>.Success(
+                    new HarvestBatch(parts, [.. parts.Select(p => p.Name)], true));
+        }
+
+        byte[]? bas = await puller.PullBaseSplitAsync(target.Target, target.Package, ct);
+        if (bas is null) return DeviceResult<HarvestBatch>.Unreachable("no base apk pulled");
+
+        return entry.Name switch {
+            HarvestEntries.Meshes => DeviceResult<HarvestBatch>.Success(
+                Collect(RpoAssetLister.ListStems(bas), s => RpoAssetLister.ReadStem(bas, s),
+                    "application/octet-stream")),
+            HarvestEntries.Textures => DeviceResult<HarvestBatch>.Success(
+                Collect(ApkTextureLister.ListStems(bas), s => ApkTextureLister.ReadStem(bas, s), "image/png")),
+            _ => DeviceResult<HarvestBatch>.Unsupported($"unknown harvest entry '{entry.Name}'")
+        };
+    }
+
+    private static HarvestBatch Collect(IReadOnlyList<string> stems, Func<string, byte[]?> read, string contentType) {
+        var items = new List<HarvestItem>(stems.Count);
+        foreach (string stem in stems) {
+            if (read(stem) is { } bytes) items.Add(new HarvestItem(stem, bytes, contentType));
+        }
+
+        return new HarvestBatch(items, stems, true);
     }
 
     public override Task<DeviceProbeResult> ProbeAsync(DeviceTarget target, CancellationToken ct) =>

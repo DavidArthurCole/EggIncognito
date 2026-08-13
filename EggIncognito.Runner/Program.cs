@@ -1,8 +1,10 @@
 using EggIncognito.Core.Services.Devices;
+using EggIncognito.Data.Services;
 using EggIncognito.Runner.Adb;
 using EggIncognito.Runner.Data;
 using EggIncognito.Runner.Devices;
 using EggIncognito.Runner.Extract;
+using EggIncognito.Runner.Harvest;
 using EggIncognito.Runner.Posting;
 using EggIncognito.Runner.Runners;
 using EggIncognito.Runner.State;
@@ -68,6 +70,22 @@ public static class Program {
         var sweepLogger = loggerFactory.CreateLogger("RunnerProbeSweep");
         var procRunner = new ProcessRunner();
 
+        HarvestScheduler? harvester = null;
+        if (runnerDb is not null) {
+            var appConfig = new ConfigurationBuilder().AddEnvironmentVariables().Build();
+            var captureConfig = DeviceCaptureConfig.Bind(appConfig);
+            var connections = new DeviceConnectionFactory(procRunner, captureConfig);
+            var devicePlatforms = new DevicePlatforms([
+                new AndroidPlatform(procRunner, appConfig, [], [], [], loggerFactory.CreateLogger<AndroidPlatform>()),
+                new IosPlatform(connections, captureConfig, procRunner, [], [], [],
+                    loggerFactory.CreateLogger<IosPlatform>())
+            ]);
+            harvester = new HarvestScheduler(runnerDb, devicePlatforms, loggerFactory);
+            using var resetCtx = runnerDb.NewContext();
+            int stuck = await new DeviceStateStore(resetCtx).ResetRunningAsync(ct);
+            if (stuck > 0) Console.WriteLine($"cleared {stuck} interrupted harvest(s)");
+        }
+
         DeviceResyncHandler? handler = null;
         WebApplication? trigger = null;
         if (serve && triggerSecret.Length > 0) {
@@ -77,9 +95,10 @@ public static class Program {
                 new CSharpProtoExtractor(), clientVersion,
                 new ClientVersionState(Path.Combine(apkStash, "clientversion-apkpure.txt"), prevCv),
                 evt => poster.PostAsync(evt));
-            if (runnerDb is not null) {
+            if (runnerDb is not null && harvester is not null) {
                 var probeApi = new DeviceProbeApi(triggerSecret, runnerDb, procRunner, TimeProvider.System, loggerFactory);
-                trigger = TriggerListener.Build(triggerUrls, handler, extractHandler, probeApi);
+                var harvestApi = new HarvestApi(triggerSecret, runnerDb, harvester);
+                trigger = TriggerListener.Build(triggerUrls, handler, extractHandler, probeApi, harvestApi);
             } else {
                 trigger = TriggerListener.Build(triggerUrls, handler, extractHandler);
             }
@@ -104,6 +123,11 @@ public static class Program {
             if (runnerDb is not null) {
                 try { await RunnerProbeSweep.RunAsync(runnerDb, procRunner, TimeProvider.System, sweepLogger, ct); } catch (OperationCanceledException) { throw; } catch (Exception ex) {
                     Console.Error.WriteLine($"probe sweep error: {ex.Message}");
+                }
+            }
+            if (harvester is not null) {
+                try { await harvester.PokeAllAsync(ct); } catch (OperationCanceledException) { throw; } catch (Exception ex) {
+                    Console.Error.WriteLine($"harvest poke error: {ex.Message}");
                 }
             }
             try { await Task.Delay(interval * 1000, ct); } catch (OperationCanceledException) { break; }

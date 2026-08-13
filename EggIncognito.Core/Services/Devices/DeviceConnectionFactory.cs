@@ -1,6 +1,5 @@
-using EggIncognito.Core.Services.Devices;
 
-namespace EggIncognito.Services.Devices;
+namespace EggIncognito.Core.Services.Devices;
 
 public interface IDeviceConnectionFactory {
     IDeviceConnection? For(string platform, string target);

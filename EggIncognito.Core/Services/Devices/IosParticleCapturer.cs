@@ -1,7 +1,6 @@
 using System.Text;
-using EggIncognito.Core.Services.Devices;
 
-namespace EggIncognito.Services.Devices;
+namespace EggIncognito.Core.Services.Devices;
 
 public sealed class IosParticleCapturer(SshDeviceConnection conn, string scriptBody, string? addrOffset = null) {
     private const string RemoteScript = "/var/root/particle-capture.js";

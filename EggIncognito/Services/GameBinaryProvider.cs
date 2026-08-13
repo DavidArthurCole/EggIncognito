@@ -13,7 +13,6 @@ public sealed class GameBinaryProvider(
     IConfiguration config,
     ILogger<GameBinaryProvider> logger) {
     private const string DefaultPlatform = Platforms.Ios;
-    private static readonly Lock LiveGate = new();
     private static readonly Lock CvGate = new();
     private static readonly Lock StageGate = new();
     private static readonly TimeSpan CvRecheckBackoff = TimeSpan.FromMinutes(15);
@@ -21,16 +20,13 @@ public sealed class GameBinaryProvider(
     private static (string Version, string Sha)? StagedIos;
 
 #pragma warning disable IDE0028
-    private static readonly Dictionary<string, (string Sha, byte[] Bytes, IReadOnlyList<MachoSymbols.Symbol> Syms, bool
-        Grafted, DateTimeOffset Pulled)> LiveCache = new(StringComparer.OrdinalIgnoreCase);
-
     private static readonly Dictionary<string, (string Version, int? ClientVersion, DateTimeOffset CheckedAt)>
         CvCache = new(StringComparer.OrdinalIgnoreCase);
 #pragma warning restore IDE0028
 
     private IDeviceStatusStore? Store => services.GetService(typeof(IDeviceStatusStore)) as IDeviceStatusStore;
     private GameBinaryStore? BinaryStore => services.GetService(typeof(GameBinaryStore)) as GameBinaryStore;
-    private IDevicePlatforms? DevicePlatforms => services.GetService(typeof(IDevicePlatforms)) as IDevicePlatforms;
+    private IDeviceAgentClient? Agent => services.GetService(typeof(IDeviceAgentClient)) as IDeviceAgentClient;
     private IDeviceResolver? Resolver => services.GetService(typeof(IDeviceResolver)) as IDeviceResolver;
 
     private SymbolizedBinaryStore SymbolizedStore() {
@@ -146,8 +142,14 @@ public sealed class GameBinaryProvider(
     public sealed record ExtractionCandidate(string Platform, string Version, byte[] Bytes,
         IReadOnlyList<MachoSymbols.Symbol>? Symbols, string? Diagnostics);
 
-    public async Task<IReadOnlyList<ExtractionCandidate>> GetExtractionCandidatesAsync(CancellationToken ct) {
+    public sealed record ExtractionCandidates(IReadOnlyList<ExtractionCandidate> Candidates,
+        IReadOnlyList<string> Rejected) {
+        public string Diagnostics => Rejected.Count == 0 ? "" : string.Join("; ", Rejected);
+    }
+
+    public async Task<ExtractionCandidates> GetExtractionCandidatesAsync(CancellationToken ct) {
         var platforms = new List<string>();
+        var rejected = new List<string>();
         var store = Store;
         if (store is not null) {
             try {
@@ -155,7 +157,10 @@ public sealed class GameBinaryProvider(
                 platforms.AddRange(devices.Select(d => d.Platform).Distinct(StringComparer.OrdinalIgnoreCase));
             } catch (Exception ex) {
                 logger.LogWarning(ex, "enabled-device enumeration failed; falling back to {Platform}", DefaultPlatform);
+                rejected.Add($"device enumeration failed: {ex.Message}");
             }
+        } else {
+            rejected.Add("device status store unavailable");
         }
 
         if (platforms.Count == 0) platforms.Add(DefaultPlatform);
@@ -164,15 +169,18 @@ public sealed class GameBinaryProvider(
         var candidates = new List<ExtractionCandidate>();
         foreach (string platform in platforms) {
             var r = await GetExtractionBinaryAsync(platform, ct);
-            if (r.Ok && r.Bytes is not null)
+            if (r.Ok && r.Bytes is not null) {
                 candidates.Add(new ExtractionCandidate(platform, r.Version, r.Bytes, r.Symbols, r.Diagnostics));
+            } else {
+                rejected.Add($"{platform}: {r.Diagnostics ?? "no binary"}");
+            }
         }
 
         candidates.Sort((a, b) => {
             int cmp = DeviceParsing.CompareVersions(b.Version, a.Version);
             return cmp != 0 ? cmp : PlatformRank(a.Platform).CompareTo(PlatformRank(b.Platform));
         });
-        return candidates;
+        return new ExtractionCandidates(candidates, rejected);
     }
 
     private static int PlatformRank(string platform) =>
@@ -226,11 +234,23 @@ public sealed class GameBinaryProvider(
             return ("store-error", version, ex.Message);
         }
 
-        if (!config.GetValue(DecompConfigKeys.LiveDevicePull, false))
-            return ("pull-disabled", version, $"missing from store; {DecompConfigKeys.LiveDevicePull}=false");
+        bool poked = await PokeAgentAsync(ct);
+        return ("awaiting-harvest", version, AwaitingNote(platform, version, poked));
+    }
 
-        (bool ok, _, _, _, string? diag) = await GetLiveBinaryAsync(platform, ct);
-        return ok ? ("pulled", version, diag) : ("pull-failed", version, diag);
+    private static string AwaitingNote(string platform, string version, bool poked) =>
+        poked
+            ? $"{platform} {version} is not harvested yet; poked the device agent"
+            : $"{platform} {version} is not harvested yet and no device agent is configured";
+
+    private async Task<bool> PokeAgentAsync(CancellationToken ct) {
+        if (Agent is not { Enabled: true } agent) return false;
+        try {
+            return await agent.PokeAsync(null, ct);
+        } catch (Exception ex) {
+            logger.LogWarning(ex, "poke to the device agent failed");
+            return false;
+        }
     }
 
     private async Task<(bool Ok, byte[]? Bytes, IReadOnlyList<MachoSymbols.Symbol>? Symbols, string Version, string?
@@ -256,66 +276,11 @@ public sealed class GameBinaryProvider(
             }
         }
 
-        (bool ok, byte[]? bytes, var pulledSyms, _, string? diag) = await GetLiveBinaryAsync(platform, ct);
-        if (!ok || bytes is null)
-            return (false, null, null, version, $"no stored binary for {platform} {version} and live pull failed: {diag}");
-
-        return (true, bytes, pulledSyms, version, $"force-pulled {platform} {version}; {diag}");
-    }
-
-    public Task<(bool Ok, byte[]? Bytes, IReadOnlyList<MachoSymbols.Symbol>? Symbols, bool Grafted, string?
-        Diagnostics)> GetLiveBinaryAsync(CancellationToken ct) => GetLiveBinaryAsync(DefaultPlatform, ct);
-
-    public async Task<(bool Ok, byte[]? Bytes, IReadOnlyList<MachoSymbols.Symbol>? Symbols, bool Grafted, string?
-            Diagnostics)>
-        GetLiveBinaryAsync(string platform, CancellationToken ct) {
-        if (!config.GetValue(DecompConfigKeys.LiveDevicePull, false))
-            return (false, null, null, false, $"live device pull disabled (set {DecompConfigKeys.LiveDevicePull}=true)");
-
-        var platforms = DevicePlatforms;
-        if (platforms is null)
-            return (false, null, null, false, "device platform registry unavailable");
-
-        (string? version, Device? device) = await ResolveVersionAndDeviceAsync(null, platform, ct);
-        if (device is null)
-            return (false, null, null, false, $"no enabled {platform} device");
-
-        int ttlSeconds = config.GetValue(DecompConfigKeys.LiveCacheSeconds, 900);
-        lock (LiveGate) {
-            if (LiveCache.TryGetValue(platform, out var c) &&
-                DateTimeOffset.UtcNow - c.Pulled < TimeSpan.FromSeconds(ttlSeconds)) {
-                return (true, c.Bytes, c.Syms, c.Grafted, $"cached live pull (sha {c.Sha[..12]})");
-            }
-        }
-
-        var handler = platforms.For(platform);
-        var target = new DeviceTarget(device.Id, device.Platform, device.Target, device.Package);
-        DeviceResult<byte[]> pull;
-        try {
-            pull = await handler.PullAppBinaryAsync(target, ct);
-        } catch (Exception ex) {
-            return (false, null, null, false, "pull failed: " + ex.Message);
-        }
-
-        if (!pull.Ok || pull.Value is null)
-            return (false, null, null, false, $"pull {pull.Outcome}: {pull.Note}");
-
-        byte[] pulled = pull.Value;
-        if (pulled.Length < 1024) {
-            return (false, null, null, false, "pull returned no binary");
-        }
-
-        string sha = Hashes.Sha256Hex(pulled);
-        var resolved = ResolveSymbols(pulled);
-        string note = $"live pull sha {sha[..12]}; {resolved.Note}";
-
-        await PersistPullAsync(platform, version, pulled, sha, resolved.NativeCount, resolved.Syms.Count, ct);
-
-        lock (LiveGate) {
-            LiveCache[platform] = (sha, pulled, resolved.Syms, resolved.Grafted, DateTimeOffset.UtcNow);
-        }
-
-        return (true, pulled, resolved.Syms, resolved.Grafted, note);
+        bool poked = await PokeAgentAsync(ct);
+        return (false, null, null, version,
+            poked
+                ? $"no harvested binary for {platform} {version}; poked the device agent, retry once harvest lands"
+                : $"no harvested binary for {platform} {version} and no device agent is configured");
     }
 
     private static bool IsElf(byte[] b) =>
@@ -343,20 +308,6 @@ public sealed class GameBinaryProvider(
         }
 
         return (syms, false, nativeCount, $"{nativeCount} native symbols (no graft reference)");
-    }
-
-    private async Task PersistPullAsync(string platform, string? version, byte[] bytes, string sha, int nativeCount,
-        int effectiveCount, CancellationToken ct) {
-        await StageIosBinaryAsync(platform, bytes, ct);
-
-        var store = BinaryStore;
-        if (store is null) return;
-        if (string.IsNullOrEmpty(version)) return;
-        try {
-            await store.PutAsync(platform, version, sha, bytes, nativeCount, effectiveCount, "live", ct);
-        } catch (Exception ex) {
-            logger.LogWarning(ex, "failed to persist pulled binary {Platform} {Version}", platform, version);
-        }
     }
 
     public async Task<(bool Staged, string? Note)> EnsureIosBinaryStagedAsync(CancellationToken ct) {

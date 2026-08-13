@@ -1,4 +1,5 @@
 using System.Text;
+using EggIncognito.Core;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using EggIncognito.GameData;
@@ -9,7 +10,12 @@ namespace EggIncognito.Services.DataApi;
 
 public sealed record RebuildDocResult(string Id, string Status, int? Count, int? Bytes, string? Note);
 
-public sealed class GameDataRebuilder(IServiceProvider services, GameBinaryProvider binaries) {
+public sealed class GameDataRebuilder(
+    IServiceProvider services,
+    GameBinaryProvider binaries,
+    ILogger<GameDataRebuilder> logger) {
+    private string _inputSha = "";
+
     private static readonly string[] Unbuildable = ["boosts", "artifacts"];
 
     private static readonly string[] BinaryDocIds = [
@@ -20,11 +26,29 @@ public sealed class GameDataRebuilder(IServiceProvider services, GameBinaryProvi
     private sealed record Candidate(string Platform, string Version, byte[] Bin,
         IReadOnlyList<MachoSymbols.Symbol> Syms, IReadOnlyList<MachoSections.Section> Sections, bool IsElf);
 
-    public async Task<(IReadOnlyList<RebuildDocResult> Results, string? BinaryNote)> RebuildAsync(CancellationToken ct) {
+    public Task<(IReadOnlyList<RebuildDocResult> Results, string? BinaryNote)> RebuildAsync(CancellationToken ct) =>
+        RebuildAsync(false, ct);
+
+    public async Task<(IReadOnlyList<RebuildDocResult> Results, string? BinaryNote)> RebuildAsync(bool force,
+        CancellationToken ct) {
         var results = new List<RebuildDocResult>();
 
-        var raw = await binaries.GetExtractionCandidatesAsync(ct);
-        var candidates = raw.Select(c => {
+        string inputSha = await BinaryInputShaAsync(ct);
+        var stored = await StoredInputShasAsync(ct);
+        _inputSha = inputSha;
+
+        bool allCurrent = inputSha.Length > 0 && BinaryDocIds.All(id =>
+            string.Equals(stored.GetValueOrDefault(id), inputSha, StringComparison.Ordinal));
+        if (!force && allCurrent) {
+            foreach (string id in BinaryDocIds)
+                results.Add(new RebuildDocResult(id, "current", null, null, $"inputs unchanged ({inputSha[..12]})"));
+            await LandColleggtiblesAsync(results, ct);
+            AppendUnbuildable(results);
+            return (results, $"inputs unchanged ({inputSha[..12]})");
+        }
+
+        var found = await binaries.GetExtractionCandidatesAsync(ct);
+        var candidates = found.Candidates.Select(c => {
             bool elf = IsElf(c.Bytes);
             var syms = c.Symbols ?? (elf ? [] : MachoSymbols.Read(c.Bytes));
             var sections = elf ? [] : MachoSections.Read(c.Bytes);
@@ -32,8 +56,9 @@ public sealed class GameDataRebuilder(IServiceProvider services, GameBinaryProvi
         }).ToList();
 
         if (candidates.Count == 0) {
-            foreach (string id in BinaryDocIds)
-                results.Add(new RebuildDocResult(id, "skipped", null, null, "no extraction binary available"));
+            string why = found.Rejected.Count == 0 ? "no extraction binary available" : found.Diagnostics;
+            logger.LogWarning("gamedata rebuild found no extraction binary: {Why}", why);
+            foreach (string id in BinaryDocIds) results.Add(new RebuildDocResult(id, "skipped", null, null, why));
         } else {
             await LandBestAsync(results, "boost-catalog", candidates, c => {
                 string configJson = DataCatalog.FixtureText(services, DataCatalog.ConfigRoute) ?? "{}";
@@ -103,21 +128,63 @@ public sealed class GameDataRebuilder(IServiceProvider services, GameBinaryProvi
             }, ct);
         }
 
-        await LandAsync(results, "colleggtibles", () => {
+        await LandColleggtiblesAsync(results, ct);
+        AppendUnbuildable(results);
+
+        string? note = candidates.Count == 0
+            ? found.Rejected.Count == 0 ? "no extraction binary available" : found.Diagnostics
+            : "binaries " + string.Join(", ", candidates.Select(c => $"{c.Platform} {c.Version}"));
+
+        LogUnbuilt(results);
+        return (results, note);
+    }
+
+    private Task LandColleggtiblesAsync(List<RebuildDocResult> results, CancellationToken ct) =>
+        LandAsync(results, "colleggtibles", () => {
             var live = LiveColleggtibleSource.Derive(services, DataCatalog.PeriodicalsRoute)
                        ?? throw new InvalidOperationException("no captured get_periodicals to derive from");
             return (live.Json, live.Extract.Eggs.Count, null);
         }, ct);
 
+    private static void AppendUnbuildable(List<RebuildDocResult> results) {
         foreach (string id in Unbuildable) {
             results.Add(new RebuildDocResult(id, "unbuildable", null, null,
                 "no extraction pipeline yet; needs a dedicated extraction session"));
         }
+    }
 
-        string? note = candidates.Count == 0
-            ? "no extraction binary available"
-            : "binaries " + string.Join(", ", candidates.Select(c => $"{c.Platform} {c.Version}"));
-        return (results, note);
+    private EggIncognitoDbContext Db() =>
+        services.GetService(typeof(EggIncognitoDbContext)) as EggIncognitoDbContext
+        ?? throw new InvalidOperationException("no database configured");
+
+    private async Task<string> BinaryInputShaAsync(CancellationToken ct) {
+        try {
+            var rows = await Db().StoredBinaries.AsNoTracking()
+                .OrderBy(b => b.Platform).ThenBy(b => b.AppVersion)
+                .Select(b => b.Platform + "|" + b.AppVersion + "|" + b.Sha256)
+                .ToListAsync(ct);
+            return rows.Count == 0 ? "" : Hashes.Sha256Hex(string.Join('\n', rows));
+        } catch {
+            return "";
+        }
+    }
+
+    private async Task<IReadOnlyDictionary<string, string?>> StoredInputShasAsync(CancellationToken ct) {
+        try {
+            var rows = await Db().GameDataDocuments.AsNoTracking()
+                .Select(d => new { d.Id, d.InputSha })
+                .ToListAsync(ct);
+            return rows.ToDictionary(r => r.Id, r => r.InputSha, StringComparer.Ordinal);
+        } catch {
+            return new Dictionary<string, string?>(StringComparer.Ordinal);
+        }
+    }
+
+    private void LogUnbuilt(IEnumerable<RebuildDocResult> results) {
+        foreach (var r in results) {
+            if (r.Status is "skipped" or "failed")
+                logger.LogWarning("gamedata rebuild {Id} {Status}: {Note}", r.Id, r.Status, r.Note);
+        }
     }
 
     private static bool IsElf(byte[] b) =>
@@ -187,14 +254,20 @@ public sealed class GameDataRebuilder(IServiceProvider services, GameBinaryProvi
     }
 
     private async Task UpsertAsync(string id, string json, CancellationToken ct) {
-        var db = services.GetService(typeof(EggIncognitoDbContext)) as EggIncognitoDbContext
-                 ?? throw new InvalidOperationException("no database configured");
+        var db = Db();
         var now = DateTimeOffset.UtcNow;
+        string? inputSha = BinaryDocIds.Contains(id, StringComparer.Ordinal) ? _inputSha : null;
         var row = await db.GameDataDocuments.FirstOrDefaultAsync(d => d.Id == id, ct);
         if (row is null) {
-            db.GameDataDocuments.Add(new GameDataDocument { Id = id, Json = json, UpdatedAt = now });
+            db.GameDataDocuments.Add(new GameDataDocument {
+                Id = id,
+                Json = json,
+                InputSha = inputSha,
+                UpdatedAt = now
+            });
         } else {
             row.Json = json;
+            row.InputSha = inputSha;
             row.UpdatedAt = now;
         }
 

@@ -1,53 +1,37 @@
 using EggIncognito.Core.Services.Assets;
-using EggIncognito.Data.Models;
+using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Services;
-using Microsoft.EntityFrameworkCore;
+using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Services.Assets;
 
 public sealed class MeshDbTier(IServiceProvider services, ILogger<MeshDbTier> logger) : IGameAssetTier {
-    private EggIncognitoDbContext? Db => services.GetService(typeof(EggIncognitoDbContext)) as EggIncognitoDbContext;
+    private DeviceAssetStore? Store => services.GetService(typeof(DeviceAssetStore)) as DeviceAssetStore;
     public int Priority => 0;
 
     public bool CanHandle(GameAssetKey key) => key.Kind == "mesh";
 
     public async Task<GameAsset?> TryGetAsync(GameAssetKey key, CancellationToken ct) {
-        var db = Db;
-        if (db is null) return null;
+        var store = Store;
+        if (store is null) return null;
         try {
-            var q = db.StoredMeshes.AsNoTracking().Where(m => m.Stem == key.Name);
-            if (key.Platform is not null) q = q.Where(m => m.Platform == key.Platform);
-            var row = await q.OrderByDescending(m => m.CreatedAt).FirstOrDefaultAsync(ct);
-            return row is null ? null : ToAsset(key, row);
+            var row = await store.GetAsync(DeviceAssetKinds.Mesh, key.Name, key.Platform, ct);
+            if (row is null) return null;
+            var decode = RpoMeshDecoder.Decode(row.Bytes, row.Name);
+            if (!decode.Ok) {
+                logger.LogWarning("mesh decode failed {Stem}: {Why}", row.Name, decode.Diagnostics);
+                return null;
+            }
+
+            return new GameAsset(key with { Platform = row.Platform }, decode.Glb!, "model/gltf-binary",
+                $"db@{row.Platform}:{row.Name}", row.UpdatedAt);
         } catch (Exception ex) {
             logger.LogWarning(ex, "mesh db read failed {Stem}", key.Name);
             return null;
         }
     }
 
-    public async Task PutAsync(GameAsset asset, CancellationToken ct) {
-        var db = Db;
-        if (db is null) return;
-        string platform = asset.Key.Platform ?? "db";
-        try {
-            var existing =
-                await db.StoredMeshes.FirstOrDefaultAsync(m => m.Platform == platform && m.Stem == asset.Key.Name, ct);
-            if (existing is null) {
-                db.StoredMeshes.Add(new StoredMesh { Platform = platform, Stem = asset.Key.Name, Glb = asset.Bytes, ByteSize = asset.Bytes.Length });
-            } else {
-                existing.Glb = asset.Bytes;
-                existing.ByteSize = asset.Bytes.Length;
-            }
-
-            await db.SaveChangesAsync(ct);
-        } catch (Exception ex) {
-            logger.LogWarning(ex, "mesh db write failed {Stem}", asset.Key.Name);
-        }
-    }
-
-    private static GameAsset ToAsset(GameAssetKey key, StoredMesh row) =>
-        new(key with { Platform = row.Platform }, row.Glb, "model/gltf-binary",
-            $"db@{row.Platform}:{row.Stem}", new DateTimeOffset(row.CreatedAt.UtcDateTime, TimeSpan.Zero));
+    public Task PutAsync(GameAsset asset, CancellationToken ct) => Task.CompletedTask;
 }
 
 public sealed class MeshDiskTier(MeshAssetCache cache) : IGameAssetTier {

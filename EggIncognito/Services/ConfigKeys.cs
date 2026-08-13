@@ -9,7 +9,5 @@ public static class IdentityConfigKeys {
 public static class DecompConfigKeys {
     public const string BinaryPath = "Decomp:BinaryPath";
     public const string SymbolizedIpaDir = "Decomp:SymbolizedIpaDir";
-    public const string LiveDevicePull = "Decomp:LiveDevicePull";
-    public const string LiveCacheSeconds = "Decomp:LiveCacheSeconds";
     public const string StrippedTargetPath = "Decomp:StrippedTargetPath";
 }

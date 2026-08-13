@@ -9,5 +9,7 @@ public class GameDataDocument {
 
     [Column("json")] public string Json { get; set; } = "";
 
+    [Column("input_sha")] public string? InputSha { get; set; }
+
     [Column("updated_at")] public DateTimeOffset UpdatedAt { get; set; }
 }

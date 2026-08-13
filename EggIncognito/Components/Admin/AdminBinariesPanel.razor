@@ -7,7 +7,7 @@
         <h2 class="admin-panel-title">Stored binaries</h2>
         <div class="flex gap-1 items-center">
             <span class="text-muted text-xs">@_rows.Count total</span>
-            <button type="button" class="btn-mini" disabled="@_busy" @onclick="PullCurrent">Pull current</button>
+            <button type="button" class="btn-mini" disabled="@_busy" @onclick="PokeHarvest">Poke harvest</button>
             <button type="button" class="btn-mini" disabled="@_busy" @onclick="Load">Refresh</button>
         </div>
     </div>
@@ -76,21 +76,20 @@
         }
     }
 
-    async Task PullCurrent() {
+    async Task PokeHarvest() {
         if (ClientFactory is null) return;
         _busy = true;
-        _msg = "pulling (may take a while over device SSH)...";
+        _msg = "queued a harvest on the device agent...";
         StateHasChanged();
         try {
-            var res = await ClientFactory().PostAsync("/api/decomp/pull-store", null);
-            var d = await res.Content.ReadFromJsonAsync<PullResult>(JsonOpts);
-            _msg = d is { Ok: true }
-                ? $"resolved {d.Version} ({d.Bytes:N0} bytes, {d.Symbols:N0} symbols); {d.Diagnostics}"
-                : $"pull failed: {d?.Diagnostics ?? $"HTTP {(int)res.StatusCode}"}";
+            var res = await ClientFactory().PostAsync("/api/devices/poke-all", null);
+            _msg = res.IsSuccessStatusCode
+                ? "harvest queued; binaries land here once the agent finishes"
+                : $"poke failed (HTTP {(int)res.StatusCode})";
             await Load();
         }
         catch (Exception ex) {
-            _msg = $"pull error: {ex.Message}";
+            _msg = $"poke error: {ex.Message}";
         }
 
         _busy = false;
@@ -132,6 +131,5 @@
 
     record ListResult(bool Ok, int Count, List<Row> Binaries);
 
-    record PullResult(bool Ok, string? Version, long Bytes, int Symbols, string? Diagnostics);
 
 }

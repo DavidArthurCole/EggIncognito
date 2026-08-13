@@ -149,6 +149,7 @@ public class DevicesControllerTests {
                 new DeviceProbeDto(id, true, "1.36", "100", "1.36", "no_change", null, DateTimeOffset.UnixEpoch));
 
         public Task<int> ProbeAllAsync(CancellationToken ct) => Task.FromResult(3);
+        public Task<bool> PokeAsync(string? id, CancellationToken ct) => throw new NotImplementedException();
     }
 
     private sealed class FakeDeviceStore : IDeviceStatusStore {

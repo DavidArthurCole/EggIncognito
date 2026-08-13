@@ -17,7 +17,6 @@ public class GameBinaryProviderTests {
     [Fact]
     public async Task Extraction_NoDeviceNoStoreNoStash_FailsCleanly() {
         var p = Provider(new Dictionary<string, string?> {
-            [DecompConfigKeys.LiveDevicePull] = "false",
             [DecompConfigKeys.SymbolizedIpaDir] =
                 Path.Combine(Path.GetTempPath(), "egi-nonexistent-stash-" + Guid.NewGuid())
         });

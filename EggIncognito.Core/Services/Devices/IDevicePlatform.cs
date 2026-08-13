@@ -1,6 +1,5 @@
-using EggIncognito.Core.Services.Devices;
 
-namespace EggIncognito.Services.Devices;
+namespace EggIncognito.Core.Services.Devices;
 
 public interface IDevicePlatform {
     string Platform { get; }
@@ -11,6 +10,11 @@ public interface IDevicePlatform {
         CancellationToken ct);
     Task<DeviceResult<IReadOnlyList<string>>> ListAssetsAsync(DeviceTarget target, DeviceAssetKind kind,
         CancellationToken ct);
+
+    IReadOnlyList<HarvestEntry> Manifest();
+    Task<DeviceResult<string>> FingerprintAsync(DeviceTarget target, HarvestEntry entry, CancellationToken ct);
+    Task<DeviceResult<HarvestBatch>> HarvestAsync(DeviceTarget target, HarvestEntry entry,
+        IReadOnlyDictionary<string, string> known, CancellationToken ct);
 
     Task<DeviceProbeResult> ProbeAsync(DeviceTarget target, CancellationToken ct);
     Task<StoreCheckResult> DriveStoreUpdateAsync(DeviceTarget target, CancellationToken ct,
@@ -59,6 +63,15 @@ public sealed class NullDevicePlatform : IDevicePlatform {
 
     public Task<DeviceResult<IReadOnlyList<string>>> ListAssetsAsync(DeviceTarget target, DeviceAssetKind kind,
         CancellationToken ct) => Task.FromResult(DeviceResult<IReadOnlyList<string>>.Unsupported(Note(target)));
+
+    public IReadOnlyList<HarvestEntry> Manifest() => [];
+
+    public Task<DeviceResult<string>> FingerprintAsync(DeviceTarget target, HarvestEntry entry,
+        CancellationToken ct) => Task.FromResult(DeviceResult<string>.Unsupported(Note(target)));
+
+    public Task<DeviceResult<HarvestBatch>> HarvestAsync(DeviceTarget target, HarvestEntry entry,
+        IReadOnlyDictionary<string, string> known, CancellationToken ct) =>
+        Task.FromResult(DeviceResult<HarvestBatch>.Unsupported(Note(target)));
 
     public Task<DeviceProbeResult> ProbeAsync(DeviceTarget target, CancellationToken ct) =>
         Task.FromResult(new DeviceProbeResult(false, null, null, Note(target)));

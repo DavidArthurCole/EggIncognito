@@ -1,7 +1,6 @@
 using System.Text;
-using EggIncognito.Core.Services.Devices;
 
-namespace EggIncognito.Services.Devices;
+namespace EggIncognito.Core.Services.Devices;
 
 public sealed class AndroidParticleCapturer(AdbDeviceConnection conn, string scriptBody, string? addrOffset = null) {
     private const string RemoteScript = "/data/local/tmp/particle-capture.js";

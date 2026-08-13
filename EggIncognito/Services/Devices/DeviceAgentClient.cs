@@ -10,6 +10,7 @@ public interface IDeviceAgentClient {
     bool Enabled { get; }
     Task<DeviceProbeDto?> ProbeAsync(string id, CancellationToken ct);
     Task<int> ProbeAllAsync(CancellationToken ct);
+    Task<bool> PokeAsync(string? id, CancellationToken ct);
 }
 
 public sealed class DeviceAgentClient : IDeviceAgentClient {
@@ -31,6 +32,12 @@ public sealed class DeviceAgentClient : IDeviceAgentClient {
     public async Task<int> ProbeAllAsync(CancellationToken ct) =>
         (await PostAsync<ProbeAllResponse>("/devices/probe-all", ct))?.Probed ?? 0;
 
+    public async Task<bool> PokeAsync(string? id, CancellationToken ct) {
+        if (!Enabled) return false;
+        string path = string.IsNullOrEmpty(id) ? "/devices/poke-all" : $"/devices/{id}/poke";
+        return await PostAsync<PokeResponse>(path, ct) is not null;
+    }
+
     private async Task<T?> PostAsync<T>(string path, CancellationToken ct) {
         try {
             using var req = new HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}{path}");
@@ -46,4 +53,6 @@ public sealed class DeviceAgentClient : IDeviceAgentClient {
     }
 
     private sealed record ProbeAllResponse(int Probed);
+
+    private sealed record PokeResponse(bool Queued);
 }
