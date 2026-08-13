@@ -16,7 +16,7 @@ public sealed class DeviceHarvester(
     DeviceStateStore states,
     GameBinaryStore binaries,
     ILogger<DeviceHarvester> logger) {
-    private const string FingerprintPrefix = "fp:";
+    private const string FingerprintPrefix = DeviceAssetStore.FingerprintPrefix;
 
     public async Task<HarvestOutcome> RunAsync(DeviceTarget target, bool force, CancellationToken ct) {
         var platform = platforms.For(target.Platform);
@@ -75,6 +75,14 @@ public sealed class DeviceHarvester(
                 if (!stored) continue;
                 wrote++;
                 bytes += item.Bytes.LongLength;
+            }
+
+            if (pulled.FailedPulls > 0) {
+                string note = $"{pulled.FailedPulls} of {pulled.Present.Count} pulls failed, {wrote} written";
+                log.Add(Row(target.Id, state.Revision, entry, "failed", note, bytes, fp.Value));
+                logger.LogWarning("harvest {Device} entry {Entry}: {Note}", target.Id, entry.Name, note);
+                failed++;
+                continue;
             }
 
             if (pulled.Authoritative && entry.Kind != DeviceAssetKinds.Binary)

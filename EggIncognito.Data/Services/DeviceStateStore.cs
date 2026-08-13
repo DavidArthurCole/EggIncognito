@@ -33,11 +33,19 @@ public sealed class DeviceStateStore(EggIncognitoDbContext db) {
         row.Package = observed.Package;
         row.AppVersion = observed.AppVersion;
         row.Build = observed.Build;
-        row.ClientVersion = observed.ClientVersion;
+        row.ClientVersion = observed.ClientVersion ?? row.ClientVersion;
         row.Revision = revision;
         row.UpdatedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(ct);
         return row;
+    }
+
+    public async Task RecordClientVersionAsync(string deviceId, int clientVersion, CancellationToken ct) {
+        var row = await TrackedAsync(deviceId, ct);
+        if (row.ClientVersion == clientVersion) return;
+        row.ClientVersion = clientVersion;
+        row.UpdatedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync(ct);
     }
 
     public async Task PokeAsync(string deviceId, CancellationToken ct) {

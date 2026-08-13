@@ -103,14 +103,20 @@ public sealed class IosPlatform(
             _ => "application/octet-stream"
         };
 
+        int failedPulls = 0;
         foreach ((string name, RemoteFile file) in listing) {
             if (known.TryGetValue(name, out string? have) && string.Equals(have, file.Sha, StringComparison.Ordinal))
                 continue;
             byte[]? bytes = await conn.PullBytesAsync(file.Path, ct);
-            if (bytes is not null) items.Add(new HarvestItem(name, bytes, contentType));
+            if (bytes is not null) {
+                items.Add(new HarvestItem(name, bytes, contentType));
+            } else {
+                failedPulls++;
+                logger.LogWarning("ios harvest: pull failed for '{Entry}' file {Path}", entry.Name, file.Path);
+            }
         }
 
-        return DeviceResult<HarvestBatch>.Success(new HarvestBatch(items, [.. listing.Keys], true));
+        return DeviceResult<HarvestBatch>.Success(new HarvestBatch(items, [.. listing.Keys], true, failedPulls));
     }
 
     private readonly record struct RemoteFile(string Sha, string Path);

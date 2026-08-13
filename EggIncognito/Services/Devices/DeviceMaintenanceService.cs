@@ -93,7 +93,19 @@ public sealed class DeviceMaintenanceService(
 
     private async Task<DeviceRinfo?> HarvestAsync(DeviceEntry d, TimeSpan timeout, CancellationToken ct) {
         _lastRefreshHarvest[d.Id] = time.GetUtcNow();
-        return await proxyPusher.ForceHarvestAsync(d, timeout, ct, _refreshSettle);
+        var rinfo = await proxyPusher.ForceHarvestAsync(d, timeout, ct, _refreshSettle);
+        if (rinfo?.ClientVersion is { } cv) await RecordClientVersionAsync(d.Id, cv, ct);
+        return rinfo;
+    }
+
+    private async Task RecordClientVersionAsync(string deviceId, int clientVersion, CancellationToken ct) {
+        try {
+            using var scope = scopeFactory.CreateScope();
+            if (scope.ServiceProvider.GetService(typeof(DeviceStateStore)) is DeviceStateStore states)
+                await states.RecordClientVersionAsync(deviceId, clientVersion, ct);
+        } catch (Exception ex) {
+            logger.LogDebug(ex, "device capture: {Id} clientVersion persist failed", deviceId);
+        }
     }
 
     internal async Task StoreSyncAllAsync(CancellationToken ct) {

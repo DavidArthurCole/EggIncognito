@@ -8,6 +8,8 @@ public sealed record DeviceAssetHead(string Platform, string Kind, string Name, 
     string ContentType, string? SourceVersion, DateTimeOffset UpdatedAt);
 
 public sealed class DeviceAssetStore(EggIncognitoDbContext db) {
+    public const string FingerprintPrefix = "fp:";
+
     public async Task<DeviceAsset?> GetAsync(string kind, string name, string? platform, CancellationToken ct) {
         var q = db.DeviceAssets.AsNoTracking().Where(a => a.Kind == kind && a.Name == name);
         if (!string.IsNullOrEmpty(platform)) {
@@ -71,7 +73,8 @@ public sealed class DeviceAssetStore(EggIncognitoDbContext db) {
     public async Task<int> PruneAsync(string platform, string kind, IReadOnlyCollection<string> keep,
         CancellationToken ct) {
         var doomed = await db.DeviceAssets
-            .Where(a => a.Platform == platform && a.Kind == kind && !keep.Contains(a.Name))
+            .Where(a => a.Platform == platform && a.Kind == kind && !keep.Contains(a.Name)
+                        && !a.Name.StartsWith(FingerprintPrefix))
             .ToListAsync(ct);
         if (doomed.Count == 0) return 0;
         db.DeviceAssets.RemoveRange(doomed);

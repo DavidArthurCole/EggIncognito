@@ -4,7 +4,8 @@ public sealed record HarvestEntry(string Name, string Kind, bool Supported = tru
 
 public sealed record HarvestItem(string Name, byte[] Bytes, string ContentType);
 
-public sealed record HarvestBatch(IReadOnlyList<HarvestItem> Items, IReadOnlyList<string> Present, bool Authoritative) {
+public sealed record HarvestBatch(IReadOnlyList<HarvestItem> Items, IReadOnlyList<string> Present, bool Authoritative,
+    int FailedPulls = 0) {
     public static HarvestBatch Empty { get; } = new([], [], false);
 }
 

@@ -88,6 +88,14 @@ public sealed class DevicesController(
 
         bool isAdmin = currentUser.IsAtLeast(UserRole.Admin);
         var binaries = services.GetService(typeof(GameBinaryProvider)) as GameBinaryProvider;
+
+        var capturedClientVersion = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        if (services.GetService(typeof(DeviceStateStore)) is DeviceStateStore deviceStates) {
+            foreach (var s in await deviceStates.ListAsync(HttpContext.RequestAborted)) {
+                if (s.ClientVersion is { } scv) capturedClientVersion[s.DeviceId] = scv;
+            }
+        }
+
         var rows = latest.Where(p => devices.ContainsKey(p.DeviceId)).Select(p => {
             var d = devices[p.DeviceId];
             updates.TryGetValue(d.Id, out var up);
@@ -113,7 +121,9 @@ public sealed class DevicesController(
                         : p.InstalledAppVersion is { } iv &&
                           regClientVersion.TryGetValue((d.Platform, iv), out int rcv)
                             ? rcv
-                            : (int?)null),
+                            : capturedClientVersion.TryGetValue(d.Id, out int ccv)
+                                ? ccv
+                                : (int?)null),
                 latestAvailable = p.LatestAvailable,
                 storeLatest = sl,
                 storeAhead = StoreAheadCheck.IsAhead(sl, p.InstalledAppVersion),
