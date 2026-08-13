@@ -72,6 +72,26 @@ public class EndpointCatalogExtractorTests {
         Assert.True(r.Endpoints.Count >= 40, $"only {r.Endpoints.Count} endpoints");
     }
 
+    [Fact]
+    public void Extract_MachO_ProducesSaneCount() {
+        if (!BinaryFixture.TryLoad(out var bin)) return;
+        var r = EndpointCatalogExtractor.Extract(bin);
+        Assert.True(r.Ok, r.Diagnostics);
+        Assert.True(r.Endpoints.Count >= 40, $"only {r.Endpoints.Count} endpoints");
+    }
+
+    [Fact]
+    public void Extract_MachO_GetConfig_PathAndRequestType() {
+        if (!BinaryFixture.TryLoad(out var bin)) return;
+        var r = EndpointCatalogExtractor.Extract(bin);
+        Assert.True(r.Ok, r.Diagnostics);
+
+        var e = ByPath(r, "ei/get_config");
+        Assert.NotNull(e);
+        Assert.Equal("getConfig", e!.Method);
+        Assert.Equal("ConfigRequest", e.RequestType);
+    }
+
     private static readonly string[] VerifiedDriftPaths =
     [
         "ei_i18n/get_translation_pack",

@@ -1013,7 +1013,7 @@ pre.data-text {
 .reg-empty { @apply py-12 gap-1; }
 .reg-empty-hint { @apply text-xs opacity-80 max-w-prose leading-relaxed; }
 .reg-add-toggle {
-  @apply absolute top-2 right-2 z-10 w-7 h-7 grid place-items-center rounded-md bg-panel2 text-muted
+  @apply w-7 h-7 grid place-items-center rounded-md bg-panel2 text-muted
          cursor-pointer text-lg leading-none border border-border;
 }
 .reg-add-toggle:hover { @apply text-fg border-accent; }

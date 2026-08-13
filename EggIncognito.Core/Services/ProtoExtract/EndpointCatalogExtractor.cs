@@ -29,9 +29,11 @@ public sealed partial class EndpointCatalogExtractor {
         var seen = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var s in syms) {
-            if (s.Value == 0 || !s.Name.StartsWith(MethodPrefix, StringComparison.Ordinal)) continue;
-            if (!seen.Add(s.Name)) continue;
-            if (!TryParseMethod(s.Name, out string method, out string? request, out string? response)) continue;
+            if (s.Value == 0) continue;
+            string mangled = StripLeadingUnderscore(s.Name);
+            if (!mangled.StartsWith(MethodPrefix, StringComparison.Ordinal)) continue;
+            if (!seen.Add(mangled)) continue;
+            if (!TryParseMethod(mangled, out string method, out string? request, out string? response)) continue;
 
             string? path = FindPath(bin, img, syms, s.Name);
             if (path is null && request is null && response is null) continue;
@@ -44,6 +46,9 @@ public sealed partial class EndpointCatalogExtractor {
         endpoints.Sort((a, b) => string.CompareOrdinal(a.Method, b.Method));
         return new Result(true, endpoints, $"{endpoints.Count} endpoints");
     }
+
+    private static string StripLeadingUnderscore(string name) =>
+        name.StartsWith("__Z", StringComparison.Ordinal) ? name[1..] : name;
 
     private static void CollectWrapSignals(IReadOnlyList<MachoSymbols.Symbol> syms, HashSet<string> requests,
         HashSet<string> responses) {

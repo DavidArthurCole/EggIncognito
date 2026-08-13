@@ -90,10 +90,6 @@
 
         <div class="relative">
             @if (_isAdmin) {
-                <button type="button" class="reg-add-toggle" title="@(_addOpen ? "Close" : "Add version")"
-                        aria-label="Add version" @onclick="@(() => _addOpen = !_addOpen)">
-                    @(_addOpen ? "×" : "+")
-                </button>
                 @if (_addOpen) {
                     <div class="panel mb-3">
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">
@@ -159,6 +155,12 @@
                     <div class="reg-empty">
                         <div>No proto versions yet.</div>
                         <div class="reg-empty-hint">Open the analysis workbench above to add one.</div>
+                        @if (_isAdmin) {
+                            <button type="button" class="reg-add-toggle" title="@(_addOpen ? "Close" : "Add version")"
+                                    aria-label="Add version" @onclick="@(() => _addOpen = !_addOpen)">
+                                @(_addOpen ? "×" : "+")
+                            </button>
+                        }
                     </div>
                 } else {
                     <table class="data-table">
@@ -187,7 +189,15 @@
                             <th class="reg-th-sort" @onclick="@(() => Sort("detected"))">
                                 <span>Detected</span>@Caret("detected")
                             </th>
-                            <th class="w-16"></th>
+                            <th class="w-16">
+                                @if (_isAdmin) {
+                                    <button type="button" class="reg-add-toggle"
+                                            title="@(_addOpen ? "Close" : "Add version")" aria-label="Add version"
+                                            @onclick="@(() => _addOpen = !_addOpen)">
+                                        @(_addOpen ? "×" : "+")
+                                    </button>
+                                }
+                            </th>
                         </tr>
                         <tr class="reg-filter-row">
                             @if (_isAdmin) {
