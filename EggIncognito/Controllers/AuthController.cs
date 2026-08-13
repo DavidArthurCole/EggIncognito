@@ -11,7 +11,10 @@ namespace EggIncognito.Controllers;
 
 [ApiController]
 [ApiAccess(ApiAccessLevel.Public)]
-public sealed class AuthController(AuthState authState, ICurrentUser currentUser) : ControllerBase {
+public sealed class AuthController(
+    AuthState authState,
+    ICurrentUser currentUser,
+    ILogger<AuthController> logger) : ControllerBase {
     [HttpPost("/logout")]
     public async Task<IActionResult> Logout() {
         if (!authState.Enabled) return NotFound();
@@ -24,7 +27,9 @@ public sealed class AuthController(AuthState authState, ICurrentUser currentUser
                 if (identity is not null) {
                     try {
                         await identity.RevokeSessionAsync(sid, HttpContext.RequestAborted);
-                    } catch (HttpRequestException) {
+                    } catch (HttpRequestException ex) {
+                        logger.LogWarning(ex,
+                            "logout: shared session {Sid} not revoked, identity API unreachable", sid);
                     }
                 }
             }

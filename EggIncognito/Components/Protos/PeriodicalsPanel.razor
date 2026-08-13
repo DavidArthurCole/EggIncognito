@@ -6,6 +6,7 @@
 @inherits SelfCallComponentBase
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env
+@inject ILogger<PeriodicalsPanel> Logger
 
 @if (!_loaded) {
     <div class="panel text-muted text-sm">Loading…</div>
@@ -254,7 +255,8 @@
                 _summary = fetched;
             }
         }
-        catch {
+        catch (Exception ex) {
+            Logger.LogWarning(ex, "the periodicals summary could not be loaded");
         }
 
         try {
@@ -263,7 +265,8 @@
                 _events = cur.Events;
             }
         }
-        catch {
+        catch (Exception ex) {
+            Logger.LogWarning(ex, "the current periodicals events could not be loaded");
         }
 
         try {
@@ -275,7 +278,8 @@
                 _seasonIx = ix < 0 ? 0 : ix;
             }
         }
-        catch {
+        catch (Exception ex) {
+            Logger.LogWarning(ex, "the periodicals season list could not be loaded");
         }
 
         await LoadBoostCatalog();
@@ -438,7 +442,8 @@
                 _boosts[id] = new BoostMeta(string.IsNullOrEmpty(dn) ? TitleCase(id) : dn, dur, eff);
             }
         }
-        catch {
+        catch (Exception ex) {
+            Logger.LogWarning(ex, "the boost catalog could not be loaded");
         }
     }
 
@@ -542,7 +547,7 @@
     }
 
     public ValueTask DisposeAsync() {
-        return _countdown.DisposeModuleAsync("stop");
+        return _countdown.DisposeModuleAsync("stop", Logger);
     }
 
     record Summary(List<ExtractedRow> Extracted, ColleggtiblesInfo? Colleggtibles, ConfigInfo Config, List<FeedInfo> Feeds);

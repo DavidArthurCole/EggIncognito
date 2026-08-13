@@ -104,14 +104,16 @@ public sealed class CaptureSession(
             if (_consumer is not null) {
                 try {
                     await _consumer;
-                } catch {
+                } catch (Exception drainEx) {
+                    CaptureDiagnostics.Failed("start rollback", "flow pump drain", drainEx);
                 }
             }
 
             if (_proxy is not null) {
                 try {
                     await _proxy.DisposeAsync();
-                } catch {
+                } catch (Exception disposeEx) {
+                    CaptureDiagnostics.Failed("start rollback", "proxy dispose", disposeEx);
                 }
             }
 
@@ -151,7 +153,8 @@ public sealed class CaptureSession(
             if (proxy is not null) {
                 try {
                     await proxy.DisposeAsync();
-                } catch {
+                } catch (Exception ex) {
+                    CaptureDiagnostics.Failed("stop", "proxy dispose", ex);
                 }
             }
 

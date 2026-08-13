@@ -143,7 +143,8 @@ public static class Arm64SymbolicExecutor {
         if (ops.Length >= 2) {
             try {
                 if (ops[1].ShiftOperation != Arm64ShiftOperation.Invalid) v <<= ops[1].ShiftValue;
-            } catch {
+            } catch (Exception) {
+                return v;
             }
         }
 

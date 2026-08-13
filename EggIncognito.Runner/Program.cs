@@ -135,7 +135,9 @@ public static class Program {
         Console.WriteLine("runner shutting down");
         if (trigger is not null) {
             using var stopCts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-            try { await trigger.StopAsync(stopCts.Token); } catch (OperationCanceledException) { }
+            try { await trigger.StopAsync(stopCts.Token); } catch (OperationCanceledException ex) {
+                Console.Error.WriteLine($"trigger listener did not stop in time: {ex.Message}");
+            }
         }
         return 0;
     }

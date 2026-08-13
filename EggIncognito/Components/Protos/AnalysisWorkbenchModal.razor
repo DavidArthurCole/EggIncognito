@@ -4,6 +4,7 @@
 @inject IWebHostEnvironment Env
 @inject ICurrentUser User
 @inject AnalysisWorkbenchState State
+@inject ILogger<AnalysisWorkbenchModal> Logger
 @using System.Globalization
 @using System.Text.Json
 @using EggIncognito.Core
@@ -326,7 +327,8 @@
             if (mode is "off" or "card" or "everywhere") _truncMode = mode;
             await Rerender();
         }
-        catch {
+        catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
+            Logger.LogDebug(ex, "workbench preferences could not be read");
         }
     }
 
@@ -335,7 +337,8 @@
             _prefs ??= await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/uiPrefs.js"));
             await _prefs.InvokeVoidAsync("set", key, value);
         }
-        catch {
+        catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
+            Logger.LogDebug(ex, "workbench preference {Key} could not be stored", key);
         }
     }
 
@@ -451,7 +454,8 @@
             try {
                 _gate.Release();
             }
-            catch (ObjectDisposedException) {
+            catch (ObjectDisposedException ex) {
+                Logger.LogDebug(ex, "analysis gate was disposed before the slot was released");
             }
 
             await DiscardToken(entry.Token);
@@ -475,7 +479,8 @@
             var mod = await StripModule();
             await mod.InvokeVoidAsync("discard", token);
         }
-        catch {
+        catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
+            Logger.LogDebug(ex, "stashed upload {Token} could not be discarded", token);
         }
     }
 
@@ -668,7 +673,8 @@
             });
             await OnChanged.InvokeAsync();
         }
-        catch {
+        catch (Exception ex) {
+            Logger.LogWarning(ex, "offering the extracted proto for {Platform} failed", g.Platform);
         }
         finally {
             _offerBusy = false;
@@ -799,7 +805,8 @@
                 });
             }
         }
-        catch {
+        catch (Exception ex) {
+            Logger.LogWarning(ex, "live version lookup failed for {Platform}", entry.Platform);
         }
 
         if ((string.IsNullOrWhiteSpace(entry.Build) || string.IsNullOrWhiteSpace(entry.ClientVersionText))
@@ -821,7 +828,8 @@
                     }
                 });
             }
-            catch {
+            catch (Exception ex) {
+                Logger.LogWarning(ex, "registry backfill failed for app version {AppVersion}", entry.AppVersion);
             }
         }
     }
@@ -855,9 +863,9 @@
     sealed record StashedFile(int Token, string Name, long Size);
 
     public async ValueTask DisposeAsync() {
-        await _strip.DisposeModuleAsync();
-        await _download.DisposeModuleAsync();
-        await _prefs.DisposeModuleAsync();
+        await _strip.DisposeModuleAsync(logger: Logger);
+        await _download.DisposeModuleAsync(logger: Logger);
+        await _prefs.DisposeModuleAsync(logger: Logger);
         _selfRef?.Dispose();
         _gate.Dispose();
     }

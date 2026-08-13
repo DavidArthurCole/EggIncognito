@@ -91,7 +91,8 @@ public sealed class NativeCaptureProxy(bool verbose = false) : ICaptureProxy {
 
         try {
             _cts?.Cancel();
-        } catch {
+        } catch (Exception ex) when (ex is ObjectDisposedException or AggregateException) {
+            Log($"stop: cancel failed: {ex.Message}");
         }
 
         if (_forwarder is not null) {
@@ -99,19 +100,22 @@ public sealed class NativeCaptureProxy(bool verbose = false) : ICaptureProxy {
             _forwarder = null;
             try {
                 await f.DisposeAsync();
-            } catch {
+            } catch (Exception ex) {
+                Log($"stop: LAN forwarder dispose failed: {ex.Message}");
             }
         }
 
         try {
             _listener?.Stop();
-        } catch {
+        } catch (Exception ex) when (ex is SocketException or ObjectDisposedException) {
+            Log($"stop: listener stop failed: {ex.Message}");
         }
 
         if (_acceptLoop is not null) {
             try {
                 await _acceptLoop;
-            } catch {
+            } catch (Exception ex) {
+                Log($"stop: accept loop faulted: {ex.Message}");
             }
         }
     }
@@ -172,9 +176,8 @@ public sealed class NativeCaptureProxy(bool verbose = false) : ICaptureProxy {
             } else {
                 await RawTunnelAsync(net, host, portNum, ct);
             }
-        } catch (OperationCanceledException) {
-        } catch (IOException) {
-        } catch (SocketException) {
+        } catch (Exception ex) when (ex is OperationCanceledException or IOException or SocketException) {
+            Log($"conn closed: {ex.GetType().Name}");
         } catch (Exception ex) {
             Log($"conn error: {ex.Message}");
         }
@@ -309,7 +312,8 @@ public sealed class NativeCaptureProxy(bool verbose = false) : ICaptureProxy {
         } finally {
             try {
                 File.Delete(tmp);
-            } catch {
+            } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+                p.Log($"temp root CA cleanup failed for {tmp}: {ex.Message}");
             }
         }
     }
@@ -350,7 +354,8 @@ public sealed class NativeCaptureProxy(bool verbose = false) : ICaptureProxy {
                 if (!stale.Thumbprint.Equals(cert.Thumbprint, StringComparison.OrdinalIgnoreCase)) {
                     try {
                         store.Remove(stale);
-                    } catch {
+                    } catch (Exception ex) {
+                        Log($"TRUST-ERR stale removal {stale.Thumbprint}: {ex.Message}");
                     }
                 }
 

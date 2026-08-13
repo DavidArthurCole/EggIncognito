@@ -15,7 +15,8 @@ public sealed class ImportController(
     IConfiguration config,
     IAppMode appMode,
     DataCatalog catalog,
-    PeriodicalsChangeNotifier notifier) : ControllerBase {
+    PeriodicalsChangeNotifier notifier,
+    ILogger<ImportController> logger) : ControllerBase {
     private string Root => ContentRoot.Resolve(config["ContentRoot"]);
 
 
@@ -47,7 +48,8 @@ public sealed class ImportController(
         } finally {
             try {
                 System.IO.File.Delete(tmp);
-            } catch {
+            } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+                logger.LogDebug(ex, "import: temp upload {Tmp} left behind", tmp);
             }
         }
     }

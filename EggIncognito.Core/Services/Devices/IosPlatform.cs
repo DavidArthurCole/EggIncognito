@@ -11,9 +11,22 @@ public sealed class IosPlatform(
     IEnumerable<IDeviceCaInstaller> caInstallers,
     ILogger<IosPlatform> logger)
     : DevicePlatformBase(Platforms.Ios, storeCheckers, proxyConfigurators, caInstallers) {
+    private const string NoSshNote = "ios ssh not configured";
+    private int _noSshWarned;
+
+    private void WarnNoSshOnce() {
+        if (Interlocked.Exchange(ref _noSshWarned, 1) != 0) return;
+        logger.LogWarning(
+            "ios ssh not configured on this host (DeviceCapture:Ios:SshHost/SshKeyPath, " +
+            "falling back to DeviceUpdate:Ios:*): every ios harvest entry will fail and no ios binary, " +
+            "mesh or texture can land until this process can ssh to the phone");
+    }
+
     public override async Task<DeviceResult<byte[]>> PullAppBinaryAsync(DeviceTarget target, CancellationToken ct) {
-        if (connections.Ios(target.Target) is not { } conn)
-            return DeviceResult<byte[]>.Unreachable("ios ssh not configured");
+        if (connections.Ios(target.Target) is not { } conn) {
+            WarnNoSshOnce();
+            return DeviceResult<byte[]>.Unreachable(NoSshNote);
+        }
         byte[]? bytes = await new IosBinaryPuller(conn).PullBinaryAsync(target.Package, ct);
         return bytes is null
             ? DeviceResult<byte[]>.Error($"could not pull binary for {target.Package}")
@@ -22,8 +35,11 @@ public sealed class IosPlatform(
 
     public override async Task<DeviceResult<byte[]>> ReadAssetAsync(DeviceTarget target, DeviceAssetKind kind,
         string name, CancellationToken ct) {
-        if (connections.Ios(target.Target) is not { } conn)
-            return DeviceResult<byte[]>.Unreachable("ios ssh not configured");
+        if (connections.Ios(target.Target) is not { } conn) {
+            WarnNoSshOnce();
+            return DeviceResult<byte[]>.Unreachable(NoSshNote);
+        }
+
         var puller = new IosAssetPuller(conn);
         byte[]? bytes = kind switch {
             DeviceAssetKind.Mesh => await puller.PullOneRpoAsync(target.Package, name, ct),
@@ -37,8 +53,11 @@ public sealed class IosPlatform(
 
     public override async Task<DeviceResult<IReadOnlyList<string>>> ListAssetsAsync(DeviceTarget target,
         DeviceAssetKind kind, CancellationToken ct) {
-        if (connections.Ios(target.Target) is not { } conn)
-            return DeviceResult<IReadOnlyList<string>>.Unreachable("ios ssh not configured");
+        if (connections.Ios(target.Target) is not { } conn) {
+            WarnNoSshOnce();
+            return DeviceResult<IReadOnlyList<string>>.Unreachable(NoSshNote);
+        }
+
         var puller = new IosAssetPuller(conn);
         IReadOnlyList<string> names = kind switch {
             DeviceAssetKind.Mesh => await puller.ListRposAsync(target.Package, ct),
@@ -143,8 +162,11 @@ public sealed class IosPlatform(
         new IosDeviceProbe(runner, target.Target, target.Package).ProbeAsync(ct);
 
     public override async Task<DeviceResult> RestartAppAsync(DeviceTarget target, CancellationToken ct) {
-        if (string.IsNullOrEmpty(config.IosSshHost) || string.IsNullOrEmpty(config.IosSshKeyPath))
-            return DeviceResult.Unreachable("ios ssh not configured");
+        if (string.IsNullOrEmpty(config.IosSshHost) || string.IsNullOrEmpty(config.IosSshKeyPath)) {
+            WarnNoSshOnce();
+            return DeviceResult.Unreachable(NoSshNote);
+        }
+
         try {
             string bundle = target.Package;
             string? proc = string.IsNullOrEmpty(config.IosAppProcessName) ? "Egg, Inc." : config.IosAppProcessName;
@@ -179,23 +201,32 @@ public sealed class IosPlatform(
     }
 
     public override async Task<DeviceResult> LockAsync(DeviceTarget target, CancellationToken ct) {
-        if (string.IsNullOrEmpty(config.IosSshHost) || string.IsNullOrEmpty(config.IosSshKeyPath))
-            return DeviceResult.Unreachable("ios ssh not configured");
+        if (string.IsNullOrEmpty(config.IosSshHost) || string.IsNullOrEmpty(config.IosSshKeyPath)) {
+            WarnNoSshOnce();
+            return DeviceResult.Unreachable(NoSshNote);
+        }
+
         await KillAppAsync(target, ct);
         (bool ok, string? note) = await IosSendCmdAsync("lock", ct);
         return ok ? DeviceResult.Success("app killed + locked") : DeviceResult.Error($"lock failed: {note}");
     }
 
     public override async Task<DeviceResult> UnlockAsync(DeviceTarget target, CancellationToken ct) {
-        if (string.IsNullOrEmpty(config.IosSshHost) || string.IsNullOrEmpty(config.IosSshKeyPath))
-            return DeviceResult.Unreachable("ios ssh not configured");
+        if (string.IsNullOrEmpty(config.IosSshHost) || string.IsNullOrEmpty(config.IosSshKeyPath)) {
+            WarnNoSshOnce();
+            return DeviceResult.Unreachable(NoSshNote);
+        }
+
         bool unlocked = await IosEnsureUnlockedAsync(ct);
         return unlocked ? DeviceResult.Success("unlocked") : DeviceResult.Error("could not confirm unlock");
     }
 
     public override async Task<DeviceResult> KillAppAsync(DeviceTarget target, CancellationToken ct) {
-        if (string.IsNullOrEmpty(config.IosSshHost) || string.IsNullOrEmpty(config.IosSshKeyPath))
-            return DeviceResult.Unreachable("ios ssh not configured");
+        if (string.IsNullOrEmpty(config.IosSshHost) || string.IsNullOrEmpty(config.IosSshKeyPath)) {
+            WarnNoSshOnce();
+            return DeviceResult.Unreachable(NoSshNote);
+        }
+
         if (connections.Ios() is not { } conn) return DeviceResult.Unreachable("ios ssh not configured");
         const string remote =
             "/bin/sh -c 'for p in $(ps ax 2>/dev/null | grep -i egg | grep -v grep | " +

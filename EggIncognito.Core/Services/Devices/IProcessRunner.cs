@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 
 namespace EggIncognito.Core.Services.Devices;
@@ -24,15 +25,19 @@ public sealed class ProcessRunner : IProcessRunner {
                 await p.WaitForExitAsync(ct);
                 return new ProcessResult(p.ExitCode, await outTask, await errTask);
             } catch (OperationCanceledException) {
-                try {
-                    p.Kill(true);
-                } catch {
-                }
-
-                return new ProcessResult(-1, "", $"{exe} canceled (timeout or shutdown)");
+                return new ProcessResult(-1, "", $"{exe} canceled (timeout or shutdown){KillNote(p)}");
             }
         } catch (Exception ex) {
             return new ProcessResult(-1, "", ex.Message);
+        }
+    }
+
+    private static string KillNote(Process p) {
+        try {
+            p.Kill(true);
+            return "";
+        } catch (Exception ex) when (ex is InvalidOperationException or Win32Exception or NotSupportedException) {
+            return $"; kill failed: {ex.Message}";
         }
     }
 }

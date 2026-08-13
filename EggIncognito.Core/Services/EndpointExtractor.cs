@@ -531,6 +531,7 @@ public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string 
                 Report($"unwrapped AuthenticatedMessage.message (compressed={outer.Compressed})", inner);
             }
         } catch (InvalidProtocolBufferException) {
+            Console.WriteLine("  (not a wrapped AuthenticatedMessage)");
         }
     }
 

@@ -49,14 +49,7 @@ public sealed class FlowDecoder {
         string? knownType = KnownResponseType(path);
 
 
-        byte[]? inner = null;
-        try {
-            var outer = AuthenticatedMessage.Parser.ParseFrom(respBytes);
-            inner = outer.Compressed
-                ? ProtoFraming.Decompress(outer.Message.ToByteArray())
-                : outer.Message.ToByteArray();
-        } catch {
-        }
+        byte[]? inner = TryUnwrapResponse(respBytes);
 
         if (knownType is not null) {
             var direct = ScoreKnown(knownType, respBytes);
@@ -83,6 +76,18 @@ public sealed class FlowDecoder {
             : isAck
                 ? new DecodeResult(null, null, "acknowledgement", true, true)
                 : new DecodeResult(null, null, null, false);
+    }
+
+
+    private static byte[]? TryUnwrapResponse(byte[] respBytes) {
+        try {
+            var outer = AuthenticatedMessage.Parser.ParseFrom(respBytes);
+            return outer.Compressed
+                ? ProtoFraming.Decompress(outer.Message.ToByteArray())
+                : outer.Message.ToByteArray();
+        } catch (Exception ex) when (ex is InvalidProtocolBufferException or InvalidDataException) {
+            return null;
+        }
     }
 
 

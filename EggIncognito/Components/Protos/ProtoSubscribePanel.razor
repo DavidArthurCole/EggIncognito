@@ -1,6 +1,7 @@
 @rendermode @(RenderMode.InteractiveServer)
 @using System.Text.Json
 @inherits SelfCallComponentBase
+@inject ILogger<ProtoSubscribePanel> Logger
 
 @if (_done is not null) {
     <div class="sub-done">
@@ -242,7 +243,8 @@
                 if (kinds is { Count: > 0 }) _kinds = kinds;
             }
         }
-        catch {
+        catch (Exception ex) {
+            Logger.LogWarning(ex, "feed kinds load failed");
         }
     }
 
@@ -288,7 +290,8 @@
                 await LoadSubs();
             }
         }
-        catch {
+        catch (Exception ex) {
+            Logger.LogWarning(ex, "saving subscription {SubId} failed", id);
         }
 
         _saving = false;
@@ -320,7 +323,8 @@
                 _deleted = true;
             }
         }
-        catch {
+        catch (Exception ex) {
+            Logger.LogWarning(ex, "deleting subscription {SubId} failed", id);
         }
 
         _deleting = false;

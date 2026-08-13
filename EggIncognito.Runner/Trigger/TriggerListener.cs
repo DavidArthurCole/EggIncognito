@@ -85,7 +85,9 @@ public static class TriggerListener {
                 var body = await ctx.Request.ReadFromJsonAsync<ForceBody>();
                 return body?.Force ?? true;
             }
-        } catch { }
+        } catch (Exception ex) {
+            Console.Error.WriteLine($"trigger: unreadable force body, defaulting to force=true: {ex.Message}");
+        }
         return true;
     }
 
@@ -93,7 +95,9 @@ public static class TriggerListener {
         try {
             if (ctx.Request.ContentLength is > 0)
                 return await ctx.Request.ReadFromJsonAsync<ExtractBody>();
-        } catch { }
+        } catch (Exception ex) {
+            Console.Error.WriteLine($"trigger: unreadable extract body, ignoring: {ex.Message}");
+        }
         return null;
     }
 

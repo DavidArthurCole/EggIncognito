@@ -1,10 +1,13 @@
+using Microsoft.Extensions.Logging;
+
 namespace EggIncognito.Services;
 
 internal sealed class TtlSnapshotCache<T>(
     Func<IReadOnlyList<T>> fetch,
     Func<T, string> keyOf,
     TimeSpan ttl,
-    TimeProvider? time = null) {
+    TimeProvider? time = null,
+    ILogger? logger = null) {
     private readonly TimeProvider _time = time ?? TimeProvider.System;
     private readonly Lock _lock = new();
     private IReadOnlyDictionary<string, T> _snapshot = new Dictionary<string, T>(StringComparer.Ordinal);
@@ -27,7 +30,8 @@ internal sealed class TtlSnapshotCache<T>(
     private void Refresh() {
         try {
             _snapshot = ToOrdinalDict(fetch());
-        } catch {
+        } catch (Exception ex) {
+            logger?.LogSnapshotRefreshFailed(ex, typeof(T).Name, ttl);
         }
         _fetchedAt = _time.GetUtcNow();
     }
@@ -42,8 +46,9 @@ internal sealed class TtlSnapshotCache<T>(
 public sealed class CachedDbRouteProvider : IDbRouteProvider {
     private readonly TtlSnapshotCache<RouteInfo> _cache;
 
-    public CachedDbRouteProvider(IDbRouteProvider inner, TimeSpan ttl, TimeProvider? time = null) {
-        _cache = new TtlSnapshotCache<RouteInfo>(inner.AllDbRoutes, r => r.Path, ttl, time);
+    public CachedDbRouteProvider(IDbRouteProvider inner, TimeSpan ttl, TimeProvider? time = null,
+        ILogger? logger = null) {
+        _cache = new TtlSnapshotCache<RouteInfo>(inner.AllDbRoutes, r => r.Path, ttl, time, logger);
     }
 
     public RouteInfo? GetDbRoute(string path) => _cache.Snapshot().GetValueOrDefault(path);
@@ -56,8 +61,9 @@ public sealed class CachedDbRouteProvider : IDbRouteProvider {
 public sealed class CachedBinaryRouteProvider : IBinaryRouteProvider {
     private readonly TtlSnapshotCache<BinaryRouteInfo> _cache;
 
-    public CachedBinaryRouteProvider(IBinaryRouteProvider inner, TimeSpan ttl, TimeProvider? time = null) {
-        _cache = new TtlSnapshotCache<BinaryRouteInfo>(inner.AllBinaryRoutes, b => b.Path, ttl, time);
+    public CachedBinaryRouteProvider(IBinaryRouteProvider inner, TimeSpan ttl, TimeProvider? time = null,
+        ILogger? logger = null) {
+        _cache = new TtlSnapshotCache<BinaryRouteInfo>(inner.AllBinaryRoutes, b => b.Path, ttl, time, logger);
     }
 
     public BinaryRouteInfo? GetBinaryRoute(string path) => _cache.Snapshot().GetValueOrDefault(path);
@@ -65,4 +71,10 @@ public sealed class CachedBinaryRouteProvider : IBinaryRouteProvider {
     public IReadOnlyList<BinaryRouteInfo> AllBinaryRoutes() => _cache.Snapshot().Values.ToList();
 
     public void Invalidate() => _cache.Invalidate();
+}
+
+internal static partial class TtlSnapshotCacheLog {
+    [LoggerMessage(EventId = 1, Level = LogLevel.Warning,
+        Message = "{Kind} snapshot refresh failed; serving the previous snapshot for another {Ttl}")]
+    internal static partial void LogSnapshotRefreshFailed(this ILogger logger, Exception ex, string kind, TimeSpan ttl);
 }

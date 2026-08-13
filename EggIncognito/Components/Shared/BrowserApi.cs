@@ -79,6 +79,8 @@ public sealed class BrowserApi(IJSObjectReference module) {
                    ?? BrowserResponse.Failed("no response from the browser");
         } catch (JSDisconnectedException) {
             return BrowserResponse.Failed("browser disconnected");
+        } catch (ObjectDisposedException) {
+            return BrowserResponse.Failed("browser disconnected");
         } catch (TaskCanceledException) {
             return BrowserResponse.Failed("browser call timed out");
         } catch (JSException ex) {

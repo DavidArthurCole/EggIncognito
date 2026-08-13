@@ -146,7 +146,9 @@ public static class DescriptorProtoCarver {
                 pos += (int)len;
                 lastGood = pos;
             }
-        } catch {
+        } catch (Exception ex) when (ex is IndexOutOfRangeException or ArgumentOutOfRangeException
+                                         or InvalidDataException or OverflowException) {
+            return lastGood - start;
         }
 
         return lastGood - start;

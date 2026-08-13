@@ -14,33 +14,30 @@ public static class ProtoFraming {
 
 
     public static byte[] Decompress(byte[] compressed) {
-        if (compressed.Length >= 2 && compressed[0] == 0x1f && compressed[1] == 0x8b) {
-            using var i = new MemoryStream(compressed);
-            using var gz = new GZipStream(i, CompressionMode.Decompress);
-            using var o = new MemoryStream();
-            gz.CopyTo(o);
-            return o.ToArray();
-        }
+        if (compressed.Length >= 2 && compressed[0] == 0x1f && compressed[1] == 0x8b)
+            return Inflate(compressed, input => new GZipStream(input, CompressionMode.Decompress));
 
+        return TryInflate(compressed, input => new ZLibStream(input, CompressionMode.Decompress))
+               ?? TryInflate(compressed, input => new DeflateStream(input, CompressionMode.Decompress))
+               ?? compressed;
+    }
+
+
+    private static byte[] Inflate(byte[] compressed, Func<Stream, Stream> wrap) {
+        using var input = new MemoryStream(compressed);
+        using var decompressor = wrap(input);
+        using var output = new MemoryStream();
+        decompressor.CopyTo(output);
+        return output.ToArray();
+    }
+
+
+    private static byte[]? TryInflate(byte[] compressed, Func<Stream, Stream> wrap) {
         try {
-            using var i = new MemoryStream(compressed);
-            using var zl = new ZLibStream(i, CompressionMode.Decompress);
-            using var o = new MemoryStream();
-            zl.CopyTo(o);
-            return o.ToArray();
+            return Inflate(compressed, wrap);
         } catch (InvalidDataException) {
+            return null;
         }
-
-        try {
-            using var i = new MemoryStream(compressed);
-            using var df = new DeflateStream(i, CompressionMode.Decompress);
-            using var o = new MemoryStream();
-            df.CopyTo(o);
-            return o.ToArray();
-        } catch (InvalidDataException) {
-        }
-
-        return compressed;
     }
 
 

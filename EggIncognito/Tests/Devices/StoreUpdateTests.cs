@@ -54,8 +54,17 @@ public class StoreUpdateTests {
 
     private static IosStoreUpdateDriver IosDriver(IosStoreCatalog catalog) =>
         new(new FakeRunner(_ => new ProcessResult(0, "", "")),
-            new IosStoreUpdateDriver.Options(null, "22", null, "/var/mobile/trigger", "12345", null),
+            new IosStoreUpdateDriver.Options(null, "22", null, "/var/mobile/trigger", TweakPath, "12345", null),
             catalog, Recorder(), NullLogger<IosStoreUpdateDriver>.Instance);
+
+    private const string TweakPath = "/Library/MobileSubstrate/DynamicLibraries/eggupdate.dylib";
+
+    private static IosStoreUpdateDriver IosSshDriver(FakeRunner runner) =>
+        new(runner,
+            new IosStoreUpdateDriver.Options("phone", "2222", "/keys/phone", "/var/mobile/trigger", TweakPath,
+                "12345", null),
+            Catalog(_ => Json("{\"resultCount\":1,\"results\":[{\"version\":\"1.37\"}]}")),
+            Recorder(), NullLogger<IosStoreUpdateDriver>.Instance);
 
     private static HttpResponseMessage Json(string body) =>
         new(HttpStatusCode.OK) { Content = new StringContent(body) };
@@ -375,6 +384,47 @@ public class StoreUpdateTests {
 
         Assert.Equal(StoreAvailability.UpdateOffered, probe.Availability);
         Assert.Equal("1.37", probe.StoreVersion);
+    }
+
+    [Fact]
+    public async Task IosTrigger_TweakMissing_FailsWithoutTouchingTrigger() {
+        var seen = new List<string>();
+        var runner = new FakeRunner(args => {
+            seen.Add(args[^1]);
+            return new ProcessResult(0, "tweak-absent\n", "");
+        });
+
+        var trig = await IosSshDriver(runner).TriggerInstallAsync(IosTarget, null, default);
+
+        Assert.False(trig.Ok);
+        Assert.Contains("eggupdate tweak not installed", trig.Note, StringComparison.Ordinal);
+        Assert.DoesNotContain(seen, c => c.StartsWith("touch ", StringComparison.Ordinal));
+        Assert.DoesNotContain(seen, c => c.Contains("uiopen", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task IosTrigger_TweakPresent_PrimesThenTouchesTrigger() {
+        var seen = new List<string>();
+        var runner = new FakeRunner(args => {
+            seen.Add(args[^1]);
+            return new ProcessResult(0, "tweak-present\n", "");
+        });
+
+        var trig = await IosSshDriver(runner).TriggerInstallAsync(IosTarget, null, default);
+
+        Assert.True(trig.Ok);
+        Assert.Contains(seen, c => c.Contains("uiopen", StringComparison.Ordinal));
+        Assert.Contains(seen, c => c.StartsWith("touch /var/mobile/trigger", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task IosTrigger_SshUnusable_ReportsVerifyFailure() {
+        var runner = new FakeRunner(_ => new ProcessResult(255, "", "ssh: connect to host phone port 2222: timed out"));
+
+        var trig = await IosSshDriver(runner).TriggerInstallAsync(IosTarget, null, default);
+
+        Assert.False(trig.Ok);
+        Assert.Contains("could not verify the eggupdate tweak", trig.Note, StringComparison.Ordinal);
     }
 
     [Fact]

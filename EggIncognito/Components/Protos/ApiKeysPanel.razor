@@ -1,6 +1,7 @@
 @using System.Net
 @using System.Text.Json
 @inherits SelfCallComponentBase
+@inject ILogger<ApiKeysPanel> Logger
 
 <div class="flex flex-col gap-4">
     <div class="apidoc">
@@ -151,7 +152,8 @@
                 try {
                     msg = (await res.Content.ReadFromJsonAsync<ErrorBody>(JsonOpts))?.Error;
                 }
-                catch {
+                catch (Exception ex) {
+                    Logger.LogDebug(ex, "key conflict body unreadable");
                 }
 
                 _error = string.IsNullOrWhiteSpace(msg) ? "Key limit reached." : msg;
@@ -172,7 +174,8 @@
             var res = await Client().DeleteAsync($"/api/v1/keys/{id}");
             if (res.IsSuccessStatusCode) await LoadKeys();
         }
-        catch {
+        catch (Exception ex) {
+            Logger.LogWarning(ex, "revoking API key {KeyId} failed", id);
         }
 
         _busyRow = false;

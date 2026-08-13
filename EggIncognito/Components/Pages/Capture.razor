@@ -16,6 +16,7 @@
 @inject IConfiguration Config
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env
+@inject ILogger<Capture> Logger
 
 <PageTitle>EggIncognito - Live Capture</PageTitle>
 
@@ -327,7 +328,8 @@
                 _selectedFlow = null;
             }
         }
-        catch {
+        catch (Exception ex) {
+            Logger.LogWarning(ex, "clearing the capture buffer failed");
         }
     }
 
@@ -405,7 +407,8 @@
         try {
             await _store.InvokeVoidAsync(fn, args);
         }
-        catch {
+        catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
+            Logger.LogDebug(ex, "capture store call {Function} failed", fn);
         }
     }
 
@@ -417,12 +420,13 @@
             try {
                 await _loopTask;
             }
-            catch {
+            catch (Exception ex) {
+                Logger.LogDebug(ex, "capture event loop ended with an exception");
             }
         }
 
         _loopCts?.Dispose();
-        await _store.DisposeModuleQuietAsync();
+        await _store.DisposeModuleQuietAsync(logger: Logger);
     }
 
     sealed record ToastItem(int Id, string Severity, string Message, string Timestamp);

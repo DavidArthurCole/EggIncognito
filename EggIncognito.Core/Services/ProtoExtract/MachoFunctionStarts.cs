@@ -59,7 +59,9 @@ public static class MachoFunctionStarts {
                 if (off < 0 || off >= bin.Length) break;
                 outp.Add((int)off);
             }
-        } catch {
+        } catch (Exception ex) when (ex is IndexOutOfRangeException or ArgumentOutOfRangeException
+                                         or OverflowException) {
+            return outp;
         }
 
         return outp;

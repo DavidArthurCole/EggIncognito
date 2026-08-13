@@ -16,6 +16,7 @@
 @inject ISealedProxy SealedProxy
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env
+@inject ILogger<Inspector> Logger
 
 <PageTitle>EggIncognito - Transport Inspector</PageTitle>
 
@@ -406,7 +407,8 @@
             try {
                 await _saltInputRef.FocusAsync();
             }
-            catch {
+            catch (Exception ex) {
+                Logger.LogDebug(ex, "could not focus the salt input");
             }
         }
 
@@ -415,7 +417,8 @@
             try {
                 await _consentCancelRef.FocusAsync();
             }
-            catch {
+            catch (Exception ex) {
+                Logger.LogDebug(ex, "could not focus the consent modal cancel button");
             }
         }
 
@@ -452,7 +455,8 @@
         try {
             await _store.InvokeVoidAsync(fn, args);
         }
-        catch {
+        catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
+            Logger.LogDebug(ex, "inspector store call {Function} failed", fn);
         }
     }
 
@@ -1136,7 +1140,7 @@
     record RouteOverrideDto(string? Request, string? Response, bool? RequestWrapped, bool? ResponseWrapped, bool? PathParam);
 
     public ValueTask DisposeAsync() {
-        return _store.DisposeModuleQuietAsync();
+        return _store.DisposeModuleQuietAsync(logger: Logger);
     }
 
 }

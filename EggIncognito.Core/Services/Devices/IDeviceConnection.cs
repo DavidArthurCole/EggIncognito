@@ -32,10 +32,12 @@ public static class DeviceShell {
     public static string NewTempPath(string suffix) =>
         Path.Combine(Path.GetTempPath(), $"egi-{Guid.NewGuid():N}{suffix}");
 
-    public static void TryDelete(string path) {
+    public static bool TryDelete(string path) {
         try {
             if (File.Exists(path)) File.Delete(path);
-        } catch {
+            return true;
+        } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+            return false;
         }
     }
 }

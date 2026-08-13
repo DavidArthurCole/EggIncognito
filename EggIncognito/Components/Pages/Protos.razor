@@ -7,6 +7,7 @@
 @inject ICurrentUser User
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env
+@inject ILogger<Protos> Logger
 @using System.Text.Json
 @using EggIncognito.Components.Protos
 @using static Components.Protos.ProtoSelectionBar
@@ -483,8 +484,7 @@
         await Load();
 
 
-        _refresh = new Timer(async _ => await InvokeAsync(RefreshAll), null,
-            TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+        _refresh = ComponentTimers.Every(TimeSpan.FromSeconds(30), () => InvokeAsync(RefreshAll));
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender) {
@@ -493,7 +493,8 @@
             _protoDrop ??= await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/protoStrip.js"));
             await _protoDrop.InvokeAsync<bool>("wireDrop", "protoPageDrop", "wbFile");
         }
-        catch (JSDisconnectedException) {
+        catch (JSDisconnectedException ex) {
+            Logger.LogDebug(ex, "proto drop zone not wired, the circuit is already gone");
         }
     }
 
@@ -680,7 +681,7 @@
     public async ValueTask DisposeAsync() {
         if (_refresh is not null) await _refresh.DisposeAsync();
         if (_vis is not null) await _vis.DisposeAsync();
-        await _protoDrop.DisposeModuleAsync();
+        await _protoDrop.DisposeModuleAsync(logger: Logger);
     }
 
     record VersionRow(

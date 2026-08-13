@@ -1,5 +1,6 @@
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env
+@inject ILogger<CopyButton> Logger
 @implements IAsyncDisposable
 
 <button type="button" class="@ButtonClass" title="@TitleNow" aria-label="@AriaLabel" @onclick="Copy" @onclick:stopPropagation="StopPropagation">
@@ -48,12 +49,13 @@
                 StateHasChanged();
             }
         }
-        catch {
+        catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
+            Logger.LogDebug(ex, "clipboard copy failed");
         }
     }
 
     public ValueTask DisposeAsync() {
-        return _copy.DisposeModuleQuietAsync();
+        return _copy.DisposeModuleQuietAsync(logger: Logger);
     }
 
 }

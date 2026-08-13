@@ -174,7 +174,7 @@
         await LoadAsync();
 
 
-        _timer = new Timer(async _ => await InvokeAsync(TickAsync), null, 30_000, 30_000);
+        _timer = ComponentTimers.Every(TimeSpan.FromSeconds(30), () => InvokeAsync(TickAsync));
     }
 
     PageVisibility? _vis;

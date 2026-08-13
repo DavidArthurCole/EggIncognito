@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+
 namespace EggIncognito.Services;
 
 public sealed record RouteOverrideInfo(
@@ -18,7 +20,8 @@ public interface IRouteOverrideProvider {
 public sealed class CachedRouteOverrideProvider(
     Func<IReadOnlyDictionary<string, RouteOverrideInfo>> fetch,
     TimeSpan ttl,
-    TimeProvider? time = null) : IRouteOverrideProvider {
+    TimeProvider? time = null,
+    ILogger? logger = null) : IRouteOverrideProvider {
     private readonly TimeProvider _time = time ?? TimeProvider.System;
     private readonly Lock _lock = new();
     private IReadOnlyDictionary<string, RouteOverrideInfo> _snapshot =
@@ -42,7 +45,8 @@ public sealed class CachedRouteOverrideProvider(
     private void Refresh() {
         try {
             _snapshot = ToOrdinalDict(fetch());
-        } catch {
+        } catch (Exception ex) {
+            logger?.LogSnapshotRefreshFailed(ex, nameof(RouteOverrideInfo), ttl);
         }
         _fetchedAt = _time.GetUtcNow();
     }

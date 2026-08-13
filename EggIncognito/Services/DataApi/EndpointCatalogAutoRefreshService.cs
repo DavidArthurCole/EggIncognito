@@ -19,7 +19,8 @@ public sealed class EndpointCatalogAutoRefreshService(
             await RunOnceAsync(stoppingToken);
             while (await timer.WaitForNextTickAsync(stoppingToken))
                 await RunOnceAsync(stoppingToken);
-        } catch (OperationCanceledException) {
+        } catch (OperationCanceledException ex) {
+            logger.LogDebug(ex, "binary route auto-refresh stopped by shutdown");
         }
     }
 

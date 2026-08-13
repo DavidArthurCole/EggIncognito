@@ -175,7 +175,7 @@ public sealed class ProxyFrontDoor(
     }
 
 
-    private static async Task<(ProxyFirstRequest? First, byte[] Buffer, int Length)> ReadFirstRequestAsync(
+    private async Task<(ProxyFirstRequest? First, byte[] Buffer, int Length)> ReadFirstRequestAsync(
         NetworkStream stream, CancellationToken ct) {
         using var timed = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timed.CancelAfter(FirstRequestTimeout);
@@ -190,6 +190,7 @@ public sealed class ProxyFrontDoor(
                     return (first, buffer, total);
             }
         } catch (OperationCanceledException) when (!ct.IsCancellationRequested) {
+            log?.Invoke($"capture-frontdoor: first request timed out after {total} bytes");
         }
 
         return (null, buffer, total);

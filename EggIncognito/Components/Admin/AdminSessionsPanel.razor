@@ -59,12 +59,11 @@
 
     protected override async Task OnApiReadyAsync() {
         await Load();
-        _timer = new Timer(async _ => await InvokeAsync(async () => {
-                if (!await Vis.IsVisibleAsync()) return;
-                await Load();
-                StateHasChanged();
-            }),
-            null, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(15));
+        _timer = ComponentTimers.Every(TimeSpan.FromSeconds(15), () => InvokeAsync(async () => {
+            if (!await Vis.IsVisibleAsync()) return;
+            await Load();
+            StateHasChanged();
+        }));
     }
 
     PageVisibility? _vis;

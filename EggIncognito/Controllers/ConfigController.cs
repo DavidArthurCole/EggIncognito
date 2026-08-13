@@ -99,7 +99,7 @@ public sealed class ConfigController(
         try {
             cfg = ConfigResponse.Parser.ParseJson(body.Json ?? "");
         } catch (Exception ex) {
-            logger.LogWarning("config ingest-json: {Platform} ParseJson failed: {Err}", platform, ex.Message);
+            logger.LogWarning(ex, "config ingest-json: {Platform} ParseJson failed", platform);
             return Ok(new { ok = false, diagnostics = $"could not parse ConfigResponse JSON ({jsonLen} chars): {ex.Message}" });
         }
 

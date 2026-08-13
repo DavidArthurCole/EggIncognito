@@ -19,7 +19,8 @@ public sealed class GameDataAutoRebuildService(
             await RunOnceAsync(stoppingToken);
             while (await timer.WaitForNextTickAsync(stoppingToken))
                 await RunOnceAsync(stoppingToken);
-        } catch (OperationCanceledException) {
+        } catch (OperationCanceledException ex) {
+            logger.LogDebug(ex, "game data auto-rebuild stopped by shutdown");
         }
     }
 

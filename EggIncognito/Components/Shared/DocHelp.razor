@@ -6,6 +6,7 @@
 @inherits SelfCallComponentBase
 @inject IDocRegistry Registry
 @inject IJSRuntime Js
+@inject ILogger<DocHelp> Logger
 
 @if (_subject is not null) {
     <span class="dochelp" @ref="_rootRef">
@@ -78,7 +79,8 @@
             try {
                 await UnregisterOutsideClickAsync();
             }
-            catch (JSDisconnectedException) {
+            catch (JSDisconnectedException ex) {
+                Logger.LogDebug(ex, "outside-click handler already gone with the circuit");
             }
         }
 

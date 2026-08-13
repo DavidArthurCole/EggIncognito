@@ -156,18 +156,21 @@ public sealed class DeviceCaptureManager(
         c.Hub.SetProxyState(false, c.Port);
         try {
             await c.Proxy.StopAsync();
-        } catch {
+        } catch (Exception ex) {
+            logger.LogDebug(ex, "device capture: {Id} proxy stop threw during teardown", id);
         }
 
         c.Queue.Writer.TryComplete();
         try {
             await c.Pump;
-        } catch {
+        } catch (Exception ex) {
+            logger.LogDebug(ex, "device capture: {Id} pump faulted during teardown", id);
         }
 
         try {
             await c.Proxy.DisposeAsync();
-        } catch {
+        } catch (Exception ex) {
+            logger.LogDebug(ex, "device capture: {Id} proxy dispose threw during teardown", id);
         }
 
         logger.LogInformation("device capture: {Id} torn down", id);

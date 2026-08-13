@@ -1,4 +1,6 @@
+@using System.Text.Json
 @using System.Text.Json.Nodes
+@inject ILogger<FormatView> Logger
 @* One request/response data section: format selector (JSON tree/raw, YAML, XML, JS, Hex, Bin), copy
    button, and filter box. RawB64 powers the Hex/Bin views, available even when JSON failed. *@
 
@@ -80,7 +82,8 @@
                 _parsed = JsonNode.Parse(JsonStr);
                 parseOk = true;
             }
-            catch {
+            catch (JsonException ex) {
+                Logger.LogDebug(ex, "payload is not valid JSON, falling back to raw views");
             }
         }
 

@@ -5,6 +5,7 @@
 @inherits SelfCallComponentBase
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env
+@inject ILogger<ProtoVersion> Logger
 
 <PageTitle>EggIncognito - @Platform build @Build</PageTitle>
 
@@ -230,7 +231,8 @@
                 _diff = null;
             }
         }
-        catch {
+        catch (Exception ex) {
+            Logger.LogWarning(ex, "could not build the proto comparison for {Platform} {Build}", Platform, Build);
         }
     }
 
@@ -292,7 +294,8 @@
             _copiedToast = false;
             StateHasChanged();
         }
-        catch {
+        catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
+            Logger.LogDebug(ex, "could not copy the proto SHA to the clipboard");
         }
     }
 

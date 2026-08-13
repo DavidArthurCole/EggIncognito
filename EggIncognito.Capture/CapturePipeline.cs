@@ -39,7 +39,8 @@ public sealed class CapturePipeline {
                     var dash = Processor.Process(flow);
                     if (dash.Observed is { } obs) onObserved?.Invoke(obs);
                     hub.Publish(dash, now());
-                } catch {
+                } catch (Exception ex) {
+                    CaptureDiagnostics.Failed("pump", flow.Url, ex);
                 }
             }
         }, ct);

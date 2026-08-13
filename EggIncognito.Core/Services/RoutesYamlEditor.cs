@@ -151,8 +151,9 @@ public sealed partial class RoutesYamlEditor {
         if (start >= 0) {
             for (int k = start + 1; k < end; k++) {
                 if (Regex.IsMatch(_lines[k], @"^\s*request:\s*" + Regex.Escape(NoneMarker) + @"\s*$",
-                        RegexOptions.None, TimeSpan.FromSeconds(2)))
+                        RegexOptions.None, TimeSpan.FromSeconds(2))) {
                     return false;
+                }
             }
         }
 

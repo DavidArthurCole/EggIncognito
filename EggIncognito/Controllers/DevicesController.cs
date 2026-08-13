@@ -372,6 +372,8 @@ public sealed class DevicesController(
             });
         }
 
+        if (await StaleHarvestErrorAsync(id, state, store, logger) is { } stale) return stale;
+
         var (carve, err) = await CarveFromHarvestAsync(device, state, logger);
         if (err is not null) return err;
 
@@ -394,12 +396,12 @@ public sealed class DevicesController(
 
             var dispatcher = services.GetService(typeof(FeedDispatcher))
                 as FeedDispatcher;
-            if (dispatcher is not null) {
+            if (dispatcher is not null && (created || protoChanged)) {
                 var cfg = services.GetService(typeof(IConfiguration)) as IConfiguration;
                 string pageUrl = FeedDispatcher.BuildPageUrl(
                     cfg?["Feed:PageBaseUrl"], device.Platform, build);
                 await dispatcher.DispatchAsync(new ProtoBuildEvent(
-                    row.Id, device.Platform, appVersion, build, null,
+                    row.Id, device.Platform, appVersion, build, clientVersion,
                     sha, created, protoChanged, pageUrl), HttpContext.RequestAborted);
             }
         } catch (Exception ex) {
@@ -410,6 +412,27 @@ public sealed class DevicesController(
         return Ok(new { saved = true, appVersion, build });
     }
 
+
+    private async Task<IActionResult?> StaleHarvestErrorAsync(
+        string id, DeviceState state, IDeviceStatusStore store, ILogger logger) {
+        var probe = (await store.LatestPerDeviceAsync(HttpContext.RequestAborted))
+            .FirstOrDefault(p => string.Equals(p.DeviceId, id, StringComparison.OrdinalIgnoreCase));
+        if (probe is not { Reachable: true } || string.IsNullOrEmpty(probe.InstalledBuild)) return null;
+        if (string.Equals(probe.InstalledBuild, state.Build, StringComparison.Ordinal)) return null;
+
+        bool poked = false;
+        if (services.GetService(typeof(IDeviceAgentClient)) is IDeviceAgentClient { Enabled: true } agent)
+            poked = await agent.PokeAsync(id, HttpContext.RequestAborted);
+
+        logger.LogWarning(
+            "device save: {Id} refused, harvest is {Harvested} but device runs {Installed} (poked={Poked})",
+            id, state.Build ?? "?", probe.InstalledBuild, poked);
+        return StatusCode(409, new {
+            error = $"harvest is stale: harvested build {state.Build ?? "none"}, device runs " +
+                    $"{probe.InstalledBuild} ({probe.InstalledAppVersion ?? "?"})" +
+                    (poked ? "; poked the device agent, retry once the harvest lands" : "; poke the device agent and retry")
+        });
+    }
 
     private async Task<(CarveResult? carve, IActionResult? err)> CarveFromHarvestAsync(
         Device device, DeviceState state, ILogger logger) {
@@ -443,6 +466,16 @@ public sealed class DevicesController(
         if (!bin.Ok || bin.Bytes is null) {
             return (null, StatusCode(409, new {
                 error = $"no harvested {device.Platform} binary: {bin.Diagnostics}"
+            }));
+        }
+
+        if (!string.IsNullOrEmpty(state.AppVersion) &&
+            !string.Equals(bin.Version, state.AppVersion, StringComparison.Ordinal)) {
+            logger.LogWarning("device save: {Id} refused, binary is {BinVersion} but harvest state is {State}",
+                device.Id, bin.Version, state.AppVersion);
+            return (null, StatusCode(409, new {
+                error = $"harvested {device.Platform} binary is {bin.Version}, device reports {state.AppVersion}; " +
+                        $"poke the device agent and retry once the {state.AppVersion} binary lands ({bin.Diagnostics})"
             }));
         }
 

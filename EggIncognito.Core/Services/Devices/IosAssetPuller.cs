@@ -16,10 +16,7 @@ public sealed class IosAssetPuller(SshDeviceConnection conn) {
         try {
             return await conn.PullBytesAsync(RemoteTar, ct);
         } finally {
-            try {
-                await conn.ShellAsync($"rm -f {RemoteTar}", ct);
-            } catch {
-            }
+            await conn.ShellAsync($"rm -f {RemoteTar}", ct);
         }
     }
 

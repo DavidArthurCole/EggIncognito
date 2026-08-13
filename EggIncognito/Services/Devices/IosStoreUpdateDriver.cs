@@ -22,7 +22,8 @@ public sealed class IosStoreUpdateDriver(
             await SshAsync("killall -9 AppStore 2>/dev/null || true", ct);
             try {
                 await Task.Delay(TimeSpan.FromSeconds(2), ct);
-            } catch (OperationCanceledException) {
+            } catch (OperationCanceledException cancelled) {
+                logger.LogDebug(cancelled, "ios prepare settle delay cancelled");
             }
         } catch (Exception ex) {
             logger.LogDebug(ex, "ios prepare best-effort failed");
@@ -45,10 +46,15 @@ public sealed class IosStoreUpdateDriver(
         DeviceTarget target, Action<string>? progress, CancellationToken ct) {
         if (!SshConfigured)
             return new TriggerOutcome(false, "ios ssh not configured (DeviceUpdate:Ios:SshHost/SshKeyPath)");
+
+        progress?.Invoke("checking eggupdate listener…");
+        if (await ListenerMissingNoteAsync(ct) is { } missing) return new TriggerOutcome(false, missing);
+
         await SshAsync($"uiopen itms-apps://itunes.apple.com/app/id{opts.AppId} || true", ct);
         try {
             await Task.Delay(TimeSpan.FromSeconds(3), ct);
-        } catch (OperationCanceledException) {
+        } catch (OperationCanceledException ex) {
+            logger.LogDebug(ex, "ios store trigger settle delay cancelled");
         }
 
         var fire = await SshAsync($"touch {opts.TriggerPath}", ct);
@@ -66,6 +72,15 @@ public sealed class IosStoreUpdateDriver(
         }
     }
 
+    private async Task<string?> ListenerMissingNoteAsync(CancellationToken ct) {
+        var probe = await SshAsync($"test -f {opts.TweakPath} && echo tweak-present || echo tweak-absent", ct);
+        if (probe.Stdout.Contains("tweak-present", StringComparison.Ordinal)) return null;
+        return probe.Stdout.Contains("tweak-absent", StringComparison.Ordinal)
+            ? $"eggupdate tweak not installed at {opts.TweakPath}; nothing watches the trigger file, " +
+              "so the App Store update can never fire (rebuild the tweak with EGGUPDATE_ARMED=1 and install it)"
+            : $"could not verify the eggupdate tweak: {DeviceParsing.TrimNote(probe.Stderr + probe.Stdout)}";
+    }
+
     private bool SshConfigured => !string.IsNullOrEmpty(opts.SshHost) && !string.IsNullOrEmpty(opts.SshKeyPath);
 
     private Task<ProcessResult> SshAsync(string remoteCmd, CancellationToken ct) =>
@@ -77,6 +92,7 @@ public sealed class IosStoreUpdateDriver(
         string SshPort,
         string? SshKeyPath,
         string TriggerPath,
+        string TweakPath,
         string AppId,
         string? LookupCountry);
 }

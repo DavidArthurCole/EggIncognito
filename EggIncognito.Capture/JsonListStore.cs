@@ -13,7 +13,8 @@ public abstract class JsonListStore<T>(string capturePath, string fileName) {
             return !File.Exists(FilePath)
                 ? []
                 : (IReadOnlyList<T>)(JsonSerializer.Deserialize<List<T>>(File.ReadAllText(FilePath), Json) ?? []);
-        } catch {
+        } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException) {
+            CaptureDiagnostics.Failed("store read", FilePath, ex);
             return [];
         }
     }
@@ -22,24 +23,20 @@ public abstract class JsonListStore<T>(string capturePath, string fileName) {
         lock (_gate) {
             var rows = Load().ToList();
             mutate(rows);
-            try {
-                Write(rows);
-            } catch {
-            }
+            TryWrite(rows);
         }
     }
 
     protected void Replace(IEnumerable<T> rows) {
-        lock (_gate) {
-            try {
-                Write([.. rows]);
-            } catch {
-            }
-        }
+        lock (_gate) TryWrite([.. rows]);
     }
 
-    private void Write(List<T> rows) {
-        Directory.CreateDirectory(capturePath);
-        File.WriteAllText(FilePath, JsonSerializer.Serialize(rows, Json));
+    private void TryWrite(List<T> rows) {
+        try {
+            Directory.CreateDirectory(capturePath);
+            File.WriteAllText(FilePath, JsonSerializer.Serialize(rows, Json));
+        } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException) {
+            CaptureDiagnostics.Failed("store write", FilePath, ex);
+        }
     }
 }

@@ -1,6 +1,7 @@
 using Discord;
 using EggIdentity.Bot;
 using EggIncognito.Services;
+using Microsoft.Extensions.Logging;
 
 namespace EggIncognito.Bot;
 
@@ -17,32 +18,33 @@ public static class ExtraCommands {
             .WithIntegrationTypes(Integrations)
             .WithContextTypes(Contexts);
 
-    public static EggIdentity.Bot.BotCommand HealthCommand(DateTimeOffset startedAt) =>
+    public static EggIdentity.Bot.BotCommand HealthCommand(DateTimeOffset startedAt, ILogger? logger = null) =>
         new(Base("health", "Liveness check - pong + uptime.").Build(), "health",
-            async ctx => await RunAsync(ctx, () => BotEmbeds.Health(DateTimeOffset.UtcNow - startedAt)));
+            async ctx => await RunAsync(ctx, () => BotEmbeds.Health(DateTimeOffset.UtcNow - startedAt), logger));
 
-    public static EggIdentity.Bot.BotCommand StatusCommand(IStatusProvider status) =>
+    public static EggIdentity.Bot.BotCommand StatusCommand(IStatusProvider status, ILogger? logger = null) =>
         new(Base("status", "Show the running server's live status (mode, capture, DB, signing, uptime).").Build(),
             "status",
-            async ctx => await RunAsync(ctx, () => BotEmbeds.Status(status.Build())));
+            async ctx => await RunAsync(ctx, () => BotEmbeds.Status(status.Build()), logger));
 
-    public static EggIdentity.Bot.BotCommand EndpointsCommand(IStatusProvider status) =>
+    public static EggIdentity.Bot.BotCommand EndpointsCommand(IStatusProvider status, ILogger? logger = null) =>
         new(Base("endpoints", "Show endpoint coverage (ok / empty / missing).").Build(), "endpoints",
-            async ctx => await RunAsync(ctx, () => BotEmbeds.Endpoints(status.Build())));
+            async ctx => await RunAsync(ctx, () => BotEmbeds.Endpoints(status.Build()), logger));
 
 
-    private static async Task RunAsync(SocketSlashCommandContext ctx, Func<Embed> build) {
+    private static async Task RunAsync(SocketSlashCommandContext ctx, Func<Embed> build, ILogger? logger) {
         await ctx.Command.DeferAsync(true);
         try {
             await ctx.Command.FollowupAsync(embed: build(), ephemeral: true);
-        } catch (Exception) {
+        } catch (Exception ex) {
+            logger?.LogError(ex, "bot: slash command failed");
             await ctx.Command.FollowupAsync(
                 embed: BotEmbeds.Error("The command failed on the server. Details are in the server log."),
                 ephemeral: true);
         }
     }
 
-    public static EggIdentity.Bot.BotCommand ProtoCommand(IProtoReflection proto) =>
+    public static EggIdentity.Bot.BotCommand ProtoCommand(IProtoReflection proto, ILogger? logger = null) =>
         new(
             Base("proto", "Look up Egg, Inc. proto message types.")
                 .AddOption(new SlashCommandOptionBuilder()
@@ -59,10 +61,11 @@ public static class ExtraCommands {
                         .WithAutocomplete(true)))
                 .Build(),
             "proto",
-            ctx => HandleProtoAsync(ctx, proto),
-            ctx => HandleProtoAutocompleteAsync(ctx, proto));
+            ctx => HandleProtoAsync(ctx, proto, logger),
+            ctx => HandleProtoAutocompleteAsync(ctx, proto, logger));
 
-    private static async Task HandleProtoAsync(SocketSlashCommandContext ctx, IProtoReflection proto) {
+    private static async Task HandleProtoAsync(SocketSlashCommandContext ctx, IProtoReflection proto,
+        ILogger? logger) {
         var cmd = ctx.Command;
         await cmd.DeferAsync(true);
         try {
@@ -100,14 +103,16 @@ public static class ExtraCommands {
                 .WithDescription("```\n" + ProtoQuery.Truncate(ProtoQuery.TypeLines(schema)) + "\n```")
                 .Build();
             await cmd.FollowupAsync(embed: detail, ephemeral: true);
-        } catch (Exception) {
+        } catch (Exception ex) {
+            logger?.LogError(ex, "bot: /proto failed");
             await cmd.FollowupAsync(
                 embed: BotEmbeds.Error("The command failed on the server. Details are in the server log."),
                 ephemeral: true);
         }
     }
 
-    private static async Task HandleProtoAutocompleteAsync(SocketAutocompleteContext ctx, IProtoReflection proto) {
+    private static async Task HandleProtoAutocompleteAsync(SocketAutocompleteContext ctx, IProtoReflection proto,
+        ILogger? logger) {
         var ac = ctx.Interaction;
         try {
             if (ac.Data.CommandName != "proto") {
@@ -119,10 +124,12 @@ public static class ExtraCommands {
             var hits = ProtoQuery.Autocomplete(proto.AllMessageTypeNames(), current)
                 .Select(n => new AutocompleteResult(n, n));
             await ac.RespondAsync(hits);
-        } catch (Exception) {
+        } catch (Exception ex) {
+            logger?.LogWarning(ex, "bot: /proto autocomplete failed");
             try {
                 await ac.RespondAsync(Array.Empty<AutocompleteResult>());
-            } catch {
+            } catch (Exception fallback) {
+                logger?.LogDebug(fallback, "bot: /proto autocomplete empty fallback also failed");
             }
         }
     }

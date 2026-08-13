@@ -17,7 +17,8 @@ jobs:
       packages-auth: true
       format-gate: true
       razor-include: "EggIncognito/**/*.razor"
-    secrets: inherit
+    secrets:
+      PACKAGES_PAT: ${{ secrets.PACKAGES_PAT }}
 
   seed-app-image-cache:
     if: github.event_name == 'push'
@@ -30,7 +31,8 @@ jobs:
       needs-pat: true
       build-args: GITHUB_PACKAGES_USER=${{ github.actor }}
       cache-scope: app
-    secrets: inherit
+    secrets:
+      PACKAGES_PAT: ${{ secrets.PACKAGES_PAT }}
 
   seed-runner-image-cache:
     if: github.event_name == 'push'
@@ -45,4 +47,5 @@ jobs:
       needs-pat: true
       build-args: GITHUB_PACKAGES_USER=${{ github.actor }}
       cache-scope: runner
-    secrets: inherit
+    secrets:
+      PACKAGES_PAT: ${{ secrets.PACKAGES_PAT }}

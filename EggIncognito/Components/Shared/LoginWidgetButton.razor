@@ -9,6 +9,7 @@
 @inject IdentityApiClient Identity
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env
+@inject ILogger<LoginWidgetButton> Logger
 @using EggIdentity.Client
 @implements IAsyncDisposable
 
@@ -100,7 +101,8 @@
             try {
                 await _mod.InvokeVoidAsync("close");
             }
-            catch (JSDisconnectedException) {
+            catch (JSDisconnectedException ex) {
+                Logger.LogDebug(ex, "login menu close skipped, circuit already gone");
             }
         }
 
@@ -108,7 +110,7 @@
     }
 
     public ValueTask DisposeAsync() {
-        return _mod.DisposeModuleAsync("close");
+        return _mod.DisposeModuleAsync("close", Logger);
     }
 
 }

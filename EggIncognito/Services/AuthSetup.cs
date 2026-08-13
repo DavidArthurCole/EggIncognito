@@ -23,7 +23,10 @@ public static class AuthSetup {
             ctx.HttpContext.RequestServices.GetService<ILoggerFactory>()?
                 .CreateLogger("EggIncognito.Auth")
                 .LogWarning(ex, "revocation check skipped: identity API unreachable");
-        } catch (TaskCanceledException) {
+        } catch (TaskCanceledException ex) {
+            ctx.HttpContext.RequestServices.GetService<ILoggerFactory>()?
+                .CreateLogger("EggIncognito.Auth")
+                .LogDebug(ex, "revocation check skipped: request cancelled");
         }
     }
 

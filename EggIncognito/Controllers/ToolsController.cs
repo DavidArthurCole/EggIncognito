@@ -14,7 +14,10 @@ namespace EggIncognito.Controllers;
 [Route("api/tools")]
 [ApiAccess(ApiAccessLevel.Public)]
 [EnableRateLimiting("read")]
-public sealed class ToolsController(IConfiguration config, IProtoReflection reflection) : ControllerBase {
+public sealed class ToolsController(
+    IConfiguration config,
+    IProtoReflection reflection,
+    ILogger<ToolsController> logger) : ControllerBase {
     private string Root => ContentRoot.Resolve(config["ContentRoot"]);
     private string YamlPath => Path.Combine(Root, "RouteMap", "routes.yaml");
     private string DefaultsDir => Path.Combine(Root, "Endpoints", "default");
@@ -95,6 +98,7 @@ public sealed class ToolsController(IConfiguration config, IProtoReflection refl
 
     [HttpPost("extract-proto")]
     [RequestSizeLimit(200_000_000)]
+    [RequestFormLimits(MultipartBodyLengthLimit = 200_000_000)]
     public async Task<IActionResult> ExtractProto(IFormFile binary, IFormFile? meta, [FromForm] string? fileName,
         CancellationToken ct) {
         if (binary is null || binary.Length == 0) return Ok(new { ok = false, diagnostics = "no binary uploaded" });
@@ -127,7 +131,8 @@ public sealed class ToolsController(IConfiguration config, IProtoReflection refl
             await store.RecordAsync(new AnalyzedFileStore.Entry(
                 AnalyzedFileStore.Sha256Hex(bytes), "analyze", null, r.ProtoSha, r.AppVersion, r.Build,
                 r.ClientVersion?.ToString(), fileName), ct);
-        } catch (DbException) {
+        } catch (DbException ex) {
+            logger.LogWarning(ex, "tools: analyzed-file record for {FileName} not persisted", fileName);
         }
     }
 

@@ -39,7 +39,9 @@ public static class MachoSymbols {
 
                 lc += (int)cmdsize;
             }
-        } catch {
+        } catch (Exception ex) when (ex is IndexOutOfRangeException or ArgumentOutOfRangeException
+                                         or OverflowException) {
+            return outp;
         }
 
         return outp;

@@ -12,6 +12,7 @@
 @inject ICurrentUser User
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env
+@inject ILogger<Playground> Logger
 
 <PageTitle>EggIncognito - Farm Playground</PageTitle>
 
@@ -652,10 +653,11 @@
             try {
                 _gifDragHandle = await _popoverDragMod.InvokeAsync<IJSObjectReference>("makeDraggable", _gifPopoverRef, _gifPopoverHeadRef);
             }
-            catch {
+            catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
+                Logger.LogDebug(ex, "GIF popover drag handle could not be created");
             }
         } else if (!_gifOpen && _gifDragHandle is not null) {
-            await _gifDragHandle.DisposeModuleQuietAsync("dispose");
+            await _gifDragHandle.DisposeModuleQuietAsync("dispose", Logger);
             _gifDragHandle = null;
         }
     }
@@ -758,7 +760,8 @@
             await RefreshAnimatedFlag();
             Status($"Placed {farm?.Loaded ?? 0} of {_placements.Length} slots.");
         }
-        catch (OperationCanceledException) {
+        catch (OperationCanceledException ex) {
+            Logger.LogDebug(ex, "farm layout build was superseded by a newer request");
         }
         catch (Exception ex) {
             await LayoutGone(ex.Message);
@@ -783,7 +786,8 @@
         try {
             await _mod.InvokeVoidAsync("clearFarm");
         }
-        catch {
+        catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
+            Logger.LogDebug(ex, "could not clear the farm scene");
         }
     }
 
@@ -1400,7 +1404,8 @@
             try {
                 await _autosave.InvokeVoidAsync("clear");
             }
-            catch {
+            catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
+                Logger.LogDebug(ex, "could not clear the farm autosave after save");
             }
         }
     }
@@ -1531,7 +1536,8 @@
                 Status("Restored your unsaved farm.");
             }
         }
-        catch (JsonException) {
+        catch (JsonException ex) {
+            Logger.LogWarning(ex, "the autosaved farm design could not be parsed and was discarded");
         }
         finally {
             await _autosave.InvokeVoidAsync("clear");
@@ -1553,7 +1559,8 @@
             try {
                 await _autosave.InvokeVoidAsync("save", json, _appVersion, now);
             }
-            catch {
+            catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
+                Logger.LogDebug(ex, "farm autosave could not be written");
             }
         }, TaskScheduler.Default);
     }
@@ -1694,7 +1701,7 @@
     }
 
     sealed class AutosaveRecord {
-        public string Json { get; set; } = "";
+        public string Json { get; } = "";
         public string Version { get; set; } = "";
         public long SavedAt { get; set; }
     }
@@ -1819,11 +1826,11 @@
         _applyCts?.Cancel();
         _autosaveCts?.Cancel();
         _statusCts?.Cancel();
-        await _mod.DisposeModuleQuietAsync("dispose");
-        await _autosave.DisposeModuleQuietAsync();
-        await _recorder.DisposeModuleQuietAsync();
-        await _gifDragHandle.DisposeModuleQuietAsync("dispose");
-        await _popoverDragMod.DisposeModuleQuietAsync();
+        await _mod.DisposeModuleQuietAsync("dispose", Logger);
+        await _autosave.DisposeModuleQuietAsync(logger: Logger);
+        await _recorder.DisposeModuleQuietAsync(logger: Logger);
+        await _gifDragHandle.DisposeModuleQuietAsync("dispose", Logger);
+        await _popoverDragMod.DisposeModuleQuietAsync(logger: Logger);
         _selfRef?.Dispose();
     }
 

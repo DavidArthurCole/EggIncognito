@@ -10,6 +10,7 @@ using EggIncognito.Services.Assets;
 using EggIncognito.Services.Auth;
 using EggIncognito.Services.DataApi;
 using Ei;
+using Google.Protobuf;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -24,7 +25,8 @@ public sealed class PeriodicalsController(
     ICurrentUser currentUser,
     IConfiguration config,
     DataCatalog catalog,
-    IServiceProvider services) : ControllerBase {
+    IServiceProvider services,
+    ILogger<PeriodicalsController> logger) : ControllerBase {
     private static readonly JsonSerializerOptions ProvenanceJson = new() {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
@@ -128,7 +130,8 @@ public sealed class PeriodicalsController(
                         .FirstOrDefault(e => e.Identifier == contract.CustomEggId)?.Icon?.Url;
                     eggs.Add((contract.CustomEggId, icon, [contractName]));
                 }
-            } catch {
+            } catch (InvalidProtocolBufferException ex) {
+                logger.LogWarning(ex, "periodicals: colleggtible enrichment skipped, periodicals capture unreadable");
             }
         }
 
@@ -285,7 +288,9 @@ public sealed class PeriodicalsController(
                 var stored = await db.StoredEndpoints
                     .FirstOrDefaultAsync(s => s.Path == route && s.Eid == null, ct);
                 if (stored is not null) return stored.ResponseJson;
-            } catch {
+            } catch (Exception ex) {
+                logger.LogWarning(ex, "periodicals: stored endpoint lookup for {Route} failed, falling back to disk",
+                    route);
             }
         }
 
@@ -307,7 +312,8 @@ public sealed class PeriodicalsController(
                         .FirstOrDefaultAsync(s => s.Path == route && s.Eid == null, ct);
                     if (stored is not null) return (stored.ResponseJson, null);
                 }
-            } catch {
+            } catch (Exception ex) {
+                logger.LogWarning(ex, "periodicals: snapshot lookup failed, falling back to disk fixture");
             }
         }
 
@@ -350,7 +356,8 @@ public sealed class PeriodicalsController(
                 if (!string.IsNullOrEmpty(egg.Identifier) && !string.IsNullOrEmpty(url))
                     map[egg.Identifier] = url;
             }
-        } catch {
+        } catch (Exception ex) {
+            logger.LogWarning(ex, "periodicals: colleggtible icons unavailable, {Path} unreadable", path);
         }
 
         return map;

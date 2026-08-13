@@ -169,7 +169,7 @@ bool dbEnabled = !string.IsNullOrWhiteSpace(pgConn);
 builder.Services.AddSingleton(sp => {
     var config = sp.GetRequiredService<IConfiguration>();
     string path = config["EndpointsPath"] ?? Path.Combine(AppContext.BaseDirectory, "Endpoints");
-    return new FileEndpointSource(path);
+    return new FileEndpointSource(path, sp.GetRequiredService<ILogger<FileEndpointSource>>());
 });
 builder.Services.AddSingleton<IEndpointStore>(sp => {
     var logger = sp.GetRequiredService<ILogger<EndpointStore>>();
@@ -208,18 +208,18 @@ if (dbEnabled) {
     builder.Services.AddSingleton<IDbRouteProvider>(sp =>
         new CachedDbRouteProvider(
             new ScopedDbRouteProvider(sp.GetRequiredService<IServiceScopeFactory>()),
-            TimeSpan.FromSeconds(15)));
+            TimeSpan.FromSeconds(15), null, sp.GetRequiredService<ILogger<CachedDbRouteProvider>>()));
 
     builder.Services.AddScoped<BinaryRouteProvider>();
     builder.Services.AddSingleton<IBinaryRouteProvider>(sp =>
         new CachedBinaryRouteProvider(
             new ScopedBinaryRouteProvider(sp.GetRequiredService<IServiceScopeFactory>()),
-            TimeSpan.FromSeconds(15)));
+            TimeSpan.FromSeconds(15), null, sp.GetRequiredService<ILogger<CachedBinaryRouteProvider>>()));
 
     builder.Services.AddSingleton<IRouteOverrideProvider>(sp =>
         new CachedRouteOverrideProvider(
             () => RouteOverrideFetch.All(sp.GetRequiredService<IServiceScopeFactory>()),
-            TimeSpan.FromSeconds(15)));
+            TimeSpan.FromSeconds(15), null, sp.GetRequiredService<ILogger<CachedRouteOverrideProvider>>()));
 }
 
 string? identityApiUrl = builder.Configuration[IdentityConfigKeys.ApiUrl];
@@ -272,6 +272,7 @@ if (!string.IsNullOrWhiteSpace(botToken)) {
     builder.Services.AddSingleton(sp => {
         var status = sp.GetRequiredService<IStatusProvider>();
         var proto = sp.GetRequiredService<IProtoReflection>();
+        var botLogger = sp.GetRequiredService<ILoggerFactory>().CreateLogger("EggIncognito.Bot");
         return new BotConfig {
             Name = "EggIncognito",
             Token = botToken,
@@ -294,14 +295,15 @@ if (!string.IsNullOrWhiteSpace(botToken)) {
                                 builder.Configuration["Discord:DeployAgentSecret"] ?? "",
             PostgresConnectionString = dbEnabled ? pgConn! : "",
             DashboardChannelId = builder.Configuration["Discord:DashboardChannelId"] ?? "",
-            DashboardProvider = _ => Task.FromResult(DashboardSnapshotFor(status, buildInfo, startedAt, repoUrl)),
+            DashboardProvider = _ =>
+                Task.FromResult(DashboardSnapshotFor(status, buildInfo, startedAt, repoUrl, botLogger)),
             DashboardRefreshInterval = TimeSpan.FromMinutes(5),
             GlobalCommands = true,
             Extra = new[] {
-                ExtraCommands.HealthCommand(startedAt),
-                ExtraCommands.StatusCommand(status),
-                ExtraCommands.EndpointsCommand(status),
-                ExtraCommands.ProtoCommand(proto)
+                ExtraCommands.HealthCommand(startedAt, botLogger),
+                ExtraCommands.StatusCommand(status, botLogger),
+                ExtraCommands.EndpointsCommand(status, botLogger),
+                ExtraCommands.ProtoCommand(proto, botLogger)
             }
         };
     });
@@ -316,7 +318,8 @@ if (!string.IsNullOrWhiteSpace(botToken)) {
         IStatusProvider status,
         BuildInfo buildInfo,
         DateTimeOffset startedAt,
-        string repoUrl) {
+        string repoUrl,
+        ILogger logger) {
         var snap = new DashboardSnapshot {
             AppName = "EggIncognito",
             Version = buildInfo.Version,
@@ -334,7 +337,8 @@ if (!string.IsNullOrWhiteSpace(botToken)) {
                 ["DB"] = s.DbEnabled ? "on" : "off",
                 ["Signing"] = s.SigningReady ? "ready" : "unset"
             };
-        } catch {
+        } catch (Exception ex) {
+            logger.LogWarning(ex, "bot dashboard: status snapshot unavailable, posting header fields only");
         }
 
         return snap;
@@ -600,6 +604,8 @@ string? iosSshHost = iosUpdateConfig["SshHost"];
 string iosSshPort = iosUpdateConfig["SshPort"] ?? "2222";
 string? iosSshKeyPath = iosUpdateConfig["SshKeyPath"];
 string iosTriggerPath = iosUpdateConfig["TriggerPath"] ?? "/var/mobile/eggupdate.trigger";
+string iosTweakPath = iosUpdateConfig["TweakPath"]
+                      ?? "/Library/MobileSubstrate/DynamicLibraries/eggupdate.dylib";
 int iosPollSeconds = iosUpdateConfig.GetValue("PollSeconds", 15);
 int iosPollAttempts = iosUpdateConfig.GetValue("PollAttempts", 24);
 string iosAppId = iosUpdateConfig["AppId"] ?? "993492744";
@@ -609,7 +615,7 @@ builder.Services.AddSingleton<IDeviceStoreChecker>(sp =>
         new IosStoreUpdateDriver(
             sp.GetRequiredService<IProcessRunner>(),
             new IosStoreUpdateDriver.Options(
-                iosSshHost, iosSshPort, iosSshKeyPath, iosTriggerPath, iosAppId, iosLookupCountry),
+                iosSshHost, iosSshPort, iosSshKeyPath, iosTriggerPath, iosTweakPath, iosAppId, iosLookupCountry),
             sp.GetRequiredService<IosStoreCatalog>(),
             sp.GetRequiredService<KnownVersionRecorder>(),
             sp.GetRequiredService<ILogger<IosStoreUpdateDriver>>()),

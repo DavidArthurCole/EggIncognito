@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Text.Json.Nodes;
 using Google.Protobuf;
 using Google.Protobuf.Reflection;
+using Microsoft.Extensions.Logging;
 
 namespace EggIncognito.Services;
 
@@ -16,7 +17,7 @@ public interface IEnumFailover {
     string Apply(IMessage message, string formattedJson);
 }
 
-public sealed class EnumFailover(ILastKnownProtoSource source) : IEnumFailover {
+public sealed class EnumFailover(ILastKnownProtoSource source, ILogger<EnumFailover>? logger = null) : IEnumFailover {
     private static readonly TimeSpan RefreshInterval = TimeSpan.FromSeconds(60);
 
     private readonly Lock _gate = new();
@@ -50,7 +51,8 @@ public sealed class EnumFailover(ILastKnownProtoSource source) : IEnumFailover {
             _ = Task.Run(() => {
                 try {
                     Rebuild();
-                } catch {
+                } catch (Exception ex) {
+                    logger?.LogEnumMapRefreshFailed(ex);
                 }
             });
         }
@@ -126,4 +128,10 @@ public sealed class EnumFailover(ILastKnownProtoSource source) : IEnumFailover {
             ? name
             : null;
     }
+}
+
+internal static partial class EnumFailoverLog {
+    [LoggerMessage(EventId = 1, Level = LogLevel.Warning,
+        Message = "Background enum failover map refresh failed; keeping the previous map")]
+    internal static partial void LogEnumMapRefreshFailed(this ILogger logger, Exception ex);
 }

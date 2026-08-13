@@ -6,6 +6,7 @@
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env
 @inject IServiceProvider Services
+@inject ILogger<FlowList> Logger
 
 <section id="flowsPanel" class="panel">
     <div class="flow-head">
@@ -136,7 +137,8 @@
             try {
                 await _scroll.InvokeVoidAsync("scrollToBottom", _listRef);
             }
-            catch {
+            catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
+                Logger.LogDebug(ex, "flow list auto-scroll failed");
             }
         }
 
@@ -144,7 +146,7 @@
     }
 
     public ValueTask DisposeAsync() {
-        return _scroll.DisposeModuleQuietAsync();
+        return _scroll.DisposeModuleQuietAsync(logger: Logger);
     }
 
     void OnGroupChange(ChangeEventArgs e) => _group = e.Value?.ToString() ?? "";

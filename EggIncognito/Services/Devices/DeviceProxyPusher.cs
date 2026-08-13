@@ -76,7 +76,8 @@ public sealed class DeviceProxyPusher(
         if (settle > TimeSpan.Zero) {
             try {
                 await Task.Delay(settle, ct);
-            } catch (OperationCanceledException) {
+            } catch (OperationCanceledException ex) {
+                logger.LogDebug(ex, "device capture: {Id} settle delay cancelled", d.Id);
             }
         }
 
