@@ -18,26 +18,27 @@ public sealed class EndpointCatalogRebuilder(
                 found.Rejected.Count == 0 ? "no extraction binary available" : found.Diagnostics);
         }
 
-        GameBinaryProvider.ExtractionCandidate? cand = null;
-        IReadOnlyList<EndpointCatalogExtractor.EndpointDescriptor> descriptors = [];
-        var failures = new List<string>(found.Rejected);
-
+        var attempts = new List<Attempt>();
         foreach (var c in found.Candidates) {
             var syms = IsElf(c.Bytes) ? ElfSymbols.Read(c.Bytes) : c.Symbols ?? MachoSymbols.Read(c.Bytes);
             var extracted = EndpointCatalogExtractor.ExtractWith(c.Bytes, syms);
             var filtered = extracted.Ok
                 ? Filter(extracted.Endpoints, yaml.ExcludedPaths)
                 : [];
-            if (filtered.Count > 0) {
-                cand = c;
-                descriptors = filtered;
-                break;
-            }
-
-            failures.Add($"{c.Platform} {c.Version}: {(extracted.Ok ? "no endpoints in binary" : extracted.Diagnostics)}");
+            attempts.Add(new Attempt(c, filtered,
+                $"{c.Platform} {c.Version}: {(extracted.Ok ? $"{filtered.Count} endpoints from {syms.Count} symbols" : extracted.Diagnostics)}"));
         }
 
-        if (cand is null) return new EndpointRebuildResult(0, 0, 0, null, string.Join("; ", failures));
+        var best = attempts.OrderByDescending(a => a.Endpoints.Count).FirstOrDefault();
+        if (best is null || best.Endpoints.Count == 0) {
+            return new EndpointRebuildResult(0, 0, 0, null,
+                string.Join("; ", found.Rejected.Concat(attempts.Select(a => a.Note))));
+        }
+
+        var cand = best.Candidate;
+        var descriptors = best.Endpoints;
+        var failures = found.Rejected
+            .Concat(attempts.Where(a => !ReferenceEquals(a, best)).Select(a => a.Note)).ToList();
 
         var db = services.GetService(typeof(EggIncognitoDbContext)) as EggIncognitoDbContext
                  ?? throw new InvalidOperationException("no database configured");
@@ -89,9 +90,14 @@ public sealed class EndpointCatalogRebuilder(
         var drift = RouteDrift.Compute(nonBinaryEffective, binaryRows);
         string note = failures.Count == 0
             ? $"{cand.Platform} {cand.Version}"
-            : $"{cand.Platform} {cand.Version}; skipped: {string.Join("; ", failures)}";
+            : $"{cand.Platform} {cand.Version}; not used: {string.Join("; ", failures)}";
         return new EndpointRebuildResult(seen.Count, newCount, drift.Count, cand.Version, note);
     }
+
+    private sealed record Attempt(
+        GameBinaryProvider.ExtractionCandidate Candidate,
+        IReadOnlyList<EndpointCatalogExtractor.EndpointDescriptor> Endpoints,
+        string Note);
 
     internal static IReadOnlyList<EndpointCatalogExtractor.EndpointDescriptor> Filter(
         IReadOnlyList<EndpointCatalogExtractor.EndpointDescriptor> endpoints, IReadOnlyList<string> excludedPaths) {

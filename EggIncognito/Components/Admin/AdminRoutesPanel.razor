@@ -53,8 +53,8 @@
                                 @if (row.Source == "db") {
                                     <span class="badge badge-db">db</span>
                                 }
-                                @if (IsInBinary(row.Path)) {
-                                    <span class="badge badge-binary">binary</span>
+                                @if (BinaryPopulated && !IsInBinary(row.Path)) {
+                                    <span class="badge badge-binary">no binary</span>
                                 }
                                 @if (row.Source == "orphan") {
                                     <span class="badge badge-orphan">orphan</span>
@@ -198,6 +198,8 @@
     bool IsInBinary(string path) {
         return _binary?.Rows.Any(r => r.Path == path) ?? false;
     }
+
+    bool BinaryPopulated => _binary is { Rows.Count: > 0 };
 
     static string Bool(bool? v) {
         return v == true ? "true" : "false";
