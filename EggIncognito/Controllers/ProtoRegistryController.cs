@@ -126,6 +126,16 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
     }
 
 
+    [HttpPost("sha-order")]
+    public async Task<IActionResult> SetShaOrder([FromBody] ShaOrderRequest req, CancellationToken ct) {
+        if (Require(UserRole.Admin) is { } no) return no;
+        if (Store is not { } store) return StatusCode(503, new { error = NoDb });
+        if (string.IsNullOrWhiteSpace(req.ProtoSha)) return StatusCode(400, new { error = "protoSha required" });
+        await store.SetShaOrderAsync(req.ProtoSha.Trim(), req.Order, user.Username, ct);
+        return Ok(new { ok = true, protoSha = req.ProtoSha, order = req.Order });
+    }
+
+
     [HttpPost("{platform}/{build}/restore")]
     public async Task<IActionResult> Restore(string platform, string build, CancellationToken ct) {
         if (Require(UserRole.Admin) is { } no) return no;
@@ -278,6 +288,8 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
     public sealed record BulkDeleteRequest(IReadOnlyList<VersionKey> Versions);
 
     public sealed record MergeRequest(VersionKey Canonical, IReadOnlyList<VersionKey> Aliases);
+
+    public sealed record ShaOrderRequest(string ProtoSha, int Order);
 
     public sealed record OfferRequest(
         string Platform,

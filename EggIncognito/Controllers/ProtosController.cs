@@ -16,9 +16,9 @@ public sealed class ProtosController(IServiceProvider services) : ControllerBase
 
     [HttpGet("versions")]
     public async Task<IActionResult> Versions([FromQuery] string? platform, CancellationToken ct) {
-        if (Store is null) return Ok(Array.Empty<object>());
-        var rows = await Store.ListAsync(platform, ct);
-
+        if (Store is not { } store) return Ok(Array.Empty<object>());
+        var rows = await store.ListAsync(platform, ct);
+        var orders = await store.ShaOrdersAsync(ct);
 
         return Ok(rows.Select(r => new {
             r.Id,
@@ -31,7 +31,8 @@ public sealed class ProtosController(IServiceProvider services) : ControllerBase
             r.Package,
             r.ProtoSha,
             r.DetectedAt,
-            buildFlag = ProtoVersionQuality.BuildQualityFlag(r.Platform, r.Build)
+            buildFlag = ProtoVersionQuality.BuildQualityFlag(r.Platform, r.Build),
+            sortOrder = orders.TryGetValue(r.ProtoSha ?? "", out int so) ? so : 0
         }));
     }
 

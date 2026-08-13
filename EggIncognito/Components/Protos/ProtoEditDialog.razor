@@ -8,10 +8,18 @@
             <button type="button" class="btn-mini" @onclick="@(() => OnClose.InvokeAsync())">Close</button>
         </div>
 
-        <label class="text-xs text-muted block mb-2">
-            App version
-            <input class="protos-filter w-full" @bind="_appVersion"/>
-        </label>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
+            <label class="text-xs text-muted block">
+                App version
+                <input class="protos-filter w-full" @bind="_appVersion"/>
+            </label>
+            @if (CanOrder && !string.IsNullOrEmpty(ProtoSha)) {
+                <label class="text-xs text-muted block">
+                    Sort order (proto sha @Short(ProtoSha), higher sorts newer)
+                    <input class="protos-filter w-full" type="number" @bind="_order"/>
+                </label>
+            }
+        </div>
 
         @foreach (var f in _fields) {
             <div class="border-t border-border pt-2 mb-2">
@@ -60,6 +68,9 @@
 @code {
 
     [Parameter] public IReadOnlyList<Row>? Targets { get; set; }
+    [Parameter] public string? ProtoSha { get; set; }
+    [Parameter] public int ShaOrder { get; set; }
+    [Parameter] public bool CanOrder { get; set; }
     [Parameter] public Func<string, object, Task<bool>> Patch { get; set; } = (_, _) => Task.FromResult(false);
     [Parameter] public Func<string, object, Task<bool>> Post { get; set; } = (_, _) => Task.FromResult(false);
     [Parameter] public Func<string, Task<string?>> FetchText { get; set; } = _ => Task.FromResult<string?>("");
@@ -69,9 +80,14 @@
     bool _busy;
     string _msg = "";
     string _appVersion = "";
+    int _order;
     List<MemberField> _fields = [];
 
     public sealed record Row(string Platform, string Build, string AppVersion, string? ClientVersion, string Source);
+
+    static string Short(string? sha) {
+        return string.IsNullOrEmpty(sha) ? "" : sha.Length <= 12 ? sha : sha[..12];
+    }
 
 
     sealed class MemberField {
@@ -89,6 +105,7 @@
     protected override void OnParametersSet() {
         if (Targets is not { Count: > 0 }) return;
         _appVersion = Targets[0].AppVersion;
+        _order = ShaOrder;
         _fields = Targets.Select(t => new MemberField {
             Platform = t.Platform,
             OriginalBuild = t.Build,
@@ -117,6 +134,9 @@
             if (ok) f.OriginalBuild = f.Build;
             allOk &= ok;
         }
+
+        if (CanOrder && !string.IsNullOrEmpty(ProtoSha) && _order != ShaOrder)
+            allOk &= await Post("/api/protos/versions/sha-order", new { protoSha = ProtoSha, order = _order });
 
         _msg = allOk ? "saved" : "failed (build taken? contributor+?)";
         _busy = false;

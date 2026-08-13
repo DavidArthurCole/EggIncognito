@@ -147,6 +147,31 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db) : IProtoBackfil
             .OrderByDescending(p => p.CreatedAt).ToListAsync(ct);
 
 
+    public Task<Dictionary<string, int>> ShaOrdersAsync(CancellationToken ct = default) =>
+        db.ProtoShaOrders.AsNoTracking()
+            .ToDictionaryAsync(o => o.ProtoSha, o => o.SortOrder, StringComparer.OrdinalIgnoreCase, ct);
+
+    public async Task SetShaOrderAsync(string protoSha, int order, string? who, CancellationToken ct = default) {
+        var row = await db.ProtoShaOrders.FirstOrDefaultAsync(o => o.ProtoSha == protoSha, ct);
+        if (order == 0) {
+            if (row is null) return;
+            db.ProtoShaOrders.Remove(row);
+            await db.SaveChangesAsync(ct);
+            return;
+        }
+
+        if (row is null) {
+            row = new ProtoShaOrder { ProtoSha = protoSha };
+            db.ProtoShaOrders.Add(row);
+        }
+
+        row.SortOrder = order;
+        row.UpdatedAt = DateTimeOffset.UtcNow;
+        row.UpdatedBy = who;
+        await db.SaveChangesAsync(ct);
+    }
+
+
     public async Task<List<MergeSuggestion>> SuggestMergesAsync(CancellationToken ct = default) {
         var rows = await db.ProtoVersions.AsNoTracking()
             .Where(p => p.DeletedAt == null && p.CanonicalId == null)

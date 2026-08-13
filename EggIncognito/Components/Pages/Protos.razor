@@ -247,7 +247,7 @@
                                 }
                                 <td>
                                     <div class="flex flex-wrap gap-1">
-                                        @foreach (var m in rel.Members) {
+                                        @foreach (var m in rel.Platforms) {
                                             <span class="code-chip cursor-pointer" @onclick:stopPropagation="true"
                                                   @onclick="@(() => Navigate($"/protos/{m.Platform}/{Uri.EscapeDataString(m.Build)}"))">
                                                 @m.Platform
@@ -281,7 +281,12 @@
                                 </td>
                                 <td class="mono text-muted">@(string.IsNullOrEmpty(primary.ClientVersion) ? "-" : primary.ClientVersion)</td>
                                 <td>
-                                    <span class="code-chip reg-sha">@Short(primary.ProtoSha)</span>
+                                    <div class="flex items-center gap-1">
+                                        <span class="code-chip reg-sha">@Short(primary.ProtoSha)</span>
+                                        @if (primary.SortOrder != 0) {
+                                            <span class="text-muted text-xs" title="manual sort order">@OrderLabel(primary.SortOrder)</span>
+                                        }
+                                    </div>
                                 </td>
                                 <td class="text-muted text-xs whitespace-nowrap">@primary.DetectedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
                                 <td class="reg-actions" @onclick:stopPropagation="true">
@@ -303,7 +308,9 @@
                             @if (_canWrite && _editingKey == rel.Key) {
                                 <tr class="reg-edit-row">
                                     <td colspan="@EditColspan">
-                                        <ProtoEditDialog Targets="EditTargets(rel)" Patch="PatchJson" Post="PostJson"
+                                        <ProtoEditDialog Targets="EditTargets(rel)" ProtoSha="@primary.ProtoSha"
+                                                         ShaOrder="primary.SortOrder" CanOrder="_isAdmin"
+                                                         Patch="PatchJson" Post="PostJson"
                                                          FetchText="GetText" OnChanged="OnMutated" OnClose="@(() => _editingKey = null)"/>
                                     </td>
                                 </tr>
@@ -377,6 +384,8 @@
         .OrderBy(r => r, Comparer<VersionRow>.Create((a, b) => {
             var v = CompareSemver(a.AppVersion, b.AppVersion);
             if (v != 0) return v;
+            v = a.SortOrder.CompareTo(b.SortOrder);
+            if (v != 0) return v;
             v = CompareNumeric(a.ClientVersion, b.ClientVersion);
             if (v != 0) return v;
             v = a.DetectedAt.CompareTo(b.DetectedAt);
@@ -406,9 +415,8 @@
         _fPlatform = _fVersion = _fBuild = _fClient = _fSha = "";
     }
 
-    List<VersionRow> Sorted {
+    Comparison<VersionRow> RowComparison {
         get {
-            var rows = Filtered;
             Comparison<VersionRow> primary = _sortCol switch {
                 "platform" => (a, b) => string.Compare(a.Platform, b.Platform, StringComparison.OrdinalIgnoreCase),
                 "appVersion" => (a, b) => CompareSemver(a.AppVersion, b.AppVersion),
@@ -420,9 +428,10 @@
                 "sha" => (a, b) => string.Compare(a.ProtoSha, b.ProtoSha, StringComparison.OrdinalIgnoreCase),
                 _ => (a, b) => a.DetectedAt.CompareTo(b.DetectedAt)
             };
-            var sorted = rows.ToList();
-            sorted.Sort((a, b) => {
+            return (a, b) => {
                 var v = primary(a, b);
+                if (v != 0) return v;
+                v = a.SortOrder.CompareTo(b.SortOrder);
                 if (v != 0) return v;
                 v = CompareNumeric(a.ClientVersion, b.ClientVersion);
                 if (v != 0) return v;
@@ -430,7 +439,14 @@
                 if (v != 0) return v;
                 v = string.Compare(a.Platform, b.Platform, StringComparison.OrdinalIgnoreCase);
                 return v != 0 ? v : CompareBuild(a.Build, b.Build);
-            });
+            };
+        }
+    }
+
+    List<VersionRow> Sorted {
+        get {
+            var sorted = Filtered;
+            sorted.Sort(RowComparison);
             if (_sortDesc) sorted.Reverse();
             return sorted;
         }
@@ -440,19 +456,24 @@
     List<Release> SortedReleases {
         get {
             var byKey = new Dictionary<int, List<VersionRow>>();
-            var order = new List<int>();
-            foreach (var r in Sorted) {
+            foreach (var r in Filtered) {
                 var key = ReleaseKey(r);
                 if (!byKey.TryGetValue(key, out var list)) {
                     list = [];
                     byKey[key] = list;
-                    order.Add(key);
                 }
 
                 list.Add(r);
             }
 
-            return order.Select(k => new Release(k, byKey[k].OrderBy(m => m.Platform).ToList())).ToList();
+            var releases = byKey
+                .Select(kv => new Release(kv.Key, kv.Value.OrderBy(m => m.Platform, StringComparer.OrdinalIgnoreCase)
+                    .ThenByDescending(m => m.Build, BuildComparer).ToList()))
+                .ToList();
+            var cmp = RowComparison;
+            releases.Sort((x, y) => cmp(x.Primary, y.Primary));
+            if (_sortDesc) releases.Reverse();
+            return releases;
         }
     }
 
@@ -467,6 +488,8 @@
     MarkupString Caret(string col) {
         return new MarkupString(_sortCol == col ? _sortDesc ? " ▾" : " ▴" : "");
     }
+
+    static readonly IComparer<string> BuildComparer = Comparer<string>.Create((a, b) => CompareBuild(a, b));
 
     static int CompareBuild(string? a, string? b) {
         var an = long.TryParse(a, out var al);
@@ -705,6 +728,10 @@
         _ = JS.InvokeVoidAsync("location.assign", href);
     }
 
+    static string OrderLabel(int order) {
+        return order > 0 ? $"+{order}" : $"{order}";
+    }
+
     static string Short(string sha) {
         return string.IsNullOrEmpty(sha) ? "" : sha.Length <= 12 ? sha : sha[..12];
     }
@@ -726,12 +753,16 @@
         string Package,
         string ProtoSha,
         DateTimeOffset DetectedAt,
-        string? BuildFlag = null);
+        string? BuildFlag = null,
+        int SortOrder = 0);
 
 
     sealed record Release(int Key, IReadOnlyList<VersionRow> Members) {
         public VersionRow Primary => Members[0];
         public bool IsGrouped => Members.Count > 1;
+
+        public IEnumerable<VersionRow> Platforms =>
+            Members.DistinctBy(m => m.Platform, StringComparer.OrdinalIgnoreCase);
     }
 
     static int ReleaseKey(VersionRow r) {

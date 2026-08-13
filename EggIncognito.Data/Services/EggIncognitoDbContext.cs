@@ -18,6 +18,7 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
     public DbSet<CaptureProxyAddr> CaptureProxyAddrs => Set<CaptureProxyAddr>();
     public DbSet<ProtoVersion> ProtoVersions => Set<ProtoVersion>();
     public DbSet<ProtoProto> ProtoProtos => Set<ProtoProto>();
+    public DbSet<ProtoShaOrder> ProtoShaOrders => Set<ProtoShaOrder>();
     public DbSet<FeedSubscription> FeedSubscriptions => Set<FeedSubscription>();
     public DbSet<FeedDelivery> FeedDeliveries => Set<FeedDelivery>();
     public DbSet<BackfillJob> BackfillJobs => Set<BackfillJob>();
@@ -76,6 +77,10 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
         modelBuilder.Entity<ProtoProto>(e => {
             e.HasKey(x => x.ProtoVersionId);
             e.Property(x => x.MessageIndex).HasColumnType("jsonb");
+        });
+        modelBuilder.Entity<ProtoShaOrder>(e => {
+            e.HasKey(x => x.ProtoSha);
+            e.Property(x => x.UpdatedAt).HasDefaultValueSql("now()");
         });
         modelBuilder.Entity<FeedSubscription>(e => {
             e.HasKey(x => x.Id);
