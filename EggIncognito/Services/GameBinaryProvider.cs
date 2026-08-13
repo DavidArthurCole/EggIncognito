@@ -246,7 +246,7 @@ public sealed class GameBinaryProvider(
     private async Task<bool> PokeAgentAsync(CancellationToken ct) {
         if (Agent is not { Enabled: true } agent) return false;
         try {
-            return await agent.PokeAsync(null, ct);
+            return await agent.PokeAsync(null, false, ct);
         } catch (Exception ex) {
             logger.LogWarning(ex, "poke to the device agent failed");
             return false;

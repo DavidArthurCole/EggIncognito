@@ -17,10 +17,10 @@ public sealed class HarvestScheduler(RunnerDb db, IDevicePlatforms platforms, IL
             ex => _logger.LogError(ex, "harvest pass failed for {DeviceId}", deviceId));
     }
 
-    public async Task PokeAllAsync(CancellationToken ct) {
+    public async Task PokeAllAsync(CancellationToken ct, bool force = false) {
         using var ctx = db.NewContext();
         var devices = await new DeviceStatusStore(ctx).EnabledDevicesAsync(ct);
-        foreach (var d in devices) Poke(d.Id, false);
+        foreach (var d in devices) Poke(d.Id, force);
     }
 
     private async Task HarvestOnceAsync(string deviceId, bool force) {

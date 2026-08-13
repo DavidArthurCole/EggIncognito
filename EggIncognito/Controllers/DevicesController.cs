@@ -432,7 +432,7 @@ public sealed class DevicesController(
 
         bool poked = false;
         if (services.GetService(typeof(IDeviceAgentClient)) is IDeviceAgentClient { Enabled: true } agent)
-            poked = await agent.PokeAsync(id, HttpContext.RequestAborted);
+            poked = await agent.PokeAsync(id, true, HttpContext.RequestAborted);
 
         logger.LogWarning(
             "device save: {Id} refused, harvest is {Harvested} but device runs {Installed} (poked={Poked})",
@@ -529,7 +529,7 @@ public sealed class DevicesController(
         if (services.GetService(typeof(IDeviceAgentClient)) is not IDeviceAgentClient { Enabled: true } agent)
             return StatusCode(503, new { error = "no device agent configured (set DeviceAgent:Url + DeviceAgent:Secret)" });
 
-        bool queued = await agent.PokeAsync(id, HttpContext.RequestAborted);
+        bool queued = await agent.PokeAsync(id, true, HttpContext.RequestAborted);
         return queued
             ? Accepted(new { ok = true, device = id, queued = true })
             : StatusCode(502, new { error = "device agent did not accept the poke" });
@@ -544,7 +544,7 @@ public sealed class DevicesController(
         if (services.GetService(typeof(IDeviceAgentClient)) is not IDeviceAgentClient { Enabled: true } agent)
             return StatusCode(503, new { error = "no device agent configured (set DeviceAgent:Url + DeviceAgent:Secret)" });
 
-        bool queued = await agent.PokeAsync(null, HttpContext.RequestAborted);
+        bool queued = await agent.PokeAsync(null, true, HttpContext.RequestAborted);
         return queued
             ? Accepted(new { ok = true, queued = true })
             : StatusCode(502, new { error = "device agent did not accept the poke" });

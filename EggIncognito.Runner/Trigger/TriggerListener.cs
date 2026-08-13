@@ -52,8 +52,9 @@ public static class TriggerListener {
                 await ctx.Response.WriteAsJsonAsync(r.Body ?? new { device = r.DeviceId, error = r.Error });
             });
             app.MapPost("/devices/poke-all", async (HttpContext ctx) => {
+                var force = await ReadForce(ctx);
                 string? auth = ctx.Request.Headers.Authorization;
-                var r = await harvest.PokeAllAsync(auth);
+                var r = await harvest.PokeAllAsync(auth, force);
                 ctx.Response.StatusCode = r.Status;
                 await ctx.Response.WriteAsJsonAsync(r.Body ?? new { error = r.Error });
             });

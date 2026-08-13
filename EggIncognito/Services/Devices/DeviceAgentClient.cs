@@ -10,7 +10,7 @@ public interface IDeviceAgentClient {
     bool Enabled { get; }
     Task<DeviceProbeDto?> ProbeAsync(string id, CancellationToken ct);
     Task<int> ProbeAllAsync(CancellationToken ct);
-    Task<bool> PokeAsync(string? id, CancellationToken ct);
+    Task<bool> PokeAsync(string? id, bool force, CancellationToken ct);
 }
 
 public sealed class DeviceAgentClient : IDeviceAgentClient {
@@ -32,16 +32,17 @@ public sealed class DeviceAgentClient : IDeviceAgentClient {
     public async Task<int> ProbeAllAsync(CancellationToken ct) =>
         (await PostAsync<ProbeAllResponse>("/devices/probe-all", ct))?.Probed ?? 0;
 
-    public async Task<bool> PokeAsync(string? id, CancellationToken ct) {
+    public async Task<bool> PokeAsync(string? id, bool force, CancellationToken ct) {
         if (!Enabled) return false;
         string path = string.IsNullOrEmpty(id) ? "/devices/poke-all" : $"/devices/{id}/poke";
-        return await PostAsync<PokeResponse>(path, ct) is not null;
+        return await PostAsync<PokeResponse>(path, ct, new ForceBody(force)) is not null;
     }
 
-    private async Task<T?> PostAsync<T>(string path, CancellationToken ct) {
+    private async Task<T?> PostAsync<T>(string path, CancellationToken ct, ForceBody? body = null) {
         try {
             using var req = new HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}{path}");
             req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _secret);
+            if (body is not null) req.Content = JsonContent.Create(body);
             using var resp = await _http.SendAsync(req, ct);
             if (!resp.IsSuccessStatusCode) return default;
             return await resp.Content.ReadFromJsonAsync<T>(ct);
@@ -51,6 +52,8 @@ public sealed class DeviceAgentClient : IDeviceAgentClient {
             return default;
         }
     }
+
+    private sealed record ForceBody(bool Force);
 
     private sealed record ProbeAllResponse(int Probed);
 

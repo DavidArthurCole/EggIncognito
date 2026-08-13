@@ -189,6 +189,12 @@ public sealed partial class AdminController(ICurrentUser currentUser, IServicePr
                 ? m
                 : null;
 
+        var capturedCv = (await db.DeviceStates.AsNoTracking()
+                .Where(s => s.ClientVersion != null)
+                .Select(s => new { s.DeviceId, s.ClientVersion })
+                .ToListAsync(ct))
+            .ToDictionary(s => s.DeviceId, s => s.ClientVersion!.Value, StringComparer.OrdinalIgnoreCase);
+
         var rows = new List<object>();
         foreach (var d in devices) {
             latest.TryGetValue(d.Id, out var probe);
@@ -206,7 +212,8 @@ public sealed partial class AdminController(ICurrentUser currentUser, IServicePr
                     ? bcv
                     : installedAppVersion is { } iv && regClientVersion.TryGetValue((d.Platform, iv), out int rcv)
                         ? rcv
-                        : (int?)null);
+                        : mgr?.Rinfo.Latest(d.Id)?.ClientVersion
+                          ?? (capturedCv.TryGetValue(d.Id, out int ccv) ? ccv : (int?)null));
 
             object? capture = null;
             object? rinfo = null;

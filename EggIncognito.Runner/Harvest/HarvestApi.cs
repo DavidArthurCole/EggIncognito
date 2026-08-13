@@ -15,11 +15,11 @@ public sealed class HarvestApi(string secret, RunnerDb db, HarvestScheduler sche
         return new HarvestApiResult(202, id, new { device = id, queued = true, busy = scheduler.Busy(id) }, null);
     }
 
-    public async Task<HarvestApiResult> PokeAllAsync(string? authorizationHeader) {
+    public async Task<HarvestApiResult> PokeAllAsync(string? authorizationHeader, bool force) {
         if (!BearerAuth.Matches(authorizationHeader, secret))
             return new HarvestApiResult(401, null, null, "unauthorized");
-        await scheduler.PokeAllAsync(CancellationToken.None);
-        return new HarvestApiResult(202, null, new { queued = true }, null);
+        await scheduler.PokeAllAsync(CancellationToken.None, force);
+        return new HarvestApiResult(202, null, new { queued = true, force }, null);
     }
 
     public async Task<HarvestApiResult> StateAsync(string? authorizationHeader, string id) {
