@@ -135,17 +135,27 @@ public sealed class IosPlatform(
         };
         if (find.Length == 0) return new Dictionary<string, RemoteFile>(StringComparer.Ordinal);
 
-        var r = await conn.ShellAsync(
-            DeviceShell.LocateIosApp(bundleId) + $"{find} | tr '\\n' '\\0' | xargs -0 shasum -a 256 2>/dev/null", ct);
-        if (r.ExitCode != 0 || r.Stdout.Trim().Length == 0) {
-            logger.LogWarning("ios harvest: shasum unavailable for '{Entry}', falling back to size+mtime", entry.Name);
-            r = await conn.ShellAsync(
-                DeviceShell.LocateIosApp(bundleId) + $"{find} | tr '\\n' '\\0' | xargs -0 stat -f '%z-%m %N' 2>/dev/null",
-                ct);
+        var listing = new Dictionary<string, RemoteFile>(StringComparer.Ordinal);
+        foreach (string hasher in HashCommands) {
+            var r = await conn.ShellAsync(
+                DeviceShell.LocateIosApp(bundleId) + $"{find} | tr '\\n' '\\0' | xargs -0 {hasher} 2>/dev/null", ct);
+            listing = Parse(r.Stdout);
+            if (listing.Count > 0) return listing;
         }
 
-        return Parse(r.Stdout);
+        logger.LogWarning("ios harvest: no content hasher for '{Entry}', falling back to size+mtime", entry.Name);
+        foreach (string fmt in StatFormats) {
+            var r = await conn.ShellAsync(
+                DeviceShell.LocateIosApp(bundleId) + $"{find} | tr '\\n' '\\0' | xargs -0 stat {fmt} 2>/dev/null", ct);
+            listing = Parse(r.Stdout);
+            if (listing.Count > 0) return listing;
+        }
+
+        return listing;
     }
+
+    private static readonly string[] HashCommands = ["sha256sum", "shasum -a 256"];
+    private static readonly string[] StatFormats = ["-c '%s-%Y %n'", "-f '%z-%m %N'"];
 
     private static Dictionary<string, RemoteFile> Parse(string output) {
         var map = new Dictionary<string, RemoteFile>(StringComparer.Ordinal);
@@ -153,8 +163,8 @@ public sealed class IosPlatform(
             int split = line.IndexOf(' ');
             if (split <= 0) continue;
             string sha = line[..split];
-            string path = line[(split + 1)..].Trim();
-            if (path.Length == 0) continue;
+            string path = line[(split + 1)..].Trim().Trim('"');
+            if (!path.StartsWith('/')) continue;
             string leaf = path[(path.LastIndexOf('/') + 1)..];
             int dot = leaf.LastIndexOf('.');
             string name = dot > 0 ? leaf[..dot] : leaf;
