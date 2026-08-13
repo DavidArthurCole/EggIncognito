@@ -366,7 +366,13 @@
     VersionRow? LatestRow => _rows
         .OrderBy(r => r, Comparer<VersionRow>.Create((a, b) => {
             var v = CompareSemver(a.AppVersion, b.AppVersion);
-            return v != 0 ? v : CompareNumeric(a.Build, b.Build);
+            if (v != 0) return v;
+            v = CompareNumeric(a.ClientVersion, b.ClientVersion);
+            if (v != 0) return v;
+            v = a.DetectedAt.CompareTo(b.DetectedAt);
+            if (v != 0) return v;
+            v = string.Compare(a.Platform, b.Platform, StringComparison.OrdinalIgnoreCase);
+            return v != 0 ? v : CompareBuild(a.Build, b.Build);
         }))
         .LastOrDefault();
 
@@ -396,7 +402,10 @@
             Comparison<VersionRow> primary = _sortCol switch {
                 "platform" => (a, b) => string.Compare(a.Platform, b.Platform, StringComparison.OrdinalIgnoreCase),
                 "appVersion" => (a, b) => CompareSemver(a.AppVersion, b.AppVersion),
-                "build" => (a, b) => CompareNumeric(a.Build, b.Build),
+                "build" => (a, b) => {
+                    var p = string.Compare(a.Platform, b.Platform, StringComparison.OrdinalIgnoreCase);
+                    return p != 0 ? p : CompareBuild(a.Build, b.Build);
+                },
                 "client" => (a, b) => CompareNumeric(a.ClientVersion, b.ClientVersion),
                 "sha" => (a, b) => string.Compare(a.ProtoSha, b.ProtoSha, StringComparison.OrdinalIgnoreCase),
                 _ => (a, b) => a.DetectedAt.CompareTo(b.DetectedAt)
@@ -405,8 +414,12 @@
             sorted.Sort((a, b) => {
                 var v = primary(a, b);
                 if (v != 0) return v;
-                v = CompareNumeric(a.Build, b.Build);
-                return v != 0 ? v : CompareNumeric(a.ClientVersion, b.ClientVersion);
+                v = CompareNumeric(a.ClientVersion, b.ClientVersion);
+                if (v != 0) return v;
+                v = a.DetectedAt.CompareTo(b.DetectedAt);
+                if (v != 0) return v;
+                v = string.Compare(a.Platform, b.Platform, StringComparison.OrdinalIgnoreCase);
+                return v != 0 ? v : CompareBuild(a.Build, b.Build);
             });
             if (_sortDesc) sorted.Reverse();
             return sorted;
@@ -444,6 +457,14 @@
     MarkupString Caret(string col) {
         return new MarkupString(_sortCol == col ? _sortDesc ? " ▾" : " ▴" : "");
     }
+
+    static int CompareBuild(string? a, string? b) {
+        var an = long.TryParse(a, out var al);
+        var bn = long.TryParse(b, out var bl);
+        if (an && bn) return al.CompareTo(bl);
+        return an != bn ? an.CompareTo(bn) : CompareSemver(a, b);
+    }
+
 
     static int CompareNumeric(string? a, string? b) {
         var ax = long.TryParse(a, out var al);
