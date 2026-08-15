@@ -94,16 +94,17 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db) : IProtoBackfil
         db.ProtoVersions.AsNoTracking()
             .FirstOrDefaultAsync(p => p.Platform == platform && p.Build == build, ct);
 
-    public async Task<(ProtoVersion Row, bool Created, bool ProtoChanged)> UpsertAsync(
+    public async Task<UpsertOutcome> UpsertAsync(
         string platform, string appVersion, string build, string? clientVersion, string package,
         string protoSha, string apkRef, DateTimeOffset detectedAt, string? detectedBy, string? protoText,
         string source = "farm", bool resurrect = false, CancellationToken ct = default) {
-        if (string.IsNullOrEmpty(build) || string.IsNullOrEmpty(appVersion))
-            return (new ProtoVersion { Platform = platform, Build = build, AppVersion = appVersion }, false, false);
+        if (string.IsNullOrEmpty(build) || string.IsNullOrEmpty(appVersion)) {
+            return new UpsertOutcome(
+                new ProtoVersion { Platform = platform, Build = build, AppVersion = appVersion },
+                false, false, VersionDelta.Unknown, null, null);
+        }
 
-        var prevLatest = await db.ProtoVersions.AsNoTracking()
-            .Where(p => p.Platform == platform)
-            .OrderByDescending(p => p.CreatedAt).FirstOrDefaultAsync(ct);
+        var prevLatest = await PreviousBestAsync(platform, build, ct);
 
         var row = await db.ProtoVersions
             .FirstOrDefaultAsync(p => p.Platform == platform && p.Build == build, ct);
@@ -132,7 +133,24 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db) : IProtoBackfil
             await UpsertProtoProtoAsync(row.Id, protoText, null, ct);
 
         bool protoChanged = prevLatest is not null && prevLatest.ProtoSha != protoSha;
-        return (row, created, protoChanged);
+        var delta = VersionDeltaCalc.Classify(
+            platform, build, appVersion, prevLatest?.Build, prevLatest?.AppVersion);
+        return new UpsertOutcome(row, created, protoChanged, delta, prevLatest?.AppVersion, prevLatest?.Build);
+    }
+
+
+    private async Task<ProtoVersion?> PreviousBestAsync(string platform, string build, CancellationToken ct) {
+        var candidates = await db.ProtoVersions.AsNoTracking()
+            .Where(p => p.Platform == platform && p.Build != build && p.DeletedAt == null)
+            .Where(p => p.Build != null && p.Build != "" && p.AppVersion != null && p.AppVersion != "")
+            .ToListAsync(ct);
+
+        return candidates
+            .Select(p => (Row: p, Key: ProtoVersionQuality.LatestSortKey(p.Platform, p.Build, p.AppVersion)))
+            .Where(x => x.Key != long.MinValue)
+            .OrderByDescending(x => x.Key)
+            .Select(x => x.Row)
+            .FirstOrDefault();
     }
 
     public async Task<Dictionary<string, int>> SourceCountsAsync(CancellationToken ct = default) =>
@@ -282,6 +300,14 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db) : IProtoBackfil
 
     public Task<ProtoProto?> GetProtoAsync(int protoVersionId, CancellationToken ct = default) =>
         db.ProtoProtos.AsNoTracking().FirstOrDefaultAsync(x => x.ProtoVersionId == protoVersionId, ct);
+
+    public sealed record UpsertOutcome(
+        ProtoVersion Row,
+        bool Created,
+        bool ProtoChanged,
+        VersionDelta Delta,
+        string? PrevAppVersion,
+        string? PrevBuild);
 
     public sealed record MergeSuggestion(string AppVersion, string ProtoSha, IReadOnlyList<MergeMember> Members);
 

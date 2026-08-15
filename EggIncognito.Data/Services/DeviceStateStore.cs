@@ -104,21 +104,6 @@ public sealed class DeviceStateStore(EggIncognitoDbContext db) {
         return stuck.Count;
     }
 
-    public async Task LogAsync(IEnumerable<DeviceHarvestLog> entries, CancellationToken ct) {
-        var rows = entries.ToList();
-        if (rows.Count == 0) return;
-        db.DeviceHarvestLogs.AddRange(rows);
-        await db.SaveChangesAsync(ct);
-    }
-
-    public async Task<IReadOnlyList<DeviceHarvestLog>> RecentLogAsync(string deviceId, int take,
-        CancellationToken ct) =>
-        await db.DeviceHarvestLogs.AsNoTracking()
-            .Where(l => l.DeviceId == deviceId)
-            .OrderByDescending(l => l.RanAt).ThenByDescending(l => l.Id)
-            .Take(take)
-            .ToListAsync(ct);
-
     private async Task<DeviceState> TrackedAsync(string deviceId, CancellationToken ct) {
         var row = await db.DeviceStates.FirstOrDefaultAsync(s => s.DeviceId == deviceId, ct);
         if (row is not null) return row;

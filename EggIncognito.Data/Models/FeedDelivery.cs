@@ -9,6 +9,7 @@ public sealed class FeedDelivery {
     [Column("event_kind")] public string EventKind { get; set; } = "proto_build";
     [Column("dedup_key")] public string DedupKey { get; set; } = "";
     [Column("status")] public string Status { get; set; } = "";
+    [Column("summary")] public string? Summary { get; set; }
     [Column("attempted_at")] public DateTimeOffset AttemptedAt { get; set; }
     [Column("response_code")] public int? ResponseCode { get; set; }
     [Column("attempts")] public int Attempts { get; set; }

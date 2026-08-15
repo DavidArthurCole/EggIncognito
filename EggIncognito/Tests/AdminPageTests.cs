@@ -3,6 +3,7 @@ using Bunit;
 using EggIdentity.Contract;
 using EggIncognito.Components.Pages;
 using EggIncognito.Services;
+using EggIncognito.Services.Devices;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -37,6 +38,7 @@ public class AdminPageTests {
             Services.AddSingleton<IHttpContextAccessor>(new HttpContextAccessor());
             Services.AddSingleton<IWebHostEnvironment>(new FakeWebHostEnvironment());
             Services.AddSingleton(new AuthState(false));
+            Services.AddScoped<DeviceWorkbenchState>();
             Services.AddHttpClient();
         }
 

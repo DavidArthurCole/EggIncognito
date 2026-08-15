@@ -5,7 +5,7 @@
         <button type="button" class="ds-chip @(_selected == it.Endpoint ? "ds-chip-on" : "")" @onclick="() => Select(it)">
             <span class="truncate">@it.Title</span>
             @if (it.Bytes is { } b) {
-                <span class="mono text-muted text-[10px]">@ByteFormat.Kb(b, "0.#")</span>
+                <span class="mono text-muted text-[0.625rem]">@ByteFormat.Kb(b, "0.#")</span>
             }
             @if (it.VersionChip is { } v) {
                 <span class="ds-meta-chip">v@(v)</span>

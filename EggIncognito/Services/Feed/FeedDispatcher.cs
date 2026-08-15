@@ -24,6 +24,13 @@ public sealed class FeedDispatcher(
             if (!evt.Matches(sub)) continue;
             if (await store.AlreadyDeliveredAsync(sub.Id, evt.EventKind, evt.DedupKey, ct)) continue;
 
+            if (evt.BlockedBy(sub) is { Count: > 0 } blocked) {
+                string reason = string.Join(",", blocked);
+                logger.LogInformation("feed sub {Id}: {Summary} suppressed by {Reason}", sub.Id, evt.Summary, reason);
+                await store.SuppressAsync(sub.Id, evt.EventKind, evt.DedupKey, reason, evt.Summary, ct);
+                continue;
+            }
+
             int? code = null;
             bool ok = false;
             try {
@@ -41,6 +48,7 @@ public sealed class FeedDispatcher(
                 SubscriptionId = sub.Id,
                 EventKind = evt.EventKind,
                 DedupKey = evt.DedupKey,
+                Summary = evt.Summary,
                 Status = ok ? "sent" : "failed",
                 AttemptedAt = DateTimeOffset.UtcNow,
                 ResponseCode = code,

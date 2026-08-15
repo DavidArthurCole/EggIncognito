@@ -21,15 +21,15 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
     public DbSet<ProtoShaOrder> ProtoShaOrders => Set<ProtoShaOrder>();
     public DbSet<FeedSubscription> FeedSubscriptions => Set<FeedSubscription>();
     public DbSet<FeedDelivery> FeedDeliveries => Set<FeedDelivery>();
+    public DbSet<FeedSuppression> FeedSuppressions => Set<FeedSuppression>();
     public DbSet<BackfillJob> BackfillJobs => Set<BackfillJob>();
     public DbSet<KnownVersion> KnownVersions => Set<KnownVersion>();
     public DbSet<ExtractJob> ExtractJobs => Set<ExtractJob>();
     public DbSet<Device> Devices => Set<Device>();
-    public DbSet<DeviceProbe> DeviceProbes => Set<DeviceProbe>();
-    public DbSet<DeviceUpdate> DeviceUpdates => Set<DeviceUpdate>();
+    public DbSet<DeviceJob> DeviceJobs => Set<DeviceJob>();
+    public DbSet<DeviceJobLine> DeviceJobLines => Set<DeviceJobLine>();
     public DbSet<DeviceState> DeviceStates => Set<DeviceState>();
     public DbSet<DeviceAsset> DeviceAssets => Set<DeviceAsset>();
-    public DbSet<DeviceHarvestLog> DeviceHarvestLogs => Set<DeviceHarvestLog>();
     public DbSet<StagedProto> StagedProtos => Set<StagedProto>();
     public DbSet<EnvDesign> EnvDesigns => Set<EnvDesign>();
     public DbSet<EnvDesignVersion> EnvDesignVersions => Set<EnvDesignVersion>();
@@ -86,6 +86,7 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
             e.HasKey(x => x.Id);
             e.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
             e.Property(x => x.Platforms).HasColumnType("text[]");
+            e.Property(x => x.Filters).HasColumnType("text[]").HasDefaultValueSql("'{}'");
             e.Property(x => x.EventKind).HasDefaultValue("proto_build");
         });
         modelBuilder.Entity<FeedDelivery>(e => {
@@ -93,6 +94,12 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
             e.Property(x => x.EventKind).HasDefaultValue("proto_build");
             e.Property(x => x.DedupKey).HasDefaultValue("");
             e.HasIndex(x => new { x.SubscriptionId, x.EventKind, x.DedupKey }).IsUnique();
+        });
+        modelBuilder.Entity<FeedSuppression>(e => {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.EventKind).HasDefaultValue("proto_build");
+            e.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
+            e.HasIndex(x => new { x.SubscriptionId, x.CreatedAt });
         });
         modelBuilder.Entity<BackfillJob>(e => {
             e.HasKey(x => x.Id);
@@ -112,14 +119,22 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
             e.HasKey(x => x.Id);
             e.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
         });
-        modelBuilder.Entity<DeviceProbe>(e => {
+        modelBuilder.Entity<DeviceJob>(e => {
             e.HasKey(x => x.Id);
-
-            e.HasIndex(x => new { x.DeviceId, x.ProbedAt });
+            e.HasIndex(x => new { x.DeviceId, x.Id });
+            e.HasIndex(x => new { x.DeviceId, x.Kind, x.Id });
+            e.HasIndex(x => x.State);
+            e.Property(x => x.StartedAt).HasDefaultValueSql("now()");
+            e.Property(x => x.Detail).HasColumnType("jsonb");
         });
-        modelBuilder.Entity<DeviceUpdate>(e => {
+        modelBuilder.Entity<DeviceJobLine>(e => {
             e.HasKey(x => x.Id);
-            e.HasIndex(x => new { x.DeviceId, x.AttemptedAt });
+            e.HasIndex(x => new { x.JobId, x.Id });
+            e.Property(x => x.At).HasDefaultValueSql("now()");
+            e.HasOne<DeviceJob>()
+                .WithMany()
+                .HasForeignKey(x => x.JobId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
         modelBuilder.Entity<DeviceState>(e => {
             e.HasKey(x => x.DeviceId);
@@ -130,11 +145,6 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
             e.HasIndex(x => new { x.Platform, x.Kind, x.Name }).IsUnique();
             e.HasIndex(x => x.Sha256);
             e.Property(x => x.UpdatedAt).HasDefaultValueSql("now()");
-        });
-        modelBuilder.Entity<DeviceHarvestLog>(e => {
-            e.HasKey(x => x.Id);
-            e.HasIndex(x => new { x.DeviceId, x.RanAt });
-            e.Property(x => x.RanAt).HasDefaultValueSql("now()");
         });
         modelBuilder.Entity<StagedProto>(e => {
             e.HasIndex(x => x.ProtoSha);

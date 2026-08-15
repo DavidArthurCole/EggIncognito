@@ -11,11 +11,10 @@ using Microsoft.Extensions.DependencyInjection;
 namespace EggIncognito.Tests.Devices;
 
 public class DevicesControllerTests {
-    private static DevicesController Make(UserRole role, IServiceProvider sp, IDeviceJobTracker? jobs = null) =>
+    private static DevicesController Make(UserRole role, IServiceProvider sp) =>
         new(new FakeUser(role), sp,
             sp.GetService<IServiceScopeFactory>() ?? new ServiceCollection().BuildServiceProvider()
-                .GetRequiredService<IServiceScopeFactory>(),
-            jobs ?? new DeviceJobTracker(TimeProvider.System)) {
+                .GetRequiredService<IServiceScopeFactory>()) {
             ControllerContext = new ControllerContext {
                 HttpContext = new DefaultHttpContext { RequestServices = sp }
             }
@@ -113,32 +112,39 @@ public class DevicesControllerTests {
     }
 
     [Fact]
-    public void CheckStatus_NonAdmin_403() {
+    public async Task JobHistory_NonAdmin_403() {
         var sp = new ServiceCollection().BuildServiceProvider();
         var c = Make(UserRole.Viewer, sp);
-        var r = c.CheckStatus("frame-android");
+        var r = await c.JobHistory("frame-android");
         var sc = Assert.IsType<ObjectResult>(r);
         Assert.Equal(403, sc.StatusCode);
     }
 
     [Fact]
-    public void CheckStatus_Admin_NoJob_Idle() {
+    public async Task JobHistory_Admin_NoDb_503() {
         var sp = new ServiceCollection().BuildServiceProvider();
-        var c = Make(UserRole.Admin, sp, new DeviceJobTracker(TimeProvider.System));
-        var r = c.CheckStatus("frame-android");
-        var ok = Assert.IsType<OkObjectResult>(r);
-        Assert.Contains("idle", ok.Value!.ToString());
+        var c = Make(UserRole.Admin, sp);
+        var r = await c.JobHistory("frame-android");
+        var sc = Assert.IsType<ObjectResult>(r);
+        Assert.Equal(503, sc.StatusCode);
     }
 
     [Fact]
-    public void CheckStatus_Admin_RunningJob_ReportsRunning() {
-        var jobs = new DeviceJobTracker(TimeProvider.System);
-        jobs.TryStart("frame-android", "checking store...");
+    public async Task LiveJobs_NonAdmin_403() {
         var sp = new ServiceCollection().BuildServiceProvider();
-        var c = Make(UserRole.Admin, sp, jobs);
-        var r = c.CheckStatus("frame-android");
+        var c = Make(UserRole.Viewer, sp);
+        var r = await c.LiveJobs(CancellationToken.None);
+        var sc = Assert.IsType<ObjectResult>(r);
+        Assert.Equal(403, sc.StatusCode);
+    }
+
+    [Fact]
+    public async Task LiveJobs_Admin_NoDb_ReturnsEmptyArray() {
+        var sp = new ServiceCollection().BuildServiceProvider();
+        var c = Make(UserRole.Admin, sp);
+        var r = await c.LiveJobs(CancellationToken.None);
         var ok = Assert.IsType<OkObjectResult>(r);
-        Assert.Contains("running", ok.Value!.ToString());
+        Assert.NotNull(ok.Value);
     }
 
     private sealed class FakeAgent(bool enabled = true) : IDeviceAgentClient {
@@ -162,25 +168,6 @@ public class DevicesControllerTests {
 
         public Task<Device?> GetAsync(string id, CancellationToken ct = default) =>
             Task.FromResult<Device?>(id == "frame-android" ? new Device { Id = id, Platform = "android", Label = id } : null);
-
-        public Task RecordProbeAsync(DeviceProbe row, CancellationToken ct = default) => Task.CompletedTask;
-
-        public Task<List<DeviceProbe>> LatestPerDeviceAsync(CancellationToken ct = default) =>
-            Task.FromResult(new List<DeviceProbe>());
-
-        public Task<List<DeviceProbe>> HistoryAsync(string deviceId, int n, CancellationToken ct = default) =>
-            Task.FromResult(new List<DeviceProbe>());
-
-        public Task RecordUpdateAsync(DeviceUpdate row, CancellationToken ct = default) => Task.CompletedTask;
-
-        public Task<List<DeviceUpdate>> LatestUpdatePerDeviceAsync(CancellationToken ct = default) =>
-            Task.FromResult(new List<DeviceUpdate>());
-
-        public Task<List<DeviceUpdate>> UpdateHistoryAsync(string deviceId, int n, CancellationToken ct = default) =>
-            Task.FromResult(new List<DeviceUpdate>());
-
-        public Task<List<DeviceProbeStats>> ProbeStatsAsync(TimeSpan window, CancellationToken ct = default) =>
-            Task.FromResult(new List<DeviceProbeStats>());
     }
 
     private sealed class FakeUser(UserRole role) : ICurrentUser {

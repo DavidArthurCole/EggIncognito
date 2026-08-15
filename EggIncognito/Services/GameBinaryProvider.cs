@@ -25,6 +25,7 @@ public sealed class GameBinaryProvider(
 #pragma warning restore IDE0028
 
     private IDeviceStatusStore? Store => services.GetService(typeof(IDeviceStatusStore)) as IDeviceStatusStore;
+    private DeviceJobStore? Jobs => services.GetService(typeof(DeviceJobStore)) as DeviceJobStore;
     private GameBinaryStore? BinaryStore => services.GetService(typeof(GameBinaryStore)) as GameBinaryStore;
     private IDeviceAgentClient? Agent => services.GetService(typeof(IDeviceAgentClient)) as IDeviceAgentClient;
     private IDeviceResolver? Resolver => services.GetService(typeof(IDeviceResolver)) as IDeviceResolver;
@@ -391,14 +392,16 @@ public sealed class GameBinaryProvider(
                 device = devices.FirstOrDefault(d => d.Id == deviceId);
             }
 
+            if (Jobs is not { } jobs) return (null, device);
+
             if (device is null) {
                 if (deviceId is null) return (null, null);
-                var latestForId = await store.LatestPerDeviceAsync(ct);
-                return (latestForId.FirstOrDefault(p => p.DeviceId == deviceId)?.InstalledAppVersion, null);
+                var latestForId = await jobs.LatestPerDeviceAsync(DeviceJobKinds.Probe, ct);
+                return (latestForId.FirstOrDefault(p => p.DeviceId == deviceId)?.AppVersion, null);
             }
 
-            var latest = await store.LatestPerDeviceAsync(ct);
-            string? version = latest.FirstOrDefault(p => p.DeviceId == device.Id)?.InstalledAppVersion;
+            var latest = await jobs.LatestPerDeviceAsync(DeviceJobKinds.Probe, ct);
+            string? version = latest.FirstOrDefault(p => p.DeviceId == device.Id)?.AppVersion;
             return (version, device);
         } catch {
             return (null, null);

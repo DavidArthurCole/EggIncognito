@@ -60,6 +60,12 @@ if (captureMode) {
 
 var builder = WebApplication.CreateBuilder(args);
 
+if (!builder.Environment.IsDevelopment()
+    && File.Exists(Path.Combine(AppContext.BaseDirectory,
+        $"{builder.Environment.ApplicationName}.staticwebassets.runtime.json"))) {
+    builder.WebHost.UseStaticWebAssets();
+}
+
 if (Environment.GetEnvironmentVariable("EGGINCOGNITO_TEST_DBFREE") == "1"
     && string.IsNullOrEmpty(builder.Configuration["TestDbOptIn"])) {
     builder.Configuration["ConnectionStrings:Postgres"] = "";
@@ -199,6 +205,10 @@ if (dbEnabled) {
     builder.Services.AddScoped<GameBinaryStore>();
     builder.Services.AddScoped<DeviceAssetStore>();
     builder.Services.AddScoped<DeviceStateStore>();
+    builder.Services.AddScoped<DeviceJobStore>();
+    builder.Services.AddSingleton<DeviceTimelineCache>();
+    builder.Services.AddSingleton<IDeviceJobSink>(sp => sp.GetRequiredService<DeviceTimelineCache>());
+    builder.Services.AddHostedService<DeviceTimelineWatcher>();
     builder.Services.AddScoped<DbEndpointSource>();
     builder.Services.AddScoped(sp =>
         new DbEndpointSourceMarker(sp.GetRequiredService<DbEndpointSource>()));
@@ -381,7 +391,7 @@ if (!string.IsNullOrWhiteSpace(eventSecret)) {
             if (string.IsNullOrEmpty(build) || string.IsNullOrEmpty(appVersion)) return;
 
             string platform = evt.Platform ?? "android";
-            (var row, bool created, bool protoChanged) = await store.UpsertAsync(
+            var upsert = await store.UpsertAsync(
                 platform, appVersion, build, evt.ClientVersion, evt.Package, protoSha, evt.ApkRef,
                 DateTimeOffset.TryParse(evt.DetectedAt, out var dt) ? dt : DateTimeOffset.UtcNow,
                 null, protoText, ct: ct);
@@ -392,9 +402,12 @@ if (!string.IsNullOrWhiteSpace(eventSecret)) {
                 var cfg = scope.ServiceProvider.GetService<IConfiguration>();
                 string pageUrl = FeedDispatcher.BuildPageUrl(
                     cfg?["Feed:PageBaseUrl"], platform, build);
+                var flaws = EggIncognito.Services.ProtoExtract.ProtoVersionQuality.Flaws(
+                    platform, appVersion, build, evt.ClientVersion, protoSha, !string.IsNullOrEmpty(protoText));
                 await dispatcher.DispatchAsync(new ProtoBuildEvent(
-                    row.Id, platform, appVersion, build, evt.ClientVersion,
-                    protoSha, created, protoChanged, pageUrl), ct);
+                    upsert.Row.Id, platform, appVersion, build, evt.ClientVersion,
+                    protoSha, upsert.Created, upsert.ProtoChanged, pageUrl,
+                    upsert.Delta, upsert.PrevAppVersion, upsert.PrevBuild, flaws), ct);
             }
         }
 
@@ -509,7 +522,9 @@ var probeTimeoutSeconds = builder.Configuration.GetValue("DeviceProbe:TimeoutSec
 if (probeTimeoutSeconds > 0)
     DeviceProbeTimeout.Value = TimeSpan.FromSeconds(probeTimeoutSeconds);
 builder.Services.AddSingleton<IProcessRunner, ProcessRunner>();
-builder.Services.AddScoped<AnalysisWorkbenchState>();
+builder.Services.AddScoped<ProtoWorkbenchState>();
+builder.Services.AddScoped<DeviceWorkbenchState>();
+builder.Services.AddScoped<EggIncognito.Services.Notifications.NotificationsWorkbenchState>();
 builder.Services.TryAddSingleton(TimeProvider.System);
 builder.Services.AddHttpClient<IDeviceAgentClient, DeviceAgentClient>();
 if (deviceConfig.Enabled && deviceConfig.Devices.Count > 0)
@@ -572,9 +587,6 @@ builder.Services.AddHttpClient("play", c => {
 builder.Services.AddSingleton<KnownVersionRecorder>();
 builder.Services.AddSingleton<IosStoreCatalog>();
 builder.Services.AddSingleton<AndroidStoreCatalog>();
-builder.Services.AddSingleton<IDeviceJobTracker,
-    DeviceJobTracker>();
-
 string androidDrive = builder.Configuration["DeviceUpdate:Android:DriveCommand"]
                       ?? builder.Configuration["DeviceCheck:Android:DriveCommand"]
                       ?? "am start -a android.intent.action.VIEW -d market://details?id={package}";

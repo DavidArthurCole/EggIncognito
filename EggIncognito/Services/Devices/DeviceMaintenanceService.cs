@@ -113,8 +113,9 @@ public sealed class DeviceMaintenanceService(
         var sp = scope.ServiceProvider;
         if (sp.GetService(typeof(IDeviceStatusStore)) is not IDeviceStatusStore store) return;
         var db = (EggIncognitoDbContext)sp.GetRequiredService(typeof(EggIncognitoDbContext));
+        var jobs = (DeviceJobStore)sp.GetRequiredService(typeof(DeviceJobStore));
 
-        var latest = (await store.LatestPerDeviceAsync(ct))
+        var latest = (await jobs.LatestPerDeviceAsync(DeviceJobKinds.Probe, ct))
             .GroupBy(p => p.DeviceId, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 
@@ -123,7 +124,7 @@ public sealed class DeviceMaintenanceService(
         foreach (var d in await store.EnabledDevicesAsync(ct)) {
             if (!latest.TryGetValue(d.Id, out var probe)) continue;
             try {
-                await StoreSyncAsync(d, probe, store, db, ct);
+                await StoreSyncAsync(d, probe, jobs, db, ct);
             } catch (Exception ex) {
                 logger.LogWarning(ex, "device sync: {Id} threw", d.Id);
             }
@@ -165,30 +166,30 @@ public sealed class DeviceMaintenanceService(
     }
 
     private async Task HarvestClimbedDevicesAsync(
-        Dictionary<string, DeviceProbe> latest, IServiceProvider sp, CancellationToken ct) {
+        Dictionary<string, DeviceJobRow> latest, IServiceProvider sp, CancellationToken ct) {
         foreach (var d in config.Devices) {
             if (!latest.TryGetValue(d.Id, out var probe)) continue;
-            if (!probe.Reachable || string.IsNullOrEmpty(probe.InstalledBuild)) continue;
+            if (probe.Reachable != true || string.IsNullOrEmpty(probe.Build)) continue;
             var harvested = proxyPusher.LastRinfo(d.Id);
             if (harvested is not null &&
-                string.Equals(harvested.Build, probe.InstalledBuild, StringComparison.Ordinal)) {
+                string.Equals(harvested.Build, probe.Build, StringComparison.Ordinal)) {
                 continue;
             }
 
             if (_lastClimbHarvest.TryGetValue(d.Id, out var last)
-                && string.Equals(last.Build, probe.InstalledBuild, StringComparison.Ordinal)
+                && string.Equals(last.Build, probe.Build, StringComparison.Ordinal)
                 && time.GetUtcNow() - last.At < ClimbHarvestBackoff) {
                 continue;
             }
 
-            _lastClimbHarvest[d.Id] = (probe.InstalledBuild, time.GetUtcNow());
+            _lastClimbHarvest[d.Id] = (probe.Build, time.GetUtcNow());
 
             try {
                 logger.LogInformation(
                     "device capture: {Id} installed build {Build} not yet harvested (had {Prev}); launching app for fresh capture",
-                    d.Id, probe.InstalledBuild, harvested?.Build ?? "none");
+                    d.Id, probe.Build, harvested?.Build ?? "none");
                 var rinfo = await HarvestAsync(d, TimeSpan.FromSeconds(40), ct);
-                await BackfillClientVersionAsync(sp, d, probe.InstalledBuild, rinfo, ct);
+                await BackfillClientVersionAsync(sp, d, probe.Build, rinfo, ct);
             } catch (OperationCanceledException) {
                 throw;
             } catch (Exception ex) {
@@ -238,14 +239,14 @@ public sealed class DeviceMaintenanceService(
     }
 
     private async Task StoreSyncAsync(
-        Device d, DeviceProbe probe,
-        IDeviceStatusStore store, EggIncognitoDbContext db, CancellationToken ct) {
+        Device d, DeviceJobRow probe,
+        DeviceJobStore jobs, EggIncognitoDbContext db, CancellationToken ct) {
         if (!_syncEnabled) return;
-        if (!probe.Reachable || string.IsNullOrEmpty(probe.InstalledAppVersion)) return;
+        if (probe.Reachable != true || string.IsNullOrEmpty(probe.AppVersion)) return;
 
         string? storeLatest = await StoreAheadCheck.StoreLatestAsync(db, d.Platform, ct,
             crossPlatformHint: string.Equals(d.Platform, "android", StringComparison.OrdinalIgnoreCase));
-        bool ahead = StoreAheadCheck.IsAhead(storeLatest, probe.InstalledAppVersion);
+        bool ahead = StoreAheadCheck.IsAhead(storeLatest, probe.AppVersion);
         if (ahead) {
             if (_lastNoOpCheck.TryGetValue(d.Id, out var noOp)
                 && string.Equals(noOp.StoreLatest, storeLatest, StringComparison.Ordinal)
@@ -265,16 +266,16 @@ public sealed class DeviceMaintenanceService(
             string.Equals(c.Platform, d.Platform, StringComparison.OrdinalIgnoreCase));
         if (checker is null) {
             logger.LogInformation("device sync: {Id} store {Store} > installed {Inst} but no {Plat} store checker",
-                d.Id, storeLatest, probe.InstalledAppVersion, d.Platform);
+                d.Id, storeLatest, probe.AppVersion, d.Platform);
             return;
         }
 
         if (ahead) {
             logger.LogInformation("device sync: {Id} store {Store} > installed {Inst}: driving on-device store",
-                d.Id, storeLatest, probe.InstalledAppVersion);
+                d.Id, storeLatest, probe.AppVersion);
         } else {
             logger.LogInformation("device sync: {Id} periodic store probe (installed {Inst}, no known newer version)",
-                d.Id, probe.InstalledAppVersion);
+                d.Id, probe.AppVersion);
         }
 
         _lastStoreProbe[d.Id] = time.GetUtcNow();
@@ -284,15 +285,12 @@ public sealed class DeviceMaintenanceService(
 
         if (result.Installed) {
             _lastNoOpCheck.Remove(d.Id);
-            await store.RecordUpdateAsync(new DeviceUpdate {
-                DeviceId = d.Id,
-                AttemptedAt = DateTimeOffset.UtcNow,
-                FromVersion = result.InstalledBefore,
-                ToVersion = result.InstalledAfter,
-                Status = "verified",
-                Note = result.Note,
-                TriggeredBy = "heartbeat"
-            }, ct);
+            await jobs.RecordAsync(
+                d.Id, DeviceJobKinds.StoreCheck, "heartbeat", "updated", result.Note,
+                new DeviceJobFacts(
+                    AppVersion: result.InstalledAfter,
+                    Detail: new { fromVersion = result.InstalledBefore, toVersion = result.InstalledAfter }),
+                ct);
         } else if (result.Action is "up_to_date" or "manual_needed" && storeLatest is not null) {
             _lastNoOpCheck[d.Id] = (storeLatest, time.GetUtcNow());
         }

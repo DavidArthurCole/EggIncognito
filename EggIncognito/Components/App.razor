@@ -1,4 +1,5 @@
 @inject IHttpContextAccessor HttpContextAccessor
+@inject IWebHostEnvironment HostEnvironment
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -8,7 +9,7 @@
     <link rel="icon" type="image/png" href="/brand/icon-trimmed.png"/>
 
     <meta name="description" content="@_meta.Description"/>
-    <meta name="theme-color" content="#ef7559"/>
+    <meta name="theme-color" content="@(_subProd ? "#469a5e" : "#ef7559")"/>
     <meta property="og:type" content="website"/>
     <meta property="og:site_name" content="EggIncognito"/>
     <meta property="og:title" content="@_meta.Title"/>
@@ -24,6 +25,9 @@
     <link rel="stylesheet" href="@($"/nav.css?v={_assetVersion}")"/>
     <link rel="stylesheet" href="@($"/styles.css?v={_assetVersion}")"/>
     <link rel="stylesheet" href="@($"/EggIncognito.styles.css?v={_assetVersion}")"/>
+    @if (_subProd) {
+        <link rel="stylesheet" href="@($"/subprod.css?v={_assetVersion}")"/>
+    }
     <HeadOutlet/>
 </head>
 <body class="m-0 bg-bg text-fg font-sans">
@@ -60,8 +64,10 @@
 
     PageMeta.Meta _meta;
     string _canonicalUrl = "https://eggincognito.davidarthurcole.me/";
+    bool _subProd;
 
     protected override void OnInitialized() {
+        _subProd = string.Equals(HostEnvironment.EnvironmentName, "Staging", StringComparison.OrdinalIgnoreCase);
         var req = HttpContextAccessor.HttpContext?.Request;
         var path = req?.Path.Value;
         _meta = PageMeta.For(path);

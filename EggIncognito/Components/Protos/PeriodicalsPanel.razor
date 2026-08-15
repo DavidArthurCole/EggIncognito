@@ -51,14 +51,16 @@
                                         <PeriodicalDataset Title="@s.DisplayName" Endpoint="@s.Url"
                                                            DownloadName="@($"{s.Id}.json")" Fetch="Fetch" View="_view" FormatChoice="_fc">
                                             <Badges>
-                                                @if (s.Bytes is { } b) {
-                                                    <span class="mono text-muted text-xs">@ByteFormat.Compact(b)</span>
-                                                }
-                                                @if (s.Meta is { } m && !string.IsNullOrEmpty(m.BinaryVersion)) {
-                                                    <span class="ds-meta-chip">v@(m.BinaryVersion)</span>
-                                                } else if (s.Meta?.Provenance is not null) {
-                                                    <span class="ds-meta-chip">prov</span>
-                                                }
+                                                <span class="ds-meta">
+                                                    @if (s.Bytes is { } b) {
+                                                        <span class="ds-meta-chip">@ByteFormat.Compact(b)</span>
+                                                    }
+                                                    @if (s.Meta is { } m && !string.IsNullOrEmpty(m.BinaryVersion)) {
+                                                        <span class="ds-meta-chip">v@(m.BinaryVersion)</span>
+                                                    } else if (s.Meta?.Provenance is not null) {
+                                                        <span class="ds-meta-chip">prov</span>
+                                                    }
+                                                </span>
                                             </Badges>
                                         </PeriodicalDataset>
                                         @if (s.Children is { Count: > 0 }) {
@@ -95,7 +97,7 @@
                 <div class="flex items-start gap-10 mb-3">
                     <div class="flex items-center gap-3 min-w-0">
                         <div class="bg-bg border border-border rounded overflow-hidden text-center w-14 shrink-0">
-                            <div class="bg-accent text-bg text-[10px] font-semibold uppercase py-0.5">@StartDate(season).ToString("MMM")</div>
+                            <div class="bg-accent text-bg text-[0.625rem] font-semibold uppercase py-0.5">@StartDate(season).ToString("MMM")</div>
                             <div class="text-lg font-semibold py-1">@StartDate(season).Day</div>
                         </div>
                         <div class="min-w-0">
@@ -120,7 +122,7 @@
                                         <div class="min-w-0">
                                             <div class="text-xs font-medium">@TitleCase(egg.Id)</div>
                                             @if (egg.Contracts is { Count: > 0 } cnames) {
-                                                <div class="text-muted text-[11px]">@string.Join(", ", cnames)</div>
+                                                <div class="text-muted text-[0.6875rem]">@string.Join(", ", cnames)</div>
                                             }
                                         </div>
                                     </div>

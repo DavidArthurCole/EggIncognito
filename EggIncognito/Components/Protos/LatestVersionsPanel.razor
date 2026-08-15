@@ -1,0 +1,64 @@
+@using EggIncognito.Core.Services.Devices
+@using EggIncognito.Services.ProtoExtract
+@using EggIncognito.Services.Protos
+<div class="group">
+    <div class="ds-state">
+        <span class="ds-state-k">Latest</span>
+        @if (_latest.Count == 0) {
+            <span class="text-muted">none yet</span>
+        }
+    </div>
+    @foreach (var r in _latest) {
+        <button type="button" class="pv-latest-row" title="@Title(r)" @onclick="@(() => OnOpen.InvokeAsync(r))">
+            <span class="pv-latest-icon">
+                <Icon Name="@PlatformIcon(r.Platform)" Class="icon-sm"/>
+            </span>
+            <span class="dev-verline">
+                @(string.IsNullOrEmpty(r.AppVersion) ? "?" : r.AppVersion)<span class="dev-versep">|</span>@r.Build
+                @if (!string.IsNullOrEmpty(r.ClientVersion)) {
+                    <span class="dev-versep">|</span>
+                    @r.ClientVersion
+                }
+            </span>
+            @if (IsBehind(r)) {
+                <span class="pv-behind">behind</span>
+            }
+        </button>
+    }
+    @if (Updated is { } u) {
+        <div class="ds-state-sub">updated @u.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</div>
+    }
+</div>
+
+@code {
+    [Parameter] public IReadOnlyList<ProtoRegistryRow> Rows { get; set; } = [];
+    [Parameter] public EventCallback<ProtoRegistryRow> OnOpen { get; set; }
+
+    IReadOnlyList<ProtoRegistryRow> _latest = [];
+    ProtoRegistryRow? _newest;
+
+    protected override void OnParametersSet() {
+        _latest = ProtoVersionOrdering.LatestByPlatform(Rows, r => r.Key());
+        _newest = ProtoVersionOrdering.Latest(Rows, r => r.Key());
+    }
+
+    DateTime? Updated => _latest.Max(r => r.DetectedAt);
+
+    bool IsBehind(ProtoRegistryRow r) {
+        return _newest is { } n && !ReferenceEquals(n, r)
+                                && ProtoVersionOrdering.CompareRelease(r.Key(), n.Key()) > 0;
+    }
+
+    string Title(ProtoRegistryRow r) {
+        return IsBehind(r) && _newest is { } n
+            ? $"{r.Platform} is on an older release than {n.Platform}"
+            : $"open {r.Platform} {r.Build} in the workbench";
+    }
+
+    static string PlatformIcon(string platform) {
+        return Platforms.Matches(platform, Platforms.Ios) ? "apple"
+            : Platforms.Matches(platform, Platforms.Android) ? "android"
+            : "device";
+    }
+
+}

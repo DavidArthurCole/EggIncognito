@@ -39,8 +39,8 @@ public static class DeviceProbeRunner {
     }
 
 
-    public static async Task<DeviceProbe> ProbeOneAsync(
-        Device d, string triggeredBy, IProcessRunner runner, IDeviceStatusStore store,
+    public static async Task<DeviceJobRow> ProbeOneAsync(
+        Device d, string triggeredBy, IProcessRunner runner, DeviceJobStore jobs,
         EggIncognitoDbContext db, ILogger logger, TimeProvider time, CancellationToken ct) {
         var result = await ProbeFor(d, runner).ProbeAsync(ct);
 
@@ -62,18 +62,20 @@ public static class DeviceProbeRunner {
 
         string resultCode = Classify(d, result, latestBuild, latestAppVersion);
 
-        var row = new DeviceProbe {
-            DeviceId = d.Id,
-            ProbedAt = time.GetUtcNow(),
-            Reachable = result.Reachable,
-            InstalledAppVersion = result.InstalledAppVersion,
-            InstalledBuild = result.InstalledBuild,
-            LatestAvailable = latestAvailable,
-            Result = resultCode,
-            TriggeredBy = triggeredBy,
-            Note = result.Note
-        };
-        await store.RecordProbeAsync(row, ct);
+        long id = await jobs.RecordAsync(
+            d.Id, DeviceJobKinds.Probe, triggeredBy, resultCode, result.Note,
+            new DeviceJobFacts(
+                Reachable: result.Reachable,
+                AppVersion: result.InstalledAppVersion,
+                Build: result.InstalledBuild,
+                Detail: latestAvailable is null ? null : new { latestAvailable }),
+            ct);
+
+        var now = time.GetUtcNow();
+        var row = new DeviceJobRow(
+            id, d.Id, DeviceJobKinds.Probe, DeviceJobStates.Succeeded, triggeredBy,
+            now, now, resultCode, result.Note,
+            result.Reachable, result.InstalledAppVersion, result.InstalledBuild, null, null, null);
 
         if (result.Reachable) {
             logger.LogInformation("device probe: {Id} reachable installed={App} build={Build} -> {Result}",

@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Services.Feed;
 
@@ -12,14 +13,20 @@ public static partial class FeedTemplate {
 
     public static Dictionary<string, string> BuildVars(
         string platform, string appVersion, string build, string? clientVersion, string protoSha,
-        bool protoChanged, string pageUrl) => new() {
+        bool protoChanged, string pageUrl, VersionDelta delta = VersionDelta.Unknown,
+        string? prevAppVersion = null, string? prevBuild = null,
+        IReadOnlyList<string>? flaws = null) => new() {
             ["platform"] = platform,
             ["appVersion"] = appVersion,
             ["build"] = build,
             ["clientVersion"] = clientVersion ?? "",
             ["protoSha"] = protoSha,
             ["protoChanged"] = protoChanged ? "changed" : "unchanged",
-            ["pageUrl"] = pageUrl
+            ["pageUrl"] = pageUrl,
+            ["delta"] = VersionDeltaCalc.Label(delta),
+            ["prevAppVersion"] = prevAppVersion ?? "",
+            ["prevBuild"] = prevBuild ?? "",
+            ["flaws"] = Joined(flaws)
         };
 
     public static Dictionary<string, string> PeriodicalsVars(string feed, string sha, string pageUrl,

@@ -45,18 +45,6 @@ public class AdminControllerTests {
         Assert.Equal(400, ((IStatusCodeActionResult)r).StatusCode);
     }
 
-    [Fact]
-    public async Task NonAdmin_DeviceStats_Is403() {
-        var r = await Controller(UserRole.Contributor).DeviceStats();
-        Assert.Equal(403, ((IStatusCodeActionResult)r).StatusCode);
-    }
-
-    [Fact]
-    public async Task Admin_DeviceStats_NoDb_Is503() {
-        var r = await Controller(UserRole.Admin).DeviceStats();
-        Assert.Equal(503, ((IStatusCodeActionResult)r).StatusCode);
-    }
-
     private sealed class FakeUser(UserRole role, string id = "me") : ICurrentUser {
         public bool IsAuthenticated => true;
         public Guid? UserId => null;

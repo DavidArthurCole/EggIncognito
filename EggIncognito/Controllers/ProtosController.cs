@@ -1,3 +1,4 @@
+using System.Text;
 using EggIncognito.Data.Services;
 using EggIncognito.Services.Auth;
 using EggIncognito.Services.ProtoExtract;
@@ -11,6 +12,13 @@ namespace EggIncognito.Controllers;
 [ApiAccess(ApiAccessLevel.Public)]
 [EnableRateLimiting("fetch")]
 public sealed class ProtosController(IServiceProvider services) : ControllerBase {
+    private const string FormatText = "text";
+    private const string FormatUnified = "unified";
+    private const string FormatSplit = "split";
+    private const string FormatJson = "json";
+    private static readonly string[] DiffFormats = [FormatText, FormatUnified, FormatJson, FormatSplit];
+    private static readonly string[] TruthyValues = ["1", "true", "yes", "on"];
+
     private ProtoRegistryStore? Store =>
         services.GetService(typeof(ProtoRegistryStore)) as ProtoRegistryStore;
 
@@ -89,16 +97,63 @@ public sealed class ProtosController(IServiceProvider services) : ControllerBase
     [HttpGet("diff")]
     public async Task<IActionResult> Diff(
         [FromQuery] string from, [FromQuery] string to, [FromQuery] string platform = "android",
+        [FromQuery] string? format = null, [FromQuery] int context = 3, [FromQuery] string? download = null,
         CancellationToken ct = default) {
+        string fmt = string.IsNullOrWhiteSpace(format) ? FormatText : format.Trim();
+        if (!DiffFormats.Contains(fmt, StringComparer.OrdinalIgnoreCase))
+            return BadRequest(new { error = "format must be one of text, unified, json, split" });
+
         if (Store is null) return NotFound();
         if (string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(to))
             return BadRequest(new { error = "from and to required" });
 
         string? fromText = await LoadProtoText(platform, from, ct);
         string? toText = await LoadProtoText(platform, to, ct);
-        return fromText is null || toText is null
-            ? NotFound()
-            : Content(ProtoDiff.Diff(fromText, toText), "text/plain");
+        if (fromText is null || toText is null) return NotFound();
+
+        bool attach = Truthy(download);
+
+        if (IsFormat(fmt, FormatText)) {
+            if (attach) Attach(from, to, "txt");
+            return Content(ProtoDiff.Diff(fromText, toText), "text/plain");
+        }
+
+        if (IsFormat(fmt, FormatUnified)) {
+            string patch = UnifiedDiffWriter.Write(fromText, toText, new UnifiedDiffOptions(
+                Math.Clamp(context, 0, 50),
+                LabelA: $"{platform} {from}",
+                LabelB: $"{platform} {to}"));
+            if (attach) Attach(from, to, "diff");
+            return Content(patch, "text/plain");
+        }
+
+        if (IsFormat(fmt, FormatSplit)) {
+            var split = SideBySideDiffBuilder.Build(fromText, toText);
+            if (attach) Attach(from, to, "json");
+            return Ok(new { rows = split.Rows, hunkStarts = split.HunkStarts });
+        }
+
+        var structural = ProtoDiff.Compute(fromText, toText);
+        var lineOps = MyersDiff.Compute(
+            UnifiedDiffWriter.SplitLines(fromText), UnifiedDiffWriter.SplitLines(toText));
+        if (attach) Attach(from, to, "json");
+        return Ok(new { entries = structural.Entries, summary = ProtoDiffSummary.From(structural, lineOps) });
+    }
+
+    private void Attach(string from, string to, string extension) =>
+        Response.Headers.ContentDisposition =
+            $"attachment; filename=\"ei-{SafeName(from)}..{SafeName(to)}.{extension}\"";
+
+    private static bool IsFormat(string value, string name) =>
+        string.Equals(value, name, StringComparison.OrdinalIgnoreCase);
+
+    private static bool Truthy(string? value) =>
+        !string.IsNullOrWhiteSpace(value) && TruthyValues.Contains(value.Trim(), StringComparer.OrdinalIgnoreCase);
+
+    private static string SafeName(string value) {
+        var sb = new StringBuilder(value.Length);
+        foreach (char c in value) sb.Append(char.IsAsciiLetterOrDigit(c) || c is '.' or '-' or '_' ? c : '-');
+        return sb.Length == 0 ? "proto" : sb.ToString();
     }
 
     private async Task<string?> LoadProtoText(string platform, string build, CancellationToken ct) {

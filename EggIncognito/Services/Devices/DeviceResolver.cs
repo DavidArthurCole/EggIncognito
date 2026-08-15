@@ -12,6 +12,7 @@ public interface IDeviceResolver {
 
 public sealed class DeviceResolver(IServiceProvider services) : IDeviceResolver {
     private IDeviceStatusStore? Store => services.GetService(typeof(IDeviceStatusStore)) as IDeviceStatusStore;
+    private DeviceJobStore? Jobs => services.GetService(typeof(DeviceJobStore)) as DeviceJobStore;
 
     public async Task<Device?> ResolveAsync(DeviceQuery query, CancellationToken ct) {
         var store = Store;
@@ -25,8 +26,9 @@ public sealed class DeviceResolver(IServiceProvider services) : IDeviceResolver 
             devices = [.. devices.Where(d => Platforms.Matches(d.Platform, query.Platform))];
         if (devices.Count == 0) return null;
 
-        var latest = (await store.LatestPerDeviceAsync(ct)).ToDictionary(p => p.DeviceId);
-        var reachable = devices.FirstOrDefault(d => latest.TryGetValue(d.Id, out var p) && p.Reachable);
+        if (Jobs is not { } jobs) return devices[0];
+        var latest = (await jobs.LatestPerDeviceAsync(DeviceJobKinds.Probe, ct)).ToDictionary(p => p.DeviceId);
+        var reachable = devices.FirstOrDefault(d => latest.TryGetValue(d.Id, out var p) && p.Reachable == true);
         return reachable ?? devices[0];
     }
 }

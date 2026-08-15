@@ -1,0 +1,1782 @@
+@rendermode @(RenderMode.InteractiveServer)
+@inherits SelfCallComponentBase
+@inject IJSRuntime JS
+@inject IWebHostEnvironment Env
+@inject ICurrentUser User
+@inject NavigationManager Nav
+@inject ProtoWorkbenchState State
+@inject ILogger<ProtoWorkbenchModal> Logger
+@using System.Globalization
+@using System.Text
+@using System.Text.Json
+@using EggIncognito.Core
+@using EggIncognito.Services.ProtoExtract
+@using EggIncognito.Services.Protos
+@using Microsoft.AspNetCore.Components.Web.Virtualization
+@implements IAsyncDisposable
+
+<InputFile id="wbFile" accept=".ipa,.apk,.apkm,.xapk" multiple hidden OnChange="OnFilesSelected"/>
+
+@if (_open) {
+    var groups = Groups();
+    var offerAllCount = groups.Count(CanOffer);
+    var counterparts = CounterpartLinks();
+    <ModalShell Title="Proto workbench" CardClass="pwb-card" OnClose="Close">
+    <HeadTools>
+        <div class="wb-head-tools">
+            <label for="wbFile" class="btn-mini cursor-pointer m-0">Add files</label>
+            @if (offerAllCount > 0) {
+                <button type="button" class="btn-mini" disabled="@_offerBusy" @onclick="@(() => OfferAll(groups))">
+                    <Icon Name="arrow-up" Class="icon-sm"/> Offer all (@offerAllCount)
+                </button>
+            }
+            @if (State.B is not null) {
+                <button type="button" class="btn-mini" title="Swap A and B" aria-label="Swap A and B" @onclick="SwapRefs">
+                    <Icon Name="swap" Class="icon-sm"/>
+                </button>
+                <button type="button" class="btn-mini" title="Clear B" aria-label="Clear B" @onclick="ClearB">Clear B</button>
+            }
+            <button type="button" class="btn-mini" title="Settings" aria-label="Settings"
+                    @onclick="@(() => _settingsOpen = !_settingsOpen)">
+                <Icon Name="gear" Class="icon-sm"/>
+            </button>
+            @if (_settingsOpen) {
+                <div class="popover-backdrop" @onclick="@(() => _settingsOpen = false)" @onclick:stopPropagation="true"></div>
+                <div class="wb-settings" @onclick:stopPropagation="true">
+                    <label class="wb-settings-row">
+                        <span>Name length</span>
+                        <input type="number" class="flow-filter-input" min="8" max="96" @key="_truncInputKey"
+                               value="@_truncLen" @onchange="OnTruncLenChanged"/>
+                    </label>
+                    <label class="wb-settings-row">
+                        <span>Truncate</span>
+                        <select class="flow-filter-select" value="@_truncMode" @onchange="OnTruncModeChanged">
+                            <option value="off">off</option>
+                            <option value="card">card only</option>
+                            <option value="everywhere">everywhere</option>
+                        </select>
+                    </label>
+                </div>
+            }
+            <button type="button" class="reg-edit-btn" title="Close" aria-label="Close" @onclick="Close">
+                <Icon Name="x"/>
+            </button>
+        </div>
+    </HeadTools>
+    <ChildContent>
+    <div class="wb-body" id="wbDrop">
+    <aside class="wb-rail">
+        <section class="pwb-rail-sec">
+            <button type="button" class="pwb-sec-head" @onclick="@(() => _registryOpen = !_registryOpen)">
+                <Icon Name="@(_registryOpen ? "chevronDown" : "chevronRight")" Class="icon-sm"/>
+                <span>Registry</span>
+                <span class="pwb-sec-count">@State.Registry.Count</span>
+            </button>
+            @if (_registryOpen) {
+                var items = RegistryItems();
+                <div class="pwb-sec-body">
+                    <div class="pwb-chips">
+                        <button type="button" class="pwb-chip @(_regPlatform.Length == 0 ? "pwb-chip-on" : "")"
+                                @onclick="@(() => SetRegPlatform(""))">
+                            all
+                        </button>
+                        <button type="button" class="pwb-chip @(_regPlatform == "android" ? "pwb-chip-on" : "")"
+                                @onclick="@(() => SetRegPlatform("android"))">
+                            android
+                        </button>
+                        <button type="button" class="pwb-chip @(_regPlatform == "ios" ? "pwb-chip-on" : "")"
+                                @onclick="@(() => SetRegPlatform("ios"))">
+                            ios
+                        </button>
+                    </div>
+                    <input class="pwb-filter" placeholder="version, build, client, sha"
+                           value="@_regFilter" @oninput="OnRegFilterChanged"/>
+                    @if (items.Count == 0) {
+                        <div class="pwb-reg-empty text-muted text-xs">
+                            @(State.Registry.Count == 0 ? "No stored versions yet." : "No versions match this filter.")
+                        </div>
+                    } else {
+                        <div class="pwb-reg-list">
+                            <Virtualize Items="items" Context="item" ItemSize="44">
+                                @if (item.Row is { } row) {
+                                    <div class="pwb-reg-row @RowClass(row)" @onclick="@(args => RegistryRowClick(row, args))">
+                                        <div class="pwb-reg-main">
+                                            @Ver(Segments(row.AppVersion, row.Build, row.ClientVersion))
+                                            @if (RefMark(RegistryRef(row)) is { Length: > 0 } mark) {
+                                                <span class="pwb-ab @(mark == "A" ? "pwb-ab-a" : "pwb-ab-b")">@mark</span>
+                                            }
+                                        </div>
+                                        <div class="pwb-reg-meta">
+                                            <span class="pwb-reg-sha">@Sha12(row.ProtoSha)</span>
+                                            @if (!string.IsNullOrWhiteSpace(row.Source)) {
+                                                <span class="pwb-reg-src">@row.Source</span>
+                                            }
+                                            @if (!HasText(row)) {
+                                                <span class="pwb-notext">no text</span>
+                                            }
+                                            <button type="button" class="pwb-pin" title="Set as B" aria-label="Set as B"
+                                                    @onclick:stopPropagation="true"
+                                                    @onclick="@(() => SetB(RegistryRef(row)))">
+                                                B
+                                            </button>
+                                        </div>
+                                    </div>
+                                } else {
+                                    <div class="pwb-reg-group">@item.Header</div>
+                                }
+                            </Virtualize>
+                        </div>
+                    }
+                </div>
+            }
+        </section>
+        <section class="pwb-rail-sec">
+            <button type="button" class="pwb-sec-head" @onclick="@(() => _sessionOpen = !_sessionOpen)">
+                <Icon Name="@(_sessionOpen ? "chevronDown" : "chevronRight")" Class="icon-sm"/>
+                <span>Session</span>
+                <span class="pwb-sec-count">@State.Entries.Count</span>
+            </button>
+            @if (_sessionOpen) {
+                <div class="pwb-sec-body">
+                    @if (State.Entries.Count == 0) {
+                        <div class="wb-rail-empty">
+                            <div class="text-muted text-xs">Drop .ipa, .apk, or bundle files anywhere in this window, or use Add files.</div>
+                        </div>
+                    }
+                    @foreach (var e in State.Entries.Where(x => !x.IsAnalyzed)) {
+                        @Card(e, null, false)
+                    }
+                    @foreach (var g in groups) {
+                        @if (g.Members.Count > 1) {
+                            <div class="wb-group @(g.Conflict ? "conflict" : "")">
+                                <div class="wb-group-head">
+                                    @Ver(g.Segs)
+                                    @if (g is { Conflict: false, Status.Offerable: true }) {
+                                        <span title="offerable">
+                                            <Icon Name="arrow-up" Class="icon-sm wb-st-offer"/>
+                                        </span>
+                                    } else {
+                                        <span class="wb-badge @BadgeClass(g)">@BadgeText(g)</span>
+                                    }
+                                    @if (g.Status is { Failed: true }) {
+                                        <button type="button" class="btn-mini ml-auto" title="Retry check" aria-label="Retry check"
+                                                @onclick="@(() => RetryCheck(g))">
+                                            <Icon Name="refresh" Class="icon-sm"/> Retry
+                                        </button>
+                                    }
+                                </div>
+                                <div class="wb-group-body">
+                                    @foreach (var e in g.Members) {
+                                        @Card(e, g, true)
+                                    }
+                                </div>
+                            </div>
+                        } else {
+                            @Card(g.Members[0], g, false)
+                        }
+                    }
+                </div>
+            }
+        </section>
+    </aside>
+    <section class="wb-main">
+        <div class="pwb-bar">
+            <span class="pwb-bar-slot">
+                <span class="pwb-ab pwb-ab-a">A</span>
+                <span class="pwb-bar-val">@RefLabel(State.A)</span>
+                @if (State.A is { } refA) {
+                    if (!HasTextFor(refA)) {
+                        <span class="pwb-notext">no text</span>
+                    }
+
+                    if (IsLegacySha(refA)) {
+                        <span class="pwb-legacy" title="The stored sha does not match the canonical form of the stored text">legacy sha</span>
+                    }
+                }
+            </span>
+            <span class="pwb-bar-slot">
+                <span class="pwb-ab pwb-ab-b">B</span>
+                <span class="pwb-bar-val">@RefLabel(State.B)</span>
+                @if (State.B is { } refB) {
+                    if (!HasTextFor(refB)) {
+                        <span class="pwb-notext">no text</span>
+                    }
+
+                    if (IsLegacySha(refB)) {
+                        <span class="pwb-legacy" title="The stored sha does not match the canonical form of the stored text">legacy sha</span>
+                    }
+                }
+                @if (TierOf(counterparts, State.B) is { } tier) {
+                    <span class="pwb-tier @(tier.Weak ? "pwb-tier-weak" : "")" title="@TierTitle(tier)">@tier.Reason</span>
+                }
+            </span>
+        </div>
+        @if (_notice is { Length: > 0 } notice) {
+            <div class="pwb-toast">
+                <span>@notice</span>
+                <button type="button" class="wb-x" title="Dismiss" aria-label="Dismiss" @onclick="@(() => _notice = null)">
+                    <Icon Name="x" Class="icon-sm"/>
+                </button>
+            </div>
+        }
+        @{
+            var selGroup = Selected is { } current
+                ? groups.FirstOrDefault(x => x.Members.Any(m => m.Id == current.Id))
+                : null;
+        }
+        @if (Selected is { } sel && ShowStatus(sel)) {
+            <div class="pwb-status">
+                <span class="font-mono text-xs break-all">@DetailName(sel.FileName)</span>
+                @if (sel.Status == "error") {
+                    <span class="wb-badge wb-badge-failed">@(sel.Error ?? "failed")</span>
+                } else if (!sel.IsDone) {
+                    <span class="text-muted text-xs">@sel.Status@(sel.Step is { Length: > 0 } ? $": {sel.Step}" : "")...</span>
+                } else if (sel.Result is { } r) {
+                    <span class="font-mono text-muted text-xs">@(r.Messages.Count) - @Sha12(r.ProtoSha)</span>
+                    @if (SizeFlow(r) is { Count: > 0 } sizes) {
+                        <span class="font-mono text-muted text-xs">
+                            @for (var i = 0; i < sizes.Count; i++) {
+                                if (i > 0) {
+                                    <span class="wb-arrow">&rarr;</span>
+                                }
+
+                                @sizes[i]
+                            }
+                        </span>
+                    }
+
+                    @if (selGroup is { Conflict: true }) {
+                        <span class="wb-badge wb-badge-conflict">conflict</span>
+                        <span class="text-muted text-xs">Pick the file to offer in the rail.</span>
+                    } else if (selGroup?.Status is { Known: true }) {
+                        <span class="wb-badge wb-badge-known">in registry</span>
+                    } else if (selGroup?.Status is { InRegistry: true }) {
+                        <span class="wb-badge wb-badge-known">sha in registry</span>
+                        <span class="text-muted text-xs">This proto text is already stored under different version metadata.</span>
+                    } else if (selGroup?.Status is { Failed: true }) {
+                        <span class="wb-badge wb-badge-failed">check failed</span>
+                        <button type="button" class="btn-mini" title="Retry check" aria-label="Retry check"
+                                @onclick="@(() => RetryCheck(selGroup))">
+                            <Icon Name="refresh" Class="icon-sm"/> Retry
+                        </button>
+                    } else if (selGroup?.Status is { Pending: true } or { Offered: true }) {
+                        <span class="wb-badge wb-badge-pending">pending review</span>
+                    } else if (selGroup?.Status is { Offerable: true }) {
+                        @if (User.IsAuthenticated) {
+                            <span class="wb-badge wb-badge-open">offerable</span>
+                        } else {
+                            <span class="text-muted text-xs">Log in to offer this version to the registry.</span>
+                        }
+                    }
+
+                    @if (selGroup is { } sg && CanOffer(sg)) {
+                        <button type="button" class="btn-mini" title="Offer to registry" disabled="@_offerBusy"
+                                @onclick="@(() => Offer(sg))">
+                            <Icon Name="arrow-up" Class="icon-sm"/> Offer
+                        </button>
+                    }
+                }
+            </div>
+        }
+        <div class="pwb-modes" role="group" aria-label="View mode">
+            @foreach (var m in ProtoRefParser.Modes) {
+                <button type="button" class="pwb-mode @(State.Mode == m ? "pwb-mode-on" : "")"
+                        disabled="@ModeDisabled(m)" title="@ModeTitle(m)" @onclick="@(() => SetMode(m))">
+                    @m
+                </button>
+            }
+        </div>
+        <div class="pwb-tools">
+            <select class="flow-filter-select" value="@CompareValue()" @onchange="OnCompareToChanged">
+                <option value="">no B</option>
+                @if (LatestRef() is not null) {
+                    <option value="latest">latest registry</option>
+                }
+                @if (StepRef(1) is not null) {
+                    <option value="prev">previous version</option>
+                }
+                @foreach (var e in State.Entries.Where(x => x.IsAnalyzed)) {
+                    @if (SessionRef(e) is { } sr && !SameRef(State.A, sr)) {
+                        <option value="@sr.Format()">@OptionLabel(e)</option>
+                    }
+                }
+                @foreach (var row in RegistryOptions()) {
+                    <option value="@RegistryRef(row).Format()">@row.Platform @(string.Join(" | ", Segments(row.AppVersion, row.Build, row.ClientVersion)))</option>
+                }
+            </select>
+            <button type="button" class="btn-mini" title="Older version" aria-label="Older version"
+                    disabled="@(StepRef(1) is null)" @onclick="@(() => SetA(StepRef(1)))">
+                <Icon Name="chevronLeft" Class="icon-sm"/>
+            </button>
+            <button type="button" class="btn-mini" title="Newer version" aria-label="Newer version"
+                    disabled="@(StepRef(-1) is null)" @onclick="@(() => SetA(StepRef(-1)))">
+                <Icon Name="chevronRight" Class="icon-sm"/>
+            </button>
+            <button type="button" class="btn-mini" title="Compare against the previous version"
+                    disabled="@(StepRef(1) is null)" @onclick="@(() => SetB(StepRef(1)))">
+                vs previous
+            </button>
+            <button type="button" class="btn-mini" title="Compare against the latest stored version"
+                    disabled="@(LatestRef() is null)" @onclick="@(() => SetB(LatestRef()))">
+                vs latest
+            </button>
+            @foreach (var target in CounterpartTargets()) {
+                var link = counterparts.FirstOrDefault(l => l.Platform == target);
+                <button type="button" class="btn-mini @(link is { Found: false } ? "pwb-dim" : "")"
+                        disabled="@(link is null)" title="@CounterpartTitle(target, link)"
+                        @onclick="@(() => SetCounterpart(link))">
+                    vs @target
+                </button>
+            }
+            @if (IsLineMode()) {
+                <input type="search" class="pwb-tool-filter" placeholder="Filter lines..." autocomplete="off"
+                       value="@_filter" @oninput="OnLineFilterChanged"/>
+                <button type="button" class="btn-mini @(_wrap ? "active" : "")" title="Toggle word wrap"
+                        @onclick="@(() => _wrap = !_wrap)">
+                    wrap
+                </button>
+                <button type="button" class="btn-mini @(_context == FullContext ? "active" : "")"
+                        title="Toggle full file context" @onclick="ToggleContext">
+                    @(_context == FullContext ? "all" : "3") ctx
+                </button>
+                @if (HunkCount() > 0) {
+                    <span class="pwb-hunk">
+                        <button type="button" class="btn-mini" title="Previous hunk" aria-label="Previous hunk"
+                                @onclick="@(() => StepHunk(-1))">
+                            &uarr;
+                        </button>
+                        <span class="pwb-hunk-at">@(_hunk + 1)/@HunkCount()</span>
+                        <button type="button" class="btn-mini" title="Next hunk" aria-label="Next hunk"
+                                @onclick="@(() => StepHunk(1))">
+                            &darr;
+                        </button>
+                    </span>
+                }
+            }
+            <CopyButton GetText="ViewText" ButtonClass="btn-mini" IconClass="icon-sm" Label="Copy" CopiedLabel="Copied"/>
+            <CopyButton GetText="Permalink" ButtonClass="btn-mini" IconClass="icon-sm" Label="Link" CopiedLabel="Copied"
+                        Title="Copy a link to this view"/>
+            <button type="button" class="btn-mini" title="Download" aria-label="Download"
+                    @onclick="@(() => _dlOpen = !_dlOpen)">
+                <Icon Name="download" Class="icon-sm"/>
+            </button>
+            @if (_dlOpen) {
+                <div class="popover-backdrop" @onclick="@(() => _dlOpen = false)" @onclick:stopPropagation="true"></div>
+                <div class="pwb-dl" @onclick:stopPropagation="true">
+                    @if (State.A is { } dlA) {
+                        @DownloadItem(dlA, "A")
+                    }
+                    @if (State.B is { } dlB) {
+                        @DownloadItem(dlB, "B")
+                    }
+                    @if (State.Cached is { } dlBundle) {
+                        @if (ApiPair() is { Length: > 0 } api) {
+                            <a class="pwb-dl-item" href="@($"/api/protos/diff?{api}&format=unified&download=1")"
+                               target="_blank" rel="noopener">
+                                unified .diff
+                            </a>
+                            <a class="pwb-dl-item" href="@($"/api/protos/diff?{api}&format=json&download=1")"
+                               target="_blank" rel="noopener">
+                                structural .json
+                            </a>
+                        } else {
+                            <button type="button" class="pwb-dl-item" @onclick="@(() => DownloadUnified(dlBundle))">unified .diff</button>
+                            <button type="button" class="pwb-dl-item" @onclick="@(() => DownloadJson(dlBundle))">structural .json</button>
+                        }
+                    }
+                </div>
+            }
+        </div>
+        @if (IsDiffMode() && State.Cached is { } sumBundle) {
+            <div class="pwb-sum">
+                <span class="pwb-sum-add">+@sumBundle.Summary.LinesAdded</span>
+                <span class="pwb-sum-rem">-@sumBundle.Summary.LinesRemoved</span>
+                @foreach (var part in SummaryParts(sumBundle.Summary)) {
+                    <span class="pwb-sum-k">@part</span>
+                }
+            </div>
+        }
+        <div class="pwb-view" id="pwbView">
+            @if (State.A is not { } viewA) {
+                <div class="text-muted text-sm">Pick a stored version in the rail, or add files. Archives are unpacked in the browser; the app binary is uploaded and parsed server-side.</div>
+            } else if (State.Mode == "meta") {
+                <table class="data-table">
+                    <thead>
+                    <tr>
+                        <th></th><th>@RefLabel(State.A)</th><th>@RefLabel(State.B)</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var row in MetaRows()) {
+                        <tr class="@(row.Same ? "" : "pwb-meta-diff")">
+                            <td class="text-muted">@row.Key</td>
+                            <td class="mono text-xs break-all">@row.A</td>
+                            <td class="mono text-xs break-all">@row.B</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            } else if (State.Mode == "text") {
+                @if (!HasTextFor(viewA)) {
+                    <div class="pwb-note">No stored proto text for this version.</div>
+                } else if (TextOf(viewA) is { Length: > 0 } textA) {
+                    <CodeTextView Text="@textA" MaxHeight="48vh" LineNumbers="true"/>
+                } else {
+                    <div class="text-muted text-xs">loading...</div>
+                }
+            } else if (State.B is not { } viewB) {
+                <div class="pwb-note">Pick a B side in the rail to diff against.</div>
+            } else if (!HasTextFor(viewA) || !HasTextFor(viewB)) {
+                <div class="pwb-note">No stored proto text for @(HasTextFor(viewA) ? "B" : "A").</div>
+            } else if (Identical()) {
+                <div class="pwb-note pwb-note-ok">A and B are the same proto (matching sha). Nothing to diff.</div>
+            } else if (State.Cached is { } bundle) {
+                @if (_degraded) {
+                    <div class="pwb-note pwb-note-warn">These files are too large to diff line by line, so the whole changed region is shown as one block.</div>
+                }
+
+                @if (State.Mode == "split") {
+                    <DiffSplitView Result="bundle.Split" Filter="@_filter" WordWrap="_wrap" MaxHeight="48vh" OnHunk="OnHunkPicked"/>
+                } else if (State.Mode == "unified") {
+                    <DiffUnifiedView UnifiedText="@bundle.Unified" Filter="@_filter" WordWrap="_wrap" MaxHeight="48vh"/>
+                } else {
+                    <ProtoDiffView Diff="bundle.Structural" EmptyText="No structural differences."/>
+                }
+            } else {
+                <div class="text-muted text-xs">comparing...</div>
+            }
+        </div>
+    </section>
+    </div>
+    </ChildContent>
+    </ModalShell>
+}
+
+@code {
+    static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
+
+    const string MissingText = "\u0000";
+
+    const int DefaultContext = 3;
+
+    const int FullContext = 100_000;
+
+    const int DiffRowHeight = 20;
+
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    [Parameter] public EventCallback<WorkbenchRef> OnRefChanged { get; set; }
+
+    [Parameter] public EventCallback OnClosed { get; set; }
+
+    bool _open;
+    bool _dropWired;
+    bool _offerBusy;
+    bool _settingsOpen;
+    bool _registryOpen = true;
+    bool _sessionOpen = true;
+    string _regPlatform = "";
+    string _regFilter = "";
+    int _truncLen = 20;
+    string _truncMode = "card";
+    IJSObjectReference? _strip;
+    IJSObjectReference? _download;
+    IJSObjectReference? _prefs;
+    DotNetObjectReference<ProtoWorkbenchModal>? _selfRef;
+    readonly SemaphoreSlim _gate = new(2, 2);
+    readonly HashSet<string> _checking = [];
+    readonly Dictionary<string, bool> _legacy = [];
+    bool _wrap;
+    bool _dlOpen;
+    bool _degraded;
+    int _context = DefaultContext;
+    int _hunk;
+    string _filter = "";
+    string? _notice;
+    List<int> _unifiedHunks = [];
+
+    StagedEntry? Selected => State.Find(State.SelectedId);
+
+    RenderFragment Ver(IReadOnlyList<string> segs) => @<span class="dev-verline">
+                                                          @for (var i = 0; i < segs.Count; i++) {
+                                                              if (i > 0) {
+                                                                  <span class="dev-versep">|</span>
+                                                              }
+
+                                                              @segs[i]
+                                                          }
+                                                      </span>;
+
+    RenderFragment Card(StagedEntry e, OfferGroup? g, bool grouped) => @<div class="wb-entry @(State.SelectedId == e.Id ? "selected" : "")"
+                                                                             @key="e.Id" @onclick="@(args => Select(e, args))">
+                                                                           <div class="flex items-start gap-1">
+                                                                               @if (g is { MultiSha: true } grp) {
+                                                                                   <input type="radio" class="wb-radio" name="@("wbg-" + grp.Key)"
+                                                                                          checked="@(grp.Winner?.Id == e.Id)"
+                                                                                          @onclick:stopPropagation="true"
+                                                                                          @onchange="@(() => PickWinner(grp, e))"/>
+                                                                               }
+                                                                               <span class="wb-entry-name">@CardName(e.FileName)</span>
+                                                                               @if (RefMark(SessionRef(e)) is { Length: > 0 } mark) {
+                                                                                   <span class="pwb-ab @(mark == "A" ? "pwb-ab-a" : "pwb-ab-b")">@mark</span>
+                                                                               }
+                                                                               <button type="button" class="wb-x" title="Remove" aria-label="Remove"
+                                                                                       @onclick:stopPropagation="true" @onclick="@(() => Remove(e))">
+                                                                                   <Icon Name="x" Class="icon-sm"/>
+                                                                               </button>
+                                                                           </div>
+                                                                           @if (!grouped && e.IsAnalyzed && Segs(e) is { Count: > 0 } vs) {
+                                                                               <div class="text-[0.7rem]">@Ver(vs)</div>
+                                                                           }
+                                                                           @if (Sha12(e.Result?.ProtoSha) is { Length: > 0 } sha) {
+                                                                               <div class="wb-entry-meta">@sha</div>
+                                                                           }
+                                                                           <div class="wb-entry-foot">
+                                                                               @if (!e.IsDone && e.Step is { Length: > 0 } step) {
+                                                                                   <span class="text-muted text-[0.65rem] truncate">@step</span>
+                                                                               }
+                                                                               @if (SessionRef(e) is { } sref) {
+                                                                                   <button type="button" class="pwb-pin" title="Set as B" aria-label="Set as B"
+                                                                                           @onclick:stopPropagation="true" @onclick="@(() => SetB(sref))">
+                                                                                       B
+                                                                                   </button>
+                                                                               }
+                                                                               @if (!grouped && g is { Conflict: false, Status.Offerable: true }) {
+                                                                                   <span title="offerable">
+                                                                                       <Icon Name="arrow-up" Class="icon-sm wb-st-offer"/>
+                                                                                   </span>
+                                                                               }
+                                                                               <Icon Name="clock" Class="@("icon-sm " + StatusClass(e))"/>
+                                                                               <Icon Name="@PlatformIcon(e.Platform)" Class="icon-sm"/>
+                                                                           </div>
+                                                                       </div>;
+
+    RenderFragment DownloadItem(ProtoRef value, string side) => @<text>
+                                                                     @if (value.Source == ProtoRefSource.Registry) {
+                                                                         <a class="pwb-dl-item" href="@ProtoUrl(value)" download="@($"{FileLabel(value)}.proto")"
+                                                                            target="_blank" rel="noopener">
+                                                                             @side .proto
+                                                                         </a>
+                                                                     } else {
+                                                                         <button type="button" class="pwb-dl-item" @onclick="@(() => DownloadProto(value))">@side .proto</button>
+                                                                     }
+                                                                 </text>;
+
+    public void Open() {
+        _open = true;
+        _dropWired = false;
+        StateHasChanged();
+    }
+
+    public void OpenAt(ProtoRef a, ProtoRef? b, string? mode) {
+        State.A = a;
+        State.B = b;
+        State.Mode = ModeOrDefault(mode, b);
+        State.Cached = null;
+        State.CachedKey = null;
+        _hunk = 0;
+        _notice = null;
+        Open();
+        _ = ResolvePair();
+    }
+
+    static string ModeOrDefault(string? mode, ProtoRef? b) {
+        if (mode is { Length: > 0 }
+            && ProtoRefParser.Modes.FirstOrDefault(m => m.Equals(mode, StringComparison.OrdinalIgnoreCase)) is { } known) {
+            return known;
+        }
+
+        return b is null ? "text" : "split";
+    }
+
+    public void Close() {
+        var was = _open;
+        _open = false;
+        _settingsOpen = false;
+        _dlOpen = false;
+        if (!was) return;
+        StateHasChanged();
+        if (OnClosed.HasDelegate) _ = OnClosed.InvokeAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender) {
+        if (firstRender) {
+            await LoadPrefs();
+        }
+
+        if (_open && !_dropWired) {
+            var mod = await StripModule();
+            _dropWired = await mod.InvokeAsync<bool>("wireDrop", "wbDrop", "wbFile");
+        }
+    }
+
+    async Task<IJSObjectReference> StripModule() {
+        return _strip ??= await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/protoStrip.js"));
+    }
+
+    async Task LoadPrefs() {
+        try {
+            _prefs ??= await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/uiPrefs.js"));
+            var len = await _prefs.InvokeAsync<string?>("get", "wb.nameTruncLen");
+            var mode = await _prefs.InvokeAsync<string?>("get", "wb.nameTruncMode");
+            if (int.TryParse(len, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v)) _truncLen = Math.Clamp(v, 8, 96);
+            if (mode is "off" or "card" or "everywhere") _truncMode = mode;
+            await Rerender();
+        }
+        catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
+            Logger.LogDebug(ex, "workbench preferences could not be read");
+        }
+    }
+
+    async Task SetPref(string key, string value) {
+        try {
+            _prefs ??= await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/uiPrefs.js"));
+            await _prefs.InvokeVoidAsync("set", key, value);
+        }
+        catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
+            Logger.LogDebug(ex, "workbench preference {Key} could not be stored", key);
+        }
+    }
+
+    async Task OnTruncLenChanged(ChangeEventArgs e) {
+        if (int.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var v)) {
+            _truncLen = Math.Clamp(v, 8, 96);
+        } else {
+            _truncInputKey++;
+        }
+
+        await SetPref("wb.nameTruncLen", _truncLen.ToString(CultureInfo.InvariantCulture));
+    }
+
+    int _truncInputKey;
+
+    async Task OnTruncModeChanged(ChangeEventArgs e) {
+        var v = e.Value?.ToString();
+        _truncMode = v is "off" or "card" or "everywhere" ? v : "card";
+        await SetPref("wb.nameTruncMode", _truncMode);
+    }
+
+    string CardName(string name) {
+        return _truncMode is "card" or "everywhere" ? Middle(name, _truncLen) : name;
+    }
+
+    string DetailName(string name) {
+        return _truncMode == "everywhere" ? Middle(name, _truncLen) : name;
+    }
+
+    static string Middle(string name, int max) {
+        if (max < 8) max = 8;
+        if (name.Length <= max) return name;
+        var dot = name.LastIndexOf('.');
+        var ext = dot > 0 && name.Length - dot <= 8 ? name[dot..] : "";
+        var stem = ext.Length > 0 ? name[..dot] : name;
+        var budget = max - ext.Length - 3;
+        if (budget < 4) return stem[..Math.Min(stem.Length, Math.Max(1, max - ext.Length))] + ext;
+        var head = (budget + 1) / 2;
+        var tail = budget - head;
+        return stem[..head] + "..." + stem[^tail..] + ext;
+    }
+
+    async Task OnFilesSelected(InputFileChangeEventArgs e) {
+        var mod = await StripModule();
+        var stashed = await mod.InvokeAsync<List<StashedFile>>("stashFiles", "wbFile");
+        if (!_open) _dropWired = false;
+        _open = true;
+        foreach (var s in stashed) {
+            var entry = new StagedEntry { Token = s.Token, FileName = s.Name, Size = s.Size };
+            entry.Platform = PlatformFor(s.Name);
+            State.Entries.Add(entry);
+            State.SelectedId ??= entry.Id;
+            _ = ProcessAsync(entry);
+        }
+    }
+
+    async Task ProcessAsync(StagedEntry entry) {
+        try {
+            await _gate.WaitAsync();
+        }
+        catch (ObjectDisposedException) {
+            return;
+        }
+
+        try {
+            await InvokeAsync(() => {
+                entry.Status = "extracting";
+                StateHasChanged();
+            });
+            _selfRef ??= DotNetObjectReference.Create(this);
+            var mod = await StripModule();
+            using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(15));
+            var r = await mod.InvokeAsync<ExtractResult>("analyzeStored", cts.Token,
+                [entry.Token, "/api/tools/extract-proto", _selfRef]);
+            if (r is null or { Ok: false }) {
+                await InvokeAsync(() => {
+                    entry.Status = "error";
+                    entry.Error = r?.Diagnostics ?? "no response";
+                    StateHasChanged();
+                });
+                return;
+            }
+
+            var dropped = false;
+            await InvokeAsync(() => {
+                entry.Result = r with { FileName = entry.FileName };
+                entry.Status = "done";
+                entry.Step = null;
+                if (entry.Result?.FileSha is { Length: > 0 } sha
+                    && State.Entries.FirstOrDefault(x => x != entry && x.Result?.FileSha == sha) is { } dup) {
+                    State.Entries.Remove(entry);
+                    if (State.SelectedId == entry.Id) State.SelectedId = dup.Id;
+                    dropped = true;
+                }
+
+                StateHasChanged();
+            });
+            if (dropped) {
+                await DiscardToken(entry.Token);
+                return;
+            }
+
+            await AfterDone(entry);
+        }
+        catch (Exception ex) {
+            await InvokeAsync(() => {
+                entry.Status = "error";
+                entry.Error = ex.Message;
+                StateHasChanged();
+            });
+        }
+        finally {
+            try {
+                _gate.Release();
+            }
+            catch (ObjectDisposedException ex) {
+                Logger.LogDebug(ex, "analysis gate was disposed before the slot was released");
+            }
+
+            await DiscardToken(entry.Token);
+            await Rerender();
+        }
+    }
+
+    async Task AfterDone(StagedEntry entry) {
+        await InvokeAsync(() => {
+            entry.Platform = PlatformFor(entry.FileName);
+            entry.AppVersion = entry.Result?.AppVersion ?? "";
+            entry.Build = entry.Result?.Build ?? "";
+            entry.ClientVersionText = entry.Result?.ClientVersion?.ToString(CultureInfo.InvariantCulture) ?? "";
+        });
+        await BackfillBuildAndClientVersion(entry);
+        await InvokeAsync(async () => {
+            if (State.A is null && State.SelectedId == entry.Id && SessionRef(entry) is { } sref) await SetA(sref);
+        });
+        await CheckGroups();
+    }
+
+    async Task DiscardToken(int token) {
+        try {
+            var mod = await StripModule();
+            await mod.InvokeVoidAsync("discard", token);
+        }
+        catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
+            Logger.LogDebug(ex, "stashed upload {Token} could not be discarded", token);
+        }
+    }
+
+    [JSInvokable]
+    public async Task AnalyzeStep(int token, string step) {
+        var entry = State.Entries.FirstOrDefault(e => e.Token == token);
+        if (entry is null) return;
+        await InvokeAsync(() => {
+            entry.Step = step;
+            if (step.StartsWith("uploading", StringComparison.Ordinal)) entry.Status = "uploading";
+            StateHasChanged();
+        });
+    }
+
+    Task Rerender() {
+        return InvokeAsync(StateHasChanged);
+    }
+
+    async Task Select(StagedEntry e, MouseEventArgs args) {
+        State.SelectedId = e.Id;
+        if (SessionRef(e) is not { } sref) return;
+        await (args.ShiftKey ? SetB(sref) : SetA(sref));
+    }
+
+    async Task Remove(StagedEntry e) {
+        var sref = SessionRef(e);
+        State.Entries.Remove(e);
+        foreach (var k in State.GroupWinners.Where(kv => kv.Value == e.Id).Select(kv => kv.Key).ToList()) {
+            State.GroupWinners.Remove(k);
+        }
+
+        if (State.SelectedId == e.Id) State.SelectedId = State.Entries.FirstOrDefault()?.Id;
+        if (sref is not null) {
+            State.TextCache.Remove(CacheKey(sref));
+            _legacy.Remove(CacheKey(sref));
+            if (SameRef(State.B, sref)) await SetB(null);
+            if (SameRef(State.A, sref)) await SetA(FirstSessionRef());
+        }
+
+        await DiscardToken(e.Token);
+        await CheckGroups();
+    }
+
+    sealed class OfferGroup {
+        public string Key { get; init; } = "";
+        public string Platform { get; init; } = "";
+        public string AppVersion { get; init; } = "";
+        public string Build { get; init; } = "";
+        public string ClientVersionText { get; init; } = "";
+        public List<StagedEntry> Members { get; } = [];
+        public bool MultiSha { get; set; }
+        public StagedEntry? Winner { get; set; }
+        public GroupStatus? Status { get; set; }
+        public bool Conflict => MultiSha && Winner is null;
+        public string? Sha => Winner?.Result?.ProtoSha;
+        public string? StatusKey => Sha is { Length: > 0 } s ? Key + "|" + s : null;
+        public IReadOnlyList<string> Segs => Segments(AppVersion, Build, ClientVersionText);
+    }
+
+    static string KeyOf(StagedEntry e) {
+        return $"{e.Platform}|{e.AppVersion}|{e.Build}|{e.ClientVersionText}";
+    }
+
+    List<OfferGroup> Groups() {
+        var groups = new List<OfferGroup>();
+        foreach (var e in State.Entries.Where(x => x.IsAnalyzed)) {
+            var key = KeyOf(e);
+            var g = groups.FirstOrDefault(x => x.Key == key);
+            if (g is null) {
+                g = new OfferGroup {
+                    Key = key, Platform = e.Platform, AppVersion = e.AppVersion,
+                    Build = e.Build, ClientVersionText = e.ClientVersionText
+                };
+                groups.Add(g);
+            }
+
+            g.Members.Add(e);
+        }
+
+        foreach (var g in groups) {
+            var shas = g.Members.Select(m => m.Result?.ProtoSha ?? "").Where(s => s.Length > 0).Distinct().ToList();
+            g.MultiSha = shas.Count > 1;
+            g.Winner = g.MultiSha
+                ? (State.GroupWinners.TryGetValue(g.Key, out var wid) ? g.Members.FirstOrDefault(m => m.Id == wid) : null)
+                : g.Members.FirstOrDefault(m => m.Result?.ProtoSha is { Length: > 0 });
+            g.Status = g.StatusKey is { } sk && State.GroupStatuses.TryGetValue(sk, out var st) ? st : null;
+        }
+
+        return groups;
+    }
+
+    bool CanOffer(OfferGroup g) {
+        return User.IsAuthenticated && !g.Conflict && g.Winner is not null && g.Status is { Offerable: true };
+    }
+
+    static string BadgeText(OfferGroup g) {
+        if (g.Conflict) return "conflict";
+        return g.Status switch {
+            { Failed: true } => "check failed",
+            { Known: true } => "in registry",
+            { InRegistry: true } => "sha in registry",
+            { Pending: true } or { Offered: true } => "pending",
+            { Offerable: true } => "offerable",
+            _ => "checking"
+        };
+    }
+
+    static string BadgeClass(OfferGroup g) {
+        if (g.Conflict) return "wb-badge-conflict";
+        return g.Status switch {
+            { Failed: true } => "wb-badge-failed",
+            { Known: true } or { InRegistry: true } => "wb-badge-known",
+            { Pending: true } or { Offered: true } => "wb-badge-pending",
+            { Offerable: true } => "wb-badge-open",
+            _ => ""
+        };
+    }
+
+    async Task PickWinner(OfferGroup g, StagedEntry e) {
+        State.GroupWinners[g.Key] = e.Id;
+        Invalidate(g.Key);
+        await CheckGroups();
+    }
+
+    void Invalidate(string key) {
+        foreach (var k in State.GroupStatuses.Keys.Where(k => k.StartsWith(key + "|", StringComparison.Ordinal)).ToList()) {
+            State.GroupStatuses.Remove(k);
+        }
+    }
+
+    async Task CheckGroups() {
+        List<OfferGroup> todo = [];
+        await InvokeAsync(() => { todo = Groups().Where(g => g.StatusKey is { } sk && !State.GroupStatuses.ContainsKey(sk)).ToList(); });
+        foreach (var g in todo) {
+            if (g.StatusKey is not { } sk) continue;
+            var claimed = false;
+            await InvokeAsync(() => claimed = _checking.Add(sk));
+            if (!claimed) continue;
+            try {
+                var r = await Client().GetFromJsonAsync<CheckResp>(
+                    $"/api/protos/staged/check?platform={Uri.EscapeDataString(g.Platform)}&appVersion={Uri.EscapeDataString(g.AppVersion)}&build={Uri.EscapeDataString(g.Build)}&clientVersion={Uri.EscapeDataString(g.ClientVersionText)}&protoSha={Uri.EscapeDataString(g.Sha ?? "")}",
+                    JsonOpts);
+                await InvokeAsync(() => State.GroupStatuses[sk] = r is not null
+                    ? new GroupStatus(r.KnownCombination, r.Pending, false, false, r.InRegistry)
+                    : new GroupStatus(false, false, false, true));
+            }
+            catch {
+                await InvokeAsync(() => State.GroupStatuses[sk] = new GroupStatus(false, false, false, true));
+            }
+            finally {
+                await InvokeAsync(() => _checking.Remove(sk));
+            }
+        }
+
+        await Rerender();
+    }
+
+    async Task RetryCheck(OfferGroup g) {
+        if (g.StatusKey is { } sk) State.GroupStatuses.Remove(sk);
+        await CheckGroups();
+    }
+
+    async Task OfferAll(List<OfferGroup> groups) {
+        foreach (var g in groups.Where(CanOffer).ToList()) {
+            await Offer(g);
+        }
+    }
+
+    async Task Offer(OfferGroup g) {
+        var proto = g.Winner?.Result?.Proto;
+        var sha = g.Winner?.Result?.ProtoSha;
+        if (proto is not { Length: > 0 } || sha is not { Length: > 0 }) return;
+        _offerBusy = true;
+        try {
+            var body = new {
+                platform = g.Platform,
+                appVersion = string.IsNullOrWhiteSpace(g.AppVersion) ? null : g.AppVersion,
+                build = string.IsNullOrWhiteSpace(g.Build) ? null : g.Build,
+                clientVersion = string.IsNullOrWhiteSpace(g.ClientVersionText) ? null : g.ClientVersionText,
+                package = (string?)null,
+                protoSha = sha,
+                protoText = proto,
+                messageIndex = (string?)null
+            };
+            var resp = await Client().PostAsJsonAsync("/api/protos/staged/offer", body, JsonOpts);
+            if (!resp.IsSuccessStatusCode) return;
+            var outcome = await resp.Content.ReadFromJsonAsync<OfferResp>(JsonOpts);
+            await InvokeAsync(() => {
+                if (g.StatusKey is { } sk) State.GroupStatuses[sk] = StatusOf(outcome?.Result);
+            });
+            await OnChanged.InvokeAsync();
+        }
+        catch (Exception ex) {
+            Logger.LogWarning(ex, "offering the extracted proto for {Platform} failed", g.Platform);
+        }
+        finally {
+            _offerBusy = false;
+        }
+    }
+
+    static GroupStatus StatusOf(string? offerResult) {
+        return offerResult switch {
+            "alreadyinregistry" => new GroupStatus(true, false, false, false, true),
+            "alreadypending" => new GroupStatus(false, true, false),
+            _ => new GroupStatus(false, true, true)
+        };
+    }
+
+    sealed record CheckResp(bool InRegistry, bool Pending, bool KnownCombination);
+
+    sealed record OfferResp(string? Result);
+
+    sealed record RegItem(string? Header, ProtoRegistryRow? Row);
+
+    List<RegItem> _regItems = [];
+    IReadOnlyList<ProtoRegistryRow>? _regSource;
+    string _regItemsKey = "";
+
+    List<RegItem> RegistryItems() {
+        var key = _regPlatform + "|" + _regFilter;
+        if (ReferenceEquals(_regSource, State.Registry) && _regItemsKey == key) return _regItems;
+        _regSource = State.Registry;
+        _regItemsKey = key;
+        _regItems = BuildRegItems();
+        return _regItems;
+    }
+
+    List<RegItem> BuildRegItems() {
+        var matched = State.Registry.Where(RegMatches).ToList();
+        var items = new List<RegItem>();
+        string? platform = null;
+        foreach (var row in ProtoVersionOrdering.Sort(matched, r => r.Key())) {
+            if (!string.Equals(platform, row.Platform, StringComparison.OrdinalIgnoreCase)) {
+                platform = row.Platform;
+                items.Add(new RegItem(row.Platform, null));
+            }
+
+            items.Add(new RegItem(null, row));
+        }
+
+        return items;
+    }
+
+    bool RegMatches(ProtoRegistryRow row) {
+        if (_regPlatform.Length > 0 && !string.Equals(row.Platform, _regPlatform, StringComparison.OrdinalIgnoreCase)) return false;
+        if (_regFilter.Length == 0) return true;
+        return Contains(row.AppVersion, _regFilter)
+               || Contains(row.Build, _regFilter)
+               || Contains(row.ClientVersion, _regFilter)
+               || (row.ProtoSha is { Length: > 0 } sha && sha.StartsWith(_regFilter, StringComparison.OrdinalIgnoreCase));
+    }
+
+    static bool Contains(string? field, string needle) {
+        return field is { Length: > 0 } && field.Contains(needle, StringComparison.OrdinalIgnoreCase);
+    }
+
+    void SetRegPlatform(string platform) {
+        _regPlatform = platform;
+    }
+
+    void OnRegFilterChanged(ChangeEventArgs e) {
+        _regFilter = e.Value?.ToString()?.Trim() ?? "";
+    }
+
+    static ProtoRef RegistryRef(ProtoRegistryRow row) {
+        return new ProtoRef(ProtoRefSource.Registry, row.Platform, row.Build, null);
+    }
+
+    static ProtoRef? SessionRef(StagedEntry e) {
+        var sha = Sha12(e.Result?.FileSha);
+        return sha.Length > 0 ? new ProtoRef(ProtoRefSource.Session, ProtoRefParser.SessionPlatform, sha, sha) : null;
+    }
+
+    static bool SameRef(ProtoRef? x, ProtoRef? y) {
+        if (x is null || y is null) return x is null && y is null;
+        return x.Source == y.Source
+               && string.Equals(x.Platform, y.Platform, StringComparison.OrdinalIgnoreCase)
+               && string.Equals(x.Build, y.Build, StringComparison.OrdinalIgnoreCase);
+    }
+
+    static string CacheKey(ProtoRef value) {
+        return value.Source == ProtoRefSource.Session
+            ? $"session:{value.Build}"
+            : $"registry:{value.Platform}:{value.Build}";
+    }
+
+    string RefMark(ProtoRef? value) {
+        if (value is null) return "";
+        if (SameRef(State.A, value)) return "A";
+        return SameRef(State.B, value) ? "B" : "";
+    }
+
+    string RowClass(ProtoRegistryRow row) {
+        var value = RegistryRef(row);
+        var css = "";
+        if (SameRef(State.A, value)) css += " pwb-sel-a";
+        if (SameRef(State.B, value)) css += " pwb-sel-b";
+        if (!HasText(row)) css += " pwb-dim";
+        return css.TrimStart();
+    }
+
+    bool HasText(ProtoRegistryRow row) {
+        if (string.IsNullOrEmpty(row.ProtoSha)) return false;
+        return HasTextFor(RegistryRef(row));
+    }
+
+    bool HasTextFor(ProtoRef value) {
+        return !State.TextCache.TryGetValue(CacheKey(value), out var cached) || cached != MissingText;
+    }
+
+    StagedEntry? FindSession(ProtoRef value) {
+        return State.Entries.FirstOrDefault(x =>
+            x.Result?.FileSha is { Length: > 0 } sha
+            && sha.StartsWith(value.Build, StringComparison.OrdinalIgnoreCase));
+    }
+
+    string RefLabel(ProtoRef? value) {
+        if (value is null) return "none";
+        if (value.Source == ProtoRefSource.Session) {
+            return FindSession(value) is { } entry ? OptionLabel(entry) : $"file {value.Build}";
+        }
+
+        var row = RegistryRow(value);
+        var segs = row is null ? [] : Segments(row.AppVersion, row.Build, row.ClientVersion);
+        return segs.Count > 0 ? $"{value.Platform} {string.Join(" | ", segs)}" : $"{value.Platform} {value.Build}";
+    }
+
+    Task RegistryRowClick(ProtoRegistryRow row, MouseEventArgs args) {
+        var value = RegistryRef(row);
+        return args.ShiftKey ? SetB(value) : SetA(value);
+    }
+
+    async Task SetA(ProtoRef? value) {
+        if (SameRef(State.A, value)) return;
+        State.A = value;
+        await AfterSelection();
+    }
+
+    async Task SetB(ProtoRef? value) {
+        if (SameRef(State.B, value)) return;
+        State.B = value;
+        if (value is null) State.Mode = "text";
+        await AfterSelection();
+    }
+
+    Task ClearB() {
+        return SetB(null);
+    }
+
+    async Task SwapRefs() {
+        (State.A, State.B) = (State.B, State.A);
+        await AfterSelection();
+    }
+
+    async Task AfterSelection() {
+        State.Cached = null;
+        State.CachedKey = null;
+        _hunk = 0;
+        await ResolvePair();
+        await RaiseRefChanged();
+    }
+
+    Task RaiseRefChanged() {
+        return OnRefChanged.HasDelegate
+            ? OnRefChanged.InvokeAsync(new WorkbenchRef(State.A, State.B, State.Mode))
+            : Task.CompletedTask;
+    }
+
+    async Task ResolvePair() {
+        await ResolveText(State.A);
+        await ResolveText(State.B);
+        await FallbackMissing();
+        await EnsureBundle();
+        await Rerender();
+        _ = CheckCanonical(State.A);
+        _ = CheckCanonical(State.B);
+    }
+
+    async Task FallbackMissing() {
+        if (State.B is { } b && IsUnknown(b)) {
+            _notice = $"{RefLabel(b)} is not available.";
+            State.B = null;
+            State.Mode = "text";
+        }
+
+        if (State.A is not { } a || !IsUnknown(a)) return;
+        _notice = $"{RefLabel(a)} is not available.";
+        State.A = FallbackFor(a);
+        if (State.A is not null) await ResolveText(State.A);
+    }
+
+    bool IsUnknown(ProtoRef value) {
+        return value.Source == ProtoRefSource.Session
+            ? FindSession(value) is null
+            : State.Registry.Count > 0 && RegistryRow(value) is null;
+    }
+
+    ProtoRef? FallbackFor(ProtoRef value) {
+        if (value.Source == ProtoRefSource.Session) return FirstSessionRef();
+        var row = ProtoVersionOrdering.LatestFor(value.Platform, State.Registry, r => r.Key());
+        return row is null ? null : RegistryRef(row);
+    }
+
+    ProtoRef? FirstSessionRef() {
+        foreach (var e in State.Entries) {
+            if (SessionRef(e) is { } value) return value;
+        }
+
+        return null;
+    }
+
+    async Task<string?> ResolveText(ProtoRef? value) {
+        if (value is null) return null;
+        var key = CacheKey(value);
+        if (State.TextCache.TryGetValue(key, out var cached)) return cached == MissingText ? null : cached;
+        if (value.Source == ProtoRefSource.Session) {
+            var staged = FindSession(value)?.Result?.Proto;
+            await InvokeAsync(() => State.TextCache[key] = staged ?? MissingText);
+            return staged;
+        }
+
+        try {
+            var resp = await Client().GetAsync(
+                $"/api/protos/versions/{Uri.EscapeDataString(value.Platform)}/{Uri.EscapeDataString(value.Build)}/proto");
+            if (!resp.IsSuccessStatusCode) {
+                await InvokeAsync(() => State.TextCache[key] = MissingText);
+                return null;
+            }
+
+            var body = await resp.Content.ReadAsStringAsync();
+            await InvokeAsync(() => State.TextCache[key] = body);
+            return body;
+        }
+        catch (Exception ex) {
+            Logger.LogWarning(ex, "proto text for {Platform} {Build} could not be loaded", value.Platform, value.Build);
+            await InvokeAsync(() => State.TextCache[key] = MissingText);
+            return null;
+        }
+    }
+
+    async Task SetMode(string mode) {
+        if (ModeDisabled(mode) || State.Mode == mode) return;
+        State.Mode = mode;
+        _hunk = 0;
+        await EnsureBundle();
+        await RaiseRefChanged();
+    }
+
+    bool ModeDisabled(string mode) {
+        if (State.A is not { } a) return true;
+        if (mode == "text") return false;
+        if (State.B is not { } b) return true;
+        return mode != "meta" && (!HasTextFor(a) || !HasTextFor(b));
+    }
+
+    static string ModeTitle(string mode) {
+        return mode switch {
+            "text" => "Proto text of A",
+            "split" => "Side by side line diff",
+            "unified" => "Unified diff patch",
+            "struct" => "Structural message diff",
+            _ => "Metadata compare"
+        };
+    }
+
+    bool IsLineMode() {
+        return State.Mode is "split" or "unified";
+    }
+
+    bool IsDiffMode() {
+        return State.Mode is "split" or "unified" or "struct";
+    }
+
+    async Task EnsureBundle() {
+        if (State.A is not { } a || State.B is not { } b) {
+            State.Cached = null;
+            State.CachedKey = null;
+            AdoptBundle();
+            return;
+        }
+
+        var key = $"{CacheKey(a)}|{CacheKey(b)}|{_context}";
+        if (State.CachedKey == key) {
+            AdoptBundle();
+            return;
+        }
+
+        if (Identical()) {
+            State.Cached = null;
+            State.CachedKey = key;
+            AdoptBundle();
+            return;
+        }
+
+        if (TextOf(a) is not { Length: > 0 } textA || TextOf(b) is not { Length: > 0 } textB) {
+            State.Cached = null;
+            State.CachedKey = null;
+            AdoptBundle();
+            return;
+        }
+
+        var context = _context;
+        var labelA = LabelOf(a);
+        var labelB = LabelOf(b);
+        var bundle = await Task.Run(() => BuildBundle(textA, textB, context, labelA, labelB));
+        await InvokeAsync(() => {
+            State.Cached = bundle;
+            State.CachedKey = key;
+            _hunk = 0;
+            AdoptBundle();
+            StateHasChanged();
+        });
+    }
+
+    static DiffBundle BuildBundle(string textA, string textB, int context, string labelA, string labelB) {
+        var aLines = UnifiedDiffWriter.SplitLines(textA);
+        var bLines = UnifiedDiffWriter.SplitLines(textB);
+        var ops = MyersDiff.Compute(aLines, bLines);
+        var structural = ProtoDiff.Compute(textA, textB);
+        return new DiffBundle(
+            ops,
+            SideBySideDiffBuilder.Build(aLines, bLines, ops),
+            UnifiedDiffWriter.Write(aLines, bLines, ops, new UnifiedDiffOptions(context, LabelA: labelA, LabelB: labelB)),
+            structural,
+            ProtoDiffSummary.From(structural, ops));
+    }
+
+    void AdoptBundle() {
+        _unifiedHunks = [];
+        _degraded = false;
+        if (State.Cached is not { } bundle) return;
+        var lines = bundle.Unified.Split('\n');
+        for (var i = 0; i < lines.Length; i++) {
+            if (lines[i].StartsWith("@@", StringComparison.Ordinal)) _unifiedHunks.Add(i);
+        }
+
+        var changed = bundle.LineOps.Where(o => o.Kind != DiffOpKind.Equal).ToList();
+        _degraded = changed.Count is > 0 and <= 2
+                    && changed.Sum(o => o.ALength + o.BLength) > MyersDiff.GuardBudget;
+        if (_hunk >= HunkCount()) _hunk = 0;
+    }
+
+    bool Identical() {
+        if (State.A is not { } a || State.B is not { } b) return false;
+        var shaA = ShaOf(a);
+        var shaB = ShaOf(b);
+        if (shaA is { Length: > 0 } && shaB is { Length: > 0 }) return SameSha(shaA, shaB);
+        var textA = TextOf(a);
+        var textB = TextOf(b);
+        return textA is not null && textB is not null && string.Equals(textA, textB, StringComparison.Ordinal);
+    }
+
+    async Task ToggleContext() {
+        _context = _context == FullContext ? DefaultContext : FullContext;
+        State.CachedKey = null;
+        await EnsureBundle();
+    }
+
+    void OnLineFilterChanged(ChangeEventArgs e) {
+        _filter = e.Value?.ToString() ?? "";
+    }
+
+    void OnHunkPicked(int index) {
+        _hunk = index;
+    }
+
+    int HunkCount() {
+        if (State.Mode == "unified") return _unifiedHunks.Count;
+        return State.Mode == "split" ? State.Cached?.Split.HunkStarts.Count ?? 0 : 0;
+    }
+
+    int HunkRow(int index) {
+        if (index < 0) return -1;
+        if (State.Mode == "unified") return index < _unifiedHunks.Count ? _unifiedHunks[index] : -1;
+        if (State.Cached?.Split.HunkStarts is not { } starts) return -1;
+        return index < starts.Count ? starts[index] : -1;
+    }
+
+    async Task StepHunk(int delta) {
+        var count = HunkCount();
+        if (count == 0) return;
+        _hunk = (((_hunk + delta) % count) + count) % count;
+        await ScrollToHunk();
+    }
+
+    async Task ScrollToHunk() {
+        if (_filter.Length > 0) return;
+        var row = HunkRow(_hunk);
+        if (row < 0) return;
+        var selector = State.Mode == "unified" ? "#pwbView .duni" : "#pwbView .dsp";
+        IJSObjectReference? element = null;
+        try {
+            element = await JS.InvokeAsync<IJSObjectReference>("document.querySelector", selector);
+            if (element is not null) await element.InvokeVoidAsync("scrollTo", new { top = row * DiffRowHeight, left = 0 });
+        }
+        catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
+            Logger.LogDebug(ex, "hunk scroll failed");
+        }
+        finally {
+            await element.DisposeModuleQuietAsync(logger: Logger);
+        }
+    }
+
+    string CompareValue() {
+        return State.B?.Format() ?? "";
+    }
+
+    async Task OnCompareToChanged(ChangeEventArgs e) {
+        var value = e.Value?.ToString() ?? "";
+        if (value.Length == 0) {
+            await SetB(null);
+            return;
+        }
+
+        if (value == "latest") {
+            await SetB(LatestRef());
+            return;
+        }
+
+        await SetB(value == "prev" ? StepRef(1) : ProtoRefParser.Parse(value).A);
+    }
+
+    IEnumerable<ProtoRegistryRow> RegistryOptions() {
+        if (!ReferenceEquals(_optionSource, State.Registry)) {
+            _optionSource = State.Registry;
+            _options = ProtoVersionOrdering.Sort(State.Registry, r => r.Key());
+        }
+
+        return _options.Where(r => !SameRef(State.A, RegistryRef(r)));
+    }
+
+    IReadOnlyList<ProtoRegistryRow> _options = [];
+    IReadOnlyList<ProtoRegistryRow>? _optionSource;
+
+    ProtoRegistryRow? RegistryRow(ProtoRef value) {
+        return State.Registry.FirstOrDefault(r =>
+            string.Equals(r.Platform, value.Platform, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(r.Build, value.Build, StringComparison.OrdinalIgnoreCase));
+    }
+
+    ProtoRef? StepRef(int direction) {
+        if (State.A is not { Source: ProtoRefSource.Registry } a || RegistryRow(a) is not { } row) return null;
+        var target = direction > 0
+            ? ProtoVersionOrdering.Previous(row, State.Registry, r => r.Key())
+            : ProtoVersionOrdering.Next(row, State.Registry, r => r.Key());
+        return target is null ? null : RegistryRef(target);
+    }
+
+    ProtoRef? LatestRef() {
+        var platform = State.A is { Source: ProtoRefSource.Session } session
+            ? FindSession(session)?.Platform ?? ""
+            : State.A?.Platform ?? "";
+        var row = platform.Length > 0
+            ? ProtoVersionOrdering.LatestFor(platform, State.Registry, r => r.Key())
+            : null;
+        row ??= ProtoVersionOrdering.Latest(State.Registry, r => r.Key());
+        if (row is null) return null;
+        var value = RegistryRef(row);
+        return SameRef(State.A, value) || SameRef(State.B, value) ? null : value;
+    }
+
+    string SourcePlatform() {
+        return State.A is { Source: ProtoRefSource.Session } session
+            ? FindSession(session)?.Platform ?? ""
+            : State.A?.Platform ?? "";
+    }
+
+    IReadOnlyList<string> CounterpartTargets() {
+        return ProtoCounterparts.Targets(SourcePlatform());
+    }
+
+    IReadOnlyList<ProtoCounterpart> CounterpartLinks() {
+        var source = State.A is { Source: ProtoRefSource.Registry } a ? RegistryRow(a) : null;
+        return ProtoCounterparts.For(source, State.Registry);
+    }
+
+    static ProtoCounterpart? TierOf(IReadOnlyList<ProtoCounterpart> links, ProtoRef? value) {
+        return value is null ? null : links.FirstOrDefault(l => l.Row is { } row && SameRef(value, RegistryRef(row)));
+    }
+
+    static string TierTitle(ProtoCounterpart link) {
+        return link.Weak
+            ? $"B was matched to A by {link.Reason}, the weakest link the translator walks. Treat it as a guess."
+            : $"B was matched to A by {link.Reason}.";
+    }
+
+    string CounterpartTitle(string target, ProtoCounterpart? link) {
+        if (link is null) return $"Select a stored registry version as A to find its {target} counterpart";
+        if (link.Row is not { } row) return $"No {target} counterpart for this version";
+        var label = RefLabel(RegistryRef(row));
+        return link.Weak
+            ? $"Set B to {label}, matched by {link.Reason}, the weakest link the translator walks"
+            : $"Set B to {label}, matched by {link.Reason}";
+    }
+
+    async Task SetCounterpart(ProtoCounterpart? link) {
+        if (link is null) return;
+        if (link.Row is not { } row) {
+            _notice = $"No {link.Platform} counterpart for {RefLabel(State.A)}. "
+                      + $"Nothing stored for {link.Platform} shares its release, proto sha, app version or client version.";
+            return;
+        }
+
+        _notice = null;
+        await SetB(RegistryRef(row));
+    }
+
+    string? TextOf(ProtoRef? value) {
+        if (value is null) return null;
+        return State.TextCache.TryGetValue(CacheKey(value), out var cached) && cached != MissingText ? cached : null;
+    }
+
+    string? ShaOf(ProtoRef? value) {
+        if (value is null) return null;
+        return value.Source == ProtoRefSource.Session
+            ? FindSession(value)?.Result?.ProtoSha
+            : RegistryRow(value)?.ProtoSha;
+    }
+
+    string LabelOf(ProtoRef value) {
+        var sha = Sha12(ShaOf(value));
+        return sha.Length > 0 ? $"{value.Platform} {value.Build} {sha}" : $"{value.Platform} {value.Build}";
+    }
+
+    bool ShowStatus(StagedEntry e) {
+        return !e.IsAnalyzed || SameRef(State.A, SessionRef(e));
+    }
+
+    bool IsLegacySha(ProtoRef value) {
+        return _legacy.TryGetValue(CacheKey(value), out var legacy) && legacy;
+    }
+
+    async Task CheckCanonical(ProtoRef? value) {
+        if (value is null) return;
+        var key = CacheKey(value);
+        if (_legacy.ContainsKey(key)) return;
+        if (ShaOf(value) is not { Length: > 0 } stored) return;
+        if (TextOf(value) is not { Length: > 0 } text) return;
+        bool legacy;
+        try {
+            var normalized = await Task.Run(() => ProtoCanonicalForm.Normalize(text));
+            if (normalized is not { Ok: true, Sha: { Length: > 0 } canonical }) return;
+            legacy = !SameSha(canonical, stored);
+        }
+        catch (Exception ex) {
+            Logger.LogDebug(ex, "canonical form check failed for {Key}", key);
+            return;
+        }
+
+        await InvokeAsync(() => {
+            _legacy[key] = legacy;
+            StateHasChanged();
+        });
+    }
+
+    static IReadOnlyList<string> SummaryParts(ProtoDiffSummary s) {
+        var parts = new List<string>();
+        if (s.MessagesAdded > 0) parts.Add($"{s.MessagesAdded} msg added");
+        if (s.MessagesRemoved > 0) parts.Add($"{s.MessagesRemoved} msg removed");
+        if (s.MessagesRenamed > 0) parts.Add($"{s.MessagesRenamed} msg renamed");
+        if (s.MessagesModified > 0) parts.Add($"{s.MessagesModified} msg modified");
+        if (s.FieldsAdded > 0) parts.Add($"{s.FieldsAdded} field added");
+        if (s.FieldsRemoved > 0) parts.Add($"{s.FieldsRemoved} field removed");
+        if (s.FieldsChanged > 0) parts.Add($"{s.FieldsChanged} field changed");
+        if (s.EnumValuesChanged > 0) parts.Add($"{s.EnumValuesChanged} enum value changed");
+        return parts;
+    }
+
+    sealed record RefMeta(
+        string Platform,
+        string? AppVersion,
+        string? Build,
+        string? ClientVersion,
+        string? Source,
+        string? Package,
+        string? Detected,
+        string? Sha);
+
+    sealed record MetaRow(string Key, string A, string B) {
+        public bool Same => string.Equals(A, B, StringComparison.OrdinalIgnoreCase);
+    }
+
+    RefMeta MetaOf(ProtoRef? value) {
+        if (value is null) return new RefMeta("", null, null, null, null, null, null, null);
+        if (value.Source == ProtoRefSource.Session) {
+            var entry = FindSession(value);
+            return new RefMeta(entry?.Platform ?? value.Platform, entry?.AppVersion, entry?.Build,
+                entry?.ClientVersionText, "session upload", null, null, entry?.Result?.ProtoSha);
+        }
+
+        var row = RegistryRow(value);
+        return new RefMeta(value.Platform, row?.AppVersion, row?.Build ?? value.Build, row?.ClientVersion,
+            row?.Source, row?.Package,
+            row?.DetectedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
+            row?.ProtoSha);
+    }
+
+    IReadOnlyList<MetaRow> MetaRows() {
+        var a = MetaOf(State.A);
+        var b = MetaOf(State.B);
+        return [
+            new MetaRow("Platform", Dash(a.Platform), Dash(b.Platform)),
+            new MetaRow("App version", Dash(a.AppVersion), Dash(b.AppVersion)),
+            new MetaRow("Build", Dash(a.Build), Dash(b.Build)),
+            new MetaRow("Client version", Dash(a.ClientVersion), Dash(b.ClientVersion)),
+            new MetaRow("Source", Dash(a.Source), Dash(b.Source)),
+            new MetaRow("Package", Dash(a.Package), Dash(b.Package)),
+            new MetaRow("Detected", Dash(a.Detected), Dash(b.Detected)),
+            new MetaRow("Proto SHA", Dash(a.Sha), Dash(b.Sha))
+        ];
+    }
+
+    string ViewText() {
+        if (State.Mode == "meta") return string.Join("\n", MetaRows().Select(r => $"{r.Key}\t{r.A}\t{r.B}"));
+        if (State.Mode == "text" || State.Cached is not { } bundle) return TextOf(State.A) ?? "";
+        return State.Mode == "struct" ? StructuralJson(bundle) : bundle.Unified;
+    }
+
+    string Permalink() {
+        var hash = ProtoRefParser.Format(new WorkbenchRef(State.A, State.B, State.Mode));
+        var page = Nav.ToAbsoluteUri("/protodata").ToString();
+        return hash.Length == 0 ? page : $"{page}#{hash}";
+    }
+
+    static string StructuralJson(DiffBundle bundle) {
+        return JsonSerializer.Serialize(new { entries = bundle.Structural.Entries, summary = bundle.Summary }, JsonOpts);
+    }
+
+    static string ProtoUrl(ProtoRef value) {
+        return $"/api/protos/versions/{Uri.EscapeDataString(value.Platform)}/{Uri.EscapeDataString(value.Build)}/proto";
+    }
+
+    string? ApiPair() {
+        if (State.A is not { Source: ProtoRefSource.Registry } a) return null;
+        if (State.B is not { Source: ProtoRefSource.Registry } b) return null;
+        if (!string.Equals(a.Platform, b.Platform, StringComparison.OrdinalIgnoreCase)) return null;
+        return $"from={Uri.EscapeDataString(a.Build)}&to={Uri.EscapeDataString(b.Build)}"
+               + $"&platform={Uri.EscapeDataString(a.Platform)}&context={_context}";
+    }
+
+    static string FileLabel(ProtoRef value) {
+        return SafeName($"{value.Platform}-{value.Build}");
+    }
+
+    static string SafeName(string value) {
+        var sb = new StringBuilder(value.Length);
+        foreach (var c in value) {
+            sb.Append(char.IsAsciiLetterOrDigit(c) || c is '.' or '-' or '_' ? c : '-');
+        }
+
+        return sb.Length == 0 ? "proto" : sb.ToString();
+    }
+
+    string PairName(string extension) {
+        var a = State.A is { } refA ? FileLabel(refA) : "a";
+        var b = State.B is { } refB ? FileLabel(refB) : "b";
+        return $"ei-{a}..{b}.{extension}";
+    }
+
+    async Task DownloadProto(ProtoRef value) {
+        _dlOpen = false;
+        var text = TextOf(value) ?? await ResolveText(value);
+        if (text is not { Length: > 0 }) return;
+        await DownloadText($"{FileLabel(value)}.proto", text);
+    }
+
+    async Task DownloadUnified(DiffBundle bundle) {
+        _dlOpen = false;
+        await DownloadText(PairName("diff"), bundle.Unified);
+    }
+
+    async Task DownloadJson(DiffBundle bundle) {
+        _dlOpen = false;
+        await DownloadText(PairName("json"), StructuralJson(bundle));
+    }
+
+    async Task DownloadText(string fileName, string content) {
+        try {
+            _download ??= await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/download.js"));
+            await _download.InvokeVoidAsync("text", fileName, content);
+        }
+        catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
+            Logger.LogDebug(ex, "download of {FileName} failed", fileName);
+        }
+    }
+
+    static bool SameSha(string? a, string? b) {
+        return a is { Length: > 0 } && b is { Length: > 0 } && string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
+    }
+
+    string OptionLabel(StagedEntry e) {
+        var segs = Segs(e);
+        return segs.Count > 0 ? string.Join(" | ", segs) : CardName(e.FileName);
+    }
+
+    static IReadOnlyList<string> Segments(string? app, string? build, string? clientVersion) {
+        var segs = new List<string>();
+        if (!string.IsNullOrWhiteSpace(app)) segs.Add(app);
+        if (!string.IsNullOrWhiteSpace(build)) segs.Add(build);
+        if (!string.IsNullOrWhiteSpace(clientVersion)) segs.Add(clientVersion);
+        return segs;
+    }
+
+    static IReadOnlyList<string> Segs(StagedEntry e) {
+        return Segments(e.AppVersion, e.Build, e.ClientVersionText);
+    }
+
+    static string Sha12(string? sha) {
+        if (sha is not { Length: > 0 }) return "";
+        return sha.Length > 12 ? sha[..12] : sha;
+    }
+
+    static string Dash(string? value) {
+        return string.IsNullOrWhiteSpace(value) ? "-" : value;
+    }
+
+    static string PlatformIcon(string platform) {
+        return string.Equals(platform, "android", StringComparison.OrdinalIgnoreCase) ? "android" : "apple";
+    }
+
+    static string StatusClass(StagedEntry e) {
+        return e.Status switch {
+            "queued" => "wb-st-queued",
+            "done" => "wb-st-done",
+            "error" => "wb-st-err",
+            _ => "wb-st-run"
+        };
+    }
+
+    async Task BackfillBuildAndClientVersion(StagedEntry entry) {
+        try {
+            var live = await Client().GetFromJsonAsync<LiveVersionDto>(
+                $"/api/tools/live-version?platform={entry.Platform}", JsonOpts);
+            if (live is { Found: true }) {
+                await InvokeAsync(() => {
+                    if (string.IsNullOrWhiteSpace(entry.Build) && !string.IsNullOrWhiteSpace(live.Build)) entry.Build = live.Build!;
+                    if (string.IsNullOrWhiteSpace(entry.ClientVersionText) && live.ClientVersion is int cv) entry.ClientVersionText = cv.ToString(CultureInfo.InvariantCulture);
+                });
+            }
+        }
+        catch (Exception ex) {
+            Logger.LogWarning(ex, "live version lookup failed for {Platform}", entry.Platform);
+        }
+
+        if ((string.IsNullOrWhiteSpace(entry.Build) || string.IsNullOrWhiteSpace(entry.ClientVersionText))
+            && !string.IsNullOrWhiteSpace(entry.AppVersion)) {
+            try {
+                var all = await Client().GetFromJsonAsync<List<RegRowDto>>("/api/protos/versions", JsonOpts) ?? [];
+                var sameApp = all.Where(r => string.Equals(r.AppVersion, entry.AppVersion, StringComparison.OrdinalIgnoreCase)).ToList();
+
+                await InvokeAsync(() => {
+                    if (string.IsNullOrWhiteSpace(entry.ClientVersionText)) {
+                        var cv = sameApp.Select(r => r.ClientVersion).FirstOrDefault(c => !string.IsNullOrWhiteSpace(c));
+                        if (!string.IsNullOrWhiteSpace(cv)) entry.ClientVersionText = cv;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(entry.Build)) {
+                        var b = sameApp.Where(r => string.Equals(r.Platform, entry.Platform, StringComparison.OrdinalIgnoreCase))
+                            .Select(r => r.Build).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x));
+                        if (!string.IsNullOrWhiteSpace(b)) entry.Build = b;
+                    }
+                });
+            }
+            catch (Exception ex) {
+                Logger.LogWarning(ex, "registry backfill failed for app version {AppVersion}", entry.AppVersion);
+            }
+        }
+    }
+
+    static string PlatformFor(string? fileName) {
+        var n = fileName ?? "";
+        var android = n.EndsWith(".apk", StringComparison.OrdinalIgnoreCase)
+                      || n.EndsWith(".apkm", StringComparison.OrdinalIgnoreCase)
+                      || n.EndsWith(".xapk", StringComparison.OrdinalIgnoreCase);
+        return android ? "android" : "ios";
+    }
+
+    static List<string> SizeFlow(ExtractResult r) {
+        var parts = new List<string>();
+        if (r.FileSize is { } fs) parts.Add(ByteFormat.Mb(fs, culture: CultureInfo.InvariantCulture));
+        if (r.StrippedSize is { } ss) parts.Add(ByteFormat.Mb(ss, culture: CultureInfo.InvariantCulture));
+        if (r.UploadedSize is { } us) parts.Add(ByteFormat.KbOrMb(us, culture: CultureInfo.InvariantCulture));
+        return parts;
+    }
+
+    sealed record LiveVersionDto(bool Found, string? Platform, string? Version, string? Build, int? ClientVersion);
+
+    sealed record RegRowDto(string Platform, string AppVersion, string Build, string? ClientVersion);
+
+    sealed record StashedFile(int Token, string Name, long Size);
+
+    public async ValueTask DisposeAsync() {
+        await _strip.DisposeModuleAsync(logger: Logger);
+        await _download.DisposeModuleAsync(logger: Logger);
+        await _prefs.DisposeModuleAsync(logger: Logger);
+        _selfRef?.Dispose();
+        _gate.Dispose();
+    }
+
+}

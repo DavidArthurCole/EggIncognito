@@ -1,3 +1,5 @@
+@using System.Globalization
+@using Microsoft.AspNetCore.Components.Web.Virtualization
 <div class="data-box">
     <div class="data-tools">
         <input type="search" class="data-filter" placeholder="Filter..."
@@ -6,28 +8,103 @@
         @Tools
         <CopyButton Text="@(Text ?? "")" ButtonClass="btn-mini data-copy" IconClass="icon-sm" Label="Copy" CopiedLabel="Copied"/>
     </div>
-    <pre class="data-text" style="@PreStyle">@Shown()</pre>
+    <pre class="data-text ctv-text" style="@PreStyle">@Body</pre>
 </div>
 
 @code {
     [Parameter] public string? Text { get; set; }
     [Parameter] public string MaxHeight { get; set; } = "";
+    [Parameter] public bool LineNumbers { get; set; }
     [Parameter] public RenderFragment? Tools { get; set; }
 
+    const int VirtualizeAbove = 500;
+    const int Overscan = 24;
+    const float RowHeight = 16f;
+    const string BlankLine = "\u00a0";
+    const string NoMatchText = "(no lines match)";
+
+    readonly record struct LineRow(int Number, string Content);
+
     string _filter = "";
+    string? _built;
+    List<LineRow> _lines = [];
+    List<LineRow> _rows = [];
+    int _numWidth = 1;
+    bool _noMatch;
 
     string? PreStyle => string.IsNullOrEmpty(MaxHeight) ? null : $"max-height:{MaxHeight}";
 
-    void OnFilterInput(ChangeEventArgs e) {
-        _filter = e.Value?.ToString() ?? "";
+    protected override void OnParametersSet() {
+        var text = Text ?? "";
+        if (_built is not null && string.Equals(_built, text, StringComparison.Ordinal)) return;
+        _built = text;
+        var split = text.Split('\n');
+        _lines = new List<LineRow>(split.Length);
+        for (var i = 0; i < split.Length; i++) _lines.Add(new LineRow(i + 1, split[i]));
+        _numWidth = split.Length.ToString(CultureInfo.InvariantCulture).Length;
+        ApplyFilter();
     }
 
-    string Shown() {
-        var text = Text ?? "";
-        var q = _filter.Trim().ToLowerInvariant();
-        if (q.Length == 0) return text;
-        var kept = text.Split('\n').Where(l => l.ToLowerInvariant().Contains(q)).ToList();
-        return kept.Count > 0 ? string.Join("\n", kept) : "(no lines match)";
+    void OnFilterInput(ChangeEventArgs e) {
+        _filter = e.Value?.ToString() ?? "";
+        ApplyFilter();
     }
+
+    void ApplyFilter() {
+        var q = _filter.Trim().ToLowerInvariant();
+        if (q.Length == 0) {
+            _rows = _lines;
+            _noMatch = false;
+            return;
+        }
+
+        _rows = _lines.Where(l => l.Content.ToLowerInvariant().Contains(q)).ToList();
+        _noMatch = _rows.Count == 0;
+    }
+
+    string Gutter(int number) {
+        return number.ToString(CultureInfo.InvariantCulture).PadLeft(_numWidth) + "  ";
+    }
+
+    RenderFragment Row(LineRow line) {
+        return builder => {
+            builder.OpenElement(0, "div");
+            builder.AddAttribute(1, "class", "ctv-row");
+            if (LineNumbers) {
+                builder.OpenElement(2, "span");
+                builder.AddAttribute(3, "class", "ctv-num");
+                builder.AddContent(4, Gutter(line.Number));
+                builder.CloseElement();
+            }
+
+            builder.OpenElement(5, "span");
+            builder.AddAttribute(6, "class", "ctv-line");
+            builder.AddContent(7, line.Content.Length == 0 ? BlankLine : line.Content);
+            builder.CloseElement();
+            builder.CloseElement();
+        };
+    }
+
+    RenderFragment Body => builder => {
+        if (_noMatch) {
+            builder.OpenElement(0, "div");
+            builder.AddAttribute(1, "class", "ctv-row ctv-note");
+            builder.AddContent(2, NoMatchText);
+            builder.CloseElement();
+            return;
+        }
+
+        if (_rows.Count > VirtualizeAbove) {
+            builder.OpenComponent<Virtualize<LineRow>>(3);
+            builder.AddComponentParameter(4, nameof(Virtualize<LineRow>.Items), _rows);
+            builder.AddComponentParameter(5, nameof(Virtualize<LineRow>.ItemSize), RowHeight);
+            builder.AddComponentParameter(6, nameof(Virtualize<LineRow>.OverscanCount), Overscan);
+            builder.AddComponentParameter(7, nameof(Virtualize<LineRow>.ItemContent), (RenderFragment<LineRow>)Row);
+            builder.CloseComponent();
+            return;
+        }
+
+        foreach (var line in _rows) builder.AddContent(8, Row(line));
+    };
 
 }

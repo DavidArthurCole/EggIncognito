@@ -14,6 +14,7 @@ public sealed class DeviceHarvester(
     IDevicePlatforms platforms,
     DeviceAssetStore assets,
     DeviceStateStore states,
+    DeviceJobStore jobs,
     GameBinaryStore binaries,
     ILogger<DeviceHarvester> logger) {
     private const string FingerprintPrefix = DeviceAssetStore.FingerprintPrefix;
@@ -36,12 +37,18 @@ public sealed class DeviceHarvester(
             return new HarvestOutcome(HarvestStatus.Ok, state.Revision, "revision unchanged", 0, 0, 0);
         }
 
-        var log = new List<DeviceHarvestLog>();
+        var job = await jobs.TryStartAsync(target.Id, DeviceJobKinds.Harvest, "agent",
+            $"harvesting revision {state.Revision[..12]}", ct);
+        if (job is null) {
+            return new HarvestOutcome(HarvestStatus.Failed, state.Revision,
+                "another job is already running on this device", 0, 0, 0);
+        }
+
         int changed = 0, skipped = 0, failed = 0;
 
         foreach (var entry in platform.Manifest()) {
             if (!entry.Supported) {
-                log.Add(Row(target.Id, state.Revision, entry, "unsupported", entry.UnsupportedNote, 0, null));
+                await jobs.LineAsync(job, entry.Name, "unsupported", entry.UnsupportedNote, 0, null, ct);
                 skipped++;
                 continue;
             }
@@ -51,7 +58,7 @@ public sealed class DeviceHarvester(
             if (fp is { Ok: true, Value: { Length: > 0 } value } && !force) {
                 var stored = await assets.GetAsync(DeviceAssetKinds.Manifest, fpName, target.Platform, ct);
                 if (stored is not null && string.Equals(Text(stored.Bytes), value, StringComparison.Ordinal)) {
-                    log.Add(Row(target.Id, state.Revision, entry, "unchanged", null, 0, value));
+                    await jobs.LineAsync(job, entry.Name, "unchanged", null, 0, value, ct);
                     skipped++;
                     continue;
                 }
@@ -60,7 +67,7 @@ public sealed class DeviceHarvester(
             var known = await assets.ShaManifestAsync(target.Platform, entry.Kind, ct);
             var batch = await platform.HarvestAsync(target, entry, known, ct);
             if (batch is not { Ok: true, Value: { } pulled }) {
-                log.Add(Row(target.Id, state.Revision, entry, "failed", batch.Note, 0, null));
+                await jobs.LineAsync(job, entry.Name, "failed", batch.Note, 0, null, ct);
                 failed++;
                 continue;
             }
@@ -79,7 +86,7 @@ public sealed class DeviceHarvester(
 
             if (pulled.FailedPulls > 0) {
                 string pullNote = $"{pulled.FailedPulls} of {pulled.Present.Count} pulls failed, {wrote} written";
-                log.Add(Row(target.Id, state.Revision, entry, "failed", pullNote, bytes, fp.Value));
+                await jobs.LineAsync(job, entry.Name, "failed", pullNote, bytes, fp.Value, ct);
                 logger.LogWarning("harvest {Device} entry {Entry}: {Note}", target.Id, entry.Name, pullNote);
                 failed++;
                 continue;
@@ -93,15 +100,15 @@ public sealed class DeviceHarvester(
                     Encoding.UTF8.GetBytes(fresh), "text/plain", state.AppVersion, ct);
             }
 
-            log.Add(Row(target.Id, state.Revision, entry, wrote > 0 ? "updated" : "unchanged", null, bytes,
-                fp.Value));
+            await jobs.LineAsync(job, entry.Name, wrote > 0 ? "updated" : "unchanged", null, bytes, fp.Value, ct);
             if (wrote > 0) changed++; else skipped++;
         }
 
-        await states.LogAsync(log, ct);
         string status = failed == 0 ? HarvestStatus.Ok : changed > 0 ? HarvestStatus.Partial : HarvestStatus.Failed;
         string note = $"{changed} updated, {skipped} unchanged, {failed} failed";
         await states.FinishAsync(target.Id, status, note, state.Revision, ct);
+        await jobs.FinishAsync(job, status, note,
+            new DeviceJobFacts(AppVersion: state.AppVersion, Revision: state.Revision), ct);
         logger.LogInformation("harvest {Device} rev {Revision}: {Note}", target.Id, state.Revision[..12], note);
         return new HarvestOutcome(status, state.Revision, note, changed, skipped, failed);
     }
@@ -117,17 +124,4 @@ public sealed class DeviceHarvester(
     }
 
     private static string Text(byte[] bytes) => Encoding.UTF8.GetString(bytes);
-
-    private static DeviceHarvestLog Row(string deviceId, string revision, HarvestEntry entry, string outcome,
-        string? note, long bytes, string? sha) => new() {
-            DeviceId = deviceId,
-            RanAt = DateTimeOffset.UtcNow,
-            Revision = revision,
-            Entry = entry.Name,
-            Kind = entry.Kind,
-            Outcome = outcome,
-            Note = note,
-            ByteSize = bytes,
-            Sha256 = sha
-        };
 }

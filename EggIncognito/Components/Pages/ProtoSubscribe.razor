@@ -1,13 +1,10 @@
 @page "/protos/subscribe"
 @inject NavigationManager Nav
 
-@* The subscribe form is now a modal overlay on /protos (ProtoSubscribePanel). This legacy route just
-   redirects there so old bookmarks/notification links keep working. *@
-
 @code {
 
     protected override void OnInitialized() {
-        Nav.NavigateTo("/protos", replace: true);
+        Nav.NavigateTo("/protodata#notify", replace: true);
     }
 
 }

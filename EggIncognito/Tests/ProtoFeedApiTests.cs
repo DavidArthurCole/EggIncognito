@@ -1,8 +1,10 @@
 using System.Net;
 using EggIdentity.Contract;
 using EggIncognito.Controllers;
+using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using EggIncognito.Services;
+using EggIncognito.Services.Feed;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -108,6 +110,48 @@ public class ProtoFeedApiTests {
         Assert.Equal(expected, masked);
 
         Assert.DoesNotContain("abcdEFGHtoken1234", masked);
+    }
+
+    private static FeedSubscription Sub(string eventKind, params string[] filters) => new() {
+        Id = 1,
+        EventKind = eventKind,
+        Filters = filters
+    };
+
+    [Fact]
+    public void ResolveFilters_NullRequest_KeepsStoredFilters() {
+        var sub = Sub(FeedEventKinds.ProtoBuild, FeedEventKinds.FilterRequireProto);
+
+        Assert.Equal([FeedEventKinds.FilterRequireProto], ProtoFeedController.ResolveFilters(sub, null));
+    }
+
+    [Fact]
+    public void ResolveFilters_NullRequest_DoesNotReEnableGuardsTheOwnerTurnedOff() {
+        var sub = Sub(FeedEventKinds.ProtoBuild);
+
+        Assert.Empty(ProtoFeedController.ResolveFilters(sub, null));
+    }
+
+    [Fact]
+    public void ResolveFilters_NullRequest_KeepsPeriodicalsOptIn() {
+        var sub = Sub(FeedEventKinds.PeriodicalsChanged, FeedEventKinds.FilterRequireAspects);
+
+        Assert.Equal([FeedEventKinds.FilterRequireAspects], ProtoFeedController.ResolveFilters(sub, null));
+    }
+
+    [Fact]
+    public void ResolveFilters_EmptyRequest_ClearsFilters() {
+        var sub = Sub(FeedEventKinds.ProtoBuild, FeedEventKinds.FilterRequireProto, FeedEventKinds.FilterSaneBuild);
+
+        Assert.Empty(ProtoFeedController.ResolveFilters(sub, []));
+    }
+
+    [Fact]
+    public void ResolveFilters_SuppliedRequest_NormalizesAgainstTheEventKind() {
+        var sub = Sub(FeedEventKinds.ProtoBuild, FeedEventKinds.FilterRequireProto);
+
+        Assert.Equal([FeedEventKinds.FilterSaneBuild],
+            ProtoFeedController.ResolveFilters(sub, [FeedEventKinds.FilterSaneBuild, "not_a_filter"]));
     }
 
     [Fact]

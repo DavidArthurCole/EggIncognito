@@ -1,3 +1,5 @@
+using EggIncognito.Services.ProtoExtract;
+
 namespace EggIncognito.Services.Protos;
 
 public sealed record ExtractResult {
@@ -38,11 +40,27 @@ public sealed record GroupStatus(
     public bool Offerable => !Known && !InRegistry && !Pending && !Offered && !Failed;
 }
 
-public sealed class AnalysisWorkbenchState {
+public sealed record DiffBundle(
+    IReadOnlyList<DiffOp> LineOps,
+    SideBySideResult Split,
+    string Unified,
+    ProtoDiffResult Structural,
+    ProtoDiffSummary Summary);
+
+public sealed class ProtoWorkbenchState {
     public List<StagedEntry> Entries { get; } = [];
     public Guid? SelectedId { get; set; }
     public Dictionary<string, Guid> GroupWinners { get; } = [];
     public Dictionary<string, GroupStatus> GroupStatuses { get; } = [];
+
+    public IReadOnlyList<ProtoRegistryRow> Registry { get; set; } = [];
+    public DateTime RegistryLoadedAt { get; set; }
+    public Dictionary<string, string> TextCache { get; } = [];
+    public ProtoRef? A { get; set; }
+    public ProtoRef? B { get; set; }
+    public string Mode { get; set; } = "text";
+    public DiffBundle? Cached { get; set; }
+    public string? CachedKey { get; set; }
 
     public StagedEntry? Find(Guid? id) {
         return id is { } g ? Entries.FirstOrDefault(e => e.Id == g) : null;

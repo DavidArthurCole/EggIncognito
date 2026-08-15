@@ -1,11 +1,12 @@
 @page "/admin"
 @rendermode @(RenderMode.InteractiveServer)
 @using EggIdentity.Bot.AdminUi
+@using EggIncognito.Components.Protos
 @inherits BrowserApiComponentBase
 @inject ICurrentUser User
 
 <PageTitle>EggIncognito - Admin</PageTitle>
-<main id="adminMain" class="px-8 pt-6 pb-8">
+<main id="adminMain" class="page page-wide pt-6 pb-8">
     <h1 class="text-[1.3rem] mt-0 mb-4">Admin</h1>
     @if (!_isAdmin) {
         <div class="panel" id="denied">Admin access required. <LoginButton CssClass="auth-btn" Label="Log in" Placement="LoginMenuPlacement.BottomLeft"/></div>
@@ -19,7 +20,9 @@
                     <MessageConfigEditor/>
                 </section>
 
-                <AdminDevicesPanel/>
+                <div class="mb-4">
+                    <DeviceStatusPanel OnManage="OpenDeviceWorkbench"/>
+                </div>
 
                 <AdminRoutesPanel/>
             </div>
@@ -86,12 +89,19 @@
     }
 </main>
 
+<DeviceWorkbenchModal @ref="_deviceWorkbench"/>
+
 @code {
     static readonly string[] Roles = Enum.GetValues<UserRole>().Select(UserRoles.ToName).ToArray();
 
     bool _isAdmin;
     string _log = "";
     List<UserRow> _users = [];
+    DeviceWorkbenchModal? _deviceWorkbench;
+
+    Task OpenDeviceWorkbench(string? deviceId) {
+        return _deviceWorkbench?.Open(deviceId) ?? Task.CompletedTask;
+    }
 
 
     protected override void OnInitialized() {

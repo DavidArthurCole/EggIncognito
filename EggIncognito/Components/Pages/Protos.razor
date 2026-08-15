@@ -1,5 +1,6 @@
 @page "/protodata"
 @page "/protos"
+@page "/protos/{Platform}/{Build}"
 @page "/data"
 @page "/periodicals"
 @rendermode @(RenderMode.InteractiveServer)
@@ -8,41 +9,24 @@
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env
 @inject ILogger<Protos> Logger
+@inject ProtoWorkbenchState State
 @using System.Text.Json
 @using EggIncognito.Components.Protos
-@using static Components.Protos.ProtoSelectionBar
+@using EggIncognito.Services.ProtoExtract
+@using EggIncognito.Services.Protos
 @using static Components.Protos.ProtoEditDialog
 @implements IAsyncDisposable
 
 <PageTitle>EggIncognito - Protos & Data</PageTitle>
 
-<main class="px-4 sm:px-8 pt-6 pb-8 max-w-[110rem] mx-auto w-full">
+<main class="page page-wide pt-6 pb-8">
 <h1 class="text-[1.3rem] mt-0 mb-4">Protos &amp; Data</h1>
 
 <div class="flex flex-col lg:flex-row gap-4 mb-6 items-stretch">
-    <DeviceStatusPanel OnSaved="OnMutated"/>
+    <DeviceStatusPanel OnManage="OpenDeviceWorkbench"/>
     <section class="panel shrink-0 flex flex-row flex-wrap items-stretch gap-4">
         <div class="flex flex-col justify-center gap-4 text-xs">
-            <div class="group">
-                <div class="ds-state">
-                    <span class="ds-state-k">Latest</span>
-                    <span class="dev-verline">
-                        @if (LatestRow is { } lr) {
-                            @lr.AppVersion<span class="dev-versep">|</span>
-                            @lr.Build
-                            @if (!string.IsNullOrEmpty(lr.ClientVersion)) {
-                                <span class="dev-versep">|</span>
-                                @lr.ClientVersion
-                            }
-                        } else {
-                            <span class="text-muted">none yet</span>
-                        }
-                    </span>
-                </div>
-                @if (LatestRow is { } lu) {
-                    <div class="ds-state-sub">updated @lu.DetectedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</div>
-                }
-            </div>
+            <LatestVersionsPanel Rows="_rows" OnOpen="OpenVersion"/>
             <div class="group">
                 <div class="ds-state">
                     <span class="ds-state-k">Server</span>
@@ -61,7 +45,7 @@
                 <h3 class="text-sm font-semibold m-0">Notifications</h3>
                 <p class="text-muted text-xs m-0 mt-1">Discord webhooks that fire on new proto builds and periodicals updates.</p>
             </div>
-            <button type="button" class="btn-primary w-full text-center" @onclick="@(() => _subscribeModal?.Open())">Manage notifications</button>
+            <button type="button" class="btn-primary w-full text-center" @onclick="OpenNotifications">Manage notifications</button>
         </div>
         <div class="w-px self-stretch bg-border"></div>
         <div class="w-52 flex flex-col justify-between gap-2">
@@ -154,7 +138,7 @@
                 } else if (_rows.Count == 0) {
                     <div class="reg-empty">
                         <div>No proto versions yet.</div>
-                        <div class="reg-empty-hint">Open the analysis workbench above to add one.</div>
+                        <div class="reg-empty-hint">Open the proto workbench above to add one.</div>
                         @if (_isAdmin) {
                             <button type="button" class="reg-add-toggle" title="@(_addOpen ? "Close" : "Add version")"
                                     aria-label="Add version" @onclick="@(() => _addOpen = !_addOpen)">
@@ -238,8 +222,7 @@
                         }
                         @foreach (var rel in SortedReleases) {
                             var primary = rel.Primary;
-                            <tr class="reg-row cursor-pointer"
-                                @onclick="@(() => Navigate($"/protos/{primary.Platform}/{Uri.EscapeDataString(primary.Build)}"))">
+                            <tr class="reg-row cursor-pointer" @onclick="@(() => OpenVersion(primary))">
                                 @if (_isAdmin) {
                                     <td @onclick:stopPropagation="true">
                                         <input type="checkbox" checked="@IsSelected(primary)" @onchange="@(() => ToggleRelease(rel))"/>
@@ -248,10 +231,11 @@
                                 <td>
                                     <div class="flex flex-wrap gap-1">
                                         @foreach (var m in rel.Platforms) {
-                                            <span class="code-chip cursor-pointer" @onclick:stopPropagation="true"
-                                                  @onclick="@(() => Navigate($"/protos/{m.Platform}/{Uri.EscapeDataString(m.Build)}"))">
+                                            <a class="code-chip cursor-pointer no-underline" href="@VersionHref(m)"
+                                               @onclick:stopPropagation="true" @onclick:preventDefault="true"
+                                               @onclick="@(() => OpenVersion(m))">
                                                 @m.Platform
-                                            </span>
+                                            </a>
                                         }
                                     </div>
                                 </td>
@@ -260,14 +244,16 @@
                                     @if (rel.IsGrouped) {
                                         <div class="flex flex-col gap-0.5">
                                             @foreach (var m in rel.Members) {
-                                                <span class="cursor-pointer flex flex-col gap-0.5 items-start" @onclick:stopPropagation="true" @onclick="@(() => Navigate($"/protos/{m.Platform}/{Uri.EscapeDataString(m.Build)}"))">
+                                                <a class="cursor-pointer flex flex-col gap-0.5 items-start no-underline text-fg"
+                                                   href="@VersionHref(m)" @onclick:stopPropagation="true"
+                                                   @onclick:preventDefault="true" @onclick="@(() => OpenVersion(m))">
                                                     <span>
                                                         <span class="text-muted text-xs">@m.Platform</span> @m.Build
                                                     </span>
                                                     @if (m.BuildFlag is not null) {
                                                         <span class="reg-badwarn">bad build</span>
                                                     }
-                                                </span>
+                                                </a>
                                             }
                                         </div>
                                     } else {
@@ -283,12 +269,12 @@
                                 <td>
                                     <div class="flex items-center gap-1">
                                         <span class="code-chip reg-sha">@Short(primary.ProtoSha)</span>
-                                        @if (primary.SortOrder != 0) {
-                                            <span class="text-muted text-xs" title="manual sort order">@OrderLabel(primary.SortOrder)</span>
+                                        @if (primary.SortOrder is { } so && so != 0) {
+                                            <span class="text-muted text-xs" title="manual sort order">@OrderLabel(so)</span>
                                         }
                                     </div>
                                 </td>
-                                <td class="text-muted text-xs whitespace-nowrap">@primary.DetectedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                <td class="text-muted text-xs whitespace-nowrap">@(primary.DetectedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "-")</td>
                                 <td class="reg-actions" @onclick:stopPropagation="true">
                                     <div class="reg-actions-row">
                                         <a class="reg-edit-btn" download="@($"{primary.Platform}-{primary.Build}.proto")"
@@ -309,7 +295,7 @@
                                 <tr class="reg-edit-row">
                                     <td colspan="@EditColspan">
                                         <ProtoEditDialog Targets="EditTargets(rel)" ProtoSha="@primary.ProtoSha"
-                                                         ShaOrder="primary.SortOrder" CanOrder="_isAdmin"
+                                                         ShaOrder="primary.SortOrder ?? 0" CanOrder="_isAdmin"
                                                          Patch="PatchJson" Post="PostJson"
                                                          FetchText="GetText" OnChanged="OnMutated" OnClose="@(() => _editingKey = null)"/>
                                     </td>
@@ -328,20 +314,24 @@
 </div>
 </main>
 
-<LoggedInModal @ref="_subscribeModal" Title="Notifications" LoginPrompt="Log in to manage webhook notifications.">
-    <ProtoSubscribePanel/>
-</LoggedInModal>
+<NotificationsWorkbenchModal @ref="_subscribeModal"/>
 <LoggedInModal @ref="_apiKeysModal" Title="API keys" LoginPrompt="Log in to manage API keys.">
     <ApiKeysPanel/>
 </LoggedInModal>
-<AnalysisWorkbenchModal @ref="_workbench" OnChanged="OnMutated"/>
+<ProtoWorkbenchModal @ref="_workbench" OnChanged="OnMutated" OnRefChanged="OnWorkbenchRef" OnClosed="OnWorkbenchClosed"/>
+<DeviceWorkbenchModal @ref="_deviceWorkbench" OnChanged="OnMutated"/>
 
 @code {
-    AnalysisWorkbenchModal? _workbench;
+    ProtoWorkbenchModal? _workbench;
+    DeviceWorkbenchModal? _deviceWorkbench;
+
+    Task OpenDeviceWorkbench(string? deviceId) {
+        return _deviceWorkbench?.Open(deviceId) ?? Task.CompletedTask;
+    }
 
     static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
-    List<VersionRow> _rows = [];
+    List<ProtoRegistryRow> _rows = [];
 
 
     string _fPlatform = "";
@@ -368,32 +358,115 @@
     string _addSource = "";
     string _addProto = "";
 
-    readonly List<VersionKey> _selected = [];
-    int? _editingKey;
+    readonly List<ProtoSelectionBar.VersionKey> _selected = [];
+    long? _editingKey;
     List<MergeSuggestion> _suggestions = [];
     StagedReviewPanel? _stagedPanel;
-    LoggedInModal? _subscribeModal;
+    NotificationsWorkbenchModal? _subscribeModal;
     LoggedInModal? _apiKeysModal;
+
+    Task OpenNotifications() {
+        return _subscribeModal?.Open() ?? Task.CompletedTask;
+    }
 
     string _serverVersion = "";
     string _serverSha = "";
     string _serverCommitUrl = "";
     string _serverBuildDate = "";
 
-    VersionRow? LatestRow => _rows
-        .OrderBy(r => r, Comparer<VersionRow>.Create((a, b) => {
-            var v = CompareSemver(a.AppVersion, b.AppVersion);
-            if (v != 0) return v;
-            v = a.SortOrder.CompareTo(b.SortOrder);
-            if (v != 0) return v;
-            v = CompareNumeric(a.ClientVersion, b.ClientVersion);
-            if (v != 0) return v;
-            v = a.DetectedAt.CompareTo(b.DetectedAt);
-            if (v != 0) return v;
-            v = string.Compare(a.Platform, b.Platform, StringComparison.OrdinalIgnoreCase);
-            return v != 0 ? v : CompareBuild(a.Build, b.Build);
-        }))
-        .LastOrDefault();
+    [Parameter] public string? Platform { get; set; }
+
+    [Parameter] public string? Build { get; set; }
+
+    IJSObjectReference? _hashnav;
+    IJSObjectReference? _hashListener;
+    DotNetObjectReference<Protos>? _selfRef;
+
+    bool HasVersionRoute {
+        get {
+            if (string.IsNullOrWhiteSpace(Platform) || string.IsNullOrWhiteSpace(Build)) return false;
+            if (Platform.Equals("subscribe", StringComparison.OrdinalIgnoreCase)) return false;
+            return !Platform.Equals("sources", StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    static string VersionHref(ProtoRegistryRow r) {
+        return $"/protos/{r.Platform}/{Uri.EscapeDataString(r.Build)}";
+    }
+
+    async Task OpenVersion(ProtoRegistryRow r) {
+        var value = new ProtoRef(ProtoRefSource.Registry, r.Platform, r.Build, null);
+        _workbench?.OpenAt(value, null, null);
+        await PushHash(value.Format());
+    }
+
+    Task OnWorkbenchRef(WorkbenchRef value) {
+        return WriteHash(ProtoRefParser.Format(value));
+    }
+
+    bool _closingFromHash;
+
+    Task OnWorkbenchClosed() {
+        return _closingFromHash ? Task.CompletedTask : PushHash("");
+    }
+
+    [JSInvokable]
+    public Task OnHashChanged(string hash) {
+        return InvokeAsync(() => ApplyRef(ProtoRefParser.Parse(hash)));
+    }
+
+    void ApplyRef(WorkbenchRef value) {
+        if (value.A is null) {
+            _closingFromHash = true;
+            try {
+                _workbench?.Close();
+            }
+            finally {
+                _closingFromHash = false;
+            }
+
+            return;
+        }
+
+        _workbench?.OpenAt(value.A, value.B, value.Mode);
+    }
+
+    async Task StartHashNav() {
+        try {
+            _hashnav ??= await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/hashnav.js"));
+            _selfRef ??= DotNetObjectReference.Create(this);
+            _hashListener ??= await _hashnav.InvokeAsync<IJSObjectReference>("listen", _selfRef);
+            if (HasVersionRoute) {
+                var build = Uri.UnescapeDataString(Build!);
+                _workbench?.OpenAt(new ProtoRef(ProtoRefSource.Registry, Platform!, build, null), null, null);
+                await _hashnav.InvokeVoidAsync("replacePath", "/protodata", $"{Platform}_{build}");
+                return;
+            }
+
+            ApplyRef(ProtoRefParser.Parse(await _hashnav.InvokeAsync<string>("read")));
+        }
+        catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
+            Logger.LogDebug(ex, "hash navigation could not be wired");
+        }
+    }
+
+    async Task WriteHash(string hash) {
+        await CallHashNav("write", hash);
+    }
+
+    async Task PushHash(string hash) {
+        await CallHashNav("push", hash);
+    }
+
+    async Task CallHashNav(string fn, string hash) {
+        if (_hashnav is null) return;
+        try {
+            await _hashnav.InvokeVoidAsync(fn, hash);
+        }
+        catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
+            Logger.LogDebug(ex, "the workbench hash could not be updated");
+        }
+    }
 
 
     bool AnyFilter => _fPlatform.Length > 0 || _fVersion.Length > 0 || _fBuild.Length > 0
@@ -403,47 +476,43 @@
         return needle.Length == 0 || field.Contains(needle, StringComparison.OrdinalIgnoreCase);
     }
 
-    List<VersionRow> Filtered =>
+    List<ProtoRegistryRow> Filtered =>
         _rows.Where(r =>
             (_fPlatform.Length == 0 || string.Equals(r.Platform, _fPlatform, StringComparison.OrdinalIgnoreCase))
-            && Has(r.AppVersion, _fVersion)
+            && Has(r.AppVersion ?? "", _fVersion)
             && Has(r.Build, _fBuild)
             && Has(r.ClientVersion ?? "", _fClient)
-            && Has(r.ProtoSha, _fSha)).ToList();
+            && Has(r.ProtoSha ?? "", _fSha)).ToList();
 
     void ClearFilters() {
         _fPlatform = _fVersion = _fBuild = _fClient = _fSha = "";
     }
 
-    Comparison<VersionRow> RowComparison {
+    static int ByVersion(ProtoRegistryRow a, ProtoRegistryRow b) {
+        return ProtoVersionOrdering.Compare(b.Key(), a.Key());
+    }
+
+    Comparison<ProtoRegistryRow> RowComparison {
         get {
-            Comparison<VersionRow> primary = _sortCol switch {
+            Comparison<ProtoRegistryRow> primary = _sortCol switch {
                 "platform" => (a, b) => string.Compare(a.Platform, b.Platform, StringComparison.OrdinalIgnoreCase),
-                "appVersion" => (a, b) => CompareSemver(a.AppVersion, b.AppVersion),
+                "appVersion" => (a, b) => ByVersion(a, b),
                 "build" => (a, b) => {
                     var p = string.Compare(a.Platform, b.Platform, StringComparison.OrdinalIgnoreCase);
                     return p != 0 ? p : CompareBuild(a.Build, b.Build);
                 },
                 "client" => (a, b) => CompareNumeric(a.ClientVersion, b.ClientVersion),
                 "sha" => (a, b) => string.Compare(a.ProtoSha, b.ProtoSha, StringComparison.OrdinalIgnoreCase),
-                _ => (a, b) => a.DetectedAt.CompareTo(b.DetectedAt)
+                _ => (a, b) => a.DetectedAt.GetValueOrDefault().CompareTo(b.DetectedAt.GetValueOrDefault())
             };
             return (a, b) => {
                 var v = primary(a, b);
-                if (v != 0) return v;
-                v = a.SortOrder.CompareTo(b.SortOrder);
-                if (v != 0) return v;
-                v = CompareNumeric(a.ClientVersion, b.ClientVersion);
-                if (v != 0) return v;
-                v = a.DetectedAt.CompareTo(b.DetectedAt);
-                if (v != 0) return v;
-                v = string.Compare(a.Platform, b.Platform, StringComparison.OrdinalIgnoreCase);
-                return v != 0 ? v : CompareBuild(a.Build, b.Build);
+                return v != 0 ? v : ByVersion(a, b);
             };
         }
     }
 
-    List<VersionRow> Sorted {
+    List<ProtoRegistryRow> Sorted {
         get {
             var sorted = Filtered;
             sorted.Sort(RowComparison);
@@ -455,7 +524,7 @@
 
     List<Release> SortedReleases {
         get {
-            var byKey = new Dictionary<int, List<VersionRow>>();
+            var byKey = new Dictionary<long, List<ProtoRegistryRow>>();
             foreach (var r in Filtered) {
                 var key = ReleaseKey(r);
                 if (!byKey.TryGetValue(key, out var list)) {
@@ -550,6 +619,8 @@
         catch (JSDisconnectedException ex) {
             Logger.LogDebug(ex, "proto drop zone not wired, the circuit is already gone");
         }
+
+        await StartHashNav();
     }
 
     Timer? _refresh;
@@ -572,7 +643,9 @@
     async Task Load(bool background = false) {
         if (!background) _loading = true;
         try {
-            _rows = await Client().GetFromJsonAsync<List<VersionRow>>("/api/protos/versions", JsonOpts) ?? [];
+            _rows = await Client().GetFromJsonAsync<List<ProtoRegistryRow>>("/api/protos/versions", JsonOpts) ?? [];
+            State.Registry = _rows;
+            State.RegistryLoadedAt = DateTime.UtcNow;
         }
         catch {
             if (!background) _rows = [];
@@ -682,7 +755,7 @@
         }
     }
 
-    bool IsSelected(VersionRow r) {
+    bool IsSelected(ProtoRegistryRow r) {
         return _selected.Any(k => k.Platform == r.Platform && k.Build == r.Build);
     }
 
@@ -692,7 +765,7 @@
         _selected.Clear();
         if (e.Value is true)
             foreach (var r in Sorted)
-                _selected.Add(new VersionKey(r.Platform, r.Build));
+                _selected.Add(new ProtoSelectionBar.VersionKey(r.Platform, r.Build));
     }
 
 
@@ -702,7 +775,7 @@
             var existing = _selected.FirstOrDefault(k => k.Platform == m.Platform && k.Build == m.Build);
             if (allSelected) {
                 if (existing is not null) _selected.Remove(existing);
-            } else if (existing is null) _selected.Add(new VersionKey(m.Platform, m.Build));
+            } else if (existing is null) _selected.Add(new ProtoSelectionBar.VersionKey(m.Platform, m.Build));
         }
     }
 
@@ -717,22 +790,18 @@
 
     List<Row> EditTargets(Release rel) {
         return rel.Members
-            .Select(m => new Row(m.Platform, m.Build, m.AppVersion, m.ClientVersion, m.Source))
+            .Select(m => new Row(m.Platform, m.Build, m.AppVersion ?? "", m.ClientVersion, m.Source ?? ""))
             .ToList();
     }
 
 
     int EditColspan => 6 + (_isAdmin ? 1 : 0) + 1;
 
-    void Navigate(string href) {
-        _ = JS.InvokeVoidAsync("location.assign", href);
-    }
-
     static string OrderLabel(int order) {
         return order > 0 ? $"+{order}" : $"{order}";
     }
 
-    static string Short(string sha) {
+    static string Short(string? sha) {
         return string.IsNullOrEmpty(sha) ? "" : sha.Length <= 12 ? sha : sha[..12];
     }
 
@@ -740,32 +809,20 @@
         if (_refresh is not null) await _refresh.DisposeAsync();
         if (_vis is not null) await _vis.DisposeAsync();
         await _protoDrop.DisposeModuleAsync(logger: Logger);
+        await _hashListener.DisposeModuleAsync("dispose", Logger);
+        await _hashnav.DisposeModuleAsync(logger: Logger);
+        _selfRef?.Dispose();
     }
 
-    record VersionRow(
-        int Id,
-        int? CanonicalId,
-        string Platform,
-        string AppVersion,
-        string Build,
-        string? ClientVersion,
-        string Source,
-        string Package,
-        string ProtoSha,
-        DateTimeOffset DetectedAt,
-        string? BuildFlag = null,
-        int SortOrder = 0);
-
-
-    sealed record Release(int Key, IReadOnlyList<VersionRow> Members) {
-        public VersionRow Primary => Members[0];
+    sealed record Release(long Key, IReadOnlyList<ProtoRegistryRow> Members) {
+        public ProtoRegistryRow Primary => Members[0];
         public bool IsGrouped => Members.Count > 1;
 
-        public IEnumerable<VersionRow> Platforms =>
+        public IEnumerable<ProtoRegistryRow> Platforms =>
             Members.DistinctBy(m => m.Platform, StringComparer.OrdinalIgnoreCase);
     }
 
-    static int ReleaseKey(VersionRow r) {
+    static long ReleaseKey(ProtoRegistryRow r) {
         return r.CanonicalId ?? r.Id;
     }
 

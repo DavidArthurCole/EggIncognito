@@ -17,12 +17,12 @@
 <PageTitle>EggIncognito - Farm Playground</PageTitle>
 
 @if (!_isAdmin) {
-    <main class="px-8 pt-6 pb-8 max-w-[1100px]">
+    <main class="page page-app pt-6 pb-8">
         <h1 class="text-[1.3rem] mt-0 mb-4">Farm Playground</h1>
         <div class="panel">Admin access required. <LoginButton CssClass="auth-btn" Label="Log in" Placement="LoginMenuPlacement.BottomLeft"/></div>
     </main>
 } else {
-    <main class="px-8 pt-6 pb-8" @onclick="CloseMenus">
+    <main class="page page-wide pt-6 pb-8" @onclick="CloseMenus">
     <h1 class="text-[1.3rem] mt-0 mb-1">Farm Playground</h1>
     <p class="text-muted text-xs mb-4">
         A farm is a fixed slot graph, not a scene. Set the farm state, dress it with shells, or load one of the
@@ -84,7 +84,7 @@
                         </div>
                     }
                 </div>
-                <div class="ml-2 text-[11px] text-muted truncate">
+                <div class="ml-2 text-[0.6875rem] text-muted truncate">
                     @(string.IsNullOrEmpty(_currentDesign) ? "Untitled" : _currentDesign)@(_dirty ? " (unsaved)" : "")
                 </div>
             </div>

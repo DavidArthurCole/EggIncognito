@@ -126,6 +126,9 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
         db.StagedProtos.AsNoTracking().Where(s => s.Status == "pending")
             .OrderByDescending(s => s.SubmittedAt).ToListAsync(ct);
 
+    public Task<StagedProto?> PendingByIdAsync(int id, CancellationToken ct) =>
+        db.StagedProtos.AsNoTracking().FirstOrDefaultAsync(s => s.Id == id && s.Status == "pending", ct);
+
     public Task<int> PendingCountAsync(CancellationToken ct) =>
         db.StagedProtos.CountAsync(s => s.Status == "pending", ct);
 

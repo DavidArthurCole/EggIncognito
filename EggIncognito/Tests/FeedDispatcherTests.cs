@@ -2,6 +2,7 @@ using System.Net;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using EggIncognito.Services.Feed;
+using EggIncognito.Services.ProtoExtract;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace EggIncognito.Tests;
@@ -139,6 +140,79 @@ public class FeedDispatcherTests {
         Assert.Equal(2, handler.Posts);
     }
 
+    private static FeedSubscription Guarded(int id, string trigger, params string[] platforms) {
+        var sub = Sub(id, trigger, platforms);
+        sub.Filters = [
+            FeedEventKinds.FilterRequireClientVersion, FeedEventKinds.FilterRequireProto,
+            FeedEventKinds.FilterSaneBuild, FeedEventKinds.FilterKnownDelta
+        ];
+        return sub;
+    }
+
+
+    private static ProtoBuildEvent BrokenIosEvt(int id = 42) {
+        var flaws = ProtoVersionQuality.Flaws("ios", "1.36.4", "111340", null, "", false);
+        return new ProtoBuildEvent(id, "ios", "1.36.4", "111340", null, "", true, true, "https://x/y",
+            VersionDelta.Unknown, "1.37.0", "1.37.0.1", flaws);
+    }
+
+
+    [Fact]
+    public async Task VersionUp_Fires_OnForward_Only() {
+        var store = new FakeStore(Sub(1, FeedEventKinds.TriggerVersionUp, "android"));
+        var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
+        var d = Dispatcher(store, handler);
+
+        await d.DispatchAsync(ProtoEvt(true) with { Delta = VersionDelta.Backfill, ProtoVersionId = 1 });
+        Assert.Equal(0, handler.Posts);
+
+        await d.DispatchAsync(ProtoEvt(true) with { Delta = VersionDelta.Forward, ProtoVersionId = 2 });
+        Assert.Equal(1, handler.Posts);
+    }
+
+
+    [Fact]
+    public async Task Filters_Block_Flawed_Event_And_Record_Reason() {
+        var store = new FakeStore(Guarded(1, FeedEventKinds.TriggerNewVersion, "ios"));
+        var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
+        await Dispatcher(store, handler).DispatchAsync(BrokenIosEvt());
+
+        Assert.Equal(0, handler.Posts);
+        Assert.Empty(store.Deliveries);
+        var blocked = Assert.Single(store.Suppressions);
+        Assert.Contains(FeedEventKinds.FilterRequireClientVersion, blocked.Reason, StringComparison.Ordinal);
+        Assert.Contains(FeedEventKinds.FilterSaneBuild, blocked.Reason, StringComparison.Ordinal);
+        Assert.Contains(FeedEventKinds.FilterKnownDelta, blocked.Reason, StringComparison.Ordinal);
+    }
+
+
+    [Fact]
+    public async Task Suspect_Fires_OnFlawed_NotOnClean() {
+        var store = new FakeStore(Guarded(1, FeedEventKinds.TriggerSuspect, "android", "ios"));
+        var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
+        var d = Dispatcher(store, handler);
+
+        await d.DispatchAsync(ProtoEvt(true, id: 5) with { Delta = VersionDelta.Forward, Flaws = [] });
+        Assert.Equal(0, handler.Posts);
+
+        await d.DispatchAsync(BrokenIosEvt());
+        Assert.Equal(1, handler.Posts);
+        Assert.Empty(store.Suppressions);
+    }
+
+
+    [Fact]
+    public async Task Clean_Forward_Event_Passes_Filters() {
+        var store = new FakeStore(Guarded(1, FeedEventKinds.TriggerVersionUp, "android"));
+        var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
+        await Dispatcher(store, handler).DispatchAsync(
+            ProtoEvt(true) with { Delta = VersionDelta.Forward, Flaws = [] });
+
+        Assert.Equal(1, handler.Posts);
+        Assert.Empty(store.Suppressions);
+    }
+
+
     private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler {
         public int Posts { get; private set; }
 
@@ -151,6 +225,7 @@ public class FeedDispatcherTests {
     private sealed class FakeStore(params FeedSubscription[] subs) : IFeedSubscriptionStore {
         public List<FeedSubscription> Subs { get; } = [.. subs];
         public List<FeedDelivery> Deliveries { get; } = [];
+        public List<FeedSuppression> Suppressions { get; } = [];
 
         public Task<FeedSubscription> AddAsync(FeedSubscription sub, CancellationToken ct = default) {
             Subs.Add(sub);
@@ -204,14 +279,27 @@ public class FeedDispatcherTests {
         }
 
         public Task<bool> UpdateAsync(int id, Guid ownerUserId, string[] platforms, string trigger,
-            bool active, string? messageTemplate, CancellationToken ct = default) {
+            bool active, string? messageTemplate, string[] filters, CancellationToken ct = default) {
             var s = Subs.FirstOrDefault(x => x.Id == id && x.OwnerUserId == ownerUserId);
             if (s is null) return Task.FromResult(false);
             s.Platforms = platforms;
             s.Trigger = trigger;
             s.Active = active;
             s.MessageTemplate = messageTemplate;
+            s.Filters = filters;
             return Task.FromResult(true);
+        }
+
+        public Task SuppressAsync(int subId, string eventKind, string dedupKey, string reason, string? summary,
+            CancellationToken ct = default) {
+            Suppressions.Add(new FeedSuppression {
+                SubscriptionId = subId,
+                EventKind = eventKind,
+                DedupKey = dedupKey,
+                Reason = reason,
+                Summary = summary
+            });
+            return Task.CompletedTask;
         }
     }
 }

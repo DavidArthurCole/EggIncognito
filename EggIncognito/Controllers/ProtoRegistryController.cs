@@ -44,11 +44,17 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
             sha = norm.Ok ? norm.Sha! : ProtoHash.Of(req.Proto!);
         }
 
-        (var row, bool created, _) = await store.UpsertAsync(
+        var upsert = await store.UpsertAsync(
             req.Platform, req.AppVersion, req.Build, req.ClientVersion, req.Package ?? "",
             sha, "", DateTimeOffset.UtcNow, user.Username, protoText,
             req.Source ?? "upload", ct: ct);
-        return Ok(new { ok = true, created, row.Platform, row.Build, protoSha = sha });
+        return Ok(new {
+            ok = true,
+            created = upsert.Created,
+            upsert.Row.Platform,
+            upsert.Row.Build,
+            protoSha = sha
+        });
     }
 
 
@@ -198,6 +204,16 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
             originDate = r.OriginDate,
             confidence = r.Confidence
         }));
+    }
+
+
+    [HttpGet("/api/protos/staged/{id:int}/proto")]
+    public async Task<IActionResult> StagedProto(int id, CancellationToken ct) {
+        if (Require(UserRole.Contributor) is { } no) return no;
+        if (StagedStore is not { } s) return StatusCode(503, new { error = NoDb });
+        var row = await s.PendingByIdAsync(id, ct);
+        if (row is null || string.IsNullOrEmpty(row.ProtoText)) return NotFound();
+        return Content(row.ProtoText, "text/plain");
     }
 
 

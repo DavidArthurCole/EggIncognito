@@ -15,7 +15,10 @@ public interface IFeedSubscriptionStore {
     Task<bool> DeleteAsync(int id, Guid ownerUserId, CancellationToken ct = default);
 
     Task<bool> UpdateAsync(int id, Guid ownerUserId, string[] platforms, string trigger, bool active,
-        string? messageTemplate, CancellationToken ct = default);
+        string? messageTemplate, string[] filters, CancellationToken ct = default);
+
+    Task SuppressAsync(int subId, string eventKind, string dedupKey, string reason, string? summary,
+        CancellationToken ct = default);
 }
 
 public sealed class FeedSubscriptionStore(EggIncognitoDbContext db) : IFeedSubscriptionStore {
@@ -74,14 +77,55 @@ public sealed class FeedSubscriptionStore(EggIncognitoDbContext db) : IFeedSubsc
 
     public async Task<bool> UpdateAsync(
         int id, Guid ownerUserId, string[] platforms, string trigger, bool active, string? messageTemplate,
-        CancellationToken ct = default) {
+        string[] filters, CancellationToken ct = default) {
         var row = await db.FeedSubscriptions.FirstOrDefaultAsync(s => s.Id == id && s.OwnerUserId == ownerUserId, ct);
         if (row is null) return false;
         row.Platforms = platforms is { Length: > 0 } ? platforms : ["android", "ios"];
         row.Trigger = string.IsNullOrWhiteSpace(trigger) ? row.Trigger : trigger;
         row.Active = active;
         row.MessageTemplate = string.IsNullOrWhiteSpace(messageTemplate) ? null : messageTemplate;
+        row.Filters = filters;
         await db.SaveChangesAsync(ct);
         return true;
     }
+
+    private const int SuppressionsKeptPerSub = 50;
+
+    public async Task SuppressAsync(
+        int subId, string eventKind, string dedupKey, string reason, string? summary,
+        CancellationToken ct = default) {
+        var latest = await db.FeedSuppressions.AsNoTracking()
+            .Where(s => s.SubscriptionId == subId && s.EventKind == eventKind && s.DedupKey == dedupKey)
+            .OrderByDescending(s => s.Id).FirstOrDefaultAsync(ct);
+        if (latest is not null && latest.Reason == reason) return;
+
+        db.FeedSuppressions.Add(new FeedSuppression {
+            SubscriptionId = subId,
+            EventKind = eventKind,
+            DedupKey = dedupKey,
+            Reason = reason,
+            Summary = summary,
+            CreatedAt = DateTimeOffset.UtcNow
+        });
+        await db.SaveChangesAsync(ct);
+
+        var stale = await db.FeedSuppressions
+            .Where(s => s.SubscriptionId == subId)
+            .OrderByDescending(s => s.Id)
+            .Skip(SuppressionsKeptPerSub)
+            .Select(s => s.Id)
+            .ToListAsync(ct);
+        if (stale.Count == 0) return;
+        await db.FeedSuppressions.Where(s => stale.Contains(s.Id)).ExecuteDeleteAsync(ct);
+    }
+
+    public Task<List<FeedDelivery>> DeliveriesAsync(int subId, int take, CancellationToken ct = default) =>
+        db.FeedDeliveries.AsNoTracking()
+            .Where(d => d.SubscriptionId == subId)
+            .OrderByDescending(d => d.Id).Take(take).ToListAsync(ct);
+
+    public Task<List<FeedSuppression>> SuppressionsAsync(int subId, int take, CancellationToken ct = default) =>
+        db.FeedSuppressions.AsNoTracking()
+            .Where(s => s.SubscriptionId == subId)
+            .OrderByDescending(s => s.Id).Take(take).ToListAsync(ct);
 }

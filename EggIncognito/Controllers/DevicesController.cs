@@ -21,11 +21,12 @@ namespace EggIncognito.Controllers;
 public sealed class DevicesController(
     ICurrentUser currentUser,
     IServiceProvider services,
-    IServiceScopeFactory scopeFactory,
-    IDeviceJobTracker jobs) : ControllerBase {
+    IServiceScopeFactory scopeFactory) : ControllerBase {
     private const string PlatformAndroid = "android";
     private const string PlatformIos = "ios";
     private IDeviceStatusStore? Store => services.GetService(typeof(IDeviceStatusStore)) as IDeviceStatusStore;
+    private DeviceJobStore? Jobs => services.GetService(typeof(DeviceJobStore)) as DeviceJobStore;
+    private DeviceTimelineCache? Timeline => services.GetService(typeof(DeviceTimelineCache)) as DeviceTimelineCache;
     private EggIncognitoDbContext? Db => services.GetService(typeof(EggIncognitoDbContext)) as EggIncognitoDbContext;
 
     private ObjectResult? RequireAdmin() =>
@@ -46,10 +47,13 @@ public sealed class DevicesController(
     [EnableRateLimiting("fetch")]
     public async Task<IActionResult> Status() {
         var store = Store;
-        if (store is null) return Ok(Array.Empty<object>());
-        var latest = await store.LatestPerDeviceAsync();
+        if (store is null || Timeline is not { } timeline) return Ok(Array.Empty<object>());
         var devices = (await store.EnabledDevicesAsync()).ToDictionary(d => d.Id);
-        var updates = (await store.LatestUpdatePerDeviceAsync()).ToDictionary(u => u.DeviceId);
+        var ids = devices.Keys.ToList();
+        var ct0 = HttpContext.RequestAborted;
+        var latest = await timeline.LatestPerDeviceAsync(ids, DeviceJobKinds.Probe, ct0);
+        var updates = (await timeline.LatestPerDeviceAsync(ids, DeviceJobKinds.StoreCheck, ct0))
+            .ToDictionary(u => u.DeviceId);
 
 
         var db = Db;
@@ -101,44 +105,43 @@ public sealed class DevicesController(
             updates.TryGetValue(d.Id, out var up);
             string? sl = storeLatest.GetValueOrDefault(d.Platform);
 
-            string liveResult = p.Reachable && !string.IsNullOrEmpty(p.InstalledAppVersion)
+            string liveResult = p.Reachable == true && !string.IsNullOrEmpty(p.AppVersion)
                 ? DeviceProbeRunner.Classify(
-                    new DeviceProbeResult(true, p.InstalledAppVersion, p.InstalledBuild, null),
+                    new DeviceProbeResult(true, p.AppVersion, p.Build, null),
                     d.Platform, regLatestBuild.GetValueOrDefault(d.Platform),
                     regLatestApp.GetValueOrDefault(d.Platform))
-                : p.Result;
+                : p.Outcome ?? "";
             return new {
                 id = isAdmin ? d.Id : DeviceKey(d.Id),
                 platform = d.Platform,
                 label = d.Label,
-                reachable = p.Reachable,
-                installedAppVersion = p.InstalledAppVersion,
-                installedBuild = p.InstalledBuild,
-                clientVersion = binaries?.CachedClientVersion(d.Platform, p.InstalledAppVersion)
-                    ?? (p.InstalledBuild is { } ib &&
+                target = isAdmin ? d.Target : null,
+                package = isAdmin ? d.Package : null,
+                reachable = p.Reachable == true,
+                installedAppVersion = p.AppVersion,
+                installedBuild = p.Build,
+                clientVersion = binaries?.CachedClientVersion(d.Platform, p.AppVersion)
+                    ?? (p.Build is { } ib &&
                         regBuildClientVersion.TryGetValue((d.Platform, ib), out int bcv)
                         ? bcv
-                        : p.InstalledAppVersion is { } iv &&
+                        : p.AppVersion is { } iv &&
                           regClientVersion.TryGetValue((d.Platform, iv), out int rcv)
                             ? rcv
                             : capturedClientVersion.TryGetValue(d.Id, out int ccv)
                                 ? ccv
                                 : (int?)null),
-                latestAvailable = p.LatestAvailable,
                 storeLatest = sl,
-                storeAhead = StoreAheadCheck.IsAhead(sl, p.InstalledAppVersion),
+                storeAhead = StoreAheadCheck.IsAhead(sl, p.AppVersion),
                 result = liveResult,
-                note = isAdmin ? p.Note : null,
-                probedAt = p.ProbedAt,
+                note = isAdmin ? p.Message : null,
+                probedAt = p.StartedAt,
                 lastUpdate = !isAdmin || up is null
                     ? null
                     : new {
-                        status = up.Status,
-                        from = up.FromVersion,
-                        to = up.ToVersion,
-                        note = up.Note,
-                        by = up.TriggeredBy,
-                        at = up.AttemptedAt
+                        status = up.Outcome,
+                        note = up.Message,
+                        by = up.Trigger,
+                        at = up.StartedAt
                     }
             };
         });
@@ -149,17 +152,75 @@ public sealed class DevicesController(
     [ApiAccess(ApiAccessLevel.Admin)]
     public async Task<IActionResult> History(string id, [FromQuery] int n = 20) {
         if (RequireAdmin() is { } no) return no;
-        var store = Store;
-        if (store is null) return Ok(Array.Empty<object>());
-        var rows = await store.HistoryAsync(id, Math.Clamp(n, 1, 100));
+        if (Timeline is not { } timeline) return Ok(Array.Empty<object>());
+        var rows = await timeline.HistoryAsync(id, Math.Clamp(n, 1, 100), DeviceJobKinds.Probe,
+            HttpContext.RequestAborted);
         return Ok(rows.Select(p => new {
-            probedAt = p.ProbedAt,
-            reachable = p.Reachable,
-            installedAppVersion = p.InstalledAppVersion,
-            installedBuild = p.InstalledBuild,
-            result = p.Result,
-            triggeredBy = p.TriggeredBy,
-            note = p.Note
+            probedAt = p.StartedAt,
+            reachable = p.Reachable == true,
+            installedAppVersion = p.AppVersion,
+            installedBuild = p.Build,
+            result = p.Outcome ?? "",
+            triggeredBy = p.Trigger,
+            note = p.Message
+        }));
+    }
+
+    [HttpGet("{id}/jobs")]
+    [ApiAccess(ApiAccessLevel.Admin)]
+    [EnableRateLimiting("read")]
+    public async Task<IActionResult> JobHistory(string id, [FromQuery] int n = 50, [FromQuery] string? kind = null,
+        CancellationToken ct = default) {
+        if (RequireAdmin() is { } no) return no;
+        if (Timeline is not { } cache) return StatusCode(503, new { error = "no database configured" });
+
+        var rows = await cache.HistoryAsync(id, Math.Clamp(n, 1, 200), kind, ct);
+        var outRows = new List<object>();
+        foreach (var j in rows) {
+            var lines = await cache.LinesAsync(id, j.Id, ct);
+            outRows.Add(new {
+                id = j.Id,
+                kind = j.Kind,
+                state = j.State,
+                trigger = j.Trigger,
+                startedAt = j.StartedAt,
+                finishedAt = j.FinishedAt,
+                outcome = j.Outcome,
+                message = j.Message,
+                appVersion = j.AppVersion,
+                build = j.Build,
+                revision = j.Revision,
+                detail = j.Detail,
+                lines = lines.Select(l => new {
+                    at = l.At,
+                    level = l.Level,
+                    text = l.Text,
+                    entry = l.Entry,
+                    bytes = l.Bytes,
+                    sha256 = l.Sha256
+                })
+            });
+        }
+
+        return Ok(outRows);
+    }
+
+    [HttpGet("jobs/live")]
+    [ApiAccess(ApiAccessLevel.Admin)]
+    [EnableRateLimiting("fetch")]
+    public async Task<IActionResult> LiveJobs(CancellationToken ct) {
+        if (RequireAdmin() is { } no) return no;
+        var store = Store;
+        if (store is null || Timeline is not { } cache) return Ok(Array.Empty<object>());
+
+        var ids = (await store.EnabledDevicesAsync(ct)).Select(d => d.Id).ToList();
+        var running = await cache.RunningAsync(ids, ct);
+        return Ok(running.Select(j => new {
+            device = j.DeviceId,
+            id = j.Id,
+            kind = j.Kind,
+            message = j.Message,
+            startedAt = j.StartedAt
         }));
     }
 
@@ -191,7 +252,8 @@ public sealed class DevicesController(
 
         var store = Store;
         var db = Db;
-        if (store is null || db is null) return StatusCode(503, new { error = "no database configured" });
+        if (store is null || db is null || Jobs is not { } jobStore)
+            return StatusCode(503, new { error = "no database configured" });
 
         var device = await store.GetAsync(id);
         if (device is null) return NotFound(new { error = "unknown device" });
@@ -201,19 +263,19 @@ public sealed class DevicesController(
         var logger = (ILogger<DevicesController>)services.GetRequiredService(typeof(ILogger<DevicesController>));
 
         var row = await DeviceProbeRunner.ProbeOneAsync(
-            device, $"admin:{currentUser.DiscordId}", runner, store, db, logger, time, HttpContext.RequestAborted);
+            device, $"admin:{currentUser.DiscordId}", runner, jobStore, db, logger, time,
+            HttpContext.RequestAborted);
 
         return Ok(new {
             id = device.Id,
             platform = device.Platform,
             label = device.Label,
-            reachable = row.Reachable,
-            installedAppVersion = row.InstalledAppVersion,
-            installedBuild = row.InstalledBuild,
-            latestAvailable = row.LatestAvailable,
-            result = row.Result,
-            note = row.Note,
-            probedAt = row.ProbedAt
+            reachable = row.Reachable == true,
+            installedAppVersion = row.AppVersion,
+            installedBuild = row.Build,
+            result = row.Outcome ?? "",
+            note = row.Message,
+            probedAt = row.StartedAt
         });
     }
 
@@ -231,7 +293,8 @@ public sealed class DevicesController(
 
         var store = Store;
         var db = Db;
-        if (store is null || db is null) return StatusCode(503, new { error = "no database configured" });
+        if (store is null || db is null || Jobs is not { } jobStore)
+            return StatusCode(503, new { error = "no database configured" });
 
         var runner = (IProcessRunner)services.GetRequiredService(typeof(IProcessRunner));
         var time = (TimeProvider)services.GetRequiredService(typeof(TimeProvider));
@@ -242,7 +305,7 @@ public sealed class DevicesController(
         foreach (var d in devices) {
             try {
                 await DeviceProbeRunner.ProbeOneAsync(
-                    d, $"admin-all:{currentUser.DiscordId}", runner, store, db, logger, time,
+                    d, $"admin-all:{currentUser.DiscordId}", runner, jobStore, db, logger, time,
                     HttpContext.RequestAborted);
                 n++;
             } catch (Exception ex) {
@@ -275,79 +338,56 @@ public sealed class DevicesController(
             return StatusCode(501, new { error = $"no store checker for platform {device.Platform}" });
 
 
-        if (!jobs.TryStart(id, "checking store..."))
-            return StatusCode(409, new { error = "check already running" });
+        if (Jobs is not { } jobStore) return StatusCode(503, new { error = "no database configured" });
+        var job = await jobStore.TryStartAsync(id, DeviceJobKinds.StoreCheck, $"admin:{who}", "checking store...",
+            HttpContext.RequestAborted);
+        if (job is null) return StatusCode(409, new { error = "another job is already running on this device" });
 
         logger.LogInformation("device check-update: {Id} start (by {Who})", id, who);
         var target = new DeviceTarget(device.Id, device.Platform, device.Target, device.Package);
 
 
-        _ = Task.Run(() => RunCheckUpdateAsync(id, target, checker, who));
+        _ = Task.Run(() => RunCheckUpdateAsync(job, target, checker, who));
 
-        return Accepted(new { id = device.Id, action = "running" });
+        return Accepted(new { id = device.Id, jobId = job.Id, action = "running" });
     }
 
 
-    private async Task RunCheckUpdateAsync(string id, DeviceTarget target, IDeviceStoreChecker checker,
+    private async Task RunCheckUpdateAsync(JobRef job, DeviceTarget target, IDeviceStoreChecker checker,
         string who) {
         using var scope = scopeFactory.CreateScope();
         var sp = scope.ServiceProvider;
         var logger = sp.GetRequiredService<ILogger<DevicesController>>();
+        var jobs = sp.GetRequiredService<DeviceJobStore>();
         try {
             var store = sp.GetService<IDeviceStatusStore>();
             var db = sp.GetService<EggIncognitoDbContext>();
             var runner = sp.GetRequiredService<IProcessRunner>();
             if (store is null || db is null) {
-                jobs.Fail(id, "no database configured");
+                await jobs.FailAsync(job, "no database configured", CancellationToken.None);
                 return;
             }
 
 
-            var result =
-                await checker.CheckAndUpdateAsync(target, CancellationToken.None, msg => jobs.Progress(id, msg));
+            var result = await checker.CheckAndUpdateAsync(target, CancellationToken.None,
+                msg => jobs.ProgressAsync(job, msg).GetAwaiter().GetResult());
 
-            if (result.Installed) {
-                await store.RecordUpdateAsync(new DeviceUpdate {
-                    DeviceId = id,
-                    AttemptedAt = DateTimeOffset.UtcNow,
-                    FromVersion = result.InstalledBefore,
-                    ToVersion = result.InstalledAfter,
-                    Status = "verified",
-                    Note = result.Note,
-                    TriggeredBy = $"check:{who}"
-                }, CancellationToken.None);
-            }
-
-            var device = await store.GetAsync(id);
+            var device = await store.GetAsync(job.DeviceId);
             if (device is not null) {
                 var time = sp.GetRequiredService<TimeProvider>();
                 await DeviceProbeRunner.ProbeOneAsync(
-                    device, $"check-update:{who}", runner, store, db, logger, time, CancellationToken.None);
+                    device, $"check-update:{who}", runner, jobs, db, logger, time, CancellationToken.None);
             }
 
-            jobs.Finish(id, result);
+            await jobs.FinishAsync(job, result.Action, result.Note,
+                new DeviceJobFacts(
+                    AppVersion: result.InstalledAfter,
+                    Detail: new { fromVersion = result.InstalledBefore, toVersion = result.InstalledAfter }),
+                CancellationToken.None);
         } catch (Exception ex) {
-            logger.LogError(ex, "device check-update: {Id} background run failed", id);
-            jobs.Fail(id, ex.Message);
+            logger.LogError(ex, "device check-update: {Id} background run failed", job.DeviceId);
+            await jobs.FailAsync(job, ex.Message, CancellationToken.None);
         }
-    }
-
-
-    [HttpGet("{id}/check-status")]
-    [ApiAccess(ApiAccessLevel.Admin)]
-    public IActionResult CheckStatus(string id) {
-        if (RequireAdmin() is { } no) return no;
-        var s = jobs.Get(id);
-        if (s is null) return Ok(new { state = "idle" });
-        return Ok(new {
-            state = s.State.ToString().ToLowerInvariant(),
-            message = s.Message,
-            action = s.Action,
-            installedBefore = s.InstalledBefore,
-            installedAfter = s.InstalledAfter,
-            startedAt = s.StartedAt,
-            updatedAt = s.UpdatedAt
-        });
     }
 
 
@@ -382,7 +422,7 @@ public sealed class DevicesController(
             });
         }
 
-        if (await StaleHarvestErrorAsync(id, state, store, logger) is { } stale) return stale;
+        if (await StaleHarvestErrorAsync(id, state, logger) is { } stale) return stale;
 
         var (carve, err) = await CarveFromHarvestAsync(device, state, logger);
         if (err is not null) return err;
@@ -395,24 +435,27 @@ public sealed class DevicesController(
         logger.LogInformation("device save: {Id} clientVersion={Cv}", id, clientVersion ?? "(none)");
 
         try {
-            (var row, bool created, bool protoChanged) = await registry.UpsertAsync(
+            var upsert = await registry.UpsertAsync(
                 device.Platform, appVersion, build, clientVersion, device.Package,
                 sha, $"device:{device.Id}", DateTimeOffset.UtcNow,
                 $"device-save:{who}", carve.Proto, "device",
                 true, HttpContext.RequestAborted);
             logger.LogInformation("device save: {Id} -> registry {Plat} build {Build} ({State}, sha {Sha})",
-                id, device.Platform, build, created ? "created" : "updated", sha[..12]);
+                id, device.Platform, build, upsert.Created ? "created" : "updated", sha[..12]);
 
 
             var dispatcher = services.GetService(typeof(FeedDispatcher))
                 as FeedDispatcher;
-            if (dispatcher is not null && (created || protoChanged)) {
+            if (dispatcher is not null) {
                 var cfg = services.GetService(typeof(IConfiguration)) as IConfiguration;
                 string pageUrl = FeedDispatcher.BuildPageUrl(
                     cfg?["Feed:PageBaseUrl"], device.Platform, build);
+                var flaws = ProtoVersionQuality.Flaws(
+                    device.Platform, appVersion, build, clientVersion, sha, !string.IsNullOrEmpty(carve.Proto));
                 await dispatcher.DispatchAsync(new ProtoBuildEvent(
-                    row.Id, device.Platform, appVersion, build, clientVersion,
-                    sha, created, protoChanged, pageUrl), HttpContext.RequestAborted);
+                    upsert.Row.Id, device.Platform, appVersion, build, clientVersion,
+                    sha, upsert.Created, upsert.ProtoChanged, pageUrl,
+                    upsert.Delta, upsert.PrevAppVersion, upsert.PrevBuild, flaws), HttpContext.RequestAborted);
             }
         } catch (Exception ex) {
             logger.LogError(ex, "device save: {Id} registry upsert failed for build {Build}", id, build);
@@ -423,12 +466,11 @@ public sealed class DevicesController(
     }
 
 
-    private async Task<IActionResult?> StaleHarvestErrorAsync(
-        string id, DeviceState state, IDeviceStatusStore store, ILogger logger) {
-        var probe = (await store.LatestPerDeviceAsync(HttpContext.RequestAborted))
-            .FirstOrDefault(p => string.Equals(p.DeviceId, id, StringComparison.OrdinalIgnoreCase));
-        if (probe is not { Reachable: true } || string.IsNullOrEmpty(probe.InstalledBuild)) return null;
-        if (string.Equals(probe.InstalledBuild, state.Build, StringComparison.Ordinal)) return null;
+    private async Task<IActionResult?> StaleHarvestErrorAsync(string id, DeviceState state, ILogger logger) {
+        if (Timeline is not { } timeline) return null;
+        var probe = await timeline.LatestAsync(id, DeviceJobKinds.Probe, HttpContext.RequestAborted);
+        if (probe is not { Reachable: true } || string.IsNullOrEmpty(probe.Build)) return null;
+        if (string.Equals(probe.Build, state.Build, StringComparison.Ordinal)) return null;
 
         bool poked = false;
         if (services.GetService(typeof(IDeviceAgentClient)) is IDeviceAgentClient { Enabled: true } agent)
@@ -436,10 +478,10 @@ public sealed class DevicesController(
 
         logger.LogWarning(
             "device save: {Id} refused, harvest is {Harvested} but device runs {Installed} (poked={Poked})",
-            id, state.Build ?? "?", probe.InstalledBuild, poked);
+            id, state.Build ?? "?", probe.Build, poked);
         return StatusCode(409, new {
             error = $"harvest is stale: harvested build {state.Build ?? "none"}, device runs " +
-                    $"{probe.InstalledBuild} ({probe.InstalledAppVersion ?? "?"})" +
+                    $"{probe.Build} ({probe.AppVersion ?? "?"})" +
                     (poked ? "; poked the device agent, retry once the harvest lands" : "; poke the device agent and retry")
         });
     }
@@ -562,7 +604,11 @@ public sealed class DevicesController(
         var ct = HttpContext.RequestAborted;
         var row = await states.GetAsync(id, ct);
         if (row is null) return NotFound(new { error = "no harvest state for device" });
-        var entries = await states.RecentLogAsync(id, 40, ct);
+        var cache = Timeline;
+        var harvestJob = cache is null ? null : await cache.LatestAsync(id, DeviceJobKinds.Harvest, ct);
+        IReadOnlyList<DeviceJobLineRow> entries = harvestJob is null || cache is null
+            ? []
+            : await cache.LinesAsync(id, harvestJob.Id, ct);
         return Ok(new {
             device = row.DeviceId,
             platform = row.Platform,
@@ -576,12 +622,12 @@ public sealed class DevicesController(
             lastHarvestStatus = row.LastHarvestStatus,
             lastHarvestNote = row.LastHarvestNote,
             entries = entries.Select(e => new {
-                ranAt = e.RanAt,
+                ranAt = e.At,
                 entry = e.Entry,
-                kind = e.Kind,
-                outcome = e.Outcome,
-                note = e.Note,
-                bytes = e.ByteSize,
+                kind = (string?)null,
+                outcome = e.Level == DeviceJobLevels.Error ? "failed" : "ok",
+                note = e.Text,
+                bytes = e.Bytes ?? 0,
                 sha256 = e.Sha256
             })
         });

@@ -1,3 +1,4 @@
+using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using EggIncognito.Runner.Data;
 
@@ -28,7 +29,11 @@ public sealed class HarvestApi(string secret, RunnerDb db, HarvestScheduler sche
         var states = new DeviceStateStore(ctx);
         var row = await states.GetAsync(id, CancellationToken.None);
         if (row is null) return new HarvestApiResult(404, id, null, "no harvest state for device");
-        var log = await states.RecentLogAsync(id, 40, CancellationToken.None);
+        var jobs = new DeviceJobStore(ctx, TimeProvider.System);
+        var harvestJob = await jobs.LatestAsync(id, DeviceJobKinds.Harvest, CancellationToken.None);
+        IReadOnlyList<DeviceJobLineRow> log = harvestJob is null
+            ? []
+            : await jobs.LinesAsync(harvestJob.Id, CancellationToken.None);
         return new HarvestApiResult(200, id, new {
             device = row.DeviceId,
             platform = row.Platform,
@@ -43,12 +48,12 @@ public sealed class HarvestApi(string secret, RunnerDb db, HarvestScheduler sche
             lastHarvestStatus = row.LastHarvestStatus,
             lastHarvestNote = row.LastHarvestNote,
             entries = log.Select(l => new {
-                ranAt = l.RanAt,
+                ranAt = l.At,
                 entry = l.Entry,
-                kind = l.Kind,
-                outcome = l.Outcome,
-                note = l.Note,
-                bytes = l.ByteSize,
+                kind = (string?)null,
+                outcome = l.Level == DeviceJobLevels.Error ? "failed" : "ok",
+                note = l.Text,
+                bytes = l.Bytes ?? 0,
                 sha256 = l.Sha256
             })
         }, null);

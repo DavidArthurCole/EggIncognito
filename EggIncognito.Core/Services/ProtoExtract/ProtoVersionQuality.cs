@@ -18,6 +18,24 @@ public static class ProtoVersionQuality {
         HasPlatformBuildMismatch(platform, build) ? "android_build_on_ios" : null;
 
 
+    public const string FlawNoClientVersion = "no_client_version";
+    public const string FlawBuildPlatformMismatch = "build_platform_mismatch";
+    public const string FlawNoProto = "no_proto";
+    public const string FlawNoAppVersion = "no_app_version";
+
+
+    public static IReadOnlyList<string> Flaws(
+        string? platform, string? appVersion, string? build, string? clientVersion,
+        string? protoSha, bool hasProtoText) {
+        var flaws = new List<string>();
+        if (string.IsNullOrWhiteSpace(clientVersion)) flaws.Add(FlawNoClientVersion);
+        if (HasPlatformBuildMismatch(platform, build)) flaws.Add(FlawBuildPlatformMismatch);
+        if (!hasProtoText || string.IsNullOrWhiteSpace(protoSha)) flaws.Add(FlawNoProto);
+        if (string.IsNullOrWhiteSpace(appVersion)) flaws.Add(FlawNoAppVersion);
+        return flaws;
+    }
+
+
     public static long LatestSortKey(string? platform, string? build, string? appVersion) {
         if (string.IsNullOrWhiteSpace(platform)) return long.MinValue;
         return platform.Equals("android", StringComparison.OrdinalIgnoreCase)
@@ -28,7 +46,7 @@ public static class ProtoVersionQuality {
     }
 
 
-    internal static long DottedVersionKey(string? version) {
+    public static long DottedVersionKey(string? version) {
         if (string.IsNullOrWhiteSpace(version)) return long.MinValue;
         string[] parts = version.Split('.');
         long key = 0;

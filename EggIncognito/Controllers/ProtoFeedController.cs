@@ -50,6 +50,7 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
             TargetUrl = webhook.ToString(),
             Platforms = req.Platforms is { Length: > 0 } ? req.Platforms : ["android", "ios"],
             Trigger = FeedEventKinds.NormalizeTrigger(kind, req.Trigger),
+            Filters = FeedEventKinds.NormalizeFilters(kind, req.Filters),
             Label = req.Label,
             MessageTemplate = string.IsNullOrWhiteSpace(req.MessageTemplate) ? null : req.MessageTemplate,
             OwnerUserId = (services.GetService(typeof(ICurrentUser))
@@ -71,6 +72,7 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
             s.EventKind,
             s.Platforms,
             s.Trigger,
+            s.Filters,
             s.Active,
             s.CreatedAt,
             s.LastDeliveryAt,
@@ -95,7 +97,7 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
 
     [HttpPost("{id:int}/test")]
     [EnableRateLimiting("write")]
-    public async Task<IActionResult> Test(int id, CancellationToken ct) {
+    public async Task<IActionResult> Test(int id, [FromQuery] string? sample, CancellationToken ct) {
         var owner = OwnerUserId;
         if (owner is null) return Unauthorized(new { error = "log in to manage subscriptions" });
         if (Store is null) return StatusCode(503, new { error = "no database configured" });
@@ -103,23 +105,40 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
         var sub = (await Store.ByOwnerAsync(owner.Value, ct)).FirstOrDefault(s => s.Id == id);
         if (sub is null) return NotFound(new { error = "subscription not found" });
 
-
-        string body = sub.EventKind == FeedEventKinds.PeriodicalsChanged
-            ? DiscordFeedPayload.BuildPeriodicals(
-                "periodicals", "0000000000000000000000000000000000000000000000000000000000000000",
-                $"{FeedDispatcher.DefaultPageBaseUrl}/periodicals", sub.MessageTemplate)
-            : string.IsNullOrWhiteSpace(sub.MessageTemplate)
-                ? """{"content":"EggIncognito feed test."}"""
-                : DiscordFeedPayload.Build(
-                    "android", "1.0.0", "1", "1", "0000000000000000000000000000000000000000",
-                    true, FeedDispatcher.BuildPageUrl(null, "android", "1"), sub.MessageTemplate);
+        var fallback = FeedSamples.For(sub.EventKind);
+        var chosen = FeedSamples.Find(sub.EventKind, sample) ?? (fallback.Count > 0 ? fallback[0] : null);
+        string body = chosen is null
+            ? """{"content":"EggIncognito feed test."}"""
+            : DiscordFeedPayload.MarkAsTest(chosen.Event.BuildBody(sub.MessageTemplate));
 
         var http = httpFactory.CreateClient("discord-api");
         var res = await http.PostAsync(sub.TargetUrl,
             new StringContent(body, Encoding.UTF8, "application/json"), ct);
         if (!res.IsSuccessStatusCode)
             return BadRequest(new { error = "webhook rejected the test message" });
-        return Ok(new { tested = true });
+        return Ok(new { tested = true, sample = chosen?.Key });
+    }
+
+
+    [HttpPost("preview")]
+    [EnableRateLimiting("read")]
+    public IActionResult Preview([FromBody] PreviewReq req) {
+        string kind = FeedEventKinds.Normalize(req.EventKind);
+        var probe = new FeedSubscription {
+            EventKind = kind,
+            Platforms = req.Platforms is { Length: > 0 } ? req.Platforms : ["android", "ios"],
+            Trigger = FeedEventKinds.NormalizeTrigger(kind, req.Trigger),
+            Filters = FeedEventKinds.NormalizeFilters(kind, req.Filters),
+            MessageTemplate = string.IsNullOrWhiteSpace(req.MessageTemplate) ? null : req.MessageTemplate
+        };
+
+        return Ok(FeedSamples.For(kind).Select(s => {
+            bool matches = s.Event.Matches(probe);
+            var blocked = matches ? s.Event.BlockedBy(probe) : [];
+            return new PreviewRow(
+                s.Key, s.Label, s.Event.Summary, matches, blocked,
+                matches && blocked.Count == 0 ? s.Event.BuildBody(probe.MessageTemplate) : null);
+        }));
     }
 
 
@@ -130,16 +149,58 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
         if (owner is null) return Unauthorized(new { error = "log in to manage subscriptions" });
         if (Store is null) return StatusCode(503, new { error = "no database configured" });
 
+        var sub = (await Store.ByOwnerAsync(owner.Value, ct)).FirstOrDefault(s => s.Id == id);
+        if (sub is null) return NotFound(new { error = "subscription not found" });
+
+        string trigger = FeedEventKinds.NormalizeTrigger(sub.EventKind, req.Trigger ?? sub.Trigger);
         bool ok = await Store.UpdateAsync(
             id, owner.Value,
             req.Platforms ?? ["android", "ios"],
-            req.Trigger ?? "proto_changed",
+            trigger,
             req.Active ?? true,
-            req.MessageTemplate, ct);
+            req.MessageTemplate,
+            ResolveFilters(sub, req.Filters), ct);
         if (!ok) return NotFound(new { error = "subscription not found" });
         return Ok(new { updated = true });
     }
 
+
+    [HttpGet("{id:int}/activity")]
+    public async Task<IActionResult> Activity(int id, CancellationToken ct) {
+        var owner = OwnerUserId;
+        if (owner is null) return Unauthorized(new { error = "log in to manage subscriptions" });
+        if (Store is not { } store) return StatusCode(503, new { error = "no database configured" });
+
+        var sub = (await store.ByOwnerAsync(owner.Value, ct)).FirstOrDefault(s => s.Id == id);
+        if (sub is null) return NotFound(new { error = "subscription not found" });
+
+        var deliveries = await store.DeliveriesAsync(id, ActivityTake, ct);
+        var suppressions = await store.SuppressionsAsync(id, ActivityTake, ct);
+
+        var rows = deliveries
+            .Select(d => new ActivityRow(d.AttemptedAt, d.Status,
+                string.IsNullOrEmpty(d.Summary) ? d.DedupKey : d.Summary, d.ResponseCode, null))
+            .Concat(suppressions.Select(s => new ActivityRow(s.CreatedAt, "blocked",
+                string.IsNullOrEmpty(s.Summary) ? s.DedupKey : s.Summary, null, s.Reason)))
+            .OrderByDescending(r => r.At)
+            .Take(ActivityTake);
+        return Ok(rows);
+    }
+
+    private const int ActivityTake = 25;
+
+    public sealed record ActivityRow(
+        DateTimeOffset At, string Status, string Event, int? ResponseCode, string? Reason);
+
+    public sealed record PreviewRow(
+        string Key, string Label, string Event, bool Matches, IReadOnlyList<string> BlockedBy, string? Body);
+
+    public sealed record PreviewReq(
+        string? EventKind, string? Trigger, string[]? Platforms, string[]? Filters, string? MessageTemplate);
+
+
+    public static string[] ResolveFilters(FeedSubscription sub, string[]? requested) =>
+        FeedEventKinds.NormalizeFilters(sub.EventKind, requested ?? sub.Filters);
 
     public static string MaskWebhook(string url) {
         string[] parts = url.Split('/', StringSplitOptions.RemoveEmptyEntries);
@@ -161,7 +222,9 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
         string? Trigger,
         string? Label,
         string? MessageTemplate,
-        string? EventKind = null);
+        string? EventKind = null,
+        string[]? Filters = null);
 
-    public sealed record UpdateReq(string[]? Platforms, string? Trigger, bool? Active, string? MessageTemplate);
+    public sealed record UpdateReq(
+        string[]? Platforms, string? Trigger, bool? Active, string? MessageTemplate, string[]? Filters = null);
 }

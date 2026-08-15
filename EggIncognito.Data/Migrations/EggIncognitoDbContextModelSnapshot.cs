@@ -345,7 +345,7 @@ namespace EggIncognito.Data.Migrations
                     b.ToTable("device_assets");
                 });
 
-            modelBuilder.Entity("EggIncognito.Data.Models.DeviceHarvestLog", b =>
+            modelBuilder.Entity("EggIncognito.Data.Models.DeviceJob", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
@@ -354,108 +354,125 @@ namespace EggIncognito.Data.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
 
-                    b.Property<long>("ByteSize")
-                        .HasColumnType("bigint")
-                        .HasColumnName("byte_size");
+                    b.Property<string>("AppVersion")
+                        .HasColumnType("text")
+                        .HasColumnName("app_version");
+
+                    b.Property<string>("Build")
+                        .HasColumnType("text")
+                        .HasColumnName("build");
+
+                    b.Property<int?>("ClientVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("client_version");
+
+                    b.Property<string>("Detail")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("detail");
 
                     b.Property<string>("DeviceId")
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("device_id");
 
-                    b.Property<string>("Entry")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("entry");
+                    b.Property<DateTimeOffset?>("FinishedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("finished_at");
 
                     b.Property<string>("Kind")
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("kind");
 
-                    b.Property<string>("Note")
+                    b.Property<string>("Message")
                         .HasColumnType("text")
-                        .HasColumnName("note");
+                        .HasColumnName("message");
 
                     b.Property<string>("Outcome")
-                        .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("outcome");
 
-                    b.Property<DateTimeOffset>("RanAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("ran_at")
-                        .HasDefaultValueSql("now()");
+                    b.Property<bool?>("Reachable")
+                        .HasColumnType("boolean")
+                        .HasColumnName("reachable");
 
                     b.Property<string>("Revision")
-                        .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("revision");
+
+                    b.Property<DateTimeOffset>("StartedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("started_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("state");
+
+                    b.Property<string>("Trigger")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("trigger");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("State");
+
+                    b.HasIndex("DeviceId", "Id");
+
+                    b.HasIndex("DeviceId", "Kind", "Id");
+
+                    b.ToTable("device_jobs");
+                });
+
+            modelBuilder.Entity("EggIncognito.Data.Models.DeviceJobLine", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset>("At")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<long?>("Bytes")
+                        .HasColumnType("bigint")
+                        .HasColumnName("bytes");
+
+                    b.Property<string>("Entry")
+                        .HasColumnType("text")
+                        .HasColumnName("entry");
+
+                    b.Property<long>("JobId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("job_id");
+
+                    b.Property<string>("Level")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("level");
 
                     b.Property<string>("Sha256")
                         .HasColumnType("text")
                         .HasColumnName("sha256");
 
-                    b.HasKey("Id");
-
-                    b.HasIndex("DeviceId", "RanAt");
-
-                    b.ToTable("device_harvest_log");
-                });
-
-            modelBuilder.Entity("EggIncognito.Data.Models.DeviceProbe", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasColumnName("id");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("DeviceId")
+                    b.Property<string>("Text")
                         .IsRequired()
                         .HasColumnType("text")
-                        .HasColumnName("device_id");
-
-                    b.Property<string>("InstalledAppVersion")
-                        .HasColumnType("text")
-                        .HasColumnName("installed_app_version");
-
-                    b.Property<string>("InstalledBuild")
-                        .HasColumnType("text")
-                        .HasColumnName("installed_build");
-
-                    b.Property<string>("LatestAvailable")
-                        .HasColumnType("text")
-                        .HasColumnName("latest_available");
-
-                    b.Property<string>("Note")
-                        .HasColumnType("text")
-                        .HasColumnName("note");
-
-                    b.Property<DateTimeOffset>("ProbedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("probed_at");
-
-                    b.Property<bool>("Reachable")
-                        .HasColumnType("boolean")
-                        .HasColumnName("reachable");
-
-                    b.Property<string>("Result")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("result");
-
-                    b.Property<string>("TriggeredBy")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("triggered_by");
+                        .HasColumnName("text");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("DeviceId", "ProbedAt");
+                    b.HasIndex("JobId", "Id");
 
-                    b.ToTable("device_probes");
+                    b.ToTable("device_job_lines");
                 });
 
             modelBuilder.Entity("EggIncognito.Data.Models.DeviceState", b =>
@@ -525,53 +542,6 @@ namespace EggIncognito.Data.Migrations
                     b.HasKey("DeviceId");
 
                     b.ToTable("device_state");
-                });
-
-            modelBuilder.Entity("EggIncognito.Data.Models.DeviceUpdate", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasColumnName("id");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTimeOffset>("AttemptedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("attempted_at");
-
-                    b.Property<string>("DeviceId")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("device_id");
-
-                    b.Property<string>("FromVersion")
-                        .HasColumnType("text")
-                        .HasColumnName("from_version");
-
-                    b.Property<string>("Note")
-                        .HasColumnType("text")
-                        .HasColumnName("note");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("status");
-
-                    b.Property<string>("ToVersion")
-                        .HasColumnType("text")
-                        .HasColumnName("to_version");
-
-                    b.Property<string>("TriggeredBy")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("triggered_by");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("DeviceId", "AttemptedAt");
-
-                    b.ToTable("device_updates");
                 });
 
             modelBuilder.Entity("EggIncognito.Data.Models.Doc", b =>
@@ -839,6 +809,10 @@ namespace EggIncognito.Data.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("subscription_id");
 
+                    b.Property<string>("Summary")
+                        .HasColumnType("text")
+                        .HasColumnName("summary");
+
                     b.HasKey("Id");
 
                     b.HasIndex("SubscriptionId", "EventKind", "DedupKey")
@@ -876,6 +850,13 @@ namespace EggIncognito.Data.Migrations
                     b.Property<int>("FailCount")
                         .HasColumnType("integer")
                         .HasColumnName("fail_count");
+
+                    b.PrimitiveCollection<string[]>("Filters")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text[]")
+                        .HasColumnName("filters")
+                        .HasDefaultValueSql("'{}'");
 
                     b.Property<string>("Kind")
                         .IsRequired()
@@ -920,6 +901,53 @@ namespace EggIncognito.Data.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("feed_subscriptions");
+                });
+
+            modelBuilder.Entity("EggIncognito.Data.Models.FeedSuppression", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("DedupKey")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("dedup_key");
+
+                    b.Property<string>("EventKind")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("proto_build")
+                        .HasColumnName("event_kind");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("reason");
+
+                    b.Property<int>("SubscriptionId")
+                        .HasColumnType("integer")
+                        .HasColumnName("subscription_id");
+
+                    b.Property<string>("Summary")
+                        .HasColumnType("text")
+                        .HasColumnName("summary");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SubscriptionId", "CreatedAt");
+
+                    b.ToTable("feed_suppressions");
                 });
 
             modelBuilder.Entity("EggIncognito.Data.Models.GameDataDocument", b =>
@@ -1593,6 +1621,15 @@ namespace EggIncognito.Data.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("DataProtectionKeys");
+                });
+
+            modelBuilder.Entity("EggIncognito.Data.Models.DeviceJobLine", b =>
+                {
+                    b.HasOne("EggIncognito.Data.Models.DeviceJob", null)
+                        .WithMany()
+                        .HasForeignKey("JobId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("EggIncognito.Data.Models.EnvDesignVersion", b =>

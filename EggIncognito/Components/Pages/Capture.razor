@@ -75,7 +75,7 @@
         }
     </div>
 } else if (!string.IsNullOrEmpty(DeviceId)) {
-    <main class="px-8 pt-6 pb-8 max-w-[760px]">
+    <main class="page page-doc pt-6 pb-8">
         <h1 class="text-[1.3rem] mt-0 mb-2">Device capture</h1>
         <div class="panel">
             <p class="text-muted text-sm my-0">
@@ -86,7 +86,7 @@
         </div>
     </main>
 } else if (AppMode.HostedCaptureEnabled) {
-    <main class="px-8 pt-6 pb-8 max-w-[760px]">
+    <main class="page page-doc pt-6 pb-8">
         <h1 class="text-[1.3rem] mt-0 mb-2">Capture</h1>
         @if (!_isAuthenticated) {
             <div class="panel" id="hostedLogin">
@@ -109,7 +109,7 @@
         }
     </main>
 } else {
-    <main class="px-8 pt-6 pb-8 max-w-[760px]">
+    <main class="page page-doc pt-6 pb-8">
         <h1 class="text-[1.3rem] mt-0 mb-2">Capture</h1>
         <p class="text-muted leading-relaxed mb-5">Capture runs a local proxy + CA and writes to disk, so it cannot run on this hosted instance.</p>
         <LocalCaptureGuide/>
