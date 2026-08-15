@@ -1,64 +1,55 @@
 @if (Stages is null || Stages.Count == 0) {
     <div class="muted">@Empty</div>
 } else {
-    @for (var i = 0; i < Stages.Count; i++) {
-        var idx = i;
-        var s = Stages[idx];
-        var open = !_collapsed.Contains(idx);
-        <div class="stage @(s.Skipped ? "skipped" : "") @(s.Role is not null ? $"role-{s.Role}" : "")">
-            <div class="stage-head" @onclick="() => Toggle(idx)">
-                <span class="num">@idx</span>
-                <span class="sname">@s.Name</span>
-                @if (s.Role is not null) {
-                    <span class="srole">@s.Role.ToLowerInvariant()</span>
+    <div class="stage-list">
+        @for (var i = 0; i < Stages.Count; i++) {
+            var idx = i;
+            var s = Stages[idx];
+            var open = _open.Contains(idx);
+            <div class="stage @(s.Skipped ? "skipped" : "") @(s.Role is not null ? $"role-{s.Role}" : "")">
+                <button type="button" class="stage-row" title="@s.Description" @onclick="() => Toggle(idx)">
+                    <span class="ep-caret @(open ? "ep-caret-open" : "")"></span>
+                    <span class="stage-name">@s.Name</span>
+                    @if (s.Role is not null) {
+                        <span class="stage-role">@s.Role.ToLowerInvariant()</span>
+                    }
+                    <span class="stage-len">@s.ByteLength bytes</span>
+                </button>
+                @if (open) {
+                    <div class="stage-body">
+                        @if (!string.IsNullOrEmpty(s.Note) && !IsFormBody(s)) {
+                            <div class="stage-note">@s.Note</div>
+                        }
+                        @if (!string.IsNullOrEmpty(s.Hex)) {
+                            <CodeFormats Key="@($"stage-{idx}-{s.Name}")" ShowLabel="false" RawBase64="@s.Base64"
+                                         Choice="_formatChoice" MaxHeight="14rem"/>
+                        } else if (!string.IsNullOrEmpty(s.Base64)) {
+                            <CodeSurface Text="@s.Base64" Language="text" Gutter="CodeGutter.None" Wrap="true"
+                                         ShowFilter="false" MaxHeight="14rem"/>
+                        } else if (IsFormBody(s)) {
+                            <CodeSurface Text="@s.Note" Language="text" Gutter="CodeGutter.None" Wrap="true"
+                                         ShowFilter="false" MaxHeight="14rem"/>
+                        }
+                    </div>
                 }
-                <span class="slen">@s.ByteLength bytes</span>
             </div>
-            @if (open) {
-                <div class="stage-body">
-                    <div class="stage-desc">@s.Description</div>
-                    @if (!string.IsNullOrEmpty(s.Note) && !IsFormBody(s)) {
-                        <div class="stage-note">@s.Note</div>
-                    }
-                    @if (!string.IsNullOrEmpty(s.Hex)) {
-                        <div>
-                            <div class="bytes-label">hex</div>
-                            <CodeSurface Text="@s.Hex" Language="hex" Gutter="CodeGutter.None" ShowToolbar="false"
-                                         MaxHeight="14rem"/>
-                        </div>
-                    }
-                    @if (!string.IsNullOrEmpty(s.Base64)) {
-                        <div>
-                            <div class="bytes-label">base64</div>
-                            <CodeSurface Text="@s.Base64" Language="text" Gutter="CodeGutter.None" ShowToolbar="false"
-                                         MaxHeight="14rem"/>
-                        </div>
-                    }
-                    @if (IsFormBody(s) && !string.IsNullOrEmpty(s.Note)) {
-                        <div>
-                            <div class="bytes-label">body</div>
-                            <CodeSurface Text="@s.Note" Language="text" Gutter="CodeGutter.None" ShowToolbar="false"
-                                         MaxHeight="14rem"/>
-                        </div>
-                    }
-                </div>
-            }
-        </div>
-    }
+        }
+    </div>
 }
 
 @code {
     [Parameter] public IReadOnlyList<TransportStage>? Stages { get; set; }
     [Parameter] public string Empty { get; set; } = "Build a request to see the transform pipeline.";
 
-    readonly HashSet<int> _collapsed = [];
+    readonly HashSet<int> _open = [];
+    readonly Dictionary<string, string> _formatChoice = new();
 
     static bool IsFormBody(TransportStage s) {
         return s.Role == "encoding" && s.Name == "form-urlencode";
     }
 
     void Toggle(int i) {
-        if (!_collapsed.Remove(i)) _collapsed.Add(i);
+        if (!_open.Remove(i)) _open.Add(i);
     }
 
 }

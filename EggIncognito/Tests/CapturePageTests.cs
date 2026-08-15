@@ -25,7 +25,7 @@ public class CapturePageTests {
             Assert.Contains("id=\"statsPanel\"", html);
             Assert.Contains("id=\"flowsPanel\"", html);
             Assert.Contains("id=\"detailPanel\"", html);
-            Assert.Matches("cap-stat-k\">Proxy</span><span class=\"cap-stat-v\"><span[^>]*>stopped</span>", html);
+            Assert.Matches("cap-stat-k\">Proxy</span>\\s*<span class=\"cap-stat-v\">\\s*<span[^>]*>\\s*stopped\\s*</span>", html);
             Assert.Contains("No device connected yet.", html);
             Assert.Contains("settings-seg", html);
         }

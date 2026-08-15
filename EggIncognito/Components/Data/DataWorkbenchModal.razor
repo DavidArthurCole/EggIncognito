@@ -4,7 +4,6 @@
 @inject IWebHostEnvironment Env
 @inject DataWorkbenchState State
 @inject ILogger<DataWorkbenchModal> Logger
-@using System.Text.Json
 @using EggIncognito.Components.Shared.Workbench
 @using EggIncognito.Core
 @using EggIncognito.Services.Data
@@ -13,17 +12,12 @@
 <WorkbenchModal Open="_open" Title="Data" TitleId="dataWorkbenchTitle" CardClass="ds-card"
                 Notice="_notice" OnClose="CloseAsync">
     <Rail>
-        <WorkbenchRail Filter="@State.RailFilter" FilterChanged="OnRailFilter" FilterPlaceholder="Filter datasets">
+        <WorkbenchRail>
             <WorkbenchLoad T="SourceRow" Items="@_sources" EmptyText="No data sources on this instance."
                            Context="sources">
                 @foreach (var group in Groups(sources)) {
-                    var roots = RootsOf(sources, group);
-                    if (roots.Count == 0) {
-                        continue;
-                    }
-
                     <WorkbenchSection Label="@GroupLabel(group)">
-                        @foreach (var root in roots) {
+                        @foreach (var root in RootsOf(sources, group)) {
                             <WorkbenchEntry @key="root.Url"
                                             Selected="@(State.Sub is null && State.Group == root.Group && State.Id == root.Id)"
                                             Title="@root.Url" OnClick="@(_ => Select(root, null))">
@@ -31,14 +25,12 @@
                                 <MetaLine>@root.Id</MetaLine>
                             </WorkbenchEntry>
                             @foreach (var child in ChildrenOf(root)) {
-                                <div class="ds-sub">
-                                    <WorkbenchEntry @key="child.Url"
-                                                    Selected="@(State.Sub == child.Id && State.Group == root.Group && State.Id == root.Id)"
-                                                    Title="@child.Url" OnClick="@(_ => Select(root, child))">
-                                        <Name>@child.DisplayName</Name>
-                                        <MetaLine>@child.Id</MetaLine>
-                                    </WorkbenchEntry>
-                                </div>
+                                <WorkbenchEntry @key="child.Url" Class="ds-sub"
+                                                Selected="@(State.Sub == child.Id && State.Group == root.Group && State.Id == root.Id)"
+                                                Title="@child.Url" OnClick="@(_ => Select(root, child))">
+                                    <Name>@child.DisplayName</Name>
+                                    <MetaLine>@child.Id</MetaLine>
+                                </WorkbenchEntry>
                             }
                         }
                     </WorkbenchSection>
@@ -47,17 +39,112 @@
         </WorkbenchRail>
     </Rail>
     <ChildContent>
-        @if (Current is { } source) {
-            <div class="mb-3">
-                <WorkbenchModes Modes="State.Modes" Current="@State.Mode" CurrentChanged="SetMode"/>
+        @if (Current is { } s) {
+            <div class="ds-pane">
+                <header class="ds-head">
+                    <div class="ds-head-row">
+                        <h4 class="ds-title">@s.DisplayName</h4>
+                        @if (!s.AcceptsName) {
+                            <a class="btn-mini no-underline" href="@s.Url" download="@DownloadName(s)"
+                               target="_blank" rel="noopener">
+                                Download
+                            </a>
+                        }
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(s.Description)) {
+                        <p class="ds-desc">@s.Description</p>
+                    }
+                    <dl class="ds-facts">
+                        <div class="ds-kv">
+                            <dt class="ds-kv-k">Group</dt>
+                            <dd class="ds-kv-v">@GroupLabel(s.Group)</dd>
+                        </div>
+                        <div class="ds-kv">
+                            <dt class="ds-kv-k">Provenance</dt>
+                            <dd class="ds-kv-v">@ProvenanceLabel(s.Provenance)</dd>
+                        </div>
+                        <div class="ds-kv">
+                            <dt class="ds-kv-k">Access</dt>
+                            <dd class="ds-kv-v">@AccessLabel(s.Access)</dd>
+                        </div>
+                        @if (s.Bytes is { } bytes) {
+                            <div class="ds-kv">
+                                <dt class="ds-kv-k">Size</dt>
+                                <dd class="ds-kv-v font-mono">@ByteFormat.Compact(bytes)</dd>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(s.Feed)) {
+                            <div class="ds-kv">
+                                <dt class="ds-kv-k">Feed</dt>
+                                <dd class="ds-kv-v font-mono">@s.Feed</dd>
+                            </div>
+                        }
+                        @if (s.Meta?.BinaryVersion is { Length: > 0 } binaryVersion) {
+                            <div class="ds-kv">
+                                <dt class="ds-kv-k">Binary</dt>
+                                <dd class="ds-kv-v">
+                                    <VersionLine App="@binaryVersion"/>
+                                </dd>
+                            </div>
+                        }
+                        <div class="ds-kv ds-kv-wide">
+                            <dt class="ds-kv-k">Route</dt>
+                            <dd class="ds-kv-v font-mono">
+                                <a class="ds-route" href="@s.Url" target="_blank" rel="noopener">@s.Url</a>
+                            </dd>
+                        </div>
+                    </dl>
+                    <div class="ds-curl">
+                        <code class="ds-curl-text">@CurlLine(s)</code>
+                        <CopyButton GetText="@(() => CurlLine(s))" ButtonClass="btn-mini" IconClass="icon-sm"
+                                    Label="Copy" CopiedLabel="Copied"/>
+                    </div>
+                </header>
+                <div class="ds-body">
+                    @if (s.AcceptsName) {
+                        var name = State.NameFor(State.Key);
+                        <label class="sub-field ds-field">
+                            <span class="sub-field-label">Asset name</span>
+                            <input class="field-input" value="@name" @oninput="OnNameInput"/>
+                        </label>
+                        @if (name.Length > 0) {
+                            <img class="ds-asset" src="@AssetUrl(s, name)" alt="@name"/>
+                            <div>
+                                <a class="btn-mini no-underline" href="@AssetUrl(s, name)"
+                                   download="@($"{name}.png")" target="_blank" rel="noopener">
+                                    Download
+                                </a>
+                            </div>
+                        } else {
+                            <p class="ds-note">
+                                This source serves one asset per name. Type a name, for example
+                                <span class="font-mono">afx_ornate_gusset_2</span>.
+                            </p>
+                        }
+                    } else if (State.Payloads.GetValueOrDefault(s.Url) is not { } entry) {
+                        <p class="ds-note">Loading...</p>
+                    } else if (entry.Status == 401) {
+                        <div class="ds-gate">
+                            <p class="ds-note">
+                                This dataset is served to accounts and API keys only. Log in to read it here,
+                                or mint an API key and call the route above.
+                            </p>
+                            <LoginButton Label="Log in" Placement="LoginMenuPlacement.Right"/>
+                        </div>
+                    } else if (entry.Status is < 200 or > 299) {
+                        <StatusNote Severity="StatusNote.Kind.Error">
+                            @(entry.Status == 0 ? "The request failed." : $"HTTP {entry.Status}")
+                        </StatusNote>
+                    } else {
+                        <CodeFormats Key="@s.Url" ShowLabel="false" Json="@entry.Text" View="State.View"
+                                     Choice="State.Formats" MaxHeight="52vh"/>
+                    }
+                </div>
             </div>
-            @if (State.Mode == DataWorkbenchState.ModeAbout) {
-                @AboutPane(source)
-            } else {
-                @DataPane(source)
-            }
         } else {
-            <div class="wb-note">Select a dataset.</div>
+            <div class="ds-body">
+                <p class="ds-note">Select a dataset.</p>
+            </div>
         }
     </ChildContent>
 </WorkbenchModal>
@@ -83,32 +170,16 @@
         }
     }
 
-    IEnumerable<string> Groups(IReadOnlyCollection<SourceRow> sources) {
+    static IEnumerable<string> Groups(IReadOnlyCollection<SourceRow> sources) {
         return sources.Select(s => s.Group).Distinct(StringComparer.Ordinal);
     }
 
-    List<SourceRow> RootsOf(IReadOnlyCollection<SourceRow> sources, string group) {
-        var filter = State.RailFilter.Trim();
-        return sources
-            .Where(s => string.Equals(s.Group, group, StringComparison.Ordinal))
-            .Where(s => filter.Length == 0 || Matches(s, filter) || (s.Children ?? []).Any(c => Matches(c, filter)))
-            .ToList();
+    static List<SourceRow> RootsOf(IReadOnlyCollection<SourceRow> sources, string group) {
+        return [.. sources.Where(s => string.Equals(s.Group, group, StringComparison.Ordinal))];
     }
 
-    List<SourceRow> ChildrenOf(SourceRow root) {
-        var children = root.Children ?? [];
-        var filter = State.RailFilter.Trim();
-        if (filter.Length == 0 || Matches(root, filter)) return [.. children];
-        return [.. children.Where(c => Matches(c, filter))];
-    }
-
-    bool Matches(SourceRow s, string needle) {
-        return Has(s.DisplayName, needle) || Has(s.Id, needle) || Has(s.Url, needle)
-               || Has(GroupLabel(s.Group), needle);
-    }
-
-    static bool Has(string? value, string needle) {
-        return value is not null && value.Contains(needle, StringComparison.OrdinalIgnoreCase);
+    static IReadOnlyList<SourceRow> ChildrenOf(SourceRow root) {
+        return root.Children ?? [];
     }
 
     static string GroupLabel(string key) {
@@ -149,104 +220,8 @@
         return $"{s.Id}.json";
     }
 
-    string AssetUrl(SourceRow s, string name) {
+    static string AssetUrl(SourceRow s, string name) {
         return $"{s.Url}?name={Uri.EscapeDataString(name)}";
-    }
-
-    RenderFragment DataPane(SourceRow s) => @<div class="ds-pane">
-                                                @if (s.AcceptsName) {
-                                                    var name = State.NameFor(State.Key);
-                                                    <label class="sub-field mb-3">
-                                                        <span class="sub-field-label">Asset name</span>
-                                                        <input class="field-input w-full" placeholder="afx_ornate_gusset_2"
-                                                               value="@name" @oninput="OnNameInput"/>
-                                                    </label>
-                                                    @if (name.Length > 0) {
-                                                        <img class="ds-asset" src="@AssetUrl(s, name)" alt="@name"/>
-                                                        <div class="mt-2">
-                                                            <a class="btn-mini no-underline" href="@AssetUrl(s, name)"
-                                                               download="@($"{name}.png")" target="_blank" rel="noopener">
-                                                                Download
-                                                            </a>
-                                                        </div>
-                                                    } else {
-                                                        <p class="text-muted text-sm m-0">This source serves one asset per name. Type a name to see it.</p>
-                                                    }
-                                                } else if (State.Payloads.GetValueOrDefault(s.Url) is not { } entry) {
-                                                    <p class="text-muted text-sm m-0">Loading...</p>
-                                                } else if (entry.Status == 401) {
-                                                    <div class="sub-login-note">
-                                                        <p class="text-muted text-sm m-0 mb-2">
-                                                            This dataset is served to accounts and API keys only.
-                                                        </p>
-                                                        <LoginButton Label="Log in" Placement="LoginMenuPlacement.Right"/>
-                                                    </div>
-                                                } else if (entry.Status is < 200 or > 299) {
-                                                    <StatusNote Severity="StatusNote.Kind.Error">
-                                                        @(entry.Status == 0 ? "The request failed." : $"HTTP {entry.Status}")
-                                                    </StatusNote>
-                                                } else {
-                                                    <div class="flex items-center gap-2 mb-2">
-                                                        <a class="btn-mini no-underline" href="@s.Url" download="@DownloadName(s)"
-                                                           target="_blank" rel="noopener">
-                                                            Download
-                                                        </a>
-                                                    </div>
-                                                    <CodeFormats Key="@s.Url" ShowLabel="false" Json="@entry.Text" View="State.View"
-                                                                 Choice="State.Formats" MaxHeight="30rem"/>
-                                                }
-                                            </div>;
-
-    RenderFragment AboutPane(SourceRow s) => @<div class="ds-pane">
-                                                 @if (!string.IsNullOrWhiteSpace(s.Description)) {
-                                                     <p class="text-sm mt-0 mb-3">@s.Description</p>
-                                                 }
-                                                 <div class="ds-kv">
-                                                     <span class="ds-kv-k">Group</span><span>@GroupLabel(s.Group)</span>
-                                                 </div>
-                                                 <div class="ds-kv">
-                                                     <span class="ds-kv-k">Provenance</span><span>@ProvenanceLabel(s.Provenance)</span>
-                                                 </div>
-                                                 <div class="ds-kv">
-                                                     <span class="ds-kv-k">Access</span><span>@AccessLabel(s.Access)</span>
-                                                 </div>
-                                                 @if (s.Bytes is { } bytes) {
-                                                     <div class="ds-kv">
-                                                         <span class="ds-kv-k">Size</span><span class="font-mono">@ByteFormat.Compact(bytes)</span>
-                                                     </div>
-                                                 }
-                                                 @if (!string.IsNullOrEmpty(s.Feed)) {
-                                                     <div class="ds-kv">
-                                                         <span class="ds-kv-k">Feed</span><span class="font-mono">@s.Feed</span>
-                                                     </div>
-                                                 }
-                                                 @if (s.Meta?.BinaryVersion is { Length: > 0 } binaryVersion) {
-                                                     <div class="ds-kv">
-                                                         <span class="ds-kv-k">Binary</span><VersionLine App="@binaryVersion"/>
-                                                     </div>
-                                                 }
-                                                 <div class="ds-kv">
-                                                     <span class="ds-kv-k">Route</span><span class="font-mono">@s.Url</span>
-                                                 </div>
-                                                 <div class="apidoc mt-3">
-                                                     <div class="apidoc-body">
-                                                         <pre class="apidoc-example">@CurlLine(s)</pre>
-                                                     </div>
-                                                 </div>
-                                                 @if (Provenance(s) is { Length: > 0 } provenance) {
-                                                     <div class="sub-section-head mt-4 mb-2">Extraction provenance</div>
-                                                     <CodeSurface Text="@provenance" Language="json" ShowFilter="false" MaxHeight="18rem"/>
-                                                 }
-                                             </div>;
-
-    static string Provenance(SourceRow s) {
-        if (s.Meta?.Provenance is not { } element) return "";
-        try {
-            return JsonSerializer.Serialize(element, new JsonSerializerOptions { WriteIndented = true });
-        }
-        catch (NotSupportedException) {
-            return "";
-        }
     }
 
     public async Task Open(string? group = null, string? id = null) {
@@ -335,14 +310,7 @@
         await WriteHash();
     }
 
-    async Task SetMode(string mode) {
-        State.Mode = mode;
-        await EnsureLoaded();
-        await WriteHash();
-    }
-
     async Task EnsureLoaded() {
-        if (State.Mode != DataWorkbenchState.ModeData) return;
         if (Current is not { } s || s.AcceptsName) return;
         if (State.Payloads.ContainsKey(s.Url)) return;
         State.Payloads[s.Url] = await FetchAsync(s.Url);
@@ -358,10 +326,6 @@
             Logger.LogDebug(ex, "data source {Url} could not be read", url);
             return new DataPayloadEntry(0, "");
         }
-    }
-
-    void OnRailFilter(string value) {
-        State.RailFilter = value;
     }
 
     void OnNameInput(ChangeEventArgs e) {
@@ -401,6 +365,6 @@
         MetaRow? Meta,
         List<SourceRow>? Children);
 
-    public sealed record MetaRow(string? BinaryVersion, JsonElement? Provenance);
+    public sealed record MetaRow(string? BinaryVersion);
 
 }

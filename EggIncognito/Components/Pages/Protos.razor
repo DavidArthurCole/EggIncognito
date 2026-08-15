@@ -14,6 +14,7 @@
 @using EggIncognito.Components.Protos
 @using EggIncognito.Services.ProtoExtract
 @using EggIncognito.Services.Protos
+@using static Components.Protos.ProtoEditDialog
 @implements IAsyncDisposable
 
 <PageTitle>EggIncognito - Protos & Data</PageTitle>
@@ -22,31 +23,26 @@
 <h1 class="text-[1.3rem] mt-0 mb-4">Protos &amp; Data</h1>
 
 <div class="pd-grid">
-<div class="pd-mod pd-card">
+<div class="pd-mod pd-head">
     <DeviceStatusPanel OnManage="OpenDeviceWorkbench"/>
-</div>
-<div class="pd-mod pd-card">
     <section class="panel">
         <h3 class="text-sm font-semibold m-0 mb-2">Versions</h3>
         <LatestVersionsPanel Rows="_rows" OnOpen="OpenVersion"/>
-        <div class="group mt-2">
-            <div class="ds-state">
-                <span class="ds-state-k">Server</span>
-                <span class="pd-server">
-                    <VersionLine App="@_serverVersion"/><span class="verline-sep">|</span><a class="pd-server-sha" href="@_serverCommitUrl" target="_blank" rel="noopener">@_serverSha</a>
-                </span>
-            </div>
+        <div class="pd-serverline">
+            <span class="ds-state-k">Server</span>
+            <VersionLine App="@_serverVersion"/><span class="verline-sep">|</span><a class="pd-server-sha" href="@_serverCommitUrl" target="_blank" rel="noopener">@_serverSha</a>
             @if (!string.IsNullOrEmpty(_serverBuildDate)) {
-                <div class="ds-state-sub">built @_serverBuildDate</div>
+                <span class="verline-sep">|</span>
+                <span class="pd-server-built">@_serverBuildDate</span>
             }
         </div>
     </section>
-</div>
-<div class="pd-mod pd-card">
-    <section class="panel">
-        <h3 class="text-sm font-semibold m-0">Notifications</h3>
-        <p class="text-muted text-xs m-0 mt-1">Discord webhooks that fire on new proto builds and periodicals updates.</p>
-        <button type="button" class="btn-primary pd-cta" @onclick="OpenNotifications">Manage notifications</button>
+    <section class="panel pd-note">
+        <div class="min-w-0">
+            <h3 class="text-sm font-semibold m-0">Notifications</h3>
+            <p class="text-muted text-xs m-0 mt-1">Discord webhooks that fire on new proto builds and periodicals updates.</p>
+        </div>
+        <button type="button" class="btn-primary" @onclick="OpenNotifications">Manage notifications</button>
     </section>
 </div>
 <div class="pd-mod pd-full">
@@ -214,19 +210,19 @@
                         </select>
                     </th>
                     <th class="reg-c-app">
-                        <FilterInput Class="reg-filter-input" Placeholder="filter" AriaLabel="Filter by app version"
+                        <FilterInput Class="reg-filter-input" AriaLabel="Filter by app version"
                                      Value="@_fVersion" ValueChanged="@(v => _fVersion = v)"/>
                     </th>
                     <th class="reg-c-build">
-                        <FilterInput Class="reg-filter-input" Placeholder="filter" AriaLabel="Filter by build"
+                        <FilterInput Class="reg-filter-input" AriaLabel="Filter by build"
                                      Value="@_fBuild" ValueChanged="@(v => _fBuild = v)"/>
                     </th>
                     <th class="reg-c-client">
-                        <FilterInput Class="reg-filter-input" Placeholder="filter" AriaLabel="Filter by client version"
+                        <FilterInput Class="reg-filter-input" AriaLabel="Filter by client version"
                                      Value="@_fClient" ValueChanged="@(v => _fClient = v)"/>
                     </th>
                     <th class="reg-c-sha">
-                        <FilterInput Class="reg-filter-input" Placeholder="filter" AriaLabel="Filter by proto sha"
+                        <FilterInput Class="reg-filter-input" AriaLabel="Filter by proto sha"
                                      Value="@_fSha" ValueChanged="@(v => _fSha = v)"/>
                     </th>
                     <th class="reg-c-det"></th>
@@ -249,9 +245,9 @@
                             </td>
                         }
                         <td class="reg-c-plat" data-label="Platform">
-                            <span class="inline-flex flex-wrap items-center gap-1.5">
+                            <span class="reg-plats">
                                 @foreach (var m in rel.Platforms) {
-                                    <a class="cursor-pointer no-underline text-muted hover:text-fg" href="@VersionHref(m)"
+                                    <a class="reg-plat-link" href="@VersionHref(m)"
                                        @onclick:stopPropagation="true" @onclick:preventDefault="true"
                                        @onclick="@(() => OpenVersion(m))">
                                         <PlatformIcon Platform="@m.Platform"/>
@@ -262,10 +258,9 @@
                         <td class="reg-version reg-c-app" data-label="App version">@primary.AppVersion</td>
                         <td class="reg-c-build" data-label="Build">
                             @if (rel.IsGrouped) {
-                                <span class="flex flex-col gap-0.5 items-start">
+                                <span class="reg-builds">
                                     @foreach (var m in rel.Members) {
-                                        <a class="cursor-pointer inline-flex items-center gap-1 no-underline"
-                                           href="@VersionHref(m)" @onclick:stopPropagation="true"
+                                        <a class="reg-build-link" href="@VersionHref(m)" @onclick:stopPropagation="true"
                                            @onclick:preventDefault="true" @onclick="@(() => OpenVersion(m))">
                                             <PlatformIcon Platform="@m.Platform"/>
                                             <span class="reg-num @(m.BuildFlag is null ? "" : "reg-num-bad")" title="@BuildTitle(m)">@m.Build</span>
@@ -384,7 +379,7 @@
     string _addSource = "";
     string _addProto = "";
 
-    readonly List<ProtoSelectionBar.VersionKey> _selected = [];
+    readonly List<ProtoSelectionBar.SelectionKey> _selected = [];
     long? _editingKey;
     List<MergeSuggestion> _suggestions = [];
     StagedReviewPanel? _stagedPanel;
@@ -843,7 +838,7 @@
         _selected.Clear();
         if (e.Value is true)
             foreach (var r in Sorted)
-                _selected.Add(new ProtoSelectionBar.VersionKey(r.Platform, r.Build));
+                _selected.Add(new ProtoSelectionBar.SelectionKey(r.Platform, r.Build));
     }
 
 
@@ -853,7 +848,7 @@
             var existing = _selected.FirstOrDefault(k => k.Platform == m.Platform && k.Build == m.Build);
             if (allSelected) {
                 if (existing is not null) _selected.Remove(existing);
-            } else if (existing is null) _selected.Add(new ProtoSelectionBar.VersionKey(m.Platform, m.Build));
+            } else if (existing is null) _selected.Add(new ProtoSelectionBar.SelectionKey(m.Platform, m.Build));
         }
     }
 
@@ -867,8 +862,7 @@
     }
 
     List<Row> EditTargets(Release rel) {
-        return rel.Members
-            .Select(m => new Row(m.Platform, m.Build, m.AppVersion ?? "", m.ClientVersion, m.Source ?? ""))
+        return rel.Members.Select(m => new Row(m.Platform, m.Build, m.AppVersion ?? "", m.ClientVersion, m.Source ?? ""))
             .ToList();
     }
 

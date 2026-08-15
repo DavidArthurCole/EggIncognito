@@ -73,26 +73,23 @@ public class InspectorReaderTests : BunitContext {
     }
 
     [Fact]
-    public void ReaderMode_IsUserOwnedAndSurvivesATransaction() {
+    public void InspectorState_OwnsNoReaderModes() {
+        Assert.Empty(new InspectorState().Modes);
+    }
+
+    [Fact]
+    public void EnvValidation_SurvivesATransactionClear() {
         var state = new InspectorState {
-            ReaderMode = InspectorReaderMode.Reference,
+            EnvValidated = true,
+            EnvOpen = false,
             LastBuild = new BuildResponse(null, "", "", false, null, null, null),
             Response = Ok(),
             Diagnosis = Broken()
         };
 
-        Assert.Equal(InspectorReaderMode.Reference, state.ReaderMode);
-
         state.ClearTransaction();
-        Assert.Equal(InspectorReaderMode.Reference, state.ReaderMode);
-
-        state.Target = InspectorTarget.LiveViaServer;
-        Assert.Equal(InspectorReaderMode.Reference, state.ReaderMode);
-    }
-
-    [Fact]
-    public void ReaderMode_DefaultsToResult() {
-        Assert.Equal(InspectorReaderMode.Result, new InspectorState().ReaderMode);
+        Assert.True(state.EnvValidated);
+        Assert.False(state.EnvOpen);
     }
 
     [Fact]

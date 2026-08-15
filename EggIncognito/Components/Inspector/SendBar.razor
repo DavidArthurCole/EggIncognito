@@ -1,36 +1,38 @@
 @using EggIncognito.Services.Inspector
-<div class="sendbar">
-    <div class="target-toggle" role="radiogroup" aria-label="Target">
-        <button type="button" class="target-opt @(Target == InspectorTarget.Mock ? "active" : "")"
+<div class="insp-actions">
+    <div class="insp-target" role="radiogroup" aria-label="Target">
+        <button type="button" class="insp-target-opt @(Target == InspectorTarget.Mock ? "on" : "")"
                 @onclick="@(() => Choose(InspectorTarget.Mock))">
             Mock
         </button>
         <button type="button"
-                class="target-opt @(InspectorTargets.IsLive(Target) ? "active" : "") @(LiveDisabled ? "target-opt-disabled" : "")"
+                class="insp-target-opt @(InspectorTargets.IsLive(Target) ? "on" : "")"
                 disabled="@LiveDisabled"
                 title="@(LiveDisabled ? "Log in to use Live API" : "")"
                 @onclick="@(() => Choose(InspectorTarget.LiveViaServer))">
-            Live API <DocHelp Kind="endpoint" Key="__live_api"/>
+            Live API
         </button>
     </div>
-    <div class="sendbar-actions">
-        <button class="btn-primary" disabled="@(!CanBuild)" @onclick="OnBuild">Build</button>
-        <button class="btn-primary" disabled="@(!CanSend)" @onclick="OnSend">Send</button>
-    </div>
+    <DocHelp Kind="endpoint" Key="__live_api"/>
+    <span class="insp-actions-gap"></span>
+    <button class="btn-secondary" disabled="@(!CanBuild)" @onclick="OnBuild">Build</button>
+    <button class="btn-primary" disabled="@(!CanSend)" @onclick="OnSend">Send</button>
 </div>
 
 @if (InspectorTargets.IsLive(Target)) {
     <div class="live-suboptions">
         <div class="live-route" role="radiogroup" aria-label="Live route">
             <span class="text-xs text-muted mr-1">Route via</span>
-            <button type="button" class="seg-btn @(Target == InspectorTarget.LiveViaServer ? "active" : "")"
-                    @onclick="@(() => Choose(InspectorTarget.LiveViaServer))">
-                This server
-            </button>
-            <button type="button" class="seg-btn @(Target == InspectorTarget.LiveViaProxy ? "active" : "")"
-                    @onclick="@(() => Choose(InspectorTarget.LiveViaProxy))">
-                Custom proxy
-            </button>
+            <div class="insp-target">
+                <button type="button" class="insp-target-opt @(Target == InspectorTarget.LiveViaServer ? "on" : "")"
+                        @onclick="@(() => Choose(InspectorTarget.LiveViaServer))">
+                    This server
+                </button>
+                <button type="button" class="insp-target-opt @(Target == InspectorTarget.LiveViaProxy ? "on" : "")"
+                        @onclick="@(() => Choose(InspectorTarget.LiveViaProxy))">
+                    Custom proxy
+                </button>
+            </div>
         </div>
 
         @if (Target == InspectorTarget.LiveViaProxy) {

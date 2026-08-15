@@ -6,15 +6,9 @@ namespace EggIncognito.Services.Data;
 public sealed record DataPayloadEntry(int Status, string Text);
 
 public sealed class DataWorkbenchState : WorkbenchStateBase {
-    public const string ModeData = "data";
-    public const string ModeAbout = "about";
-
     private const string Prefix = "data/";
 
-    public override IReadOnlyList<WorkbenchMode> Modes { get; } = [
-        new WorkbenchMode(ModeData, "Data"),
-        new WorkbenchMode(ModeAbout, "About")
-    ];
+    public override IReadOnlyList<WorkbenchMode> Modes { get; } = [];
 
     public string Group { get; set; } = "";
     public string Id { get; set; } = "";
@@ -39,42 +33,25 @@ public sealed class DataWorkbenchState : WorkbenchStateBase {
 
     public string NameFor(string key) => Names.GetValueOrDefault(key, "");
 
-    public static bool IsMode(string? value) =>
-        string.Equals(value, ModeData, StringComparison.Ordinal) ||
-        string.Equals(value, ModeAbout, StringComparison.Ordinal);
-
     public override string? Hash() {
         if (!HasSelection) return null;
-        string body = Sub is { Length: > 0 } sub
-            ? $"{Prefix}{Group}/{Id}/{sub}"
-            : $"{Prefix}{Group}/{Id}";
-        return Mode == DefaultMode ? body : $"{body}.{Mode}";
+        return Sub is { Length: > 0 } sub ? $"{Prefix}{Group}/{Id}/{sub}" : $"{Prefix}{Group}/{Id}";
     }
 
     public override bool ApplyHash(string? hash) {
-        (bool match, string group, string id, string? sub, string mode) = ParseHash(hash);
+        (bool match, string group, string id, string? sub) = ParseHash(hash);
         if (!match) return false;
         Select(group, id, sub);
-        Mode = mode;
         return true;
     }
 
-    public static (bool Match, string Group, string Id, string? Sub, string Mode) ParseHash(string? hash) {
-        (bool, string, string, string?, string) no = (false, "", "", null, ModeData);
+    public static (bool Match, string Group, string Id, string? Sub) ParseHash(string? hash) {
+        (bool, string, string, string?) no = (false, "", "", null);
         string body = (hash ?? "").TrimStart('#');
         if (!body.StartsWith(Prefix, StringComparison.Ordinal)) return no;
 
         string rest = body[Prefix.Length..];
         if (rest.Length == 0) return no;
-
-        string mode = ModeData;
-        int dot = rest.LastIndexOf('.');
-        if (dot >= 0) {
-            string candidate = rest[(dot + 1)..];
-            if (!IsMode(candidate)) return no;
-            mode = candidate;
-            rest = rest[..dot];
-        }
 
         string[] parts = rest.Split('/');
         if (parts.Length is < 2 or > 3) return no;
@@ -82,6 +59,6 @@ public sealed class DataWorkbenchState : WorkbenchStateBase {
             if (part.Length == 0 || part.Contains('.', StringComparison.Ordinal)) return no;
         }
 
-        return (true, parts[0], parts[1], parts.Length == 3 ? parts[2] : null, mode);
+        return (true, parts[0], parts[1], parts.Length == 3 ? parts[2] : null);
     }
 }

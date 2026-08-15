@@ -24,7 +24,7 @@ public class InspectorPageTests {
             Assert.Contains("insp-rail", html);
             Assert.Contains("wb-seg-btn", html);
 
-            Assert.Contains("target-toggle", html);
+            Assert.Contains("insp-target", html);
             Assert.Contains(">Build</button>", html);
             Assert.Contains(">Send</button>", html);
 

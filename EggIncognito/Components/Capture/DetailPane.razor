@@ -2,7 +2,7 @@
 @using EggIncognito.Capture
 @using EggIncognito.Core
 @* The detail pane: header (path + status), the known-endpoint card or save-as-endpoint bar + type
-   lines, then Request/Response tabs carrying the body (CodeFormats), URL params, and optional headers. *@
+   lines, then the Request and Response panes carrying the body (CodeFormats), URL params, and optional headers. *@
 
 @if (Flow is null) {
     <div class="muted">Select a request to inspect it.</div>
@@ -31,20 +31,14 @@
         </div>
     }
 
-    <div class="detail-tabs">
-        <div class="tab-bar detail-tabs-bar">
-            <button type="button" class="tab-btn @(_tab == 0 ? "active" : "")" @onclick="@(() => _tab = 0)">Request</button>
-            <button type="button" class="tab-btn @(_tab == 1 ? "active" : "")" @onclick="@(() => _tab = 1)">Response</button>
+    <div class="detail-panes">
+        <div class="detail-pane">
+            <div class="detail-pane-title">Request</div>
+            @RequestPane()
         </div>
-        <div class="detail-panes">
-            <div class="detail-pane @(_tab == 0 ? "pane-active" : "")">
-                <div class="detail-pane-title">Request</div>
-                @RequestPane()
-            </div>
-            <div class="detail-pane @(_tab == 1 ? "pane-active" : "")">
-                <div class="detail-pane-title">Response</div>
-                @ResponsePane()
-            </div>
+        <div class="detail-pane">
+            <div class="detail-pane-title">Response</div>
+            @ResponsePane()
         </div>
     </div>
 }
@@ -57,7 +51,6 @@
     static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
     readonly Dictionary<string, string> _formatChoice = new();
-    int _tab;
     string _saveMsg = "";
     string _saveCls = "";
 

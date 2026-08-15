@@ -34,27 +34,13 @@ public sealed class RinfoSeed {
 }
 
 public sealed class InspectorState : WorkbenchStateBase {
-    private static readonly WorkbenchMode[] ReaderModes = [
-        new(InspectorRefParser.ResultMode, "Result", "The transaction you built and sent"),
-        new(InspectorRefParser.ReferenceMode, "Reference", "Documentation for the current subject")
-    ];
-
     public static readonly string[] PlatformOptions = [
         .. typeof(Ei.Platform).GetFields()
             .Where(f => f.IsLiteral)
             .Select(f => f.GetCustomAttribute<OriginalNameAttribute>()?.Name ?? f.Name)
     ];
 
-    public override IReadOnlyList<WorkbenchMode> Modes => ReaderModes;
-
-    public InspectorReaderMode ReaderMode {
-        get => Mode == InspectorRefParser.ReferenceMode
-            ? InspectorReaderMode.Reference
-            : InspectorReaderMode.Result;
-        set => Mode = value == InspectorReaderMode.Reference
-            ? InspectorRefParser.ReferenceMode
-            : InspectorRefParser.ResultMode;
-    }
+    public override IReadOnlyList<WorkbenchMode> Modes => [];
 
     public InspectorRailList RailList { get; set; } = InspectorRailList.Endpoints;
 
@@ -62,6 +48,10 @@ public sealed class InspectorState : WorkbenchStateBase {
     public string? SelectedObject { get; set; }
 
     public List<EnvRow> EnvRows { get; set; } = [];
+    public bool EnvOpen { get; set; } = true;
+    public bool EnvValidated { get; set; }
+    public bool EnvValidating { get; set; }
+    public string? EnvError { get; set; }
     public List<FieldNode>? FieldNodes { get; set; }
     public string PathParam { get; set; } = "";
     public bool RawMode { get; set; }
@@ -97,7 +87,7 @@ public sealed class InspectorState : WorkbenchStateBase {
     public bool CanBuild => Selected is not null && !Busy;
     public bool CanSend => LastBuild is not null && !Busy;
 
-    public InspectorRef Ref() => new(Selected?.Path, SelectedObject, ReaderMode);
+    public InspectorRef Ref() => new(Selected?.Path, SelectedObject);
 
     public void ClearTransaction() {
         LastBuild = null;
@@ -123,8 +113,8 @@ public sealed class InspectorState : WorkbenchStateBase {
                 Hint = "major.minor.patch", Value = Rinfo.Version
             },
             new EnvRow {
-                Key = "build", ValueType = EnvValueType.String, Editor = EnvEditor.Int,
-                Hint = "integer", Value = Rinfo.Build
+                Key = "build", ValueType = EnvValueType.String, Editor = EnvEditor.Build,
+                Value = Rinfo.Build
             },
             new EnvRow {
                 Key = "platform", ValueType = EnvValueType.String, Editor = EnvEditor.Select,
@@ -132,11 +122,11 @@ public sealed class InspectorState : WorkbenchStateBase {
             },
             new EnvRow {
                 Key = "country", ValueType = EnvValueType.String, Editor = EnvEditor.Code,
-                Hint = "2-letter code", Value = Rinfo.Country
+                Value = Rinfo.Country
             },
             new EnvRow {
                 Key = "language", ValueType = EnvValueType.String, Editor = EnvEditor.Code,
-                Hint = "2-letter code", Value = Rinfo.Language
+                Value = Rinfo.Language
             },
             new EnvRow {
                 Key = "debug", ValueType = EnvValueType.Boolean, Editor = EnvEditor.Bool,

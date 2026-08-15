@@ -1,6 +1,7 @@
 using Bunit;
 using EggIncognito.Components.Shared.Code;
 using EggIncognito.Services.ProtoExtract;
+using EggIncognito.Services.Syntax;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -79,7 +80,7 @@ public class CodeSurfaceTests : BunitContext {
         string many = string.Join("\n", Enumerable.Range(0, CodeMetrics.WrapRowCap + 2).Select(i => "line " + i));
         var cut = Render<CodeSurface>(p => p.Add(c => c.Text, many));
 
-        var toggle = cut.Find(".code-toggle");
+        var toggle = cut.Find(".code-toggle-wrap");
         Assert.True(toggle.HasAttribute("disabled"));
         Assert.Contains("cannot both be right", toggle.GetAttribute("title"));
     }
@@ -87,10 +88,42 @@ public class CodeSurfaceTests : BunitContext {
     [Fact]
     public void WrapToggle_IsEnabledBelowTheCap() {
         var cut = Render<CodeSurface>(p => p.Add(c => c.Text, "one\ntwo"));
-        var toggle = cut.Find(".code-toggle");
+        var toggle = cut.Find(".code-toggle-wrap");
         Assert.False(toggle.HasAttribute("disabled"));
         toggle.Click();
         Assert.NotEmpty(cut.FindAll(".code-wrap"));
+    }
+
+    [Fact]
+    public void ControlBar_IsTheFirstChildOfTheSurface() {
+        var cut = Render<CodeSurface>(p => p.Add(c => c.Text, "one\ntwo"));
+        var surface = cut.Find(".code-surface");
+        Assert.Contains("code-toolbar", surface.FirstElementChild!.ClassName, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void LanguagePicker_OffersEveryRegisteredTokenizer() {
+        var cut = Render<CodeSurface>(p => p.Add(c => c.Text, "one"));
+        Assert.Equal(SyntaxHighlighter.Languages.Count, cut.FindAll(".code-lang option").Count);
+    }
+
+    [Fact]
+    public void LanguagePicker_OverridesTheResolvedLanguage() {
+        var cut = Render<CodeSurface>(p => p
+            .Add(c => c.Text, "{\"a\": 1}")
+            .Add(c => c.Language, "text"));
+
+        Assert.Empty(cut.FindAll(".tok-key"));
+        cut.Find(".code-lang").Change("json");
+        Assert.NotEmpty(cut.FindAll(".tok-key"));
+    }
+
+    [Fact]
+    public void GutterToggle_HidesTheLineNumbers() {
+        var cut = Render<CodeSurface>(p => p.Add(c => c.Text, "one\ntwo"));
+        cut.Find(".code-toggle-gutter").Click();
+        Assert.Empty(cut.FindAll(".code-gutter"));
+        Assert.NotEmpty(cut.FindAll(".code-nogutter"));
     }
 
     [Fact]

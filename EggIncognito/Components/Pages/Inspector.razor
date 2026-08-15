@@ -5,7 +5,6 @@
 @using System.Text.Json
 @using System.Text.Json.Nodes
 @using EggIncognito.Components.Inspector
-@using EggIncognito.Components.Shared.Workbench
 @using EggIncognito.Services.Inspector
 @inherits SelfCallComponentBase
 @inject IRouteCatalog Catalog
@@ -34,11 +33,11 @@
                     title="@(State.Selected is null ? "Pick an endpoint" : State.Selected.Path)">
                 @(State.Selected?.Path ?? "Pick an endpoint")
             </button>
-            <span class="insp-reqtype">@(State.Selected is null ? "" : ReqTypeLabel(State.Selected))</span>
         </div>
 
         <div class="insp-compose-body">
-            <EnvironmentPanel Rows="State.EnvRows" OnChanged="OnEnvChanged"/>
+            <EnvironmentPanel Rows="State.EnvRows" OnChanged="OnEnvChanged"
+                              OnValidate="ValidateEnv" OnForceSave="ForceSaveEnv"/>
             <PathParamRow Show="@(State.Selected?.PathParam == true)" Value="@State.PathParam"
                           ValueChanged="OnPathParamChanged" RecentEids="State.RecentEids" OnForget="ForgetEids"/>
             <RequestBodyEditor Route="State.Selected" Nodes="State.FieldNodes" Hosted="State.Hosted"
@@ -59,27 +58,57 @@
 
     <section class="panel insp-reader">
         <div class="insp-reader-head">
-            <WorkbenchModes Modes="State.Modes" Current="@State.Mode" CurrentChanged="OnReaderModeChanged"
-                            Label="Reader mode"/>
+            @{ var sel = State.Selected; }
+            @if (sel is not null) {
+                <div class="insp-reader-subject">
+                    <span class="insp-route">@sel.Path</span>
+                    <span class="insp-typing">
+                        @if (sel.PathParamOnly) {
+                            <span class="muted">no request body, identity via URL path param</span>
+                        } else if (sel.Request is not null) {
+                            <button type="button" class="doc-type-link"
+                                    @onclick="@(() => SelectObjectFromReader(sel.Request!))">
+                                @sel.Request
+                            </button>
+                            @if (sel.RequestWrapped) {
+                                <span class="ep-signed" title="wrapped + signed in an AuthenticatedMessage">
+                                    <Icon Name="lock" Class="icon-sm"/>
+                                </span>
+                            }
+                        } else {
+                            <span class="muted">no request type</span>
+                        }
+                        <span class="insp-typing-sep">-&gt;</span>
+                        @if (sel.Response is not null) {
+                            <button type="button" class="doc-type-link"
+                                    @onclick="@(() => SelectObjectFromReader(sel.Response!))">
+                                @sel.Response
+                            </button>
+                        } else {
+                            <span class="muted">no response type</span>
+                        }
+                    </span>
+                </div>
+            } else {
+                <span class="text-xs text-muted">Pick an endpoint to see its transaction here.</span>
+            }
+            <button type="button" class="btn-mini insp-docs-btn" disabled="@(State.Selected is null)"
+                    title="Documentation for this endpoint" @onclick="OpenDocs">
+                <Icon Name="log" Class="icon-sm"/> Docs
+            </button>
         </div>
         <div class="insp-reader-body">
-            @if (State.ReaderMode == InspectorReaderMode.Reference) {
-                @if (State.SelectedObject is not null) {
-                    <ObjectReference Name="@State.SelectedObject" OnSelectEndpoint="SelectEndpointFromReader"/>
-                } else {
-                    <EndpointReference Route="State.Selected" OnSelectObject="SelectObjectFromReader"/>
-                }
-            } else {
-                <TransactionView Build="State.BuildStages" Response="State.Response" Diagnosis="State.Diagnosis"
-                                 RootType="@State.Selected?.Response" IsAdmin="State.IsAdmin"
-                                 FixBusy="_fixWrappedBusy" OnFixWrapped="FixWrapped" ClientFactory="Client"
-                                 CanSaveDb="State.CanSaveDb" OnSaveToDb="SaveToDb"
-                                 SaveStatus="@State.SaveOut" SaveFailed="State.SaveFailed"/>
-            }
+            <TransactionView Build="State.BuildStages" Response="State.Response" Diagnosis="State.Diagnosis"
+                             RootType="@State.Selected?.Response" IsAdmin="State.IsAdmin"
+                             FixBusy="_fixWrappedBusy" OnFixWrapped="FixWrapped" ClientFactory="Client"
+                             CanSaveDb="State.CanSaveDb" OnSaveToDb="SaveToDb"
+                             SaveStatus="@State.SaveOut" SaveFailed="State.SaveFailed"/>
         </div>
     </section>
 </main>
 
+<DocsDialog Open="_docsOpen" ObjectName="@State.SelectedObject" Route="State.Selected"
+            OnClose="CloseDocs" OnSelectObject="SelectObjectFromReader" OnSelectEndpoint="SelectEndpointFromReader"/>
 <SaltDialog Open="_saltOpen" OnSave="SaveSalt" OnClose="@(() => _saltOpen = false)"/>
 <LiveConsentDialog Open="_liveConsentOpen" OnAccept="AcceptLiveConsent" OnClose="@(() => _liveConsentOpen = false)"/>
 <InspectorSettingsDialog Open="_settingsOpen" HistoryEnabled="State.HistoryEnabled"
@@ -93,6 +122,7 @@
     readonly Dictionary<string, SchemaMessage?> _schemaCache = new();
 
     bool _railOpen;
+    bool _docsOpen;
     bool _saltOpen;
     bool _liveConsentOpen;
     bool _settingsOpen;
@@ -184,6 +214,7 @@
 
     async Task SelectEndpointFromRail(RouteInfo e) {
         _railOpen = false;
+        _docsOpen = false;
         State.SelectedObject = null;
         await SelectEndpoint(e);
         await PushHash();
@@ -192,22 +223,35 @@
     async Task SelectObjectFromRail(string name) {
         _railOpen = false;
         State.SelectedObject = name;
-        State.ReaderMode = InspectorReaderMode.Reference;
+        _docsOpen = true;
         await PushHash();
     }
 
     async Task SelectObjectFromReader(string name) {
         State.RailList = InspectorRailList.Objects;
         State.SelectedObject = name;
-        State.ReaderMode = InspectorReaderMode.Reference;
+        _docsOpen = true;
         await PushHash();
     }
 
     async Task SelectEndpointFromReader(RouteInfo e) {
+        _docsOpen = false;
         State.RailList = InspectorRailList.Endpoints;
         State.SelectedObject = null;
         await SelectEndpoint(e);
         await PushHash();
+    }
+
+    void OpenDocs() {
+        if (State.Selected is null && State.SelectedObject is null) return;
+        _docsOpen = true;
+    }
+
+    async Task CloseDocs() {
+        _docsOpen = false;
+        if (State.SelectedObject is null) return;
+        State.SelectedObject = null;
+        await WriteHash();
     }
 
     async Task SelectEndpoint(RouteInfo e) {
@@ -224,17 +268,6 @@
         }
 
         await BuildFieldTree();
-    }
-
-    async Task OnReaderModeChanged(string mode) {
-        State.Mode = mode;
-        await WriteHash();
-    }
-
-    static string ReqTypeLabel(RouteInfo e) {
-        if (e.PathParamOnly) return "no request body - identity via URL path param";
-        var t = e.Request ?? "no request type";
-        return e.RequestWrapped ? $"{t}, signed (AuthenticatedMessage)" : t;
     }
 
     SchemaMessage? Schema(string? typeName) {
@@ -261,7 +294,55 @@
     async Task OnEnvChanged(EnvRow row) {
         State.SyncRinfoFromRow(row);
         State.ApplyEnvLock();
+        State.EnvValidated = false;
+        State.EnvError = null;
         await InvokeVoid("setRinfoDefaults", State.Rinfo);
+    }
+
+    async Task ValidateEnv() {
+        if (State.EnvValidating) return;
+        State.EnvValidating = true;
+        State.EnvError = null;
+        try {
+            var bad = State.EnvRows.Where(r => r.IsInvalid()).Select(r => r.Key).ToList();
+            if (bad.Count > 0) {
+                State.EnvValidated = false;
+                State.EnvError = "These values do not fit their fields: " + string.Join(", ", bad);
+                return;
+            }
+
+            var fields = EnvCollector.Collect(State.EnvRows.Where(r => !string.IsNullOrWhiteSpace(r.Value)));
+            var res = await Client().PostAsJsonAsync("/api/inspector/build", new {
+                path = "",
+                requestType = "BasicRequestInfo",
+                wrap = false,
+                fields,
+                env = (object?)null,
+                salt = (string?)null
+            }, JsonOpts);
+            var data = await res.Content.ReadFromJsonAsync<BuildResponse>(JsonOpts);
+            if (data?.Error is not null) {
+                State.EnvValidated = false;
+                State.EnvError = data.Error;
+                return;
+            }
+
+            State.EnvValidated = true;
+            State.EnvOpen = false;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException) {
+            State.EnvValidated = false;
+            State.EnvError = "validation failed: " + ex.Message;
+        }
+        finally {
+            State.EnvValidating = false;
+        }
+    }
+
+    void ForceSaveEnv() {
+        State.EnvValidated = false;
+        State.EnvError = null;
+        State.EnvOpen = false;
     }
 
     void OnPathParamChanged(string value) {
@@ -491,6 +572,7 @@
 
         State.RailList = InspectorRailList.Endpoints;
         State.SelectedObject = null;
+        _docsOpen = false;
         await SelectEndpoint(route);
 
         foreach (var row in State.EnvRows) {
@@ -776,10 +858,9 @@
             } else {
                 State.SelectedObject = value.ObjectName;
                 State.RailList = InspectorRailList.Objects;
+                _docsOpen = true;
             }
         }
-
-        State.ReaderMode = value.Mode;
     }
 
     Task WriteHash() {

@@ -5,13 +5,13 @@
 <div class="pwb-combo">
     <span class="pwb-combo-label">@Label</span>
     @if (_open) {
-        <div class="popover-backdrop" @onclick="Cancel"></div>
+        <div class="popover-backdrop" @onmousedown="Cancel" @onwheel="Cancel"></div>
         <div class="pwb-combo-field" @onkeydown="OnOpenKey" @onkeydown:stopPropagation="true">
             <FilterInput Class="pwb-combo-btn pwb-combo-query" Id="@_inputId" Placeholder="@Placeholder"
                          AriaLabel="@($"{Label} version")" Value="@_query" ValueChanged="OnQuery"
                          role="combobox" aria-autocomplete="list" aria-expanded="true"
                          aria-controls="@_listId" aria-activedescendant="@ActiveId"/>
-            <div id="@_listId" class="popover popover-combo open pwb-combo-list" role="listbox"
+            <div id="@_listId" class="pwb-combo-list" role="listbox"
                  aria-label="@($"{Label} version")">
                 @if (_shown.Count == 0) {
                     <div class="pwb-combo-empty">No matches</div>
@@ -142,7 +142,7 @@
     }
 
     string OptionCss(ComboRow row) {
-        var css = "popover-combo-opt pwb-combo-opt";
+        var css = "pwb-combo-opt";
         if (row.Index == _active) css += " pwb-combo-on";
         if (IsSelected(row.Item)) css += " pwb-combo-sel";
         return row.Item.Dim ? css + " pwb-dim" : css;

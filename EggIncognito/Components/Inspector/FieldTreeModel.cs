@@ -157,6 +157,7 @@ public sealed partial class EnvRow {
         return !string.IsNullOrEmpty(Value) && Editor switch {
             EnvEditor.Int => !int.TryParse(Value, out _),
             EnvEditor.Version => !VersionRegex().IsMatch(Value),
+            EnvEditor.Build => !BuildRegex().IsMatch(Value),
             EnvEditor.Code => !MyRegex().IsMatch(Value),
             EnvEditor.Select => Options is not null && !Options.Contains(Value),
             EnvEditor.Eid => !EidPattern.Exact.IsMatch(Value),
@@ -166,6 +167,9 @@ public sealed partial class EnvRow {
 
     [GeneratedRegex(@"^\d+(\.\d+){1,3}$")]
     private static partial Regex VersionRegex();
+
+    [GeneratedRegex(@"^\d+(\.\d+){0,3}$")]
+    private static partial Regex BuildRegex();
 
     [GeneratedRegex("^[A-Za-z]{2,3}$")]
     private static partial Regex MyRegex();

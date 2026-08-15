@@ -20,7 +20,7 @@
         }
     </HeadTools>
     <Rail>
-        <WorkbenchRail Filter="@State.RailFilter" FilterChanged="OnRailFilter" FilterPlaceholder="Filter subscriptions">
+        <WorkbenchRail HasFilter="true" Filter="@State.RailFilter" FilterChanged="OnRailFilter" FilterLabel="Filter subscriptions">
             <WorkbenchEntry Selected="@State.Creating" OnClick="@(_ => SelectNew())">
                 <Name>New subscription</Name>
             </WorkbenchEntry>

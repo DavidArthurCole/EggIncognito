@@ -8,12 +8,9 @@ public partial class WorkbenchStyleTests(SharedAppFactory f) {
     public async Task WbCard_DeclaresTheCardSizeTokens() {
         string css = await SheetAsync();
 
-        Assert.Contains("--wb-card-w: 92vw", css);
-        Assert.Contains("--wb-card-h: 88vh", css);
-        Assert.Contains("--wb-card-max: 80rem", css);
-        Assert.Contains("width: var(--wb-card-w)", css);
-        Assert.Contains("height: var(--wb-card-h)", css);
-        Assert.Contains("max-width: var(--wb-card-max)", css);
+        Assert.Contains("width: var(--wb-card-w, 92vw)", css);
+        Assert.Contains("height: var(--wb-card-h, 88vh)", css);
+        Assert.Contains("max-width: var(--wb-card-max, 80rem)", css);
     }
 
     [Fact]
@@ -29,8 +26,7 @@ public partial class WorkbenchStyleTests(SharedAppFactory f) {
     public async Task RailWidth_IsATokenNotAFixedUtility() {
         string css = await SheetAsync();
 
-        Assert.Contains("--wb-rail-w: 18rem", css);
-        Assert.Contains("width: var(--wb-rail-w)", css);
+        Assert.Contains("width: var(--wb-rail-w, 18rem)", css);
     }
 
     [Fact]

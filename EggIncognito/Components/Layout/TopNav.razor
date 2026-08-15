@@ -1,4 +1,3 @@
-@inject IAppMode AppMode
 @inject ICurrentUser User
 @inject AuthState Auth
 <nav class="app-nav">
@@ -11,21 +10,20 @@
         <NavLink href="playground" ActiveClass="active">Playground</NavLink>
     }
     <NavLink href="capture" ActiveClass="active">Capture</NavLink>
-    @if (AppMode.CanWrite) {
-        <NavLink href="import" ActiveClass="active">Import</NavLink>
-    }
     @if (User.IsAtLeast(UserRole.Admin)) {
         <NavLink href="admin" ActiveClass="active">Admin</NavLink>
     }
     <div class="nav-right">
         <NavToolbarOutlet/>
-        @if (Auth.Enabled) {
+        @if (Auth.Enabled || Auth.LocalIdentityActive) {
             <span class="auth-nav">
                 @if (User.IsAuthenticated) {
                     <AccountModal/>
-                    <form method="post" action="/logout" style="margin:0;">
-                        <button type="submit" class="auth-btn">Log out</button>
-                    </form>
+                    @if (Auth.Enabled) {
+                        <form method="post" action="/logout" style="margin:0;">
+                            <button type="submit" class="auth-btn">Log out</button>
+                        </form>
+                    }
                 } else if (Auth.WidgetEnabled) {
                     <LoginButton CssClass="auth-btn" Label="Log in"/>
                 }

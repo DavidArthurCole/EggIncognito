@@ -26,7 +26,7 @@
         </div>
     }
 
-    <FilterInput Class="reg-filter-input mb-2" Placeholder="filter by path..." @bind-Value="_filter"/>
+    <FilterInput Class="reg-filter-input mb-2" AriaLabel="Filter routes by path" @bind-Value="_filter"/>
 
     <datalist id="routeMessageTypes">
         @foreach (var m in _messages) {

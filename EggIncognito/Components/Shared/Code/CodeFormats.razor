@@ -17,12 +17,11 @@
         }
     } else if (_currentFormat == "json-tree") {
         <div class="data-body">
-            <CodeTree Root="_tree" View="View" Reveal="RevealState" MaxHeight="@MaxHeight">
+            <CodeTree Root="_tree" View="View" Reveal="RevealState" MaxHeight="@MaxHeight" CopyText="CurrentText"
+                      Actions="Actions">
                 <Tools>
                     @FormatSelect()
                     @Tools
-                    <CopyButton GetText="CurrentText" ButtonClass="btn-mini data-copy" IconClass="icon-sm"
-                                Label="Copy" CopiedLabel="Copied"/>
                 </Tools>
             </CodeTree>
         </div>
@@ -33,7 +32,7 @@
             }
             <CodeSurface Text="@_text" Language="@_language" Gutter="@_gutter" GutterLabels="@_gutterLabels"
                          MaxHeight="@MaxHeight" CopyText="CurrentText" SensitiveValues="@_sensitive"
-                         Reveal="RevealState">
+                         Reveal="RevealState" ShowLanguagePicker="false" Actions="Actions">
                 <Tools>
                     @FormatSelect()
                     @Tools
@@ -55,6 +54,7 @@
     [Parameter] public string MaxHeight { get; set; } = "";
     [Parameter] public CodeGutter Gutter { get; set; } = CodeGutter.Numbers;
     [Parameter] public RenderFragment? Tools { get; set; }
+    [Parameter] public RenderFragment? Actions { get; set; }
     [Parameter] public CodeRevealState? Reveal { get; set; }
 
     readonly CodeRevealState _ownReveal = new();
@@ -180,7 +180,7 @@
         return DataFormats.JsonToText(Json, fmt);
     }
 
-    RenderFragment FormatSelect() => @<select class="code-select data-format" value="@_currentFormat" @onchange="OnFormatChange">
+    RenderFragment FormatSelect() => @<select class="code-select code-lang" aria-label="View format" value="@_currentFormat" @onchange="OnFormatChange">
                                          @foreach (var f in _formats) {
                                              <option value="@f">@DataFormats.Label(f)</option>
                                          }

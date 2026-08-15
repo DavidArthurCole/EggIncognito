@@ -1,0 +1,21 @@
+@if (Open) {
+    <ModalShell Title="Documentation" TitleId="inspectorDocsTitle" OnClose="OnClose">
+        <div class="modal-body insp-docs-body">
+            @if (!string.IsNullOrEmpty(ObjectName)) {
+                <ObjectReference Name="@ObjectName" OnSelectEndpoint="OnSelectEndpoint"/>
+            } else {
+                <EndpointReference Route="Route" OnSelectObject="OnSelectObject"/>
+            }
+        </div>
+    </ModalShell>
+}
+
+@code {
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public string? ObjectName { get; set; }
+    [Parameter] public RouteInfo? Route { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<string> OnSelectObject { get; set; }
+    [Parameter] public EventCallback<RouteInfo> OnSelectEndpoint { get; set; }
+
+}

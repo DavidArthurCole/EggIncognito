@@ -1,14 +1,19 @@
 @using EggIncognito.Components.Capture
 @implements IDisposable
 
-<div class="jtree-viewer @(_needle.Length > 0 ? "jtree-searching" : "")" style="@RootStyle">
-    <div class="jtree-tools code-toolbar">
+<div class="code-surface jtree-viewer @(_needle.Length > 0 ? "jtree-searching" : "")" style="@RootStyle">
+    <div class="code-toolbar">
         @Tools
         <button class="btn-mini" type="button" @onclick="ExpandAll">Expand all</button>
         <button class="btn-mini" type="button" @onclick="CollapseAll">Collapse all</button>
-        <FilterInput Class="jtree-search" Placeholder="Filter keys / values..." AriaLabel="Filter keys and values"
+        <FilterInput Class="jtree-search" Placeholder="Filter keys" AriaLabel="Filter keys and values"
                      Value="@_search" ValueChanged="OnSearchInput"/>
         <span class="jtree-search-count">@_count</span>
+        @Actions
+        @if (CopyText is not null) {
+            <CopyButton GetText="CopyText" ButtonClass="btn-mini data-copy" IconClass="icon-sm"
+                        Label="Copy" CopiedLabel="Copied"/>
+        }
     </div>
     @if (Root is not null) {
         <CodeTreeRow Node="Root" View="View" Search="@_needle" IsRoot="true" Reveal="RevealState"/>
@@ -19,6 +24,8 @@
     [Parameter] public CodeTreeNode? Root { get; set; }
     [Parameter] public CaptureViewState View { get; set; } = new();
     [Parameter] public RenderFragment? Tools { get; set; }
+    [Parameter] public RenderFragment? Actions { get; set; }
+    [Parameter] public Func<string>? CopyText { get; set; }
     [Parameter] public CodeRevealState? Reveal { get; set; }
     [Parameter] public string MaxHeight { get; set; } = "";
 

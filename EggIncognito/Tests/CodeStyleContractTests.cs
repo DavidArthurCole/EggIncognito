@@ -71,6 +71,7 @@ public partial class CodeStyleContractTests(SharedAppFactory f) {
         string css = await f.CreateClient().GetStringAsync("/styles.css");
         foreach (string cls in new[] {
                      ".code-surface", ".code-toolbar", ".code-scroll", ".code-rows", ".code-row",
+                     ".code-toolbar-gap", ".code-lang", ".code-select", ".code-filter", ".code-toggle-on",
                      ".code-gutter", ".code-line", ".code-note", ".code-wrap", ".code-mark",
                      ".cdiff", ".cdiff-row", ".cdiff-gutter", ".cdiff-sign", ".cdiff-text",
                      ".cdiff-ctx", ".cdiff-add", ".cdiff-rem", ".cdiff-chg", ".cdiff-head",

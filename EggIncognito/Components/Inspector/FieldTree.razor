@@ -2,7 +2,7 @@
     @if (node.IsMessage) {
         <div class="field-row">
             <div class="field-name field-span">
-                @node.Field.JsonName<span class="fnum">#@node.Field.Number</span>
+                @node.Field.JsonName
                 <span class="ftype">@(node.Field.Repeated ? "repeated " : "")message @node.Field.MessageType</span>
             </div>
         </div>
@@ -12,7 +12,7 @@
     } else {
         <div class="field-row @(Nested ? "nested" : "")">
             <div class="field-name">
-                @node.Field.JsonName<span class="fnum">#@node.Field.Number</span>
+                @node.Field.JsonName
                 <span class="ftype">@(node.Field.Repeated ? "repeated " : "")@node.Field.Type</span>
             </div>
             @if (node.IsRepeated) {
@@ -20,7 +20,7 @@
                     @for (var i = 0; i < node.Items.Count; i++) {
                         var idx = i;
                         <div class="repeated-item">
-                            <input class="field-input" placeholder="@node.Field.Type"
+                            <input class="field-input"
                                    value="@node.Items[idx]" @attributes="InputAttrs.NoAutofill"
                                    @oninput="e => SetItem(node, idx, e.Value?.ToString())"/>
                             <button type="button" class="btn-mini" @onclick="() => Remove(node, idx)">x</button>
@@ -45,8 +45,8 @@
                 </select>
             } else {
                 <input class="field-input @(node.Locked ? "env-locked" : "")" disabled="@node.Locked"
-                       placeholder="@node.Field.Type" value="@node.Value"
-                       title="@(node.Locked ? "Set by the Environment panel above" : "")"
+                       value="@node.Value"
+                       title="@(node.Locked ? "Set by the BasicRequestInfo Setup above" : "")"
                        @attributes="InputAttrs.NoAutofill"
                        @oninput="e => Set(node, e.Value?.ToString())"/>
             }

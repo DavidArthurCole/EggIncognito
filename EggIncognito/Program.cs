@@ -248,7 +248,14 @@ if (identityApiEnabled) {
 var eggIdentitySession = SessionCookieOptions.FromEnvironment();
 if (eggIdentitySession is not null) builder.Services.AddSingleton(eggIdentitySession);
 builder.AddEggIdentityAuthIfConfigured(identityApiEnabled, eggIdentitySession);
-var authState = new AuthState(identityApiEnabled, identityWidgetUrl, eggIdentitySession?.CookieName ?? "eggidentity_session");
+var appModeForAuth = new AppModeService(builder.Configuration).Mode;
+LocalIdentityGate.Guard(builder.Environment.EnvironmentName, appModeForAuth, builder.Configuration);
+bool localIdentityOn = LocalIdentityGate.IsOn(
+    builder.Environment.EnvironmentName, appModeForAuth, builder.Configuration, identityApiEnabled);
+var localIdentity = localIdentityOn ? LocalIdentitySettings.Bind(builder.Configuration) : null;
+if (localIdentity is not null) builder.AddLocalIdentityAuth(localIdentity);
+var authState = new AuthState(
+    identityApiEnabled, identityWidgetUrl, eggIdentitySession?.CookieName ?? "eggidentity_session", localIdentityOn);
 bool authEnabled = authState.Enabled;
 builder.Services.AddSingleton(authState);
 builder.Services.AddScoped<LoginSignIn>();
@@ -746,6 +753,15 @@ if (fakeDevices) {
         string.Join(", ", fakeDeviceSettings.Devices.Select(d => $"{d.Id} [{d.Scenario}] {d.Target}")));
 }
 
+if (localIdentity is not null) {
+    app.Logger.LogWarning(
+        "local identity active ({Env} plus AppMode.Local plus {Key}): every session is {User} with role {Role}, " +
+        "supporter {Supporter}. EggIdentity is not configured; requests carrying an API key still authenticate " +
+        "through the key path.",
+        app.Environment.EnvironmentName, LocalIdentityGate.EnabledKey, localIdentity.Username, localIdentity.RoleName,
+        localIdentity.Supporter);
+}
+
 if (dbEnabled) {
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<EggIncognitoDbContext>();
@@ -798,6 +814,10 @@ if (authEnabled) {
     app.UseAuthorization();
 
     app.UseMiddleware<LoginCallbackMiddleware>();
+} else if (localIdentityOn) {
+    app.UseAuthentication();
+    app.UseMiddleware<ApiKeyResolutionMiddleware>();
+    app.UseAuthorization();
 }
 
 app.UseAntiforgery();

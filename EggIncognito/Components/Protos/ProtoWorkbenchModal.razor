@@ -37,81 +37,78 @@
             <div class="pwb-rail-reg">
                 <WorkbenchSection Label="Registry">
                     @{ var items = RegistryItems(); }
-                    <div class="pwb-plat wb-seg" role="radiogroup" aria-label="Platform">
-                        <label class="pwb-plat-item" title="All platforms">
-                            <input type="radio" class="pwb-plat-radio" name="@_platformGroup"
-                                   checked="@(State.Query.Platform.Length == 0)" @onchange="@(() => SetRegPlatform(""))"/>
-                            <span>all</span>
-                        </label>
-                        <label class="pwb-plat-item" title="iOS only">
-                            <input type="radio" class="pwb-plat-radio" name="@_platformGroup"
-                                   checked="@(State.Query.Platform == "ios")" @onchange="@(() => SetRegPlatform("ios"))"/>
-                            <PlatformIcon Platform="ios"/>
-                            <span class="pwb-sr">ios</span>
-                        </label>
-                        <label class="pwb-plat-item" title="Android only">
-                            <input type="radio" class="pwb-plat-radio" name="@_platformGroup"
-                                   checked="@(State.Query.Platform == "android")" @onchange="@(() => SetRegPlatform("android"))"/>
-                            <PlatformIcon Platform="android"/>
-                            <span class="pwb-sr">android</span>
-                        </label>
-                    </div>
-                    <div class="pwb-filter-row">
-                        <FilterInput Class="pwb-filter" Placeholder="version, build, client, sha"
-                                     AriaLabel="Filter stored versions" Value="@State.Query.Quick"
-                                     ValueChanged="OnQuickChanged"/>
-                        <button type="button" class="pwb-funnel @(State.Query.Groups.Count > 0 ? "pwb-funnel-on" : "")"
-                                title="Conditions" aria-label="Conditions"
-                                aria-expanded="@(_filterOpen ? "true" : "false")"
-                                @onclick="@(() => _filterOpen = !_filterOpen)">
-                            <Icon Name="filter" Class="icon-sm"/>
-                        </button>
-                        @if (_filterOpen) {
-                            <div class="popover-backdrop" @onclick="@(() => _filterOpen = false)"></div>
-                            <div class="pwb-fil-pop">
-                                <RegistryFilterPanel Query="State.Query" QueryChanged="OnQueryChanged"
-                                                     Rows="State.Registry"/>
-                            </div>
-                        }
-                    </div>
-                    @if (State.Query.Groups.Count > 0) {
-                        <div class="pwb-cond-list">
-                            @foreach (var line in ConditionLines()) {
-                                <div class="pwb-cond">
-                                    <span class="pwb-cond-text">@line.Text</span>
-                                    <button type="button" class="wb-x" title="Remove condition"
-                                            aria-label="Remove condition"
-                                            @onclick="@(() => RemoveCondition(line.Group, line.Index))">
-                                        <Icon Name="x" Class="icon-sm"/>
-                                    </button>
+                    <div class="pwb-reg-stack">
+                        <div class="pwb-plat" role="radiogroup" aria-label="Platform">
+                            <label class="pwb-plat-item" title="All platforms">
+                                <input type="radio" class="pwb-plat-radio" name="@_platformGroup"
+                                       checked="@(State.Query.Platform.Length == 0)" @onchange="@(() => SetRegPlatform(""))"/>
+                                <span>all</span>
+                            </label>
+                            <label class="pwb-plat-item" title="iOS only">
+                                <input type="radio" class="pwb-plat-radio" name="@_platformGroup"
+                                       checked="@(State.Query.Platform == "ios")" @onchange="@(() => SetRegPlatform("ios"))"/>
+                                <PlatformIcon Platform="ios"/>
+                                <span class="pwb-sr">ios</span>
+                            </label>
+                            <label class="pwb-plat-item" title="Android only">
+                                <input type="radio" class="pwb-plat-radio" name="@_platformGroup"
+                                       checked="@(State.Query.Platform == "android")" @onchange="@(() => SetRegPlatform("android"))"/>
+                                <PlatformIcon Platform="android"/>
+                                <span class="pwb-sr">android</span>
+                            </label>
+                        </div>
+                        <div class="pwb-filter-row">
+                            <FilterInput Class="pwb-filter" AriaLabel="Filter stored versions"
+                                         title="Filter stored versions" Value="@State.Query.Quick"
+                                         ValueChanged="OnQuickChanged"/>
+                            <button type="button" class="pwb-funnel @(State.Query.Groups.Count > 0 ? "pwb-funnel-on" : "")"
+                                    title="Conditions" aria-label="Conditions"
+                                    aria-expanded="@(_filterOpen ? "true" : "false")"
+                                    @onclick="@(() => _filterOpen = !_filterOpen)">
+                                <Icon Name="filter" Class="icon-sm"/>
+                            </button>
+                            @if (_filterOpen) {
+                                <div class="popover-backdrop" @onmousedown="CloseFilter" @onwheel="CloseFilter"></div>
+                                <div class="pwb-fil-pop">
+                                    <RegistryFilterPanel Query="State.Query" QueryChanged="OnQueryChanged"
+                                                         Rows="State.Registry"/>
                                 </div>
                             }
                         </div>
-                    }
-                    @if (items.Count == 0) {
-                        <div class="wb-note">
-                            @(State.Registry.Count == 0 ? "No stored versions yet." : "No versions match this filter.")
-                        </div>
-                    } else {
-                        <div class="pwb-reg-list">
-                            <Virtualize Items="items" Context="row" ItemSize="RegRowHeight">
-                                <div class="pwb-reg-row @RowClass(row)" @onclick="@(args => RegistryRowClick(row, args))">
-                                    <span class="pwb-reg-icon">
-                                        <PlatformIcon Platform="@row.Platform"/>
-                                    </span>
-                                    <span class="pwb-reg-ver">
-                                        <VersionLine App="@row.AppVersion" Build="@row.Build" Client="@row.ClientVersion"/>
-                                    </span>
-                                    <span class="pwb-reg-sha">@Sha12(row.ProtoSha)</span>
-                                    <button type="button" class="pwb-pin" title="Set as B" aria-label="Set as B"
-                                            @onclick:stopPropagation="true"
-                                            @onclick="@(() => SetB(RegistryRef(row)))">
-                                        B
-                                    </button>
-                                </div>
-                            </Virtualize>
-                        </div>
-                    }
+                        @if (State.Query.Groups.Count > 0) {
+                            <div class="pwb-cond-list">
+                                @foreach (var line in ConditionLines()) {
+                                    <div class="pwb-cond">
+                                        <span class="pwb-cond-text">@line.Text</span>
+                                        <button type="button" class="wb-x" title="Remove condition"
+                                                aria-label="Remove condition"
+                                                @onclick="@(() => RemoveCondition(line.Group, line.Index))">
+                                            <Icon Name="x" Class="icon-sm"/>
+                                        </button>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        @if (items.Count == 0) {
+                            <div class="wb-note pwb-reg-empty">
+                                @(State.Registry.Count == 0 ? "No stored versions yet." : "No versions match this filter.")
+                            </div>
+                        } else {
+                            <div class="pwb-reg-list">
+                                <Virtualize Items="items" Context="row" ItemSize="RegRowHeight">
+                                    <div class="pwb-reg-row @RowClass(row)" @onclick="@(args => RegistryRowClick(row, args))">
+                                        <span class="pwb-reg-icon">
+                                            <PlatformIcon Platform="@row.Platform"/>
+                                        </span>
+                                        <span class="pwb-reg-ver">
+                                            <VersionLine App="@row.AppVersion" Build="@row.Build" Client="@row.ClientVersion"/>
+                                        </span>
+                                        <span class="pwb-reg-sha">@Sha12(row.ProtoSha)</span>
+                                    </div>
+                                </Virtualize>
+                            </div>
+                        }
+                    </div>
                 </WorkbenchSection>
             </div>
             <div class="pwb-rail-sess">
@@ -263,7 +260,7 @@
                     File
                 </button>
                 @if (_menu == "file") {
-                    <div class="popover-backdrop" @onclick="CloseMenu"></div>
+                    <div class="popover-backdrop" @onmousedown="CloseMenu" @onwheel="CloseMenu"></div>
                     <div class="pwb-menu">
                         <div class="pwb-menu-label">Download</div>
                         @if (State.A is { } dlA) {
@@ -309,7 +306,7 @@
                     Compare
                 </button>
                 @if (_menu == "compare") {
-                    <div class="popover-backdrop" @onclick="CloseMenu"></div>
+                    <div class="popover-backdrop" @onmousedown="CloseMenu" @onwheel="CloseMenu"></div>
                     <div class="pwb-menu">
                         <button type="button" class="pwb-menu-item" disabled="@(StepRef(1) is null)"
                                 title="Compare against the previous version"
@@ -341,33 +338,6 @@
                     </div>
                 }
             </div>
-            @if (HasViewFilter()) {
-                <FilterInput Class="pwb-head-filter" Placeholder="Filter lines..." AriaLabel="Filter lines"
-                             Value="@ViewFilter" ValueChanged="OnLineFilterChanged"/>
-                <button type="button" class="btn-mini @(_wrap ? "active" : "")" title="Toggle word wrap"
-                        @onclick="@(() => _wrap = !_wrap)">
-                    wrap
-                </button>
-            }
-            @if (IsLineMode()) {
-                <button type="button" class="btn-mini @(_context == FullContext ? "active" : "")"
-                        title="Toggle full file context" @onclick="ToggleContext">
-                    @(_context == FullContext ? "all" : "3") ctx
-                </button>
-                @if (HunkCount() > 0) {
-                    <span class="pwb-hunk">
-                        <button type="button" class="btn-mini" title="Previous hunk" aria-label="Previous hunk"
-                                @onclick="@(() => StepHunk(-1))">
-                            &uarr;
-                        </button>
-                        <span class="pwb-hunk-at">@(_hunk + 1)/@HunkCount()</span>
-                        <button type="button" class="btn-mini" title="Next hunk" aria-label="Next hunk"
-                                @onclick="@(() => StepHunk(1))">
-                            &darr;
-                        </button>
-                    </span>
-                }
-            }
             @if (IsDiffMode() && State.Cached is { } sumBundle) {
                 <span class="pwb-sum">
                     <span class="pwb-sum-add">+@sumBundle.Summary.LinesAdded</span>
@@ -403,7 +373,9 @@
                     <div class="pwb-note">No stored proto text for this version.</div>
                 } else if (TextOf(viewA) is { Length: > 0 } textA) {
                     <CodeSurface Text="@textA" Language="proto" Gutter="CodeGutter.Numbers" MaxHeight="48vh"
-                                 ShowToolbar="false" Filter="@ViewFilter" Wrap="_wrap"/>
+                                 ShowLanguagePicker="false" Filter="@ViewFilter">
+                        <Tools>@LineFilter()</Tools>
+                    </CodeSurface>
                 } else {
                     <div class="text-muted text-xs">loading...</div>
                 }
@@ -420,10 +392,16 @@
 
                 @if (State.Mode == "split") {
                     <CodeDiff Mode="CodeDiffMode.Split" Split="bundle.Split" Language="proto" Filter="@ViewFilter"
-                              Wrap="_wrap" MaxHeight="48vh" ShowToolbar="false" OnHunk="OnHunkPicked"/>
+                              MaxHeight="48vh" ShowLanguagePicker="false" OnHunk="OnHunkPicked">
+                        <Tools>@LineFilter()</Tools>
+                        <Actions>@LineTools()</Actions>
+                    </CodeDiff>
                 } else if (State.Mode == "unified") {
                     <CodeDiff Mode="CodeDiffMode.Unified" Unified="@bundle.Unified" Language="proto"
-                              Filter="@ViewFilter" Wrap="_wrap" MaxHeight="48vh" ShowToolbar="false"/>
+                              Filter="@ViewFilter" MaxHeight="48vh" ShowLanguagePicker="false">
+                        <Tools>@LineFilter()</Tools>
+                        <Actions>@LineTools()</Actions>
+                    </CodeDiff>
                 } else {
                     <CodeDiff Mode="CodeDiffMode.Structured" Structural="bundle.Structural" Language="proto"
                               EmptyText="No structural differences."/>
@@ -463,7 +441,6 @@
     readonly SemaphoreSlim _gate = new(2, 2);
     readonly HashSet<string> _checking = [];
     readonly Dictionary<string, bool> _legacy = [];
-    bool _wrap;
     bool _degraded;
     int _context = DefaultContext;
     int _hunk;
@@ -528,6 +505,29 @@
                                                                            </Foot>
                                                                        </WorkbenchEntry>;
 
+    RenderFragment LineFilter() => @<FilterInput Class="code-filter" AriaLabel="Filter lines" title="Filter lines"
+                                                 Value="@ViewFilter" ValueChanged="OnLineFilterChanged"/>;
+
+    RenderFragment LineTools() => @<text>
+                                       <button type="button" class="btn-mini code-toggle @(_context == FullContext ? "code-toggle-on" : "")"
+                                               title="Toggle full file context" @onclick="ToggleContext">
+                                           @(_context == FullContext ? "all" : "3") ctx
+                                       </button>
+                                       @if (HunkCount() > 0) {
+                                           <span class="pwb-hunk">
+                                               <button type="button" class="btn-mini" title="Previous hunk" aria-label="Previous hunk"
+                                                       @onclick="@(() => StepHunk(-1))">
+                                                   &uarr;
+                                               </button>
+                                               <span class="pwb-hunk-at">@(_hunk + 1)/@HunkCount()</span>
+                                               <button type="button" class="btn-mini" title="Next hunk" aria-label="Next hunk"
+                                                       @onclick="@(() => StepHunk(1))">
+                                                   &darr;
+                                               </button>
+                                           </span>
+                                       }
+                                   </text>;
+
     RenderFragment DownloadItem(ProtoRef value, string side) => @<text>
                                                                      @if (value.Source == ProtoRefSource.Registry) {
                                                                          <a class="pwb-menu-item" href="@ProtoUrl(value)" download="@($"{FileLabel(value)}.proto")"
@@ -586,6 +586,10 @@
 
     void CloseMenu() {
         _menu = null;
+    }
+
+    void CloseFilter() {
+        _filterOpen = false;
     }
 
     async Task MenuDo(Func<Task> action) {
@@ -1223,14 +1227,6 @@
         if (mode == "text") return false;
         if (State.B is not { } b) return true;
         return mode != "meta" && (!HasTextFor(a) || !HasTextFor(b));
-    }
-
-    bool IsLineMode() {
-        return State.Mode is "split" or "unified";
-    }
-
-    bool HasViewFilter() {
-        return State.Mode is "text" or "split" or "unified";
     }
 
     string FilterKey() {

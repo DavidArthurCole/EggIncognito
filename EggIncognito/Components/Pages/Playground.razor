@@ -302,141 +302,147 @@
 
     <section class="w-[320px] flex flex-col gap-2 self-start max-h-[85vh] overflow-auto">
         <div class="designer-section">
-            <div class="designer-section-head">Appearance</div>
+            <div class="designer-section-head">Shells</div>
             <div class="designer-section-body flex flex-col gap-3 text-xs">
-                <div class="settings-seg">
-                    <button class="seg-btn @(_appearanceTab == "shells" ? "active" : "")" @onclick='() => _appearanceTab = "shells"'>Shells</button>
-                    <button class="seg-btn @(_appearanceTab == "sets" ? "active" : "")" @onclick='() => _appearanceTab = "sets"'>Sets</button>
-                    <button class="seg-btn @(_appearanceTab == "chickens" ? "active" : "")" @onclick='() => _appearanceTab = "chickens"'>Chickens</button>
-                    <button class="seg-btn @(_appearanceTab == "lighting" ? "active" : "")" @onclick='() => _appearanceTab = "lighting"'>Light</button>
-                </div>
+                @if (_slots.Count == 0) {
+                    <div class="text-muted">No slots yet. Build a farm first.</div>
+                }
 
-                @if (_appearanceTab == "shells") {
-                    @if (_slots.Count == 0) {
-                        <div class="text-muted">No slots yet. Build a farm first.</div>
-                    }
-
-                    <div class="max-h-96 overflow-auto flex flex-col gap-2">
-                        @foreach (var bucket in _slots.GroupBy(s => s.Element)) {
-                            <div class="picker-group-title">@bucket.Key</div>
-                            @foreach (var slot in bucket) {
-                                <label class="light-field">
-                                    <span>@slot.AssetType @(slot.Index > 0 ? $"#{slot.Index}" : "")</span>
-                                    <select class="reg-filter-input w-full" value="@ShellOf(slot)" @onchange="e => SetShell(SlotKey(slot), e)">
-                                        <option value="">Base mesh</option>
-                                        @foreach (var s in ShellsFor(slot.AssetType)) {
-                                            <option value="@s.Identifier">@(s.Name ?? s.Identifier)</option>
-                                        }
-                                    </select>
-                                </label>
-                            }
-                        }
-                    </div>
-                } else if (_appearanceTab == "sets") {
-                    @if (_slots.Count == 0) {
-                        <div class="text-muted">No slots yet. Build a farm first.</div>
-                    }
-
-                    @foreach (var element in ElementsWithSets()) {
-                        <label class="light-field">
-                            <span>@element</span>
-                            <select class="reg-filter-input w-full" value="@_setByElement.GetValueOrDefault(element)" @onchange="e => SetElementSet(element, e)">
-                                <option value="">Default shells</option>
-                                @foreach (var id in SetIdsForElement(element)) {
-                                    <option value="@id">@id</option>
-                                }
-                            </select>
-                        </label>
-                    }
-
-                    @if (_decorators.Count > 0) {
-                        <label class="light-field">
-                            <span>Farm decorator</span>
-                            <select class="reg-filter-input w-full" value="@_decoratorId" @onchange="SetDecorator">
-                                <option value="">None</option>
-                                @foreach (var d in _decorators) {
-                                    <option value="@d.Identifier">@(d.Name ?? d.Identifier)</option>
-                                }
-                            </select>
-                        </label>
-                    }
-                } else if (_appearanceTab == "chickens") {
-                    @if (_chickens.Count == 0) {
-                        <div class="text-muted">No chicken objects. Ingest a config in Admin.</div>
-                    }
-
-                    <label class="light-field">
-                        <span>Chicken</span>
-                        <select class="reg-filter-input w-full" value="@_chickenId" @onchange="SetChicken">
-                            <option value="">Default chicken</option>
-                            @foreach (var c in _chickens) {
-                                <option value="@c.Identifier">@(c.Name ?? c.Identifier)</option>
-                            }
-                        </select>
-                    </label>
-                    <label class="light-field">
-                        <span>Hat</span>
-                        <select class="reg-filter-input w-full" value="@_hatId" @onchange="SetHat">
-                            <option value="">No hat</option>
-                            @foreach (var h in _hats) {
-                                <option value="@h.Identifier">@(h.Name ?? h.Identifier)</option>
-                            }
-                        </select>
-                    </label>
-                    <div class="text-muted">Hats are stored in the farm configuration; the renderer draws the chicken body only.</div>
-                } else {
-                    <label class="settings-check">
-                        <input type="checkbox" @bind="_lighting.Enabled" @bind:after="PushLighting"/><span class="ml-1">Custom lighting saved with the farm</span>
-                    </label>
-                    <div class="picker-group-title">light_dir</div>
-                    <div class="flex gap-1">
-                        <input type="number" step="0.05" class="reg-filter-input w-full min-w-0" @bind="_lighting.DirX" @bind:after="PushLighting"/>
-                        <input type="number" step="0.05" class="reg-filter-input w-full min-w-0" @bind="_lighting.DirY" @bind:after="PushLighting"/>
-                        <input type="number" step="0.05" class="reg-filter-input w-full min-w-0" @bind="_lighting.DirZ" @bind:after="PushLighting"/>
-                    </div>
-                    <label class="light-field">
-                        <span>light_direct_color</span>
-                        <input type="color" class="bg-picker-input" @bind="_lighting.DirectColor" @bind:event="oninput" @bind:after="PushLighting"/>
-                    </label>
-                    <label class="light-field">
-                        <span>light_direct_intensity @(_lighting.DirectIntensity.ToString("0.00", CultureInfo.InvariantCulture))</span>
-                        <input type="range" min="0" max="4" step="0.05" class="w-full" @bind="_lighting.DirectIntensity" @bind:event="oninput" @bind:after="PushLighting"/>
-                    </label>
-                    <label class="light-field">
-                        <span>light_ambient_color</span>
-                        <input type="color" class="bg-picker-input" @bind="_lighting.AmbientColor" @bind:event="oninput" @bind:after="PushLighting"/>
-                    </label>
-                    <label class="light-field">
-                        <span>light_ambient_intensity @(_lighting.AmbientIntensity.ToString("0.00", CultureInfo.InvariantCulture))</span>
-                        <input type="range" min="0" max="4" step="0.05" class="w-full" @bind="_lighting.AmbientIntensity" @bind:event="oninput" @bind:after="PushLighting"/>
-                    </label>
-                    <label class="light-field">
-                        <span>fog_color</span>
-                        <input type="color" class="bg-picker-input" @bind="_lighting.FogColor" @bind:event="oninput" @bind:after="PushLighting"/>
-                    </label>
-                    <label class="light-field">
-                        <span>fog_near</span>
-                        <input type="number" step="1" class="reg-filter-input w-full" @bind="_lighting.FogNear" @bind:after="PushLighting"/>
-                    </label>
-                    <label class="light-field">
-                        <span>fog_far</span>
-                        <input type="number" step="1" class="reg-filter-input w-full" @bind="_lighting.FogFar" @bind:after="PushLighting"/>
-                    </label>
-                    <label class="light-field">
-                        <span>fog_density @(_lighting.FogDensity.ToString("0.0000", CultureInfo.InvariantCulture))</span>
-                        <input type="range" min="0" max="0.05" step="0.0005" class="w-full" @bind="_lighting.FogDensity" @bind:event="oninput" @bind:after="PushLighting"/>
-                    </label>
-                    <div class="picker-group-title">Viewer</div>
-                    <label class="light-field">
-                        <span>Background</span>
-                        <span class="flex items-center gap-2">
-                            <input type="color" class="bg-picker-input" @bind="_bgColor" @bind:event="oninput" @bind:after="ApplyBackground" disabled="@_bgTransparent"/>
-                            <label class="settings-check">
-                                <input type="checkbox" @bind="_bgTransparent" @bind:after="ApplyBackground"/><span class="text-muted ml-1">None</span>
+                <div class="max-h-96 overflow-auto flex flex-col gap-2">
+                    @foreach (var bucket in _slots.GroupBy(s => s.Element)) {
+                        <div class="picker-group-title">@bucket.Key</div>
+                        @foreach (var slot in bucket) {
+                            <label class="light-field">
+                                <span>@slot.AssetType @(slot.Index > 0 ? $"#{slot.Index}" : "")</span>
+                                <select class="reg-filter-input w-full" value="@ShellOf(slot)" @onchange="e => SetShell(SlotKey(slot), e)">
+                                    <option value="">Base mesh</option>
+                                    @foreach (var s in ShellsFor(slot.AssetType)) {
+                                        <option value="@s.Identifier">@(s.Name ?? s.Identifier)</option>
+                                    }
+                                </select>
                             </label>
-                        </span>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="designer-section">
+            <div class="designer-section-head">Sets</div>
+            <div class="designer-section-body flex flex-col gap-3 text-xs">
+                @if (_slots.Count == 0) {
+                    <div class="text-muted">No slots yet. Build a farm first.</div>
+                }
+
+                @foreach (var element in ElementsWithSets()) {
+                    <label class="light-field">
+                        <span>@element</span>
+                        <select class="reg-filter-input w-full" value="@_setByElement.GetValueOrDefault(element)" @onchange="e => SetElementSet(element, e)">
+                            <option value="">Default shells</option>
+                            @foreach (var id in SetIdsForElement(element)) {
+                                <option value="@id">@id</option>
+                            }
+                        </select>
                     </label>
                 }
+
+                @if (_decorators.Count > 0) {
+                    <label class="light-field">
+                        <span>Farm decorator</span>
+                        <select class="reg-filter-input w-full" value="@_decoratorId" @onchange="SetDecorator">
+                            <option value="">None</option>
+                            @foreach (var d in _decorators) {
+                                <option value="@d.Identifier">@(d.Name ?? d.Identifier)</option>
+                            }
+                        </select>
+                    </label>
+                }
+            </div>
+        </div>
+
+        <div class="designer-section">
+            <div class="designer-section-head">Chickens</div>
+            <div class="designer-section-body flex flex-col gap-3 text-xs">
+                @if (_chickens.Count == 0) {
+                    <div class="text-muted">No chicken objects. Ingest a config in Admin.</div>
+                }
+
+                <label class="light-field">
+                    <span>Chicken</span>
+                    <select class="reg-filter-input w-full" value="@_chickenId" @onchange="SetChicken">
+                        <option value="">Default chicken</option>
+                        @foreach (var c in _chickens) {
+                            <option value="@c.Identifier">@(c.Name ?? c.Identifier)</option>
+                        }
+                    </select>
+                </label>
+                <label class="light-field">
+                    <span>Hat</span>
+                    <select class="reg-filter-input w-full" value="@_hatId" @onchange="SetHat">
+                        <option value="">No hat</option>
+                        @foreach (var h in _hats) {
+                            <option value="@h.Identifier">@(h.Name ?? h.Identifier)</option>
+                        }
+                    </select>
+                </label>
+                <div class="text-muted">Hats are stored in the farm configuration; the renderer draws the chicken body only.</div>
+            </div>
+        </div>
+
+        <div class="designer-section">
+            <div class="designer-section-head">Lighting</div>
+            <div class="designer-section-body flex flex-col gap-3 text-xs">
+                <label class="settings-check">
+                    <input type="checkbox" @bind="_lighting.Enabled" @bind:after="PushLighting"/><span class="ml-1">Custom lighting saved with the farm</span>
+                </label>
+                <div class="picker-group-title">light_dir</div>
+                <div class="flex gap-1">
+                    <input type="number" step="0.05" class="reg-filter-input w-full min-w-0" @bind="_lighting.DirX" @bind:after="PushLighting"/>
+                    <input type="number" step="0.05" class="reg-filter-input w-full min-w-0" @bind="_lighting.DirY" @bind:after="PushLighting"/>
+                    <input type="number" step="0.05" class="reg-filter-input w-full min-w-0" @bind="_lighting.DirZ" @bind:after="PushLighting"/>
+                </div>
+                <label class="light-field">
+                    <span>light_direct_color</span>
+                    <input type="color" class="bg-picker-input" @bind="_lighting.DirectColor" @bind:event="oninput" @bind:after="PushLighting"/>
+                </label>
+                <label class="light-field">
+                    <span>light_direct_intensity @(_lighting.DirectIntensity.ToString("0.00", CultureInfo.InvariantCulture))</span>
+                    <input type="range" min="0" max="4" step="0.05" class="w-full" @bind="_lighting.DirectIntensity" @bind:event="oninput" @bind:after="PushLighting"/>
+                </label>
+                <label class="light-field">
+                    <span>light_ambient_color</span>
+                    <input type="color" class="bg-picker-input" @bind="_lighting.AmbientColor" @bind:event="oninput" @bind:after="PushLighting"/>
+                </label>
+                <label class="light-field">
+                    <span>light_ambient_intensity @(_lighting.AmbientIntensity.ToString("0.00", CultureInfo.InvariantCulture))</span>
+                    <input type="range" min="0" max="4" step="0.05" class="w-full" @bind="_lighting.AmbientIntensity" @bind:event="oninput" @bind:after="PushLighting"/>
+                </label>
+                <label class="light-field">
+                    <span>fog_color</span>
+                    <input type="color" class="bg-picker-input" @bind="_lighting.FogColor" @bind:event="oninput" @bind:after="PushLighting"/>
+                </label>
+                <label class="light-field">
+                    <span>fog_near</span>
+                    <input type="number" step="1" class="reg-filter-input w-full" @bind="_lighting.FogNear" @bind:after="PushLighting"/>
+                </label>
+                <label class="light-field">
+                    <span>fog_far</span>
+                    <input type="number" step="1" class="reg-filter-input w-full" @bind="_lighting.FogFar" @bind:after="PushLighting"/>
+                </label>
+                <label class="light-field">
+                    <span>fog_density @(_lighting.FogDensity.ToString("0.0000", CultureInfo.InvariantCulture))</span>
+                    <input type="range" min="0" max="0.05" step="0.0005" class="w-full" @bind="_lighting.FogDensity" @bind:event="oninput" @bind:after="PushLighting"/>
+                </label>
+                <div class="picker-group-title">Viewer</div>
+                <label class="light-field">
+                    <span>Background</span>
+                    <span class="flex items-center gap-2">
+                        <input type="color" class="bg-picker-input" @bind="_bgColor" @bind:event="oninput" @bind:after="ApplyBackground" disabled="@_bgTransparent"/>
+                        <label class="settings-check">
+                            <input type="checkbox" @bind="_bgTransparent" @bind:after="ApplyBackground"/><span class="text-muted ml-1">None</span>
+                        </label>
+                    </span>
+                </label>
             </div>
         </div>
 
@@ -542,7 +548,6 @@
     bool _namePromptOpen;
     bool _namePromptIsSaveAs;
     bool _presetsOpen = true;
-    string _appearanceTab = "shells";
 
     ElementReference _gifPopoverRef;
     ElementReference _gifPopoverHeadRef;

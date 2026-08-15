@@ -1,6 +1,6 @@
 namespace EggIncognito.Services.Inspector;
 
-public sealed record InspectorRef(string? EndpointPath, string? ObjectName, InspectorReaderMode Mode) {
+public sealed record InspectorRef(string? EndpointPath, string? ObjectName) {
     public bool IsEmpty => string.IsNullOrEmpty(EndpointPath) && string.IsNullOrEmpty(ObjectName);
 }
 
@@ -8,12 +8,8 @@ public static class InspectorRefParser {
     public const string Separator = "+";
     public const string EndpointPrefix = "ep:";
     public const string ObjectPrefix = "obj:";
-    public const string ResultMode = "result";
-    public const string ReferenceMode = "reference";
 
-    public static readonly string[] Modes = [ResultMode, ReferenceMode];
-
-    public static readonly InspectorRef Empty = new(null, null, InspectorReaderMode.Result);
+    public static readonly InspectorRef Empty = new(null, null);
 
     public static InspectorRef Parse(string? hash) {
         if (string.IsNullOrWhiteSpace(hash)) return Empty;
@@ -22,11 +18,11 @@ public static class InspectorRefParser {
         if (body.StartsWith('#')) body = body[1..];
         if (body.Length == 0) return Empty;
 
-        var mode = InspectorReaderMode.Result;
-        int slash = body.IndexOf('/');
-        if (slash > 0 && !StartsWithKind(body)) {
-            mode = ModeOf(body[..slash]);
+        if (!StartsWithKind(body)) {
+            int slash = body.IndexOf('/');
+            if (slash <= 0) return Empty;
             body = body[(slash + 1)..];
+            if (!StartsWithKind(body)) return Empty;
         }
 
         string? path = null;
@@ -44,29 +40,17 @@ public static class InspectorRefParser {
             }
         }
 
-        if (path is null && name is null) return Empty;
-        if (name is not null) mode = InspectorReaderMode.Reference;
-        return new InspectorRef(path, name, mode);
+        return path is null && name is null ? Empty : new InspectorRef(path, name);
     }
 
     public static string Format(InspectorRef value) {
         var parts = new List<string>(2);
         if (!string.IsNullOrEmpty(value.EndpointPath)) parts.Add(EndpointPrefix + value.EndpointPath);
         if (!string.IsNullOrEmpty(value.ObjectName)) parts.Add(ObjectPrefix + value.ObjectName);
-        if (parts.Count == 0) return "";
-
-        string body = string.Join(Separator, parts);
-        bool writeMode = value.Mode == InspectorReaderMode.Reference
-                         && string.IsNullOrEmpty(value.ObjectName);
-        return writeMode ? ReferenceMode + "/" + body : body;
+        return string.Join(Separator, parts);
     }
 
     private static bool StartsWithKind(string body) =>
         body.StartsWith(EndpointPrefix, StringComparison.Ordinal)
         || body.StartsWith(ObjectPrefix, StringComparison.Ordinal);
-
-    private static InspectorReaderMode ModeOf(string candidate) =>
-        candidate.Equals(ReferenceMode, StringComparison.OrdinalIgnoreCase)
-            ? InspectorReaderMode.Reference
-            : InspectorReaderMode.Result;
 }

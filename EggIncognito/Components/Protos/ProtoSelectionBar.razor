@@ -16,7 +16,7 @@
 </div>
 
 @code {
-    [Parameter] public IReadOnlyList<VersionKey> Selected { get; set; } = [];
+    [Parameter] public IReadOnlyList<SelectionKey> Selected { get; set; } = [];
     [Parameter] public Func<string, object, Task<bool>> Post { get; set; } = (_, _) => Task.FromResult(false);
     [Parameter] public EventCallback OnChanged { get; set; }
     [Parameter] public EventCallback OnClear { get; set; }
@@ -24,7 +24,7 @@
     bool _busy;
     string _msg = "";
 
-    public sealed record VersionKey(string Platform, string Build);
+    public sealed record SelectionKey(string Platform, string Build);
 
     async Task DeleteSelected() {
         _busy = true;

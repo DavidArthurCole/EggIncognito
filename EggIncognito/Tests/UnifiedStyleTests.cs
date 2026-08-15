@@ -22,10 +22,10 @@ public partial class UnifiedStyleTests(SharedAppFactory f) {
         var c = _f.CreateClient();
         string css = await c.GetStringAsync("/styles.css");
         foreach (string cls in new[] {
-                     ".panel", ".btn-primary", ".icon-btn", ".settings-menu",
-                     ".status-badge", ".flow-row", ".jtree-root", ".stage-head", ".cap-stat",
+                     ".panel", ".btn-primary", ".icon-btn", ".settings-menu", ".dropzone", ".result-pre",
+                     ".status-badge", ".flow-row", ".jtree-root", ".stage-row", ".cap-stat",
                      ".verline-app", ".verline-num", ".verline-sep", ".platform-icon", ".route-flag",
-                     ".toast", ".modal-card", ".known-card", ".tab-btn", ".notif-item",
+                     ".toast", ".modal-card", ".known-card", ".detail-pane-title", ".notif-item",
                      ".perk-list", ".rail", ".connect-card", ".faq-list",
                      ".data-table", ".stat-tile", ".reg-row", ".reg-version", ".reg-sha", ".reg-empty",
                      ".reg-filter-input", ".reg-edit-btn", ".sub-form",

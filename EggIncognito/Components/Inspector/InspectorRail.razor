@@ -39,7 +39,7 @@
             <StatusNote Severity="StatusNote.Kind.Error">@State.Notice</StatusNote>
         }
 
-        <FilterInput Class="insp-filter" Placeholder="@FilterPlaceholder" AriaLabel="@FilterPlaceholder"
+        <FilterInput Class="insp-filter" AriaLabel="@FilterLabel"
                      Value="@State.RailFilter" ValueChanged="OnFilterChanged"/>
 
         @if (State.RailList == InspectorRailList.Endpoints) {
@@ -119,8 +119,8 @@
 
     string ListKey => State.RailList == InspectorRailList.Objects ? ObjectsKey : EndpointsKey;
 
-    string FilterPlaceholder =>
-        State.RailList == InspectorRailList.Objects ? "filter objects..." : "filter routes...";
+    string FilterLabel =>
+        State.RailList == InspectorRailList.Objects ? "Filter objects" : "Filter routes";
 
     void OnListChanged(string key) {
         State.RailList = key == ObjectsKey ? InspectorRailList.Objects : InspectorRailList.Endpoints;

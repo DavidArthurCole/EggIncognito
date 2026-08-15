@@ -14,7 +14,7 @@ public sealed class ApiKeyResolutionMiddleware(RequestDelegate next) {
         await next(ctx);
     }
 
-    private static bool HasKeyHeader(HttpContext ctx) =>
+    internal static bool HasKeyHeader(HttpContext ctx) =>
         !string.IsNullOrWhiteSpace(ctx.Request.Headers["X-Api-Key"].ToString())
         || ctx.Request.Headers.Authorization.ToString().StartsWith("Bearer egi_", StringComparison.OrdinalIgnoreCase);
 }

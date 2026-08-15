@@ -5,52 +5,64 @@
     @if (Structural is null || Structural.IsEmpty) {
         <p class="text-muted text-sm m-0">@EmptyText</p>
     } else {
-        <div class="cstruct">
-            <p class="cstruct-summary">@Summary()</p>
-            @foreach (var e in Structural.Entries) {
-                <div class="cstruct-entry">
-                    <div class="cstruct-head">
-                        @if (e.Kind == MessageDiffKind.Renamed) {
-                            <span class="cstruct-path cstruct-rem">@e.OldPath</span>
-                            <span class="text-muted">-&gt;</span>
-                            <span class="cstruct-path cstruct-add">@e.NewPath</span>
-                        } else {
-                            <span class="cstruct-path @PathClass(e.Kind)">@e.DisplayPath</span>
-                        }
-                    </div>
-                    @if (e.Kind is MessageDiffKind.Added or MessageDiffKind.Removed) {
-                        <details>
-                            <summary class="text-muted cursor-pointer text-xs">@e.Body.Count lines</summary>
-                            <div class="cstruct-rows">
-                                @foreach (var line in e.Body) {
-                                    <span class="@(e.Kind == MessageDiffKind.Added ? "cstruct-add" : "cstruct-rem")">@(e.Kind == MessageDiffKind.Added ? "+" : "-")@line</span>
+        <div class="code-surface">
+            @if (ShowToolbar && StructuredBarHasContent) {
+                <div class="code-toolbar">
+                    @Tools
+                    @ModeSelect()
+                    <span class="code-toolbar-gap"></span>
+                    @Actions
+                </div>
+            }
+            <div class="code-scroll" style="@ScrollStyle">
+                <div class="cstruct">
+                    <p class="cstruct-summary">@Summary()</p>
+                    @foreach (var e in Structural.Entries) {
+                        <div class="cstruct-entry">
+                            <div class="cstruct-head">
+                                @if (e.Kind == MessageDiffKind.Renamed) {
+                                    <span class="cstruct-path cstruct-rem">@e.OldPath</span>
+                                    <span class="text-muted">-&gt;</span>
+                                    <span class="cstruct-path cstruct-add">@e.NewPath</span>
+                                } else {
+                                    <span class="cstruct-path @PathClass(e.Kind)">@e.DisplayPath</span>
                                 }
                             </div>
-                        </details>
-                    } else if (e.FieldChanges.Count > 0 || e.EnumChanges.Count > 0) {
-                        <div class="cstruct-rows">
-                            @foreach (var c in e.FieldChanges.OrderBy(c => c.Number)) {
-                                @if (c.Old is not null) {
-                                    <span class="cstruct-rem">-@c.Old.Raw</span>
-                                }
+                            @if (e.Kind is MessageDiffKind.Added or MessageDiffKind.Removed) {
+                                <details>
+                                    <summary class="text-muted cursor-pointer text-xs">@e.Body.Count lines</summary>
+                                    <div class="cstruct-rows">
+                                        @foreach (var line in e.Body) {
+                                            <span class="@(e.Kind == MessageDiffKind.Added ? "cstruct-add" : "cstruct-rem")">@(e.Kind == MessageDiffKind.Added ? "+" : "-")@line</span>
+                                        }
+                                    </div>
+                                </details>
+                            } else if (e.FieldChanges.Count > 0 || e.EnumChanges.Count > 0) {
+                                <div class="cstruct-rows">
+                                    @foreach (var c in e.FieldChanges.OrderBy(c => c.Number)) {
+                                        @if (c.Old is not null) {
+                                            <span class="cstruct-rem">-@c.Old.Raw</span>
+                                        }
 
-                                @if (c.New is not null) {
-                                    <span class="cstruct-add">+@c.New.Raw</span>
-                                }
-                            }
-                            @foreach (var c in e.EnumChanges.OrderBy(c => c.Number)) {
-                                @if (c.Old is not null) {
-                                    <span class="cstruct-rem">-@c.Old.Raw</span>
-                                }
+                                        @if (c.New is not null) {
+                                            <span class="cstruct-add">+@c.New.Raw</span>
+                                        }
+                                    }
+                                    @foreach (var c in e.EnumChanges.OrderBy(c => c.Number)) {
+                                        @if (c.Old is not null) {
+                                            <span class="cstruct-rem">-@c.Old.Raw</span>
+                                        }
 
-                                @if (c.New is not null) {
-                                    <span class="cstruct-add">+@c.New.Raw</span>
-                                }
+                                        @if (c.New is not null) {
+                                            <span class="cstruct-add">+@c.New.Raw</span>
+                                        }
+                                    }
+                                </div>
                             }
                         </div>
                     }
                 </div>
-            }
+            </div>
         </div>
     }
 } else if (_total == 0) {
@@ -59,16 +71,32 @@
     <div class="code-surface">
         @if (ShowToolbar) {
             <div class="code-toolbar">
+                @if (ShowLanguagePicker) {
+                    <select class="code-select code-lang" aria-label="Syntax language" value="@LanguageNow"
+                            @onchange="OnLanguageChanged">
+                        @foreach (var option in SyntaxHighlighter.Options) {
+                            <option value="@option.Id">@option.Label</option>
+                        }
+                    </select>
+                }
                 @Tools
+                @ModeSelect()
                 @if (Filter is null) {
-                    <FilterInput Class="code-filter" Placeholder="Filter..." AriaLabel="Filter diff lines"
+                    <FilterInput Class="code-filter" Placeholder="Filter" AriaLabel="Filter diff lines"
                                  Value="@_filter" ValueChanged="OnFilterChanged"/>
                 }
                 <span class="code-toolbar-gap"></span>
-                <button type="button" class="btn-mini code-toggle @(WrapNow ? "code-toggle-on" : "")"
-                        disabled="@WrapLocked" title="@WrapTitle" @onclick="ToggleWrap">
-                    Wrap
-                </button>
+                @Actions
+                @if (ShowWrapToggle) {
+                    <button type="button" class="btn-mini code-toggle code-toggle-wrap @(WrapNow ? "code-toggle-on" : "")"
+                            disabled="@WrapLocked" title="@WrapTitle" @onclick="ToggleWrap">
+                        Wrap
+                    </button>
+                }
+                @if (CanCopy) {
+                    <CopyButton GetText="CurrentText" ButtonClass="btn-mini data-copy" IconClass="icon-sm"
+                                Label="Copy" CopiedLabel="Copied"/>
+                }
             </div>
         }
         <div class="code-scroll" style="@ScrollStyle">
@@ -105,19 +133,32 @@
 
 @code {
     [Parameter] public CodeDiffMode Mode { get; set; } = CodeDiffMode.Split;
+    [Parameter] public EventCallback<CodeDiffMode> ModeChanged { get; set; }
     [Parameter] public SideBySideResult? Split { get; set; }
     [Parameter] public string? Unified { get; set; }
     [Parameter] public ProtoDiffResult? Structural { get; set; }
     [Parameter] public string Language { get; set; } = "text";
+    [Parameter] public EventCallback<string> LanguageChanged { get; set; }
+    [Parameter] public bool ShowLanguagePicker { get; set; } = true;
     [Parameter] public string? Filter { get; set; }
     [Parameter] public bool Wrap { get; set; }
+    [Parameter] public bool ShowWrapToggle { get; set; } = true;
     [Parameter] public string MaxHeight { get; set; } = "";
     [Parameter] public EventCallback<int> OnHunk { get; set; }
     [Parameter] public string EmptyText { get; set; } = "No differences.";
     [Parameter] public RenderFragment? Tools { get; set; }
+    [Parameter] public RenderFragment? Actions { get; set; }
     [Parameter] public bool ShowToolbar { get; set; } = true;
+    [Parameter] public bool ShowCopy { get; set; } = true;
+    [Parameter] public Func<string>? CopyText { get; set; }
 
     const string NoMatchText = "(no lines match)";
+
+    static readonly (CodeDiffMode Mode, string Label)[] ModeOptions = [
+        (CodeDiffMode.Split, "Side by side"),
+        (CodeDiffMode.Unified, "Unified"),
+        (CodeDiffMode.Structured, "Structured")
+    ];
 
     sealed record SplitLine(DiffRow Row, int Hunk, int LeftIndex, int RightIndex);
 
@@ -135,12 +176,16 @@
     CodeDiffMode _builtMode;
     string? _filterApplied;
     string _filter = "";
+    string? _languageOverride;
+    string? _languageParam;
     bool _wrap;
     bool _wrapParam;
     bool _wrapSeeded;
     bool _noMatch;
     int _total;
     int _shown;
+
+    string LanguageNow => SyntaxHighlighter.Resolve(_languageOverride ?? Language);
 
     bool WrapLocked => _total > CodeMetrics.WrapRowCap;
 
@@ -149,6 +194,11 @@
     string WrapTitle => WrapLocked ? CodeMetrics.WrapDisabledTitle : "Wrap long lines";
 
     bool Virtualized => !WrapNow && _shown > CodeMetrics.VirtualizeAbove;
+
+    bool CanCopy => ShowCopy && (CopyText is not null
+                                 || (Mode == CodeDiffMode.Unified && !string.IsNullOrEmpty(Unified)));
+
+    bool StructuredBarHasContent => Tools is not null || Actions is not null || ModeChanged.HasDelegate;
 
     string ModeClass => Mode == CodeDiffMode.Split ? "cdiff-split" : "cdiff-unified";
 
@@ -161,9 +211,17 @@
             _wrapSeeded = true;
         }
 
-        if (Mode == CodeDiffMode.Structured) return;
+        if (!string.Equals(_languageParam, Language, StringComparison.Ordinal)) {
+            _languageParam = Language;
+            _languageOverride = null;
+        }
 
-        var language = SyntaxHighlighter.Resolve(Language);
+        if (Mode == CodeDiffMode.Structured) return;
+        Rebuild();
+    }
+
+    void Rebuild() {
+        var language = LanguageNow;
         var rebuild = _builtMode != Mode
                       || !string.Equals(_builtLanguage, language, StringComparison.Ordinal)
                       || !ReferenceEquals(_builtSplit, Split)
@@ -183,6 +241,26 @@
 
         ApplyFilter();
         if (WrapLocked) _wrap = false;
+    }
+
+    Task OnLanguageChanged(ChangeEventArgs e) {
+        var picked = e.Value?.ToString();
+        if (string.IsNullOrEmpty(picked)) return Task.CompletedTask;
+        _languageOverride = picked;
+        Rebuild();
+        return LanguageChanged.HasDelegate ? LanguageChanged.InvokeAsync(LanguageNow) : Task.CompletedTask;
+    }
+
+    Task OnModeChanged(ChangeEventArgs e) {
+        if (!ModeChanged.HasDelegate) return Task.CompletedTask;
+        return Enum.TryParse(e.Value?.ToString(), out CodeDiffMode picked) && picked != Mode
+            ? ModeChanged.InvokeAsync(picked)
+            : Task.CompletedTask;
+    }
+
+    string CurrentText() {
+        if (CopyText is not null) return CopyText();
+        return Mode == CodeDiffMode.Unified ? Unified ?? "" : "";
     }
 
     void BuildSplitDocuments(string language) {
@@ -372,6 +450,17 @@
         if (d.ModifiedMessages > 0) parts.Add($"{d.ModifiedMessages} modified");
         return $"{string.Join(", ", parts)} message{(d.Entries.Count == 1 ? "" : "s")}, {d.FieldChangeCount} field change{(d.FieldChangeCount == 1 ? "" : "s")}";
     }
+
+    RenderFragment ModeSelect() => @<text>
+                                        @if (ModeChanged.HasDelegate) {
+                                            <select class="code-select code-mode" aria-label="Diff mode" value="@Mode"
+                                                    @onchange="OnModeChanged">
+                                                @foreach (var option in ModeOptions) {
+                                                    <option value="@option.Mode">@option.Label</option>
+                                                }
+                                            </select>
+                                        }
+                                    </text>;
 
     RenderFragment SplitRow(SplitLine line) => @<div class="cdiff-row cdiff-@RowClass(line.Row.Kind)" @onclick="@(() => RaiseHunk(line))">
                                                    <span class="cdiff-gutter">@line.Row.LeftNo</span>

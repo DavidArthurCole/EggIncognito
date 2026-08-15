@@ -1,3 +1,7 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject IWebHostEnvironment Env
+@inject ILogger<ModalShell> Logger
 <div class="modal-backdrop" @onclick="BackdropClick">
     <div class="@CardCss" role="dialog" aria-modal="true" aria-labelledby="@TitleId" tabindex="-1"
          @ref="_card" @onkeydown="OnKeyDown" @onclick:stopPropagation="true">
@@ -37,6 +41,7 @@
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
     ElementReference _card;
+    IJSObjectReference? _scrollLock;
 
     string CardCss {
         get {
@@ -50,7 +55,19 @@
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender) {
-        if (firstRender) await _card.FocusAsync();
+        if (!firstRender) return;
+        await _card.FocusAsync();
+        try {
+            _scrollLock = await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/scrollLock.js"));
+            await _scrollLock.InvokeVoidAsync("lock");
+        }
+        catch (Exception ex) {
+            Logger.LogDebug(ex, "modal scroll lock unavailable");
+        }
+    }
+
+    public ValueTask DisposeAsync() {
+        return _scrollLock.DisposeModuleQuietAsync("unlock", Logger);
     }
 
     Task BackdropClick() {

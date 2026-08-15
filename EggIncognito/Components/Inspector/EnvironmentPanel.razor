@@ -1,24 +1,60 @@
+@using EggIncognito.Services.Inspector
 <div class="env-box">
-    <div class="env-box-title">Environment (BasicRequestInfo overrides)</div>
-    <div class="env-rowgroup">
-        <EnvField Row="@Find("eiUserId")" WidthClass="env-w-eid" OnChanged="OnChanged"/>
-        <EnvField Row="@Find("debug")" WidthClass="env-w-bool" OnChanged="OnChanged"/>
+    <div class="env-head">
+        <button type="button" class="env-title" @onclick="Toggle">
+            <span class="ep-caret @(State.EnvOpen ? "ep-caret-open" : "")"></span>BasicRequestInfo Setup
+        </button>
+        @if (!State.EnvOpen) {
+            <span class="env-state @(State.EnvValidated ? "ok" : "")">
+                @(State.EnvValidated ? "validated" : "not validated")
+            </span>
+        }
     </div>
-    <div class="env-rowgroup">
-        <EnvField Row="@Find("clientVersion")" WidthClass="env-w-tiny" OnChanged="OnChanged"/>
-        <EnvField Row="@Find("version")" WidthClass="env-w-sm" OnChanged="OnChanged"/>
-        <EnvField Row="@Find("build")" WidthClass="env-w-sm" OnChanged="OnChanged"/>
-    </div>
-    <div class="env-rowgroup">
-        <EnvField Row="@Find("platform")" WidthClass="env-w-sm" OnChanged="OnChanged"/>
-        <EnvField Row="@Find("country")" WidthClass="env-w-tiny" OnChanged="OnChanged"/>
-        <EnvField Row="@Find("language")" WidthClass="env-w-tiny" OnChanged="OnChanged"/>
-    </div>
+    @if (State.EnvOpen) {
+        <div class="env-rowgroup">
+            <EnvField Row="@Find("eiUserId")" WidthClass="env-w-eid" OnChanged="OnChanged"/>
+            <EnvField Row="@Find("debug")" WidthClass="env-w-bool" OnChanged="OnChanged"/>
+        </div>
+        <div class="env-rowgroup">
+            <EnvField Row="@Find("clientVersion")" WidthClass="env-w-tiny" OnChanged="OnChanged"/>
+            <EnvField Row="@Find("version")" WidthClass="env-w-sm" OnChanged="OnChanged"/>
+            <EnvField Row="@Find("build")" WidthClass="env-w-sm" OnChanged="OnChanged"/>
+        </div>
+        <div class="env-rowgroup">
+            <EnvField Row="@Find("platform")" WidthClass="env-w-sm" OnChanged="OnChanged"/>
+            <EnvField Row="@Find("country")" WidthClass="env-w-code" OnChanged="OnChanged"/>
+            <EnvField Row="@Find("language")" WidthClass="env-w-code" OnChanged="OnChanged"/>
+        </div>
+        @if (!string.IsNullOrEmpty(State.EnvError)) {
+            <div class="env-error">@State.EnvError</div>
+        }
+
+        <div class="env-foot">
+            @if (!State.EnvValidated && State.EnvError is not null) {
+                <button type="button" class="btn-mini" title="Keep these values and collapse without validating"
+                        @onclick="OnForceSave">
+                    Save anyway
+                </button>
+            }
+            <button type="button" class="btn-secondary env-validate" disabled="@State.EnvValidating"
+                    @onclick="OnValidate">
+                @(State.EnvValidating ? "Validating..." : "Validate")
+            </button>
+        </div>
+    }
 </div>
 
 @code {
+    [Inject] public InspectorState State { get; set; } = default!;
+
     [Parameter] public IReadOnlyList<EnvRow> Rows { get; set; } = [];
     [Parameter] public EventCallback<EnvRow> OnChanged { get; set; }
+    [Parameter] public EventCallback OnValidate { get; set; }
+    [Parameter] public EventCallback OnForceSave { get; set; }
+
+    void Toggle() {
+        State.EnvOpen = !State.EnvOpen;
+    }
 
     EnvRow? Find(string key) {
         foreach (var r in Rows) {

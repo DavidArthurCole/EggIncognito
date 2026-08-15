@@ -58,7 +58,6 @@ public sealed class PeriodicalsController(
             }
         }
 
-        var icons = LoadColleggtibleIcons();
         string? liveRoute = catalog.ById("periodical", "get_periodicals")?.WireRoute;
         var live = liveRoute is null ? null : LiveColleggtibleSource.Derive(services, liveRoute);
         if (live is not null) {
@@ -70,7 +69,7 @@ public sealed class PeriodicalsController(
                     e.Identifier,
                     dimension = DimensionName(e.Dimension),
                     e.TierValues,
-                    icon = icons.GetValueOrDefault(e.Identifier)
+                    icon = live.Icons.GetValueOrDefault(e.Identifier)
                 })
             };
         }
@@ -341,26 +340,6 @@ public sealed class PeriodicalsController(
 
         cache[type] = icon;
         return icon;
-    }
-
-    private Dictionary<string, string> LoadColleggtibleIcons() {
-        var map = new Dictionary<string, string>(StringComparer.Ordinal);
-        string? route = catalog.ById("periodical", "get_periodicals")?.WireRoute;
-        if (route is null) return map;
-        string path = FixturePath(route);
-        if (!System.IO.File.Exists(path)) return map;
-        try {
-            var per = PeriodicalsResponse.Parser.ParseJson(System.IO.File.ReadAllText(path));
-            foreach (var egg in per.Contracts?.CustomEggs ?? []) {
-                string? url = egg.Icon?.Url;
-                if (!string.IsNullOrEmpty(egg.Identifier) && !string.IsNullOrEmpty(url))
-                    map[egg.Identifier] = url;
-            }
-        } catch (Exception ex) {
-            logger.LogWarning(ex, "periodicals: colleggtible icons unavailable, {Path} unreadable", path);
-        }
-
-        return map;
     }
 
     private string FixturePath(string route) {

@@ -5,11 +5,6 @@ public enum InspectorRailList {
     Objects
 }
 
-public enum InspectorReaderMode {
-    Result,
-    Reference
-}
-
 public enum InspectorTarget {
     Mock,
     LiveViaServer,
@@ -21,6 +16,7 @@ public enum EnvEditor {
     Eid,
     Int,
     Version,
+    Build,
     Code,
     Select,
     Bool

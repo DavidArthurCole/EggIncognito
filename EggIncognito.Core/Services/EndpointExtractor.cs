@@ -350,11 +350,6 @@ public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string 
             Console.WriteLine($"  flagged for review ({Counts.Flagged.Count}):");
             foreach (string f in Counts.Flagged) Console.WriteLine($"    {f}");
         }
-
-        if (Counts.WroteYaml) {
-            Console.WriteLine(
-                "  note: routes.yaml updated -> POST /api/import/endpoint-status/update to refresh endpoint_status");
-        }
     }
 
     public static string? ReadRequestData(JsonElement reqEl) {
