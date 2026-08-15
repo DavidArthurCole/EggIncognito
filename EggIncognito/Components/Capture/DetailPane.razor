@@ -2,7 +2,7 @@
 @using EggIncognito.Capture
 @using EggIncognito.Core
 @* The detail pane: header (path + status), the known-endpoint card or save-as-endpoint bar + type
-   lines, then Request/Response tabs carrying the body (FormatView), URL params, and optional headers. *@
+   lines, then Request/Response tabs carrying the body (CodeFormats), URL params, and optional headers. *@
 
 @if (Flow is null) {
     <div class="muted">Select a request to inspect it.</div>
@@ -62,7 +62,7 @@
     string _saveCls = "";
 
 
-    readonly HashSet<string> _revealed = new(StringComparer.Ordinal);
+    readonly CodeRevealState _reveal = new();
 
     long _renderedFlowId = -1;
 
@@ -71,15 +71,13 @@
             _renderedFlowId = Flow.Id;
             _saveMsg = "";
             _saveCls = "";
-            _revealed.Clear();
+            _reveal.Clear();
         }
     }
 
-    void ToggleReveal(string key) {
-        if (!_revealed.Remove(key)) _revealed.Add(key);
-    }
+    void ToggleReveal(string key) => _reveal.Toggle(key);
 
-    string RevealCls(string key) => _revealed.Contains(key) ? "revealed" : "";
+    string RevealCls(string key) => _reveal.IsRevealed(key) ? "revealed" : "";
 
     async Task Save() {
         if (Flow is null) return;
@@ -163,11 +161,11 @@
                       || !string.IsNullOrEmpty(f.RequestDataB64);
         return @<text>
                     @if (hasBody) {
-                        <FormatView Label="Request" ShowLabel="false"
-                                    JsonStr="@View.PickJson(f.RequestJson, f.RequestJsonRaw)"
-                                    RawB64="@f.RequestDataB64"
-                                    EmptyNote="@(!string.IsNullOrEmpty(f.RequestDataB64) ? "(no decoded JSON)" : "No request body")"
-                                    View="View" FormatChoice="_formatChoice"/>
+                        <CodeFormats Key="Request" ShowLabel="false"
+                                     Json="@View.PickJson(f.RequestJson, f.RequestJsonRaw)"
+                                     RawBase64="@f.RequestDataB64"
+                                     EmptyNote="@(!string.IsNullOrEmpty(f.RequestDataB64) ? "(no decoded JSON)" : "No request body")"
+                                     View="View" Choice="_formatChoice" Reveal="_reveal"/>
                     } else {
                         <div class="empty-box">No request body</div>
                     }
@@ -192,13 +190,14 @@
         } else if (ImageMime(f) is { } mime && !string.IsNullOrEmpty(f.ResponseB64)) {
             builder.AddContent(seq, ImageResponseSection(mime, f.ResponseB64));
         } else {
-            builder.OpenComponent<FormatView>(seq++);
-            builder.AddComponentParameter(seq++, nameof(FormatView.Label), "Response");
-            builder.AddComponentParameter(seq++, nameof(FormatView.ShowLabel), false);
-            builder.AddComponentParameter(seq++, nameof(FormatView.JsonStr), View.PickJson(f.ResponseJson, f.ResponseJsonRaw));
-            builder.AddComponentParameter(seq++, nameof(FormatView.RawB64), f.ResponseB64);
-            builder.AddComponentParameter(seq++, nameof(FormatView.View), View);
-            builder.AddComponentParameter(seq, nameof(FormatView.FormatChoice), _formatChoice);
+            builder.OpenComponent<CodeFormats>(seq++);
+            builder.AddComponentParameter(seq++, nameof(CodeFormats.Key), "Response");
+            builder.AddComponentParameter(seq++, nameof(CodeFormats.ShowLabel), false);
+            builder.AddComponentParameter(seq++, nameof(CodeFormats.Json), View.PickJson(f.ResponseJson, f.ResponseJsonRaw));
+            builder.AddComponentParameter(seq++, nameof(CodeFormats.RawBase64), f.ResponseB64);
+            builder.AddComponentParameter(seq++, nameof(CodeFormats.View), View);
+            builder.AddComponentParameter(seq++, nameof(CodeFormats.Choice), _formatChoice);
+            builder.AddComponentParameter(seq, nameof(CodeFormats.Reveal), _reveal);
             builder.CloseComponent();
         }
     };
@@ -209,7 +208,7 @@
                                                                                <span class="ack-tag">acknowledgement</span>
                                                                            </div>
                                                                        }
-                                                                       <pre class="data-text">@text</pre>
+                                                                       <CodeSurface Text="@text" Language="text"/>
                                                                    </div>;
 
 

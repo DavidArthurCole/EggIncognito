@@ -1,0 +1,46 @@
+@using EggIncognito.Services.Syntax
+@Content
+
+@code {
+    [Parameter] public string? Text { get; set; }
+    [Parameter] public IReadOnlyList<Span>? Spans { get; set; }
+    [Parameter] public EventCallback<string> OnSegmentClick { get; set; }
+    [Parameter] public string ClickClass { get; set; } = TokenClasses.Blur;
+    [Parameter] public string? ClickTitle { get; set; } = "Click to reveal";
+
+    RenderFragment Content => builder => {
+        var text = Text ?? "";
+        if (text.Length == 0) return;
+        var segments = TextSpans.Slice(text, Spans);
+        var seq = 0;
+        foreach (var seg in segments) {
+            var body = text.Substring(seg.Start, seg.Length);
+            if (seg.Class is null) {
+                builder.AddContent(seq++, body);
+                continue;
+            }
+
+            if (seg.Class == TokenClasses.Mark) {
+                builder.OpenElement(seq++, "mark");
+                builder.AddContent(seq++, body);
+                builder.CloseElement();
+                continue;
+            }
+
+            var clickable = OnSegmentClick.HasDelegate
+                            && ClickClass.Length > 0
+                            && seg.Class.Contains(ClickClass, StringComparison.Ordinal);
+            builder.OpenElement(seq++, "span");
+            builder.AddAttribute(seq++, "class", seg.Class);
+            if (clickable) {
+                builder.AddAttribute(seq++, "title", ClickTitle);
+                builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => OnSegmentClick.InvokeAsync(body)));
+                builder.AddEventStopPropagationAttribute(seq++, "onclick", true);
+            }
+
+            builder.AddContent(seq++, body);
+            builder.CloseElement();
+        }
+    };
+
+}

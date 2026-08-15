@@ -9,21 +9,19 @@ const EIDS_KEY = "inspector.recentEids";
 const LIVE_CONSENT_KEY = "egi:liveApiConsent";
 const HISTORY_KEY = "inspector.history";
 const HISTORY_ENABLED_KEY = "inspector.historyEnabled";
-const HISTORY_SEEN_KEY = "inspector.historySeenNotice";
 const HISTORY_MAX = 50;
 
 const EID_RE = /^EI\d{10,}$/;
 const EID_MAX = 12;
-const RINFO_SEED = {
-  eiUserId: "",
-  clientVersion: 72,
-  version: "1.35.7",
-  build: "111343",
-  platform: "DROID",
-  country: "US",
-  language: "en",
-  debug: false,
-};
+const RINFO_TEXT_KEYS = [
+  "eiUserId",
+  "clientVersion",
+  "version",
+  "build",
+  "platform",
+  "country",
+  "language",
+];
 
 function lruUpsert(list, matches, entry, max) {
   const next = list.filter((e) => !matches(e));
@@ -42,12 +40,20 @@ export function setCustomTarget(value) { setRaw(CUSTOM_TARGET_KEY, String(value 
 export function getLiveConsent() { return getRaw(LIVE_CONSENT_KEY) === "1"; }
 export function setLiveConsent() { setRaw(LIVE_CONSENT_KEY, "1"); }
 export function getRinfoDefaults() {
+  const out = { debug: false };
+  for (const k of RINFO_TEXT_KEYS) out[k] = "";
   try {
     const saved = JSON.parse(getRaw(RINFO_KEY) || "{}");
-    return { ...RINFO_SEED, ...(saved && typeof saved === "object" ? saved : {}) };
+    if (saved && typeof saved === "object") {
+      for (const k of RINFO_TEXT_KEYS) {
+        if (saved[k] !== undefined && saved[k] !== null) out[k] = String(saved[k]);
+      }
+      out.debug = saved.debug === true;
+    }
   } catch {
-    return { ...RINFO_SEED };
+    return out;
   }
+  return out;
 }
 export function setRinfoDefaults(obj) { setRaw(RINFO_KEY, JSON.stringify(obj || {})); }
 function loadEids() {
@@ -87,12 +93,6 @@ export function getHistoryEnabled() {
   return raw === null ? true : raw === "1";
 }
 export function setHistoryEnabled(on) { setRaw(HISTORY_ENABLED_KEY, on ? "1" : "0"); }
-
-export function historyNoticeUnseen() {
-  if (getRaw(HISTORY_SEEN_KEY) === "1") return false;
-  setRaw(HISTORY_SEEN_KEY, "1");
-  return true;
-}
 
 function loadHistory() {
   try {

@@ -1,6 +1,8 @@
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace EggIncognito.Tests.Devices;
 
@@ -59,8 +61,85 @@ public class DeviceProbeRunnerTests {
     }
 
     [Fact]
-    public void ProbeFor_PicksPlatformProbe() {
-        Assert.IsType<AdbDeviceProbe>(DeviceProbeRunner.ProbeFor(Android, new ProcessRunner()));
-        Assert.IsType<IosDeviceProbe>(DeviceProbeRunner.ProbeFor(Ios, new ProcessRunner()));
+    public async Task ProbeOneAsync_DispatchesThroughDevicePlatforms() {
+        var platforms = new RecordingPlatforms();
+        await Assert.ThrowsAsync<InvalidOperationException>(() => ProbeAsync(Ios, platforms));
+
+        Assert.Equal("ios", platforms.Asked);
+        Assert.Equal("i", platforms.Target?.Id);
+        Assert.Equal("u", platforms.Target?.Target);
+        Assert.Equal("p", platforms.Target?.Package);
+    }
+
+    [Fact]
+    public async Task ProbeOneAsync_AsksForTheDevicesOwnPlatform() {
+        var platforms = new RecordingPlatforms();
+        await Assert.ThrowsAsync<InvalidOperationException>(() => ProbeAsync(Android, platforms));
+        Assert.Equal("android", platforms.Asked);
+    }
+
+    private static Task<DeviceJobRow> ProbeAsync(Device d, IDevicePlatforms platforms) {
+        var db = new EggIncognitoDbContext(new DbContextOptionsBuilder<EggIncognitoDbContext>()
+            .UseNpgsql("Host=127.0.0.1;Port=1;Database=none;Username=none;Password=none").Options);
+        return DeviceProbeRunner.ProbeOneAsync(d, "test", platforms, new DeviceJobStore(db, TimeProvider.System),
+            db, NullLogger.Instance, TimeProvider.System, CancellationToken.None);
+    }
+
+    private sealed class RecordingPlatforms : IDevicePlatforms {
+        private readonly RecordingPlatform _ios = new(Platforms.Ios);
+        private readonly RecordingPlatform _android = new(Platforms.Android);
+
+        public string? Asked { get; private set; }
+        public DeviceTarget? Target => _ios.Target ?? _android.Target;
+
+        public IDevicePlatform For(string platform) {
+            Asked = platform;
+            return Platforms.Matches(platform, Platforms.Ios) ? _ios : _android;
+        }
+    }
+
+    private sealed class RecordingPlatform(string platform)
+        : DevicePlatformBase(platform, [], [], []) {
+        private const string Refusal = "recording platform";
+
+        public DeviceTarget? Target { get; private set; }
+
+        public override Task<DeviceProbeResult> ProbeAsync(DeviceTarget target, CancellationToken ct) {
+            Target = target;
+            throw new InvalidOperationException(Refusal);
+        }
+
+        public override Task<DeviceResult<byte[]>> PullAppBinaryAsync(DeviceTarget target, CancellationToken ct) =>
+            throw new NotSupportedException(Refusal);
+
+        public override Task<DeviceResult<byte[]>> ReadAssetAsync(DeviceTarget target, DeviceAssetKind kind,
+            string name, CancellationToken ct) => throw new NotSupportedException(Refusal);
+
+        public override Task<DeviceResult<IReadOnlyList<string>>> ListAssetsAsync(DeviceTarget target,
+            DeviceAssetKind kind, CancellationToken ct) => throw new NotSupportedException(Refusal);
+
+        public override IReadOnlyList<HarvestEntry> Manifest() => [];
+
+        public override Task<DeviceResult<string>> FingerprintAsync(DeviceTarget target, HarvestEntry entry,
+            CancellationToken ct) => throw new NotSupportedException(Refusal);
+
+        public override Task<DeviceResult<HarvestBatch>> HarvestAsync(DeviceTarget target, HarvestEntry entry,
+            IReadOnlyDictionary<string, string> known, CancellationToken ct) =>
+            throw new NotSupportedException(Refusal);
+
+        public override Task<DeviceResult> RestartAppAsync(DeviceTarget target, CancellationToken ct) =>
+            throw new NotSupportedException(Refusal);
+
+        public override Task<DeviceResult> LockAsync(DeviceTarget target, CancellationToken ct) =>
+            throw new NotSupportedException(Refusal);
+
+        public override Task<DeviceResult> UnlockAsync(DeviceTarget target, CancellationToken ct) =>
+            throw new NotSupportedException(Refusal);
+
+        public override Task<DeviceResult> KillAppAsync(DeviceTarget target, CancellationToken ct) =>
+            throw new NotSupportedException(Refusal);
+
+        public override Task<DeviceResult<ParticleCaptureModel.Model>> CaptureParticlesAsync(DeviceTarget target,
+            string scriptBody, string? addrOffset, CancellationToken ct) => throw new NotSupportedException(Refusal);
     }
 }

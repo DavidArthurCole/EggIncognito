@@ -19,7 +19,7 @@ public static class ProtoVersionTranslator {
         var link = MatchTier(candidates, source.ReleaseId is not null,
             k => k.ReleaseId == source.ReleaseId, VersionLinkKind.Canonical);
         link ??= MatchTier(candidates, !string.IsNullOrWhiteSpace(source.ProtoSha),
-            k => SameText(k.ProtoSha, source.ProtoSha), VersionLinkKind.ProtoSha);
+            k => SharesProtoSha(k, source), VersionLinkKind.ProtoSha);
         link ??= MatchTier(candidates, !string.IsNullOrWhiteSpace(source.AppVersion),
             k => SameText(k.AppVersion, source.AppVersion), VersionLinkKind.AppVersion);
         link ??= MatchTier(candidates, !string.IsNullOrWhiteSpace(source.ClientVersion),
@@ -45,6 +45,8 @@ public static class ProtoVersionTranslator {
         foreach (string platform in platforms) links.Add(Translate(row, platform, rows, key));
         return links;
     }
+
+    public static bool SharesProtoSha(VersionKey x, VersionKey y) => SameText(x.ProtoSha, y.ProtoSha);
 
     public static string Describe(VersionLinkKind kind) => kind switch {
         VersionLinkKind.Canonical => "same release",

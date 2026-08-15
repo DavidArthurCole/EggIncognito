@@ -1,0 +1,395 @@
+@using EggIncognito.Services.ProtoExtract
+@using EggIncognito.Services.Syntax
+@using Microsoft.AspNetCore.Components.Web.Virtualization
+@if (Mode == CodeDiffMode.Structured) {
+    @if (Structural is null || Structural.IsEmpty) {
+        <p class="text-muted text-sm m-0">@EmptyText</p>
+    } else {
+        <div class="cstruct">
+            <p class="cstruct-summary">@Summary()</p>
+            @foreach (var e in Structural.Entries) {
+                <div class="cstruct-entry">
+                    <div class="cstruct-head">
+                        @if (e.Kind == MessageDiffKind.Renamed) {
+                            <span class="cstruct-path cstruct-rem">@e.OldPath</span>
+                            <span class="text-muted">-&gt;</span>
+                            <span class="cstruct-path cstruct-add">@e.NewPath</span>
+                        } else {
+                            <span class="cstruct-path @PathClass(e.Kind)">@e.DisplayPath</span>
+                        }
+                    </div>
+                    @if (e.Kind is MessageDiffKind.Added or MessageDiffKind.Removed) {
+                        <details>
+                            <summary class="text-muted cursor-pointer text-xs">@e.Body.Count lines</summary>
+                            <div class="cstruct-rows">
+                                @foreach (var line in e.Body) {
+                                    <span class="@(e.Kind == MessageDiffKind.Added ? "cstruct-add" : "cstruct-rem")">@(e.Kind == MessageDiffKind.Added ? "+" : "-")@line</span>
+                                }
+                            </div>
+                        </details>
+                    } else if (e.FieldChanges.Count > 0 || e.EnumChanges.Count > 0) {
+                        <div class="cstruct-rows">
+                            @foreach (var c in e.FieldChanges.OrderBy(c => c.Number)) {
+                                @if (c.Old is not null) {
+                                    <span class="cstruct-rem">-@c.Old.Raw</span>
+                                }
+
+                                @if (c.New is not null) {
+                                    <span class="cstruct-add">+@c.New.Raw</span>
+                                }
+                            }
+                            @foreach (var c in e.EnumChanges.OrderBy(c => c.Number)) {
+                                @if (c.Old is not null) {
+                                    <span class="cstruct-rem">-@c.Old.Raw</span>
+                                }
+
+                                @if (c.New is not null) {
+                                    <span class="cstruct-add">+@c.New.Raw</span>
+                                }
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
+} else if (_total == 0) {
+    <p class="text-muted text-sm m-0">@EmptyText</p>
+} else {
+    <div class="code-surface">
+        @if (ShowToolbar) {
+            <div class="code-toolbar">
+                @Tools
+                @if (Filter is null) {
+                    <FilterInput Class="code-filter" Placeholder="Filter..." AriaLabel="Filter diff lines"
+                                 Value="@_filter" ValueChanged="OnFilterChanged"/>
+                }
+                <span class="code-toolbar-gap"></span>
+                <button type="button" class="btn-mini code-toggle @(WrapNow ? "code-toggle-on" : "")"
+                        disabled="@WrapLocked" title="@WrapTitle" @onclick="ToggleWrap">
+                    Wrap
+                </button>
+            </div>
+        }
+        <div class="code-scroll" style="@ScrollStyle">
+            <div class="cdiff @ModeClass @(WrapNow ? "code-wrap" : "")">
+                @if (_noMatch) {
+                    <div class="code-row code-note">@NoMatchText</div>
+                } else if (Mode == CodeDiffMode.Split) {
+                    @if (Virtualized) {
+                        <Virtualize Items="_split" Context="line" ItemSize="CodeMetrics.RowHeightPx"
+                                    OverscanCount="CodeMetrics.Overscan">
+                            @SplitRow(line)
+                        </Virtualize>
+                    } else {
+                        @foreach (var line in _split) {
+                            @SplitRow(line)
+                        }
+                    }
+                } else {
+                    @if (Virtualized) {
+                        <Virtualize Items="_unified" Context="line" ItemSize="CodeMetrics.RowHeightPx"
+                                    OverscanCount="CodeMetrics.Overscan">
+                            @UnifiedRow(line)
+                        </Virtualize>
+                    } else {
+                        @foreach (var line in _unified) {
+                            @UnifiedRow(line)
+                        }
+                    }
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public CodeDiffMode Mode { get; set; } = CodeDiffMode.Split;
+    [Parameter] public SideBySideResult? Split { get; set; }
+    [Parameter] public string? Unified { get; set; }
+    [Parameter] public ProtoDiffResult? Structural { get; set; }
+    [Parameter] public string Language { get; set; } = "text";
+    [Parameter] public string? Filter { get; set; }
+    [Parameter] public bool Wrap { get; set; }
+    [Parameter] public string MaxHeight { get; set; } = "";
+    [Parameter] public EventCallback<int> OnHunk { get; set; }
+    [Parameter] public string EmptyText { get; set; } = "No differences.";
+    [Parameter] public RenderFragment? Tools { get; set; }
+    [Parameter] public bool ShowToolbar { get; set; } = true;
+
+    const string NoMatchText = "(no lines match)";
+
+    sealed record SplitLine(DiffRow Row, int Hunk, int LeftIndex, int RightIndex);
+
+    sealed record UnifiedLine(string Kind, string Text, int Index, int Offset);
+
+    List<SplitLine> _split = [];
+    List<UnifiedLine> _unified = [];
+    HighlightedText _left = SyntaxHighlighter.Highlight("", "text");
+    HighlightedText _right = SyntaxHighlighter.Highlight("", "text");
+    HighlightedText _uniBody = SyntaxHighlighter.Highlight("", "text");
+
+    SideBySideResult? _builtSplit;
+    string? _builtUnified;
+    string? _builtLanguage;
+    CodeDiffMode _builtMode;
+    string? _filterApplied;
+    string _filter = "";
+    bool _wrap;
+    bool _wrapParam;
+    bool _wrapSeeded;
+    bool _noMatch;
+    int _total;
+    int _shown;
+
+    bool WrapLocked => _total > CodeMetrics.WrapRowCap;
+
+    bool WrapNow => !WrapLocked && _wrap;
+
+    string WrapTitle => WrapLocked ? CodeMetrics.WrapDisabledTitle : "Wrap long lines";
+
+    bool Virtualized => !WrapNow && _shown > CodeMetrics.VirtualizeAbove;
+
+    string ModeClass => Mode == CodeDiffMode.Split ? "cdiff-split" : "cdiff-unified";
+
+    string? ScrollStyle => string.IsNullOrEmpty(MaxHeight) ? null : $"max-height:{MaxHeight}";
+
+    protected override void OnParametersSet() {
+        if (!_wrapSeeded || Wrap != _wrapParam) {
+            _wrap = Wrap;
+            _wrapParam = Wrap;
+            _wrapSeeded = true;
+        }
+
+        if (Mode == CodeDiffMode.Structured) return;
+
+        var language = SyntaxHighlighter.Resolve(Language);
+        var rebuild = _builtMode != Mode
+                      || !string.Equals(_builtLanguage, language, StringComparison.Ordinal)
+                      || !ReferenceEquals(_builtSplit, Split)
+                      || !string.Equals(_builtUnified, Unified, StringComparison.Ordinal);
+        if (rebuild) {
+            _builtMode = Mode;
+            _builtLanguage = language;
+            _builtSplit = Split;
+            _builtUnified = Unified;
+            _filterApplied = null;
+            if (Mode == CodeDiffMode.Split) {
+                BuildSplitDocuments(language);
+            } else {
+                BuildUnifiedDocument(language);
+            }
+        }
+
+        ApplyFilter();
+        if (WrapLocked) _wrap = false;
+    }
+
+    void BuildSplitDocuments(string language) {
+        var rows = Split?.Rows ?? [];
+        var leftLines = new List<string>(rows.Count);
+        var rightLines = new List<string>(rows.Count);
+        foreach (var row in rows) {
+            if (row.Left is not null) leftLines.Add(row.Left);
+            if (row.Right is not null) rightLines.Add(row.Right);
+        }
+
+        _left = SyntaxHighlighter.Highlight(string.Join("\n", leftLines), language);
+        _right = SyntaxHighlighter.Highlight(string.Join("\n", rightLines), language);
+    }
+
+    void BuildUnifiedDocument(string language) {
+        var text = Unified ?? "";
+        if (text.Length == 0) {
+            _uniBody = SyntaxHighlighter.Highlight("", language);
+            return;
+        }
+
+        var body = new List<string>();
+        foreach (var raw in text.Split('\n')) {
+            var line = raw.EndsWith('\r') ? raw[..^1] : raw;
+            body.Add(RowClass(line) is "head" or "meta" || line.Length == 0 ? "" : line[1..]);
+        }
+
+        _uniBody = SyntaxHighlighter.Highlight(string.Join("\n", body), language);
+    }
+
+    void ApplyFilter() {
+        var q = (Filter ?? _filter).Trim();
+        if (_filterApplied is not null && string.Equals(_filterApplied, q, StringComparison.Ordinal)) return;
+        _filterApplied = q;
+        if (Mode == CodeDiffMode.Split) {
+            BuildSplitRows(q);
+        } else {
+            BuildUnifiedRows(q);
+        }
+    }
+
+    void BuildSplitRows(string q) {
+        _split = [];
+        var result = Split;
+        if (result is null) {
+            _total = 0;
+            _shown = 0;
+            _noMatch = false;
+            return;
+        }
+
+        var starts = result.HunkStarts;
+        var next = 0;
+        var hunk = -1;
+        var leftIdx = -1;
+        var rightIdx = -1;
+        var total = 0;
+        for (var i = 0; i < result.Rows.Count; i++) {
+            while (next < starts.Count && starts[next] <= i) {
+                hunk = next;
+                next++;
+            }
+
+            var row = result.Rows[i];
+            if (row.Left is not null) leftIdx++;
+            if (row.Right is not null) rightIdx++;
+            total++;
+            if (q.Length > 0 && !Matches(row, q)) continue;
+            _split.Add(new SplitLine(row, row.Kind == DiffRowKind.Context ? -1 : hunk,
+                row.Left is null ? -1 : leftIdx, row.Right is null ? -1 : rightIdx));
+        }
+
+        _total = total;
+        _shown = _split.Count;
+        _noMatch = total > 0 && _shown == 0;
+    }
+
+    void BuildUnifiedRows(string q) {
+        _unified = [];
+        var text = Unified ?? "";
+        if (text.Length == 0) {
+            _total = 0;
+            _shown = 0;
+            _noMatch = false;
+            return;
+        }
+
+        var index = 0;
+        var total = 0;
+        foreach (var raw in text.Split('\n')) {
+            var line = raw.EndsWith('\r') ? raw[..^1] : raw;
+            var kind = RowClass(line);
+            var offset = kind is "head" or "meta" || line.Length == 0 ? -1 : 1;
+            total++;
+            if (q.Length == 0 || line.Contains(q, StringComparison.OrdinalIgnoreCase)) {
+                _unified.Add(new UnifiedLine(kind, line, index, offset));
+            }
+
+            index++;
+        }
+
+        _total = total;
+        _shown = _unified.Count;
+        _noMatch = total > 0 && _shown == 0;
+    }
+
+    Task OnFilterChanged(string value) {
+        _filter = value;
+        ApplyFilter();
+        return Task.CompletedTask;
+    }
+
+    Task ToggleWrap() {
+        if (WrapLocked) return Task.CompletedTask;
+        _wrap = !_wrap;
+        return Task.CompletedTask;
+    }
+
+    static bool Matches(DiffRow row, string q) {
+        return (row.Left?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)
+               || (row.Right?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false);
+    }
+
+    Task RaiseHunk(SplitLine line) {
+        if (line.Hunk < 0 || !OnHunk.HasDelegate) return Task.CompletedTask;
+        return OnHunk.InvokeAsync(line.Hunk);
+    }
+
+    static string RowClass(DiffRowKind kind) {
+        return kind switch {
+            DiffRowKind.Added => "add",
+            DiffRowKind.Removed => "rem",
+            DiffRowKind.Changed => "chg",
+            _ => "ctx"
+        };
+    }
+
+    static string RowClass(string text) {
+        if (text.Length == 0) return RowClass(DiffRowKind.Context);
+        if (text.StartsWith("@@", StringComparison.Ordinal)) return "head";
+        if (text.StartsWith("---", StringComparison.Ordinal)
+            || text.StartsWith("+++", StringComparison.Ordinal)
+            || text[0] == '\\') return "meta";
+        if (text[0] == '+') return RowClass(DiffRowKind.Added);
+        if (text[0] == '-') return RowClass(DiffRowKind.Removed);
+        return RowClass(DiffRowKind.Context);
+    }
+
+    static string PathClass(MessageDiffKind kind) {
+        return kind switch {
+            MessageDiffKind.Added => "cstruct-add",
+            MessageDiffKind.Removed => "cstruct-rem",
+            _ => ""
+        };
+    }
+
+    static string Glyph(DiffRow row, bool left) {
+        if (left) return row.Kind is DiffRowKind.Removed or DiffRowKind.Changed ? "-" : "";
+        return row.Kind is DiffRowKind.Added or DiffRowKind.Changed ? "+" : "";
+    }
+
+    IReadOnlyList<Span> SideSpans(HighlightedText doc, int index, string? text, IReadOnlyList<InkSpan>? ink, string inkClass) {
+        if (string.IsNullOrEmpty(text) || index < 0) return TextSpans.Empty;
+        IReadOnlyList<Span> spans = doc.SpansFor(index);
+        if (ink is null || ink.Count == 0) return spans;
+        var over = new List<Span>(ink.Count);
+        foreach (var s in ink) over.Add(new Span(s.Start, s.Length, inkClass));
+        return TextSpans.Layer(spans, over, text.Length);
+    }
+
+    IReadOnlyList<Span> UnifiedSpans(UnifiedLine line) {
+        if (line.Offset < 0) return TextSpans.Empty;
+        var spans = _uniBody.SpansFor(line.Index);
+        if (spans.Count == 0) return TextSpans.Empty;
+        var shifted = new List<Span>(spans.Count + 1) { new(0, line.Offset, TokenClasses.Punct) };
+        foreach (var s in spans) shifted.Add(new Span(s.Start + line.Offset, s.Length, s.Class));
+        return shifted;
+    }
+
+    string Summary() {
+        var d = Structural!;
+        var parts = new List<string>();
+        if (d.AddedMessages > 0) parts.Add($"{d.AddedMessages} added");
+        if (d.RemovedMessages > 0) parts.Add($"{d.RemovedMessages} removed");
+        if (d.RenamedMessages > 0) parts.Add($"{d.RenamedMessages} renamed");
+        if (d.ModifiedMessages > 0) parts.Add($"{d.ModifiedMessages} modified");
+        return $"{string.Join(", ", parts)} message{(d.Entries.Count == 1 ? "" : "s")}, {d.FieldChangeCount} field change{(d.FieldChangeCount == 1 ? "" : "s")}";
+    }
+
+    RenderFragment SplitRow(SplitLine line) => @<div class="cdiff-row cdiff-@RowClass(line.Row.Kind)" @onclick="@(() => RaiseHunk(line))">
+                                                   <span class="cdiff-gutter">@line.Row.LeftNo</span>
+                                                   <span class="cdiff-sign">@Glyph(line.Row, true)</span>
+                                                   <span class="cdiff-text">
+                                                       <SpanText Text="@line.Row.Left" Spans="@SideSpans(_left, line.LeftIndex, line.Row.Left, line.Row.LeftInk, "cdiff-ink-rem")"/>
+                                                   </span>
+                                                   <span class="cdiff-gutter">@line.Row.RightNo</span>
+                                                   <span class="cdiff-sign">@Glyph(line.Row, false)</span>
+                                                   <span class="cdiff-text">
+                                                       <SpanText Text="@line.Row.Right" Spans="@SideSpans(_right, line.RightIndex, line.Row.Right, line.Row.RightInk, "cdiff-ink-add")"/>
+                                                   </span>
+                                               </div>;
+
+    RenderFragment UnifiedRow(UnifiedLine line) => @<div class="cdiff-row cdiff-@line.Kind">
+                                                       <span class="cdiff-text">
+                                                           <SpanText Text="@line.Text" Spans="@UnifiedSpans(line)"/>
+                                                       </span>
+                                                   </div>;
+
+}

@@ -1,0 +1,56 @@
+@using EggIncognito.Services.Inspector
+@inject IRouteCatalog Catalog
+
+@if (string.IsNullOrEmpty(Name)) {
+    <div class="empty-state">
+        No object selected.
+        <div class="empty-hint">
+            Pick a proto message type in the rail to see its documentation, its tags, and the
+            endpoints that use it as a request or response. Objects are the Egg, Inc. API's data
+            shapes, the building blocks every request and response is made of.
+        </div>
+    </div>
+} else {
+    <DocSubjectView Kind="DocSubjectKind.Message" Key="@Name" Title="@Name">
+        <Footer>
+            <div>
+                <div class="doc-section-title">Used by @(Using().Count) endpoint@(Using().Count == 1 ? "" : "s")</div>
+                @if (Using().Count > 0) {
+                    <div class="doc-usedby-list">
+                        @foreach (var e in Using()) {
+                            <button type="button" class="doc-usedby-item"
+                                    @onclick="() => OnSelectEndpoint.InvokeAsync(e)">
+                                <span class="mono">@e.Path</span><span class="doc-usedby-role">@RoleOf(e)</span>
+                            </button>
+                        }
+                    </div>
+                }
+            </div>
+        </Footer>
+    </DocSubjectView>
+}
+
+@code {
+    [Parameter] public string? Name { get; set; }
+    [Parameter] public EventCallback<RouteInfo> OnSelectEndpoint { get; set; }
+
+    List<RouteInfo> _using = [];
+    string? _usingFor;
+
+    protected override void OnParametersSet() {
+        if (Name == _usingFor) return;
+        _usingFor = Name;
+        _using = string.IsNullOrEmpty(Name)
+            ? []
+            : Catalog.All().Where(e => e.Request == Name || e.Response == Name).ToList();
+    }
+
+    List<RouteInfo> Using() {
+        return _using;
+    }
+
+    string RoleOf(RouteInfo e) {
+        return e.Request == Name && e.Response == Name ? "req+resp" : e.Request == Name ? "request" : "response";
+    }
+
+}

@@ -1,8 +1,3 @@
-@* Visualizes the transform-stage list from /build (or the decode stages from /send + /decode-response).
-   Each stage is a collapsible card: a head with the index, name, optional role badge, byte length, and
-   a body with the description/note plus hex/base64 blocks. Emits the .stage / .stage-head / .stage-body
-   class names the old app.js renderStages used so the compiled CSS applies. *@
-
 @if (Stages is null || Stages.Count == 0) {
     <div class="muted">@Empty</div>
 } else {
@@ -15,32 +10,35 @@
                 <span class="num">@idx</span>
                 <span class="sname">@s.Name</span>
                 @if (s.Role is not null) {
-                    <span class="srole">@s.Role</span>
+                    <span class="srole">@s.Role.ToLowerInvariant()</span>
                 }
                 <span class="slen">@s.ByteLength bytes</span>
             </div>
             @if (open) {
                 <div class="stage-body">
                     <div class="stage-desc">@s.Description</div>
-                    @if (!string.IsNullOrEmpty(s.Note) && !(s.Role == "encoding" && s.Name == "form-urlencode")) {
+                    @if (!string.IsNullOrEmpty(s.Note) && !IsFormBody(s)) {
                         <div class="stage-note">@s.Note</div>
                     }
                     @if (!string.IsNullOrEmpty(s.Hex)) {
                         <div>
                             <div class="bytes-label">hex</div>
-                            <div class="bytes">@s.Hex</div>
+                            <CodeSurface Text="@s.Hex" Language="hex" Gutter="CodeGutter.None" ShowToolbar="false"
+                                         MaxHeight="14rem"/>
                         </div>
                     }
                     @if (!string.IsNullOrEmpty(s.Base64)) {
                         <div>
                             <div class="bytes-label">base64</div>
-                            <div class="bytes">@s.Base64</div>
+                            <CodeSurface Text="@s.Base64" Language="text" Gutter="CodeGutter.None" ShowToolbar="false"
+                                         MaxHeight="14rem"/>
                         </div>
                     }
-                    @if (s.Role == "encoding" && s.Name == "form-urlencode" && !string.IsNullOrEmpty(s.Note)) {
+                    @if (IsFormBody(s) && !string.IsNullOrEmpty(s.Note)) {
                         <div>
                             <div class="bytes-label">body</div>
-                            <div class="bytes">@s.Note</div>
+                            <CodeSurface Text="@s.Note" Language="text" Gutter="CodeGutter.None" ShowToolbar="false"
+                                         MaxHeight="14rem"/>
                         </div>
                     }
                 </div>
@@ -54,6 +52,10 @@
     [Parameter] public string Empty { get; set; } = "Build a request to see the transform pipeline.";
 
     readonly HashSet<int> _collapsed = [];
+
+    static bool IsFormBody(TransportStage s) {
+        return s.Role == "encoding" && s.Name == "form-urlencode";
+    }
 
     void Toggle(int i) {
         if (!_collapsed.Remove(i)) _collapsed.Add(i);

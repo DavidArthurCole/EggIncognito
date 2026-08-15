@@ -1,0 +1,258 @@
+@using EggIncognito.Services.Protos
+<div class="pwb-fil">
+    @for (var g = 0; g < _groups.Count; g++) {
+        var groupIndex = g;
+        var group = _groups[g];
+        if (groupIndex > 0) {
+            <div class="pwb-fil-or"><span class="pwb-fil-arrow">&rarr;</span> OR</div>
+        }
+
+        <div class="@(groupIndex > 0 ? "pwb-fil-group pwb-fil-sub" : "pwb-fil-group")">
+            @for (var r = 0; r < group.Rows.Count; r++) {
+                var rowIndex = r;
+                var row = group.Rows[r];
+                var def = RegistryFilter.Field(row.Field);
+                if (rowIndex > 0) {
+                    <div class="pwb-fil-and">AND</div>
+                }
+
+                <div class="pwb-fil-row">
+                    <select class="pwb-fil-sel" value="@row.Field"
+                            @onchange="@(e => SetField(groupIndex, rowIndex, Text(e)))">
+                        <option value="">field...</option>
+                        @foreach (var field in RegistryFilter.Fields) {
+                            <option value="@field.Key">@field.Label</option>
+                        }
+                    </select>
+                    @if (def is not null) {
+                        @if (def.Kind == FilterValueKind.Bool) {
+                            <span class="pwb-fil-note">is</span>
+                            <select class="pwb-fil-sel @(row.OpSet ? "" : "pwb-fil-bad")" value="@BoolText(row)"
+                                    @onchange="@(e => SetBool(groupIndex, rowIndex, Text(e)))">
+                                <option value="">value...</option>
+                                <option value="True">True</option>
+                                <option value="False">False</option>
+                            </select>
+                        } else {
+                            <select class="pwb-fil-sel @(row.OpSet ? "" : "pwb-fil-bad")" value="@OpText(row)"
+                                    @onchange="@(e => SetOp(groupIndex, rowIndex, Text(e)))">
+                                <option value="">operator...</option>
+                                @foreach (var op in def.Ops) {
+                                    <option value="@op.Op">@op.Label</option>
+                                }
+                            </select>
+                            @if (row.OpSet) {
+                                @if (def.Kind is FilterValueKind.Select or FilterValueKind.Version) {
+                                    <select class="pwb-fil-val @(row.Value.Length == 0 ? "pwb-fil-bad" : "")"
+                                            value="@row.Value" @onchange="@(e => SetValue(groupIndex, rowIndex, Text(e)))">
+                                        <option value="">value...</option>
+                                        @foreach (var option in Options(def)) {
+                                            <option value="@option.Value">@option.Label</option>
+                                        }
+                                    </select>
+                                } else if (def.Kind == FilterValueKind.Date) {
+                                    <input type="date" class="pwb-fil-val @(row.Value.Length == 0 ? "pwb-fil-bad" : "")"
+                                           value="@row.Value" @onchange="@(e => SetValue(groupIndex, rowIndex, Text(e)))"/>
+                                } else {
+                                    <input type="text" class="pwb-fil-val @(row.Value.Length == 0 ? "pwb-fil-bad" : "")"
+                                           list="@ListId(def, groupIndex, rowIndex)" placeholder="value" autocomplete="off"
+                                           value="@row.Value" @onchange="@(e => SetValue(groupIndex, rowIndex, Text(e)))"/>
+                                    @if (def.Options is not null) {
+                                        <datalist id="@ListId(def, groupIndex, rowIndex)">
+                                            @foreach (var option in Options(def)) {
+                                                <option value="@option.Value"></option>
+                                            }
+                                        </datalist>
+                                    }
+                                }
+                            }
+                        }
+
+                        @if (!Complete(row)) {
+                            <span class="pwb-fil-warn" title="Fill in the missing field">!</span>
+                        }
+
+                        <button type="button" class="pwb-fil-x" title="Remove condition" aria-label="Remove condition"
+                                @onclick="@(() => RemoveRow(groupIndex, rowIndex))">
+                            <Icon Name="x" Class="icon-sm"/>
+                        </button>
+                    }
+                </div>
+            }
+            @if (groupIndex == _groups.Count - 1) {
+                <button type="button" class="pwb-fil-orbtn" disabled="@(!HasComplete(group))" @onclick="AddGroup">
+                    OR
+                </button>
+            }
+        </div>
+    }
+</div>
+
+@code {
+
+    sealed class DraftRow {
+        public string Field { get; set; } = "";
+        public FilterOp Op { get; set; }
+        public bool OpSet { get; set; }
+        public string Value { get; set; } = "";
+    }
+
+    sealed class DraftGroup {
+        public List<DraftRow> Rows { get; } = [];
+    }
+
+    [Parameter] public RegistryQuery Query { get; set; } = RegistryQuery.Empty;
+
+    [Parameter] public EventCallback<RegistryQuery> QueryChanged { get; set; }
+
+    [Parameter] public IReadOnlyList<ProtoRegistryRow> Rows { get; set; } = [];
+
+    readonly List<DraftGroup> _groups = [];
+    readonly Dictionary<string, IReadOnlyList<FilterOption>> _options = [];
+
+    IReadOnlyList<ProtoRegistryRow>? _optionSource;
+    string _signature = "";
+    bool _seeded;
+
+    protected override void OnParametersSet() {
+        if (!ReferenceEquals(_optionSource, Rows)) {
+            _optionSource = Rows;
+            _options.Clear();
+        }
+
+        var signature = Query.Signature();
+        if (_seeded && signature == _signature) {
+            EnsureTrailing();
+            return;
+        }
+
+        _seeded = true;
+        _signature = signature;
+        Seed();
+    }
+
+    void Seed() {
+        _groups.Clear();
+        foreach (var group in Query.Groups) {
+            var draft = new DraftGroup();
+            foreach (var condition in group.Conditions) {
+                draft.Rows.Add(new DraftRow {
+                    Field = condition.Field,
+                    Op = condition.Op,
+                    OpSet = true,
+                    Value = condition.Value
+                });
+            }
+
+            if (draft.Rows.Count > 0) _groups.Add(draft);
+        }
+
+        EnsureTrailing();
+    }
+
+    void EnsureTrailing() {
+        if (_groups.Count == 0) _groups.Add(new DraftGroup());
+        var last = _groups[^1];
+        if (last.Rows.Count == 0 || last.Rows[^1].Field.Length > 0) last.Rows.Add(new DraftRow());
+    }
+
+    IReadOnlyList<FilterOption> Options(FilterFieldDef def) {
+        if (def.Options is null) return [];
+        if (_options.TryGetValue(def.Key, out var cached)) return cached;
+        var built = def.Options(Rows);
+        _options[def.Key] = built;
+        return built;
+    }
+
+    static string ListId(FilterFieldDef def, int groupIndex, int rowIndex) {
+        return $"pwbfil-{def.Key}-{groupIndex}-{rowIndex}";
+    }
+
+    static string Text(ChangeEventArgs e) {
+        return e.Value?.ToString() ?? "";
+    }
+
+    static string OpText(DraftRow row) {
+        return row.OpSet ? row.Op.ToString() : "";
+    }
+
+    static string BoolText(DraftRow row) {
+        if (!row.OpSet) return "";
+        return row.Op == FilterOp.True ? "True" : "False";
+    }
+
+    static bool Complete(DraftRow row) {
+        return row.OpSet && new FilterCondition(row.Field, row.Op, row.Value).Complete;
+    }
+
+    static bool HasComplete(DraftGroup group) {
+        return group.Rows.Any(Complete);
+    }
+
+    Task SetField(int groupIndex, int rowIndex, string value) {
+        var row = _groups[groupIndex].Rows[rowIndex];
+        if (row.Field == value) return Task.CompletedTask;
+        row.Field = value;
+        row.OpSet = false;
+        row.Op = FilterOp.Is;
+        row.Value = "";
+        EnsureTrailing();
+        return Emit();
+    }
+
+    Task SetOp(int groupIndex, int rowIndex, string value) {
+        var row = _groups[groupIndex].Rows[rowIndex];
+        if (Enum.TryParse(value, out FilterOp op)) {
+            row.Op = op;
+            row.OpSet = true;
+        } else {
+            row.OpSet = false;
+            row.Op = FilterOp.Is;
+        }
+
+        return Emit();
+    }
+
+    Task SetBool(int groupIndex, int rowIndex, string value) {
+        var row = _groups[groupIndex].Rows[rowIndex];
+        row.OpSet = value is "True" or "False";
+        row.Op = value == "False" ? FilterOp.False : FilterOp.True;
+        row.Value = "";
+        return Emit();
+    }
+
+    Task SetValue(int groupIndex, int rowIndex, string value) {
+        _groups[groupIndex].Rows[rowIndex].Value = value;
+        return Emit();
+    }
+
+    Task RemoveRow(int groupIndex, int rowIndex) {
+        var group = _groups[groupIndex];
+        group.Rows.RemoveAt(rowIndex);
+        if (group.Rows.Count == 0) _groups.RemoveAt(groupIndex);
+        EnsureTrailing();
+        return Emit();
+    }
+
+    Task AddGroup() {
+        _groups.Add(new DraftGroup());
+        EnsureTrailing();
+        return Emit();
+    }
+
+    Task Emit() {
+        var groups = new List<FilterGroup>();
+        foreach (var group in _groups) {
+            var conditions = group.Rows
+                .Where(Complete)
+                .Select(r => new FilterCondition(r.Field, r.Op, r.Value))
+                .ToList();
+            if (conditions.Count > 0) groups.Add(new FilterGroup(conditions));
+        }
+
+        var next = RegistryFilter.Prune(Query with { Groups = groups });
+        _signature = next.Signature();
+        return QueryChanged.InvokeAsync(next);
+    }
+
+}

@@ -1,0 +1,31 @@
+<div class="env-box">
+    <div class="env-box-title">Environment (BasicRequestInfo overrides)</div>
+    <div class="env-rowgroup">
+        <EnvField Row="@Find("eiUserId")" WidthClass="env-w-eid" OnChanged="OnChanged"/>
+        <EnvField Row="@Find("debug")" WidthClass="env-w-bool" OnChanged="OnChanged"/>
+    </div>
+    <div class="env-rowgroup">
+        <EnvField Row="@Find("clientVersion")" WidthClass="env-w-tiny" OnChanged="OnChanged"/>
+        <EnvField Row="@Find("version")" WidthClass="env-w-sm" OnChanged="OnChanged"/>
+        <EnvField Row="@Find("build")" WidthClass="env-w-sm" OnChanged="OnChanged"/>
+    </div>
+    <div class="env-rowgroup">
+        <EnvField Row="@Find("platform")" WidthClass="env-w-sm" OnChanged="OnChanged"/>
+        <EnvField Row="@Find("country")" WidthClass="env-w-tiny" OnChanged="OnChanged"/>
+        <EnvField Row="@Find("language")" WidthClass="env-w-tiny" OnChanged="OnChanged"/>
+    </div>
+</div>
+
+@code {
+    [Parameter] public IReadOnlyList<EnvRow> Rows { get; set; } = [];
+    [Parameter] public EventCallback<EnvRow> OnChanged { get; set; }
+
+    EnvRow? Find(string key) {
+        foreach (var r in Rows) {
+            if (r.Key == key) return r;
+        }
+
+        return null;
+    }
+
+}

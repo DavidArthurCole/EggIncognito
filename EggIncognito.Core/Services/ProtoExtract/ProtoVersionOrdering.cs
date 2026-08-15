@@ -9,6 +9,7 @@ public sealed record VersionKey(
 
 public static class ProtoVersionOrdering {
     private static readonly IComparer<VersionKey> KeyComparer = Comparer<VersionKey>.Create(Compare);
+    private static readonly IComparer<VersionKey> ReleaseComparer = Comparer<VersionKey>.Create(CompareReleaseThenPlatform);
 
     public static int Compare(VersionKey x, VersionKey y) {
         int cmp = CompareDotted(x.AppVersion, y.AppVersion);
@@ -45,6 +46,20 @@ public static class ProtoVersionOrdering {
             .ThenBy(pair => pair.Key, KeyComparer)
             .Select(pair => pair.Item)
             .ToList();
+
+    public static IReadOnlyList<T> SortByRelease<T>(IEnumerable<T> items, Func<T, VersionKey> key) =>
+        items.Select(item => (Item: item, Key: key(item)))
+            .OrderBy(pair => pair.Key, ReleaseComparer)
+            .Select(pair => pair.Item)
+            .ToList();
+
+    private static int CompareReleaseThenPlatform(VersionKey x, VersionKey y) {
+        int cmp = CompareRelease(x, y);
+        if (cmp != 0) return cmp;
+
+        cmp = PlatformRank(x.Platform).CompareTo(PlatformRank(y.Platform));
+        return cmp != 0 ? cmp : Compare(x, y);
+    }
 
     public static T? Latest<T>(IEnumerable<T> items, Func<T, VersionKey> key) where T : class {
         T? best = null;

@@ -6,7 +6,7 @@ namespace EggIncognito.Runner.Trigger;
 
 public sealed record ProbeApiResult(int Status, string? DeviceId, object? Body, string? Error);
 
-public sealed class DeviceProbeApi(string secret, RunnerDb db, IProcessRunner runner, TimeProvider time, ILoggerFactory logs) {
+public sealed class DeviceProbeApi(string secret, RunnerDb db, IDevicePlatforms platforms, TimeProvider time, ILoggerFactory logs) {
     private readonly ILogger _logger = logs.CreateLogger("DeviceProbeApi");
 
     public async Task<ProbeApiResult> ProbeOneAsync(string? authorizationHeader, string id, string triggeredBy) {
@@ -17,7 +17,7 @@ public sealed class DeviceProbeApi(string secret, RunnerDb db, IProcessRunner ru
         var device = await store.GetAsync(id, CancellationToken.None);
         if (device is null) return new ProbeApiResult(404, id, null, "unknown device");
         try {
-            var row = await DeviceProbeRunner.ProbeOneAsync(device, triggeredBy, runner, jobs, ctx, _logger, time, CancellationToken.None);
+            var row = await DeviceProbeRunner.ProbeOneAsync(device, triggeredBy, platforms, jobs, ctx, _logger, time, CancellationToken.None);
             return new ProbeApiResult(200, id, Project(row), null);
         } catch (Exception ex) {
             return new ProbeApiResult(500, id, null, ex.Message);
@@ -33,7 +33,7 @@ public sealed class DeviceProbeApi(string secret, RunnerDb db, IProcessRunner ru
         var n = 0;
         foreach (var d in devices) {
             try {
-                await DeviceProbeRunner.ProbeOneAsync(d, triggeredBy, runner, jobs, ctx, _logger, time, CancellationToken.None);
+                await DeviceProbeRunner.ProbeOneAsync(d, triggeredBy, platforms, jobs, ctx, _logger, time, CancellationToken.None);
                 n++;
             } catch (Exception ex) {
                 _logger.LogWarning(ex, "probe failed for {DeviceId}", d.Id);

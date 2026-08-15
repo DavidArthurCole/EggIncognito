@@ -1,6 +1,7 @@
 @using System.Globalization
 @using EggIdentity.AdminUi
 @using EggIdentity.Client
+@using EggIncognito.Components.Theme
 @using Microsoft.AspNetCore.WebUtilities
 @rendermode @(RenderMode.InteractiveServer)
 @inject AuthState Auth
@@ -92,6 +93,13 @@
                 </ProfilePanel>
             } else {
                 <p class="text-muted m-0">Log in to manage your linked logins and avatar.</p>
+            }
+            <ThemePicker/>
+            @if (User.IsAuthenticated) {
+                <div class="flex flex-col gap-3 mt-4 pt-3 border-t border-border">
+                    <div class="sub-section-head">API keys</div>
+                    <ApiKeysPanel/>
+                </div>
             }
         </div>
     </ModalShell>

@@ -1,0 +1,10 @@
+@using EggIncognito.Core.Services.Devices
+<span class="platform-icon" title="@(Title ?? Platform)">
+    <Icon Name="@PlatformIcons.For(Platform)" Class="@Class"/>
+</span>
+
+@code {
+    [Parameter] public string? Platform { get; set; }
+    [Parameter] public string Class { get; set; } = "icon-sm";
+    [Parameter] public string? Title { get; set; }
+}

@@ -1,41 +1,22 @@
-@* Client-side saved-request history as its own collapsible widget (sits between Controls and the
-   endpoint list). Default collapsed so it does not eat the left column's vertical space; the header
-   shows the saved count and toggles open. Restore/delete/clear are owned by the parent (persistence
-   lives in the browser). *@
-
-<section class="panel inspector-history shrink-0">
-    <div class="ep-group @(_collapsed ? "collapsed" : "")">
-        <div class="panel-head mb-0">
-            <div class="ep-ns hist-head" @onclick="Toggle">
-                <span class="ep-caret"></span>History
-                @if (HistoryEnabled && History.Count > 0) {
-                    <span class="text-muted text-xs ml-1">(@History.Count)</span>
-                }
+@if (!HistoryEnabled) {
+    <div class="hist-empty">History is off. Turn it on in the rail's settings.</div>
+} else if (History.Count == 0) {
+    <div class="hist-empty">No saved requests yet. Build a request and it lands here for quick re-use.</div>
+} else {
+    <div class="hist-list">
+        @foreach (var h in History) {
+            <div class="ep hist-row" @onclick="() => OnRestoreHistory.InvokeAsync(h)">
+                <span class="hist-path mono">@h.Path</span>
+                <span class="hist-meta">@h.Summary</span>
+                <button type="button" class="hist-del" title="Remove" aria-label="Remove"
+                        @onclick:stopPropagation="true" @onclick="() => OnDeleteHistory.InvokeAsync(h.Id)">
+                    <Icon Name="x" Class="icon-sm"/>
+                </button>
             </div>
-            @if (!_collapsed && HistoryEnabled && History.Count > 0) {
-                <button type="button" class="btn-mini" @onclick="OnClearHistory">Clear</button>
-            }
-        </div>
-        <div class="ep-group-body">
-            @if (!HistoryEnabled) {
-                <div class="hist-empty">History is off. Turn it on in <span class="text-fg">Controls &rarr; settings</span>.</div>
-            } else if (History.Count == 0) {
-                <div class="hist-empty">No saved requests yet. Build a request and it lands here for quick re-use.</div>
-            } else {
-                @foreach (var h in History) {
-                    <div class="ep hist-row" @onclick="() => OnRestoreHistory.InvokeAsync(h)">
-                        <span class="hist-path mono">@h.Path</span>
-                        <span class="hist-meta">@h.Summary</span>
-                        <button type="button" class="hist-del" title="Remove" aria-label="Remove"
-                                @onclick:stopPropagation="true" @onclick="() => OnDeleteHistory.InvokeAsync(h.Id)">
-                            <Icon Name="x" Class="icon-sm"/>
-                        </button>
-                    </div>
-                }
-            }
-        </div>
+        }
     </div>
-</section>
+    <button type="button" class="btn-mini self-start" @onclick="OnClearHistory">Clear</button>
+}
 
 @code {
     [Parameter] public bool HistoryEnabled { get; set; } = true;
@@ -43,11 +24,5 @@
     [Parameter] public EventCallback<InspectorHistoryEntry> OnRestoreHistory { get; set; }
     [Parameter] public EventCallback<string> OnDeleteHistory { get; set; }
     [Parameter] public EventCallback OnClearHistory { get; set; }
-
-    bool _collapsed = true;
-
-    void Toggle() {
-        _collapsed = !_collapsed;
-    }
 
 }

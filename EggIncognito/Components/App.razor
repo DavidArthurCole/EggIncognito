@@ -1,7 +1,9 @@
+@using EggIncognito.Services.Theme
 @inject IHttpContextAccessor HttpContextAccessor
 @inject IWebHostEnvironment HostEnvironment
+@inject ThemeResolver Themes
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-egi-theme="@(_theme is null ? null : "u")">
 <head>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -28,12 +30,19 @@
     @if (_subProd) {
         <link rel="stylesheet" href="@($"/subprod.css?v={_assetVersion}")"/>
     }
+    @if (_theme is { HueRotation: true }) {
+        @_huePropertyBlock
+    }
+    @if (_theme is not null) {
+        <style id="egi-theme" nonce="@_nonce">@((MarkupString)_theme.Css)</style>
+    }
+    <script src="@($"/interop/themeBoot.js?v={_assetVersion}")" data-lock-accent="@(_subProd ? "1" : null)"></script>
     <HeadOutlet/>
 </head>
 <body class="m-0 bg-bg text-fg font-sans">
 <Routes/>
 
-<dialog id="components-reconnect-modal" class="reconnect-modal">
+<dialog id="components-reconnect-modal">
     <div class="reconnect-card">
         <div class="components-rejoining-animation reconnect-spinner" aria-hidden="true"></div>
         <p class="reconnect-msg reconnect-first">Lost the connection to the server. Trying to get you back...</p>
@@ -65,14 +74,25 @@
     PageMeta.Meta _meta;
     string _canonicalUrl = "https://eggincognito.davidarthurcole.me/";
     bool _subProd;
+    ResolvedTheme? _theme;
+    string? _nonce;
+    MarkupString _huePropertyBlock;
 
-    protected override void OnInitialized() {
+    protected override async Task OnInitializedAsync() {
         _subProd = string.Equals(HostEnvironment.EnvironmentName, "Staging", StringComparison.OrdinalIgnoreCase);
-        var req = HttpContextAccessor.HttpContext?.Request;
+        var ctx = HttpContextAccessor.HttpContext;
+        var req = ctx?.Request;
         var path = req?.Path.Value;
         _meta = PageMeta.For(path);
         if (req is not null)
             _canonicalUrl = $"https://eggincognito.davidarthurcole.me{(string.IsNullOrEmpty(path) ? "/" : path)}";
+        _nonce = ctx?.Items["egi.csp.nonce"] as string;
+        _theme = await Themes.ResolveAsync(ctx?.RequestAborted ?? CancellationToken.None);
+        if (_theme is { HueRotation: true }) {
+            var nonceAttr = _nonce is null ? "" : $" nonce=\"{_nonce}\"";
+            _huePropertyBlock = new MarkupString(
+                $"<style{nonceAttr}>@property --egi-hue-shift {{ syntax: \"<angle>\"; inherits: true; initial-value: 0deg; }}</style>");
+        }
     }
 
 }

@@ -83,6 +83,19 @@ public class MarkdownRendererTests {
     }
 
     [Fact]
+    public void FencedCode_KnownInfoString_EmitsResolvedLanguage() {
+        string html = MarkdownRenderer.Render("```yml\na: 1\n```");
+        Assert.Contains("<pre class=\"md-code\"><code class=\"lang-yaml\">", html);
+    }
+
+    [Fact]
+    public void FencedCode_UnknownInfoString_RendersPlain() {
+        string html = MarkdownRenderer.Render("```<script>alert(1)</script>\nx\n```");
+        Assert.Contains("<pre class=\"md-code\"><code>", html);
+        Assert.DoesNotContain("<script>", html);
+    }
+
+    [Fact]
     public void UnorderedList_TwoItems() {
         string html = MarkdownRenderer.Render("- a\n- b");
         Assert.Contains("<ul class=\"md-list\">", html);

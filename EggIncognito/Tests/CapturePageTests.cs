@@ -2,6 +2,8 @@ using System.Net;
 using Bunit;
 using EggIncognito.Capture;
 using EggIncognito.Components.Capture;
+using EggIncognito.Components.Shared.Code;
+using EggIncognito.Services.Syntax;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,7 +25,7 @@ public class CapturePageTests {
             Assert.Contains("id=\"statsPanel\"", html);
             Assert.Contains("id=\"flowsPanel\"", html);
             Assert.Contains("id=\"detailPanel\"", html);
-            Assert.Contains("STOPPED", html);
+            Assert.Matches("cap-stat-k\">Proxy</span><span class=\"cap-stat-v\"><span[^>]*>stopped</span>", html);
             Assert.Contains("No device connected yet.", html);
             Assert.Contains("settings-seg", html);
         }
@@ -35,10 +37,10 @@ public class CapturePageTests {
         }
 
         [Fact]
-        public void JsonTree_RendersNodesForObject() {
-            var root = TreeNode.Parse("{\"a\":1,\"b\":{\"c\":\"hi\"}}");
+        public void CodeTree_RendersNodesForObject() {
+            var root = CodeTreeNode.Parse("{\"a\":1,\"b\":{\"c\":\"hi\"}}");
             Assert.NotNull(root);
-            var cut = Render<JsonTree>(p => p
+            var cut = Render<CodeTree>(p => p
                 .Add(c => c.Root, root)
                 .Add(c => c.View, new CaptureViewState()));
 
@@ -50,9 +52,23 @@ public class CapturePageTests {
         }
 
         [Fact]
-        public void JsonTree_Search_MarksMatchesAndDimsOthers() {
-            var root = TreeNode.Parse("{\"alpha\":1,\"beta\":2}");
-            var cut = Render<JsonTree>(p => p
+        public void CodeTree_LeafColorsComeFromTokenPalette() {
+            var root = CodeTreeNode.Parse("{\"s\":\"hi\",\"n\":1,\"b\":true,\"z\":null}");
+            var cut = Render<CodeTree>(p => p
+                .Add(c => c.Root, root)
+                .Add(c => c.View, new CaptureViewState()));
+
+            Assert.NotEmpty(cut.FindAll(".jv.tok-string"));
+            Assert.NotEmpty(cut.FindAll(".jv.tok-number"));
+            Assert.NotEmpty(cut.FindAll(".jv.tok-bool"));
+            Assert.NotEmpty(cut.FindAll(".jv.tok-null"));
+            Assert.DoesNotContain("jv-string", cut.Markup);
+        }
+
+        [Fact]
+        public void CodeTree_Search_MarksMatchesAndDimsOthers() {
+            var root = CodeTreeNode.Parse("{\"alpha\":1,\"beta\":2}");
+            var cut = Render<CodeTree>(p => p
                 .Add(c => c.Root, root)
                 .Add(c => c.View, new CaptureViewState()));
 
@@ -67,11 +83,11 @@ public class CapturePageTests {
         }
 
         [Fact]
-        public void FormatView_BlurredValue_TogglesRevealOnClick() {
+        public void CodeFormats_BlurredValue_TogglesRevealOnClick() {
             var view = new CaptureViewState { RedactionMode = "blur", DefaultFormat = "json" };
-            var cut = Render<FormatView>(p => p
-                .Add(c => c.Label, "Request")
-                .Add(c => c.JsonStr, "{\"eiUserId\":\"EI1234567890\"}")
+            var cut = Render<CodeFormats>(p => p
+                .Add(c => c.Key, "Request")
+                .Add(c => c.Json, "{\"eiUserId\":\"EI1234567890\"}")
                 .Add(c => c.View, view));
 
             var span = cut.Find(".blurred");
@@ -113,34 +129,36 @@ public class CapturePageTests {
         }
 
         [Fact]
-        public void FormatView_RendersHexOfBytes() {
+        public void CodeFormats_RendersHexOffsetsInTheGutter() {
             var view = new CaptureViewState { DefaultFormat = "hex" };
-            var cut = Render<FormatView>(p => p
-                .Add(c => c.Label, "Response")
-                .Add(c => c.JsonStr, null)
-                .Add(c => c.RawB64, "AAEC")
+            var cut = Render<CodeFormats>(p => p
+                .Add(c => c.Key, "Response")
+                .Add(c => c.Json, null)
+                .Add(c => c.RawBase64, "AAEC")
                 .Add(c => c.View, view));
 
-            Assert.Contains("00000000", cut.Markup);
-            Assert.Contains("00 01 02", cut.Markup);
+            var gutter = cut.Find(".code-gutter");
+            Assert.Equal("00000000", gutter.TextContent);
+            Assert.NotEmpty(cut.FindAll(".code-line .tok-byte"));
+            Assert.DoesNotContain("00000000  00 01", cut.Find(".code-line").TextContent);
         }
     }
 
     public class Format {
         [Fact]
         public void Yaml_RendersNestedObject() {
-            string y = CaptureFormat.JsonToText("{\"a\":1,\"b\":{\"c\":2}}", "yaml");
+            string y = DataFormats.JsonToText("{\"a\":1,\"b\":{\"c\":2}}", "yaml");
             Assert.Contains("a: 1", y);
             Assert.Contains("b:", y);
             Assert.Contains("c: 2", y);
         }
 
         [Fact]
-        public void Hex_EmptyInput_ReportsEmpty() => Assert.Equal("(empty)", CaptureFormat.BytesToText("", "hex"));
+        public void Hex_EmptyInput_ReportsEmpty() => Assert.Equal("(empty)", DataFormats.BytesToText("", "hex"));
 
         [Fact]
         public void Xml_WrapsAndPrettyPrints() {
-            string x = CaptureFormat.JsonToText("{\"a\":1}", "xml");
+            string x = DataFormats.JsonToText("{\"a\":1}", "xml");
             Assert.Contains("<root>", x);
             Assert.Contains("<a>1</a>", x);
         }

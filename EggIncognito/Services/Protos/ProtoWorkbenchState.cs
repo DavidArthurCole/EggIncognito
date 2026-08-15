@@ -1,4 +1,5 @@
 using EggIncognito.Services.ProtoExtract;
+using EggIncognito.Services.Workbench;
 
 namespace EggIncognito.Services.Protos;
 
@@ -47,7 +48,10 @@ public sealed record DiffBundle(
     ProtoDiffResult Structural,
     ProtoDiffSummary Summary);
 
-public sealed class ProtoWorkbenchState {
+public sealed class ProtoWorkbenchState : WorkbenchStateBase {
+    public override IReadOnlyList<WorkbenchMode> Modes { get; } =
+        [.. ProtoRefParser.Modes.Select(m => new WorkbenchMode(m, m, ModeTitle(m)))];
+
     public List<StagedEntry> Entries { get; } = [];
     public Guid? SelectedId { get; set; }
     public Dictionary<string, Guid> GroupWinners { get; } = [];
@@ -56,13 +60,24 @@ public sealed class ProtoWorkbenchState {
     public IReadOnlyList<ProtoRegistryRow> Registry { get; set; } = [];
     public DateTime RegistryLoadedAt { get; set; }
     public Dictionary<string, string> TextCache { get; } = [];
+    public RegistryQuery Query { get; set; } = RegistryQuery.Empty;
+    public Dictionary<string, string> ViewFilters { get; } = [];
     public ProtoRef? A { get; set; }
     public ProtoRef? B { get; set; }
-    public string Mode { get; set; } = "text";
     public DiffBundle? Cached { get; set; }
     public string? CachedKey { get; set; }
 
     public StagedEntry? Find(Guid? id) {
         return id is { } g ? Entries.FirstOrDefault(e => e.Id == g) : null;
+    }
+
+    private static string ModeTitle(string mode) {
+        return mode switch {
+            "text" => "Proto text of A",
+            "split" => "Side by side line diff",
+            "unified" => "Unified diff patch",
+            "struct" => "Structural message diff",
+            _ => "Metadata compare"
+        };
     }
 }

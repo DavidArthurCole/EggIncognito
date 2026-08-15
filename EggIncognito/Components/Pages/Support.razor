@@ -3,7 +3,7 @@
 @inject AuthState Auth
 @inject ISealedProxy SealedProxy
 <PageTitle>Support - EggIncognito</PageTitle>
-<main class="support-page page page-doc pt-6 pb-16">
+<main class="page page-doc pt-6 pb-16">
 
     <h1 class="support-title">Support the project</h1>
     <p class="support-lede">
@@ -17,33 +17,29 @@
             <div class="perk perk-on">
                 <div class="perk-top">
                     <span class="perk-name">Supporter role + higher rate limits</span>
-                    <span class="pill live">live</span>
                 </div>
                 <p class="perk-desc">The Discord role lands automatically and your API limits jump the moment it does.</p>
             </div>
             <div class="perk perk-on">
                 <div class="perk-top">
                     <span class="perk-name">Hosted Capture proxy</span>
-                    <span class="pill live">live</span>
                 </div>
                 <p class="perk-desc">Run Capture straight from the web. This server holds the proxy, no local setup.</p>
             </div>
             <div class="perk @(SealedProxy.IsConfigured ? "perk-on" : "")">
                 <div class="perk-top">
                     <span class="perk-name">Sealed API proxy</span>
-                    <span class="pill @(SealedProxy.IsConfigured ? "live" : "")">@(SealedProxy.IsConfigured ? "live" : "coming soon")</span>
                 </div>
                 <p class="perk-desc">
-                    An authenticated tunnel that hides your identity from the downstream API.
+                    @(SealedProxy.IsConfigured ? "" : "Coming soon. ")An authenticated tunnel that hides your identity from the downstream API.
                     Toggle it on in the Inspector when sending to the Live API.
                 </p>
             </div>
             <div class="perk">
                 <div class="perk-top">
                     <span class="perk-name">EggLedger cloud storage</span>
-                    <span class="pill">in development</span>
                 </div>
-                <p class="perk-desc">A private encrypted volume for your ledger, backed up remotely and always in sync.</p>
+                <p class="perk-desc">In development. A private encrypted volume for your ledger, backed up remotely and always in sync.</p>
             </div>
         </div>
     </section>
@@ -83,9 +79,9 @@
                         <div>
                             <div class="connect-name">@User.Username</div>
                             @if (User.IsSupporter) {
-                                <span class="pill live">Supporter active</span>
+                                <div class="text-accent text-xs">Supporter active</div>
                             } else {
-                                <span class="pill">No role yet</span>
+                                <div class="text-muted text-xs">No supporter role yet</div>
                             }
                         </div>
                     </div>

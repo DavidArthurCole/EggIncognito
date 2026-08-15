@@ -25,7 +25,7 @@
         @if (_selected is not null) {
             <div class="mt-2 mb-2">
                 <span class="console-method console-@(_selected.Method.ToLower())">@_selected.Method</span>
-                <span class="font-mono text-xs break-all">@_selected.Route</span>
+                <span class="font-mono text-xs console-route">@_selected.Route</span>
             </div>
 
             @foreach (var p in _selected.Query) {

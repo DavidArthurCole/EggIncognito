@@ -258,12 +258,12 @@ public sealed class DevicesController(
         var device = await store.GetAsync(id);
         if (device is null) return NotFound(new { error = "unknown device" });
 
-        var runner = (IProcessRunner)services.GetRequiredService(typeof(IProcessRunner));
+        var platforms = (IDevicePlatforms)services.GetRequiredService(typeof(IDevicePlatforms));
         var time = (TimeProvider)services.GetRequiredService(typeof(TimeProvider));
         var logger = (ILogger<DevicesController>)services.GetRequiredService(typeof(ILogger<DevicesController>));
 
         var row = await DeviceProbeRunner.ProbeOneAsync(
-            device, $"admin:{currentUser.DiscordId}", runner, jobStore, db, logger, time,
+            device, $"admin:{currentUser.DiscordId}", platforms, jobStore, db, logger, time,
             HttpContext.RequestAborted);
 
         return Ok(new {
@@ -296,7 +296,7 @@ public sealed class DevicesController(
         if (store is null || db is null || Jobs is not { } jobStore)
             return StatusCode(503, new { error = "no database configured" });
 
-        var runner = (IProcessRunner)services.GetRequiredService(typeof(IProcessRunner));
+        var platforms = (IDevicePlatforms)services.GetRequiredService(typeof(IDevicePlatforms));
         var time = (TimeProvider)services.GetRequiredService(typeof(TimeProvider));
         var logger = (ILogger<DevicesController>)services.GetRequiredService(typeof(ILogger<DevicesController>));
 
@@ -305,7 +305,7 @@ public sealed class DevicesController(
         foreach (var d in devices) {
             try {
                 await DeviceProbeRunner.ProbeOneAsync(
-                    d, $"admin-all:{currentUser.DiscordId}", runner, jobStore, db, logger, time,
+                    d, $"admin-all:{currentUser.DiscordId}", platforms, jobStore, db, logger, time,
                     HttpContext.RequestAborted);
                 n++;
             } catch (Exception ex) {
@@ -362,7 +362,7 @@ public sealed class DevicesController(
         try {
             var store = sp.GetService<IDeviceStatusStore>();
             var db = sp.GetService<EggIncognitoDbContext>();
-            var runner = sp.GetRequiredService<IProcessRunner>();
+            var platforms = sp.GetRequiredService<IDevicePlatforms>();
             if (store is null || db is null) {
                 await jobs.FailAsync(job, "no database configured", CancellationToken.None);
                 return;
@@ -376,7 +376,7 @@ public sealed class DevicesController(
             if (device is not null) {
                 var time = sp.GetRequiredService<TimeProvider>();
                 await DeviceProbeRunner.ProbeOneAsync(
-                    device, $"check-update:{who}", runner, jobs, db, logger, time, CancellationToken.None);
+                    device, $"check-update:{who}", platforms, jobs, db, logger, time, CancellationToken.None);
             }
 
             await jobs.FinishAsync(job, result.Action, result.Note,

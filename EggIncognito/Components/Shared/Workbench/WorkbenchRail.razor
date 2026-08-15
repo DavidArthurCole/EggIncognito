@@ -1,0 +1,18 @@
+<aside class="wb-rail" style="@RailStyle">
+    @if (FilterPlaceholder is { Length: > 0 } placeholder) {
+        <FilterInput Class="flow-filter-input wb-rail-filter" Placeholder="@placeholder" AriaLabel="@placeholder"
+                     Value="@(Filter ?? "")" ValueChanged="FilterChanged"/>
+    }
+    @ChildContent
+</aside>
+
+@code {
+    [Parameter] public string? Filter { get; set; }
+    [Parameter] public EventCallback<string> FilterChanged { get; set; }
+    [Parameter] public string? FilterPlaceholder { get; set; }
+    [Parameter] public string? Width { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    string? RailStyle => string.IsNullOrWhiteSpace(Width) ? null : $"--wb-rail-w: {Width}";
+
+}

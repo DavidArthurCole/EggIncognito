@@ -54,6 +54,17 @@ public static partial class MarkdownRenderer {
     }
 
 
+    private static string FenceLanguage(string fenceLine) {
+        string trimmed = fenceLine.Trim();
+        int i = 0;
+        while (i < trimmed.Length && trimmed[i] == '`') i++;
+        string info = trimmed[i..].Trim();
+        if (info.Length == 0) return "";
+        string resolved = Syntax.SyntaxHighlighter.Resolve(info);
+        return resolved == Syntax.SyntaxHighlighter.Fallback ? "" : resolved;
+    }
+
+
     public static string Render(string? src) {
         string[] lines = SplitLines.Split(EscapeHtml(src ?? ""));
         var outLines = new List<string>();
@@ -72,6 +83,7 @@ public static partial class MarkdownRenderer {
 
             if (Fence.IsMatch(line.Trim())) {
                 CloseList();
+                string language = FenceLanguage(line);
                 var body = new List<string>();
                 i++;
                 while (i < lines.Length && !Fence.IsMatch(lines[i].Trim())) {
@@ -80,7 +92,8 @@ public static partial class MarkdownRenderer {
                 }
 
                 i++;
-                outLines.Add($"<pre class=\"md-code\"><code>{string.Join("\n", body)}</code></pre>");
+                string codeOpen = language.Length == 0 ? "<code>" : $"<code class=\"lang-{language}\">";
+                outLines.Add($"<pre class=\"md-code\">{codeOpen}{string.Join("\n", body)}</code></pre>");
                 continue;
             }
 

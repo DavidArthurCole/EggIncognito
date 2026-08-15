@@ -16,7 +16,7 @@ function tick() {
   for (const el of els) {
     const s = Number(el.dataset.countdown) - now;
     el.textContent = fmt(s);
-    el.closest(".event-pill")?.classList.toggle("ended", s <= 0);
+    el.closest(".evt-row")?.classList.toggle("ended", s <= 0);
   }
 }
 

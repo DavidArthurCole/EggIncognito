@@ -23,15 +23,16 @@ public partial class UnifiedStyleTests(SharedAppFactory f) {
         string css = await c.GetStringAsync("/styles.css");
         foreach (string cls in new[] {
                      ".panel", ".btn-primary", ".icon-btn", ".settings-menu",
-                     ".pill", ".status-badge", ".flow-row", ".jtree-root", ".stage-head", ".cap-stat",
-                     ".toast", ".modal-overlay", ".known-card", ".tab-btn", ".notif-item",
+                     ".status-badge", ".flow-row", ".jtree-root", ".stage-head", ".cap-stat",
+                     ".verline-app", ".verline-num", ".verline-sep", ".platform-icon", ".route-flag",
+                     ".toast", ".modal-card", ".known-card", ".tab-btn", ".notif-item",
                      ".perk-list", ".rail", ".connect-card", ".faq-list",
                      ".data-table", ".stat-tile", ".reg-row", ".reg-version", ".reg-sha", ".reg-empty",
-                     ".reg-filter-input", ".reg-edit-btn", ".sub-form", ".sub-item",
+                     ".reg-filter-input", ".reg-edit-btn", ".sub-form",
                      ".prose-legal", ".prose-legal-disclaimer", ".prose-legal-section",
                      ".popover", ".popover-combo", ".popover-combo-opt",
                      ".pg-menubar", ".pg-menu-btn", ".pg-menu", ".pg-menu-item", ".pg-popover",
-                     ".pg-popover-head", ".pg-palette", ".pg-palette-head"
+                     ".pg-popover-head"
                  }) {
             Assert.Contains(cls, css);
         }
@@ -43,9 +44,8 @@ public partial class UnifiedStyleTests(SharedAppFactory f) {
         string css = await c.GetStringAsync("/styles.css");
         foreach (string cls in new[] {
                      ".status-2xx", ".status-3xx", ".status-4xx", ".status-5xx",
-                     ".jv-string", ".jv-number", ".jv-boolean", ".jv-null",
-                     ".toast-info", ".perk-chip", ".admin-panel", ".sub-section",
-                     ".bg-picker-input", ".picker"
+                     ".tok-string", ".tok-number", ".tok-bool", ".tok-null",
+                     ".toast-info", ".bg-picker-input", ".picker"
                  }) {
             Assert.Contains(cls, css);
         }

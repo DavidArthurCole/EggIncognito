@@ -13,14 +13,20 @@
         <div class="routes-binary-status">
             <span class="text-muted">
                 last refresh @(_binary.LastRefresh is { } lr ? lr.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") : "never")
-                &middot; binary @(_binary.BinaryVersion ?? "-")
+                &middot;
+                @if (!string.IsNullOrWhiteSpace(_binary.BinaryVersion)) {
+                    <text>binary </text>
+                    <VersionLine App="@_binary.BinaryVersion"/>
+                } else {
+                    <text>binary unknown</text>
+                }
                 &middot; @_binary.Discovered discovered / @_binary.NewCount new / @_binary.DriftCount drift
             </span>
             <button type="button" class="btn-mini" disabled="@_refreshing" @onclick="RefreshBinary">@(_refreshing ? "Refreshing..." : "Refresh now")</button>
         </div>
     }
 
-    <input type="search" class="reg-filter-input mb-2" placeholder="filter by path..." value="@_filter" @oninput="OnFilter"/>
+    <FilterInput Class="reg-filter-input mb-2" Placeholder="filter by path..." @bind-Value="_filter"/>
 
     <datalist id="routeMessageTypes">
         @foreach (var m in _messages) {
@@ -48,16 +54,16 @@
                         <td>
                             <div class="flex gap-1">
                                 @if (row.Override is not null) {
-                                    <span class="badge badge-override">edited</span>
+                                    <span class="route-flag text-accent">edited</span>
                                 }
                                 @if (row.Source == "db") {
-                                    <span class="badge badge-db">db</span>
+                                    <span class="route-flag text-info">db</span>
                                 }
                                 @if (BinaryPopulated && !IsInBinary(row.Path)) {
-                                    <span class="badge badge-binary">no binary</span>
+                                    <span class="route-flag text-ok">no binary</span>
                                 }
                                 @if (row.Source == "orphan") {
-                                    <span class="badge badge-orphan">orphan</span>
+                                    <span class="route-flag text-err">orphan</span>
                                 }
                             </div>
                         </td>
@@ -107,7 +113,7 @@
                                         <div class="flex flex-col gap-1">
                                             @foreach (var d in drift) {
                                                 <div class="routes-drift-row">
-                                                    <span class="badge @(d.Reliable ? "badge-override" : "badge-db")">@(d.Reliable ? "drift" : "advisory")</span>
+                                                    <span class="route-flag @(d.Reliable ? "text-accent" : "text-info")">@(d.Reliable ? "drift" : "advisory")</span>
                                                     <span class="text-muted">@d.Field: effective @(d.EffectiveValue ?? "-") vs binary @(d.BinaryValue ?? "-")</span>
                                                     <button type="button" class="btn-mini" disabled="@_busy" @onclick="() => ApplyDrift(d)">Apply</button>
                                                 </div>
@@ -159,10 +165,6 @@
         await LoadMessages();
         await LoadRoutes();
         await LoadBinary();
-    }
-
-    void OnFilter(ChangeEventArgs e) {
-        _filter = e.Value?.ToString() ?? "";
     }
 
     void OnDraftRequest(ChangeEventArgs e) {

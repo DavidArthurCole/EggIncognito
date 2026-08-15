@@ -20,14 +20,43 @@ public class InspectorPageTests {
             string html = await r.Content.ReadAsStringAsync();
 
             Assert.Contains(">Inspector</a>", html);
-            Assert.Contains("list-switch", html);
-            Assert.Contains("Pipeline", html);
+
+            Assert.Contains("insp-rail", html);
+            Assert.Contains("wb-seg-btn", html);
 
             Assert.Contains("target-toggle", html);
             Assert.Contains(">Build</button>", html);
             Assert.Contains(">Send</button>", html);
 
             Assert.Contains("Live API", html);
+
+            Assert.Contains("insp-disc-toggle", html);
+        }
+
+        [Fact]
+        public async Task Inspector_DeadRoutes_AreGone() {
+            var c = _f.CreateClient();
+            var endpoints = await c.GetAsync("/api/inspector/endpoints");
+            var schema = await c.GetAsync("/api/inspector/schema/EggIncFirstContactRequest");
+            Assert.False(endpoints.IsSuccessStatusCode);
+            Assert.False(schema.IsSuccessStatusCode);
+        }
+
+        [Fact]
+        public async Task Inspector_MessagesRoute_Survives() {
+            var c = _f.CreateClient();
+            var r = await c.GetAsync("/api/inspector/messages");
+            Assert.Equal(HttpStatusCode.OK, r.StatusCode);
+        }
+
+        [Fact]
+        public async Task RinfoSeed_NeverReturnsAHardcodedVersion() {
+            var c = _f.CreateClient();
+            var r = await c.GetAsync("/api/inspector/rinfo-seed");
+            Assert.Equal(HttpStatusCode.OK, r.StatusCode);
+            string body = await r.Content.ReadAsStringAsync();
+            Assert.DoesNotContain("1.35.7", body);
+            Assert.DoesNotContain("111343", body);
         }
     }
 

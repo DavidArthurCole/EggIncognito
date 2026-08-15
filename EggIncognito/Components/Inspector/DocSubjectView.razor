@@ -1,0 +1,87 @@
+@using System.Text.Json
+@using EggIncognito.Services.Inspector
+@inherits SelfCallComponentBase
+
+<div class="doc-head">
+    <h2 class="doc-title">@Title</h2>
+    <span class="tag-chips">
+        @foreach (var t in _tags) {
+            <span class="doc-tag" style="@TagStyle(t.Color)">@t.Label</span>
+        }
+    </span>
+</div>
+
+@if (Aside is not null) {
+    @Aside
+}
+
+<div class="doc-body">
+    @if (string.IsNullOrEmpty(_bodyMd)) {
+        <div class="muted">No documentation yet.</div>
+    } else {
+        <Markdown Body="@_bodyMd"/>
+    }
+</div>
+
+<MarkdownEditor @key="@_editorKey" Kind="@Slug" Key="@Key" Initial="@_bodyMd" OnSaved="OnDocSaved"/>
+
+@if (Footer is not null) {
+    @Footer
+}
+
+@code {
+    [Parameter] public DocSubjectKind Kind { get; set; }
+    [Parameter] public string Key { get; set; } = "";
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public RenderFragment? Aside { get; set; }
+    [Parameter] public RenderFragment? Footer { get; set; }
+
+    static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
+
+    string? _bodyMd;
+    List<TagRow> _tags = [];
+    string? _loadedFor;
+
+    string Slug => DocSubjectKinds.Slug(Kind);
+
+    string _editorKey = "";
+
+    protected override async Task OnParametersSetAsync() {
+        var subject = Slug + "/" + Key;
+        if (string.IsNullOrEmpty(Key) || subject == _loadedFor) return;
+        _loadedFor = subject;
+        _editorKey = subject;
+        _bodyMd = null;
+        _tags = [];
+        await LoadAsync($"/api/docs/doc/{Slug}/{Uri.EscapeDataString(Key)}",
+            $"/api/docs/subject-tags/{Slug}/{Uri.EscapeDataString(Key)}");
+    }
+
+    async Task LoadAsync(string docUrl, string tagsUrl) {
+        var client = Client();
+        try {
+            var doc = await client.GetFromJsonAsync<DocResult>(docUrl, JsonOpts);
+            _bodyMd = doc?.BodyMd;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException) {
+            _bodyMd = null;
+        }
+
+        try {
+            _tags = await client.GetFromJsonAsync<List<TagRow>>(tagsUrl, JsonOpts) ?? [];
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException) {
+            _tags = [];
+        }
+    }
+
+    Task OnDocSaved(string body) {
+        _bodyMd = string.IsNullOrWhiteSpace(body) ? null : body;
+        return Task.CompletedTask;
+    }
+
+    static string TagStyle(string? color) {
+        return string.IsNullOrEmpty(color) ? "" : $"color: {color};";
+    }
+
+}

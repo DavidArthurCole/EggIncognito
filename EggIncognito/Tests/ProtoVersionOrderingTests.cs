@@ -179,4 +179,26 @@ public class ProtoVersionOrderingTests {
         Assert.Equal(new[] { "ios", "ios", "android" }, sorted.Select(r => r.Platform).ToArray());
         Assert.Equal("1.37.0.1", sorted[0].Build);
     }
+
+    [Fact]
+    public void SortByReleasePutsBothPlatformsOfOneReleaseAdjacentWithIosFirst() {
+        var rows = new[] {
+            new Row("android", "1.36.0", "111341", Client: "74"),
+            new Row("ios", "1.37.0", "1.37.0.1", Client: "75"),
+            new Row("android", "1.37.0", "111358", Client: "75"),
+            new Row("ios", "1.36.0", "1.36.0.2", Client: "74"),
+        };
+        var sorted = ProtoVersionOrdering.SortByRelease(rows, Key);
+        Assert.Equal(new[] { "ios", "android", "ios", "android" }, sorted.Select(r => r.Platform).ToArray());
+        Assert.Equal(new[] { "1.37.0", "1.37.0", "1.36.0", "1.36.0" }, sorted.Select(r => r.AppVersion).ToArray());
+    }
+
+    [Fact]
+    public void SortByReleaseRanksTheNewerReleaseFirstWhicheverPlatformShippedIt() {
+        var rows = new[] {
+            new Row("ios", "1.36.0", "1.36.0.2", Client: "74"),
+            new Row("android", "1.38.0", "111400", Client: "78"),
+        };
+        Assert.Equal("android", ProtoVersionOrdering.SortByRelease(rows, Key)[0].Platform);
+    }
 }

@@ -1,12 +1,10 @@
+@using System.Globalization
 @using System.Text.Json
-@* Renders a wire-forensics diagnosis: status, the first corruption (offset + resolved path + hex window),
-   salvaged strings, and the walked field tree with the broken/mismatched nodes marked. *@
-
 <div class="forensics">
     <div class="forensics-input">
-        <textarea class="raw-json" spellcheck="false" placeholder="Paste base64 to diagnose..."
-              autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
-              @bind="_manualB64" @bind:event="oninput" style="min-height: 70px;"></textarea>
+        <textarea class="raw-json forensics-paste" spellcheck="false" placeholder="Paste base64 to diagnose..."
+                  @attributes="InputAttrs.NoAutofill"
+                  @bind="_manualB64" @bind:event="oninput"></textarea>
         <button class="btn-primary" disabled="@(string.IsNullOrWhiteSpace(_manualB64))" @onclick="RunManual">Diagnose</button>
     </div>
 
@@ -92,6 +90,9 @@
         }
     }
 
+    static string DepthStyle(int depth) {
+        return "--forensics-depth: " + (depth * 0.875).ToString("0.###", CultureInfo.InvariantCulture) + "rem";
+    }
 
     RenderFragment HexMarked(HexWindowDto w) => builder => {
         var seq = 0;
@@ -110,16 +111,14 @@
     };
 
     RenderFragment TreeNode(WireNodeDto n, int depth) => @<div class="forensics-node @(n.SchemaMismatch ? "mismatch" : "")"
-                                                               style="@($"margin-left: {depth * 14}px;")">
+                                                               style="@DepthStyle(depth)"
+                                                               title="@(n.SchemaMismatch ? "wire/schema mismatch" : null)">
                                                              <span class="muted">@n.Path</span>
                                                              @if (n.ResolvedName is not null) {
                                                                  <span class="forensics-name">@n.ResolvedName</span>
                                                              }
                                                              <span class="forensics-wire">@n.Wire</span>
                                                              <span class="muted">@@@n.Offset@(n.Len is null ? "" : $", len {n.Len}")</span>
-                                                             @if (n.SchemaMismatch) {
-                                                                 <span class="forensics-flag">wire/schema mismatch</span>
-                                                             }
                                                              @if (n.Children is { Count: > 0 }) {
                                                                  @foreach (var c in n.Children) {
                                                                      @TreeNode(c, depth + 1)

@@ -6,11 +6,6 @@ using Microsoft.Extensions.Logging;
 namespace EggIncognito.Data.Services;
 
 public static class DeviceProbeRunner {
-    public static IDeviceProbe ProbeFor(Device d, IProcessRunner runner) =>
-        Platforms.Matches(d.Platform, Platforms.Ios)
-            ? new IosDeviceProbe(runner, d.Target, d.Package)
-            : new AdbDeviceProbe(runner, d.Target, d.Package);
-
     public static string Classify(Device d, DeviceProbeResult r, string? extractedLatestBuild,
         string? extractedLatestAppVersion)
         => Classify(r, d.Platform, extractedLatestBuild, extractedLatestAppVersion);
@@ -40,9 +35,10 @@ public static class DeviceProbeRunner {
 
 
     public static async Task<DeviceJobRow> ProbeOneAsync(
-        Device d, string triggeredBy, IProcessRunner runner, DeviceJobStore jobs,
+        Device d, string triggeredBy, IDevicePlatforms platforms, DeviceJobStore jobs,
         EggIncognitoDbContext db, ILogger logger, TimeProvider time, CancellationToken ct) {
-        var result = await ProbeFor(d, runner).ProbeAsync(ct);
+        var result = await platforms.For(d.Platform)
+            .ProbeAsync(new DeviceTarget(d.Id, d.Platform, d.Target, d.Package), ct);
 
 
         var extracted = await db.ProtoVersions.AsNoTracking()

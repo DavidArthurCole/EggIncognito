@@ -1,0 +1,63 @@
+@using EggIncognito.Services.Workbench
+<div class="@Css" style="@Style" role="button" tabindex="0" title="@Title" @onclick="OnClick" @onkeydown="OnKeyDown">
+    @if (Lead is not null || Name is not null || Trail is not null) {
+        <div class="wb-entry-head">
+            @Lead
+            @if (Name is not null) {
+                <span class="wb-entry-name">@Name</span>
+            }
+            @Trail
+        </div>
+    }
+    @if (MetaLine is not null) {
+        <span class="wb-entry-meta">@MetaLine</span>
+    }
+    @if (Foot is not null) {
+        <span class="@FootCss">@Foot</span>
+    }
+</div>
+
+@code {
+    [Parameter] public bool Selected { get; set; }
+    [Parameter] public bool Compare { get; set; }
+    [Parameter] public WorkbenchTone Tone { get; set; } = WorkbenchTone.Normal;
+    [Parameter] public WorkbenchStatusKind? Status { get; set; }
+    [Parameter] public EventCallback<MouseEventArgs> OnClick { get; set; }
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public string? Style { get; set; }
+    [Parameter] public RenderFragment? Lead { get; set; }
+    [Parameter] public RenderFragment? Name { get; set; }
+    [Parameter] public RenderFragment? Trail { get; set; }
+    [Parameter] public RenderFragment? MetaLine { get; set; }
+    [Parameter] public RenderFragment? Foot { get; set; }
+
+    string Css {
+        get {
+            var css = "wb-entry";
+            if (Selected) css += " selected";
+            if (Compare) css += " compare";
+            css += Tone switch {
+                WorkbenchTone.Muted => " tone-muted",
+                WorkbenchTone.Warn => " tone-warn",
+                WorkbenchTone.Bad => " tone-bad",
+                _ => ""
+            };
+            return string.IsNullOrWhiteSpace(Class) ? css : $"{css} {Class}";
+        }
+    }
+
+    string FootCss => Status is { } kind ? $"wb-entry-foot {WorkbenchStatus.Class(kind)}" : "wb-entry-foot";
+
+    Task OnKeyDown(KeyboardEventArgs e) {
+        if (e.Key is not ("Enter" or " " or "Spacebar")) return Task.CompletedTask;
+        return OnClick.InvokeAsync(new MouseEventArgs {
+            Detail = 1,
+            ShiftKey = e.ShiftKey,
+            CtrlKey = e.CtrlKey,
+            AltKey = e.AltKey,
+            MetaKey = e.MetaKey
+        });
+    }
+
+}

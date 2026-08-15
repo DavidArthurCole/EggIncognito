@@ -1,44 +1,68 @@
-@if (CloseOnEscape) {
-    <div class="modal-backdrop" @onclick="Close" @onkeydown="OnKeyDown">
-        @Card
+<div class="modal-backdrop" @onclick="BackdropClick">
+    <div class="@CardCss" role="dialog" aria-modal="true" aria-labelledby="@TitleId" tabindex="-1"
+         @ref="_card" @onkeydown="OnKeyDown" @onclick:stopPropagation="true">
+        <div class="modal-head">
+            <h3 class="modal-title" id="@TitleId">@Title</h3>
+            @if (HeadTools is not null) {
+                @HeadTools
+            }
+            @if (!HideClose) {
+                <button type="button" class="reg-edit-btn" title="Close" aria-label="Close" @onclick="Close">
+                    <Icon Name="x"/>
+                </button>
+            }
+        </div>
+        @ChildContent
     </div>
-} else {
-    <div class="modal-backdrop" @onclick="Close">
-        @Card
-    </div>
-}
+</div>
 
 @code {
+
+    public enum ModalWidth {
+        Small,
+        Regular,
+        Large,
+        Custom
+    }
+
     [Parameter] public string Title { get; set; } = "";
     [Parameter] public string? TitleId { get; set; }
     [Parameter] public string? CardClass { get; set; }
-    [Parameter] public bool CloseOnEscape { get; set; }
+    [Parameter] public ModalWidth Width { get; set; } = ModalWidth.Regular;
+    [Parameter] public bool CloseOnEscape { get; set; } = true;
+    [Parameter] public bool CloseOnBackdrop { get; set; } = true;
+    [Parameter] public bool HideClose { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
     [Parameter] public RenderFragment? HeadTools { get; set; }
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
-    string CardCss => string.IsNullOrEmpty(CardClass) ? "modal-card" : $"modal-card {CardClass}";
+    ElementReference _card;
 
-    RenderFragment Card => @<div class="@CardCss" role="dialog" aria-modal="true" aria-labelledby="@TitleId" @onclick:stopPropagation="true">
-                               <div class="modal-head">
-                                   <h3 class="modal-title" id="@TitleId">@Title</h3>
-                                   @if (HeadTools is not null) {
-                                       @HeadTools
-                                   } else {
-                                       <button type="button" class="reg-edit-btn" title="Close" aria-label="Close" @onclick="Close">
-                                           <Icon Name="x"/>
-                                       </button>
-                                   }
-                               </div>
-                               @ChildContent
-                           </div>;
+    string CardCss {
+        get {
+            var css = "modal-card" + Width switch {
+                ModalWidth.Small => " modal-card-sm",
+                ModalWidth.Large => " modal-card-lg",
+                _ => ""
+            };
+            return string.IsNullOrEmpty(CardClass) ? css : $"{css} {CardClass}";
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender) {
+        if (firstRender) await _card.FocusAsync();
+    }
+
+    Task BackdropClick() {
+        return CloseOnBackdrop ? Close() : Task.CompletedTask;
+    }
 
     Task Close() {
         return OnClose.InvokeAsync();
     }
 
     Task OnKeyDown(KeyboardEventArgs e) {
-        return e.Key == "Escape" ? OnClose.InvokeAsync() : Task.CompletedTask;
+        return CloseOnEscape && e.Key == "Escape" ? OnClose.InvokeAsync() : Task.CompletedTask;
     }
 
 }

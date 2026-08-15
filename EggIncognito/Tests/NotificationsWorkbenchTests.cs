@@ -91,20 +91,29 @@ public class NotificationsWorkbenchTests {
     }
 
     [Theory]
-    [InlineData("#notify", true, null, "config")]
-    [InlineData("#notify_7", true, 7, "config")]
-    [InlineData("#notify_7_preview", true, 7, "preview")]
-    [InlineData("#notify_7_history", true, 7, "history")]
-    [InlineData("#notify_7_bogus", true, 7, "config")]
-    [InlineData("#notify_abc", true, null, "config")]
-    [InlineData("#android_111358", false, null, "config")]
-    [InlineData("", false, null, "config")]
-    public void ParseHash_Grammar(string hash, bool match, int? id, string mode) {
-        (bool gotMatch, int? gotId, string gotMode) = NotificationsWorkbenchState.ParseHash(hash);
+    [InlineData("#notify", true, null)]
+    [InlineData("#notify_7", true, 7)]
+    [InlineData("#notify_abc", true, null)]
+    [InlineData("#android_111358", false, null)]
+    [InlineData("#data/periodical/get_periodicals", false, null)]
+    [InlineData("", false, null)]
+    public void ParseHash_Grammar(string hash, bool match, int? id) {
+        (bool gotMatch, int? gotId) = NotificationsWorkbenchState.ParseHash(hash);
 
         Assert.Equal(match, gotMatch);
         Assert.Equal(id, gotId);
-        Assert.Equal(mode, gotMode);
+    }
+
+    [Theory]
+    [InlineData("#notify_7_preview")]
+    [InlineData("#notify_7_history")]
+    [InlineData("#notify_7_bogus")]
+    [InlineData("#notify_7_history_extra")]
+    public void ParseHash_IgnoresTheLegacyModeSegment(string hash) {
+        (bool match, int? id) = NotificationsWorkbenchState.ParseHash(hash);
+
+        Assert.True(match);
+        Assert.Equal(7, id);
     }
 
     [Fact]
@@ -116,24 +125,42 @@ public class NotificationsWorkbenchTests {
         state.SelectedId = 12;
         Assert.Equal("notify_12", state.Hash());
 
-        state.Mode = NotificationModes.History;
-        Assert.Equal("notify_12_history", state.Hash());
-
-        (bool match, int? id, string mode) = NotificationsWorkbenchState.ParseHash(state.Hash());
+        (bool match, int? id) = NotificationsWorkbenchState.ParseHash(state.Hash());
         Assert.True(match);
         Assert.Equal(12, id);
-        Assert.Equal(NotificationModes.History, mode);
     }
 
     [Fact]
-    public void Hash_HasNoLeadingHash_BecauseHashNavAddsIt() {
-        var state = new NotificationsWorkbenchState {
-            Creating = false,
-            SelectedId = 7,
-            Mode = NotificationModes.Preview
-        };
+    public void Hash_NeverEmitsAThirdSegment() {
+        var state = new NotificationsWorkbenchState { Creating = false, SelectedId = 7 };
 
-        Assert.DoesNotContain("#", state.Hash(), StringComparison.Ordinal);
-        Assert.Equal("notify_7_preview", state.Hash());
+        Assert.Equal("notify_7", state.Hash());
+        Assert.DoesNotContain("#", state.Hash()!, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ApplyHash_RestoresTheSelectionFromALegacyLink() {
+        var state = new NotificationsWorkbenchState();
+
+        Assert.True(state.ApplyHash("#notify_7_history"));
+        Assert.False(state.Creating);
+        Assert.Equal(7, state.SelectedId);
+
+        Assert.True(state.ApplyHash("#notify"));
+        Assert.True(state.Creating);
+        Assert.Null(state.SelectedId);
+
+        Assert.False(state.ApplyHash("#android_111358"));
+    }
+
+    [Fact]
+    public void TheWorkbenchHasNoModes() {
+        var state = new NotificationsWorkbenchState();
+
+        Assert.Empty(state.Modes);
+        Assert.Equal("", state.DefaultMode);
+        Assert.Equal("", state.Mode);
+        Assert.True(state.OwnsHash("#notify_7"));
+        Assert.False(state.OwnsHash("#data/periodical/get_periodicals"));
     }
 }

@@ -1,8 +1,4 @@
 @using EggIncognito.Components.Capture
-@* Decoded response view: an HTTP status badge, the decode stages (a slim Pipeline), an inline error
-   box with a "Possible fix" line, and the response body via the shared Capture FormatView (JSON tree +
-   format toggle + copy + filter, scrollable). *@
-
 @if (Response is null) {
     <div class="muted">No response yet.</div>
 } else if (Response.Error is not null && (Response.Stages is null || Response.Stages.Count == 0)
@@ -43,8 +39,8 @@
     }
 
     @if (!string.IsNullOrEmpty(Response.Json) || !string.IsNullOrEmpty(Response.RawBase64)) {
-        <FormatView Label="Response" JsonStr="@Response.Json" RawB64="@Response.RawBase64"
-                    View="_view" FormatChoice="_formatChoice" EmptyNote="(no decoded response body)"/>
+        <CodeFormats Key="Response" Label="Response" Json="@Response.Json" RawBase64="@Response.RawBase64"
+                     View="_view" Choice="_formatChoice" EmptyNote="(no decoded response body)"/>
     }
 }
 

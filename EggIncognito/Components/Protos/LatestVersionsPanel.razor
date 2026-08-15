@@ -1,4 +1,3 @@
-@using EggIncognito.Core.Services.Devices
 @using EggIncognito.Services.ProtoExtract
 @using EggIncognito.Services.Protos
 <div class="group">
@@ -9,20 +8,9 @@
         }
     </div>
     @foreach (var r in _latest) {
-        <button type="button" class="pv-latest-row" title="@Title(r)" @onclick="@(() => OnOpen.InvokeAsync(r))">
-            <span class="pv-latest-icon">
-                <Icon Name="@PlatformIcon(r.Platform)" Class="icon-sm"/>
-            </span>
-            <span class="dev-verline">
-                @(string.IsNullOrEmpty(r.AppVersion) ? "?" : r.AppVersion)<span class="dev-versep">|</span>@r.Build
-                @if (!string.IsNullOrEmpty(r.ClientVersion)) {
-                    <span class="dev-versep">|</span>
-                    @r.ClientVersion
-                }
-            </span>
-            @if (IsBehind(r)) {
-                <span class="pv-behind">behind</span>
-            }
+        <button type="button" class="pv-latest-row @(IsBehind(r) ? "pv-latest-row-behind" : "")"
+                title="@Title(r)" @onclick="@(() => OnOpen.InvokeAsync(r))">
+            <VersionLine Platform="@r.Platform" App="@r.AppVersion" Build="@r.Build" Client="@r.ClientVersion"/>
         </button>
     }
     @if (Updated is { } u) {
@@ -53,12 +41,6 @@
         return IsBehind(r) && _newest is { } n
             ? $"{r.Platform} is on an older release than {n.Platform}"
             : $"open {r.Platform} {r.Build} in the workbench";
-    }
-
-    static string PlatformIcon(string platform) {
-        return Platforms.Matches(platform, Platforms.Ios) ? "apple"
-            : Platforms.Matches(platform, Platforms.Android) ? "android"
-            : "device";
     }
 
 }

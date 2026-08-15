@@ -1,0 +1,87 @@
+using EggIncognito.Services.Syntax.Tokenizers;
+
+namespace EggIncognito.Services.Syntax;
+
+public static class SyntaxHighlighter {
+    public const int MaxLineChars = 4000;
+    public const int MaxDocumentChars = 8_000_000;
+    public const string Fallback = "text";
+
+    private static readonly ISyntaxTokenizer[] Registered = [
+        new TextTokenizer(),
+        new JsonTokenizer(),
+        new YamlTokenizer(),
+        new XmlTokenizer(),
+        new JsTokenizer(),
+        new HexTokenizer(),
+        new BinTokenizer(),
+        new ProtoTokenizer(),
+        new DiffTokenizer(),
+        new CsharpTokenizer(),
+        new BashTokenizer(),
+        new SqlTokenizer(),
+        new HttpTokenizer(),
+        new CssTokenizer(),
+        new MarkdownTokenizer()
+    ];
+
+    private static readonly Dictionary<string, ISyntaxTokenizer> Registry =
+        Registered.ToDictionary(t => t.Id, StringComparer.OrdinalIgnoreCase);
+
+    private static readonly Dictionary<string, string> AliasMap = new(StringComparer.OrdinalIgnoreCase) {
+        ["txt"] = "text",
+        ["plain"] = "text",
+        ["plaintext"] = "text",
+        ["log"] = "text",
+        ["json-tree"] = "json",
+        ["jsonc"] = "json",
+        ["yml"] = "yaml",
+        ["html"] = "xml",
+        ["xhtml"] = "xml",
+        ["svg"] = "xml",
+        ["javascript"] = "js",
+        ["jsobj"] = "js",
+        ["ts"] = "js",
+        ["typescript"] = "js",
+        ["mjs"] = "js",
+        ["binary"] = "bin",
+        ["hexdump"] = "hex",
+        ["protobuf"] = "proto",
+        ["patch"] = "diff",
+        ["cs"] = "csharp",
+        ["c#"] = "csharp",
+        ["dotnet"] = "csharp",
+        ["sh"] = "bash",
+        ["shell"] = "bash",
+        ["zsh"] = "bash",
+        ["console"] = "bash",
+        ["postgres"] = "sql",
+        ["psql"] = "sql",
+        ["md"] = "markdown",
+        ["curl"] = "http"
+    };
+
+    public static IReadOnlyCollection<string> Languages => Registry.Keys;
+
+    public static IReadOnlyCollection<string> Aliases => AliasMap.Keys;
+
+    public static string Resolve(string? language) {
+        if (string.IsNullOrWhiteSpace(language)) return Fallback;
+        string id = language.Trim();
+        int space = id.IndexOf(' ');
+        if (space > 0) id = id[..space];
+        if (Registry.TryGetValue(id, out ISyntaxTokenizer? direct)) return direct.Id;
+        return AliasMap.TryGetValue(id, out string? mapped) && Registry.ContainsKey(mapped) ? mapped : Fallback;
+    }
+
+    public static bool IsKnown(string? language) => !string.IsNullOrWhiteSpace(language) && Resolve(language) != Fallback;
+
+    public static ISyntaxTokenizer Tokenizer(string? language) => Registry[Resolve(language)];
+
+    public static HighlightedText Highlight(string? text, string? language) {
+        string body = text ?? "";
+        string id = Resolve(language);
+        if (body.Length > MaxDocumentChars) id = Fallback;
+        return SyntaxCache.Shared.Get(body, Registry[id]);
+    }
+}

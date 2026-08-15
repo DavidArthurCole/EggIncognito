@@ -1,15 +1,12 @@
-@* Recursive proto field editor. One row per FieldNode: message fields recurse into a child FieldTree;
-   repeated fields render an add/remove item list; enums/bools render a select; scalars a typed input. *@
-
 @foreach (var node in Nodes) {
     @if (node.IsMessage) {
         <div class="field-row">
-            <div class="field-name" style="grid-column: 1 / -1;">
+            <div class="field-name field-span">
                 @node.Field.JsonName<span class="fnum">#@node.Field.Number</span>
                 <span class="ftype">@(node.Field.Repeated ? "repeated " : "")message @node.Field.MessageType</span>
             </div>
         </div>
-        <div style="grid-column: 1 / -1;">
+        <div class="field-span">
             <FieldTree Nodes="node.Children" Nested="true" OnChanged="OnChanged"/>
         </div>
     } else {
@@ -23,9 +20,8 @@
                     @for (var i = 0; i < node.Items.Count; i++) {
                         var idx = i;
                         <div class="repeated-item">
-                            <input class="rep-input field-input" placeholder="@node.Field.Type"
-                                   value="@node.Items[idx]"
-                                   autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
+                            <input class="field-input" placeholder="@node.Field.Type"
+                                   value="@node.Items[idx]" @attributes="InputAttrs.NoAutofill"
                                    @oninput="e => SetItem(node, idx, e.Value?.ToString())"/>
                             <button type="button" class="btn-mini" @onclick="() => Remove(node, idx)">x</button>
                         </div>
@@ -51,7 +47,7 @@
                 <input class="field-input @(node.Locked ? "env-locked" : "")" disabled="@node.Locked"
                        placeholder="@node.Field.Type" value="@node.Value"
                        title="@(node.Locked ? "Set by the Environment panel above" : "")"
-                       autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
+                       @attributes="InputAttrs.NoAutofill"
                        @oninput="e => Set(node, e.Value?.ToString())"/>
             }
         </div>

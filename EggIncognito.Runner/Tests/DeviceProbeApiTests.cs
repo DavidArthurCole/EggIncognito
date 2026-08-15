@@ -9,7 +9,8 @@ namespace EggIncognito.Runner.Tests;
 public class DeviceProbeApiTests {
     private static DeviceProbeApi Api() {
         var db = RunnerDb.FromEnv(k => k == "ConnectionStrings__Postgres" ? "Host=localhost;Database=x" : "")!;
-        return new DeviceProbeApi("secret", db, new ProcessRunner(), TimeProvider.System, NullLoggerFactory.Instance);
+        return new DeviceProbeApi("secret", db, new DevicePlatforms([]), TimeProvider.System,
+            NullLoggerFactory.Instance);
     }
 
     [Fact]

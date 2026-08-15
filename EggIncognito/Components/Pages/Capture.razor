@@ -44,7 +44,7 @@
             </div>
             @if (_readOnly) {
                 <div class="capture-device">
-                    <span class="capture-device-tag">READ-ONLY</span>
+                    <span class="capture-device-note">read only</span>
                     @if (!string.IsNullOrEmpty(_deviceLabel)) {
                         <span class="capture-device-name">@_deviceLabel</span>
                     }
@@ -355,7 +355,7 @@
 
     static string NoticeSeverity(string kind) {
         return kind switch {
-            "decryptError" => "error",
+            "decryptError" => "err",
             "certTrusted" => "ok",
             _ => "info"
         };

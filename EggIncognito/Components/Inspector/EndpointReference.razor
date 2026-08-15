@@ -1,0 +1,47 @@
+@using EggIncognito.Services.Inspector
+@if (Route is null) {
+    <div class="empty-state">
+        No endpoint selected.
+        <div class="empty-hint">Pick an endpoint in the rail to read and edit its documentation.</div>
+    </div>
+} else {
+    <DocSubjectView Kind="DocSubjectKind.Endpoint" Key="@Route.Path" Title="@Route.Path">
+        <Aside>
+            <div class="doc-types">
+                <span class="doc-type-row">
+                    <span class="text-muted text-xs">request</span>
+                    @if (!string.IsNullOrEmpty(Route.Request)) {
+                        <button type="button" class="doc-type-link mono"
+                                @onclick="() => OnSelectObject.InvokeAsync(Route.Request!)">
+                            @Route.Request
+                        </button>
+                        @if (Route.RequestWrapped) {
+                            <span class="ep-signed" title="wrapped + signed in an AuthenticatedMessage">
+                                <Icon Name="lock" Class="icon-sm"/>
+                            </span>
+                        }
+                    } else {
+                        <span class="text-muted">none</span>
+                    }
+                </span>
+                <span class="doc-type-row">
+                    <span class="text-muted text-xs">response</span>
+                    @if (!string.IsNullOrEmpty(Route.Response)) {
+                        <button type="button" class="doc-type-link mono"
+                                @onclick="() => OnSelectObject.InvokeAsync(Route.Response!)">
+                            @Route.Response
+                        </button>
+                    } else {
+                        <span class="text-muted">none</span>
+                    }
+                </span>
+            </div>
+        </Aside>
+    </DocSubjectView>
+}
+
+@code {
+    [Parameter] public RouteInfo? Route { get; set; }
+    [Parameter] public EventCallback<string> OnSelectObject { get; set; }
+
+}

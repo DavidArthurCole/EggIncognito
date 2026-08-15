@@ -1,0 +1,406 @@
+@rendermode @(RenderMode.InteractiveServer)
+@inherits SelfCallComponentBase
+@inject IJSRuntime JS
+@inject IWebHostEnvironment Env
+@inject DataWorkbenchState State
+@inject ILogger<DataWorkbenchModal> Logger
+@using System.Text.Json
+@using EggIncognito.Components.Shared.Workbench
+@using EggIncognito.Core
+@using EggIncognito.Services.Data
+@implements IAsyncDisposable
+
+<WorkbenchModal Open="_open" Title="Data" TitleId="dataWorkbenchTitle" CardClass="ds-card"
+                Notice="_notice" OnClose="CloseAsync">
+    <Rail>
+        <WorkbenchRail Filter="@State.RailFilter" FilterChanged="OnRailFilter" FilterPlaceholder="Filter datasets">
+            <WorkbenchLoad T="SourceRow" Items="@_sources" EmptyText="No data sources on this instance."
+                           Context="sources">
+                @foreach (var group in Groups(sources)) {
+                    var roots = RootsOf(sources, group);
+                    if (roots.Count == 0) {
+                        continue;
+                    }
+
+                    <WorkbenchSection Label="@GroupLabel(group)">
+                        @foreach (var root in roots) {
+                            <WorkbenchEntry @key="root.Url"
+                                            Selected="@(State.Sub is null && State.Group == root.Group && State.Id == root.Id)"
+                                            Title="@root.Url" OnClick="@(_ => Select(root, null))">
+                                <Name>@root.DisplayName</Name>
+                                <MetaLine>@root.Id</MetaLine>
+                            </WorkbenchEntry>
+                            @foreach (var child in ChildrenOf(root)) {
+                                <div class="ds-sub">
+                                    <WorkbenchEntry @key="child.Url"
+                                                    Selected="@(State.Sub == child.Id && State.Group == root.Group && State.Id == root.Id)"
+                                                    Title="@child.Url" OnClick="@(_ => Select(root, child))">
+                                        <Name>@child.DisplayName</Name>
+                                        <MetaLine>@child.Id</MetaLine>
+                                    </WorkbenchEntry>
+                                </div>
+                            }
+                        }
+                    </WorkbenchSection>
+                }
+            </WorkbenchLoad>
+        </WorkbenchRail>
+    </Rail>
+    <ChildContent>
+        @if (Current is { } source) {
+            <div class="mb-3">
+                <WorkbenchModes Modes="State.Modes" Current="@State.Mode" CurrentChanged="SetMode"/>
+            </div>
+            @if (State.Mode == DataWorkbenchState.ModeAbout) {
+                @AboutPane(source)
+            } else {
+                @DataPane(source)
+            }
+        } else {
+            <div class="wb-note">Select a dataset.</div>
+        }
+    </ChildContent>
+</WorkbenchModal>
+
+@code {
+    bool _open;
+    bool _hashWired;
+    WorkbenchNotice? _notice;
+
+    IJSObjectReference? _nav;
+    IJSObjectReference? _navHandle;
+    DotNetObjectReference<DataWorkbenchModal>? _selfRef;
+
+    List<SourceRow>? _sources;
+    string _origin = "";
+
+    SourceRow? Current {
+        get {
+            var root = _sources?.FirstOrDefault(s => s.Group == State.Group && s.Id == State.Id);
+            if (root is null) return null;
+            if (State.Sub is not { Length: > 0 } sub) return root;
+            return root.Children?.FirstOrDefault(c => c.Id == sub);
+        }
+    }
+
+    IEnumerable<string> Groups(IReadOnlyCollection<SourceRow> sources) {
+        return sources.Select(s => s.Group).Distinct(StringComparer.Ordinal);
+    }
+
+    List<SourceRow> RootsOf(IReadOnlyCollection<SourceRow> sources, string group) {
+        var filter = State.RailFilter.Trim();
+        return sources
+            .Where(s => string.Equals(s.Group, group, StringComparison.Ordinal))
+            .Where(s => filter.Length == 0 || Matches(s, filter) || (s.Children ?? []).Any(c => Matches(c, filter)))
+            .ToList();
+    }
+
+    List<SourceRow> ChildrenOf(SourceRow root) {
+        var children = root.Children ?? [];
+        var filter = State.RailFilter.Trim();
+        if (filter.Length == 0 || Matches(root, filter)) return [.. children];
+        return [.. children.Where(c => Matches(c, filter))];
+    }
+
+    bool Matches(SourceRow s, string needle) {
+        return Has(s.DisplayName, needle) || Has(s.Id, needle) || Has(s.Url, needle)
+               || Has(GroupLabel(s.Group), needle);
+    }
+
+    static bool Has(string? value, string needle) {
+        return value is not null && value.Contains(needle, StringComparison.OrdinalIgnoreCase);
+    }
+
+    static string GroupLabel(string key) {
+        return key switch {
+            "periodical" => "Periodical",
+            "gamedata" => "Game data",
+            "asset" => "Assets",
+            _ => TitleCase(key)
+        };
+    }
+
+    static string TitleCase(string raw) {
+        var words = raw.Split([' ', '_', '-'], StringSplitOptions.RemoveEmptyEntries);
+        return words.Length == 0
+            ? raw
+            : string.Join(' ', words.Select(w => char.ToUpperInvariant(w[0]) + w[1..].ToLowerInvariant()));
+    }
+
+    static string ProvenanceLabel(string raw) {
+        return raw switch {
+            "WireFixture" => "wire fixture",
+            "DerivedExtract" => "derived extract",
+            "Database" => "database document",
+            "Asset" => "game asset",
+            _ => raw
+        };
+    }
+
+    static string AccessLabel(string raw) {
+        return string.Equals(raw, "Authenticated", StringComparison.Ordinal) ? "account or API key" : "public";
+    }
+
+    string CurlLine(SourceRow s) {
+        return $"curl -H \"X-Api-Key: <your-key>\" {_origin}{s.Url}";
+    }
+
+    static string DownloadName(SourceRow s) {
+        return $"{s.Id}.json";
+    }
+
+    string AssetUrl(SourceRow s, string name) {
+        return $"{s.Url}?name={Uri.EscapeDataString(name)}";
+    }
+
+    RenderFragment DataPane(SourceRow s) => @<div class="ds-pane">
+                                                @if (s.AcceptsName) {
+                                                    var name = State.NameFor(State.Key);
+                                                    <label class="sub-field mb-3">
+                                                        <span class="sub-field-label">Asset name</span>
+                                                        <input class="field-input w-full" placeholder="afx_ornate_gusset_2"
+                                                               value="@name" @oninput="OnNameInput"/>
+                                                    </label>
+                                                    @if (name.Length > 0) {
+                                                        <img class="ds-asset" src="@AssetUrl(s, name)" alt="@name"/>
+                                                        <div class="mt-2">
+                                                            <a class="btn-mini no-underline" href="@AssetUrl(s, name)"
+                                                               download="@($"{name}.png")" target="_blank" rel="noopener">
+                                                                Download
+                                                            </a>
+                                                        </div>
+                                                    } else {
+                                                        <p class="text-muted text-sm m-0">This source serves one asset per name. Type a name to see it.</p>
+                                                    }
+                                                } else if (State.Payloads.GetValueOrDefault(s.Url) is not { } entry) {
+                                                    <p class="text-muted text-sm m-0">Loading...</p>
+                                                } else if (entry.Status == 401) {
+                                                    <div class="sub-login-note">
+                                                        <p class="text-muted text-sm m-0 mb-2">
+                                                            This dataset is served to accounts and API keys only.
+                                                        </p>
+                                                        <LoginButton Label="Log in" Placement="LoginMenuPlacement.Right"/>
+                                                    </div>
+                                                } else if (entry.Status is < 200 or > 299) {
+                                                    <StatusNote Severity="StatusNote.Kind.Error">
+                                                        @(entry.Status == 0 ? "The request failed." : $"HTTP {entry.Status}")
+                                                    </StatusNote>
+                                                } else {
+                                                    <div class="flex items-center gap-2 mb-2">
+                                                        <a class="btn-mini no-underline" href="@s.Url" download="@DownloadName(s)"
+                                                           target="_blank" rel="noopener">
+                                                            Download
+                                                        </a>
+                                                    </div>
+                                                    <CodeFormats Key="@s.Url" ShowLabel="false" Json="@entry.Text" View="State.View"
+                                                                 Choice="State.Formats" MaxHeight="30rem"/>
+                                                }
+                                            </div>;
+
+    RenderFragment AboutPane(SourceRow s) => @<div class="ds-pane">
+                                                 @if (!string.IsNullOrWhiteSpace(s.Description)) {
+                                                     <p class="text-sm mt-0 mb-3">@s.Description</p>
+                                                 }
+                                                 <div class="ds-kv">
+                                                     <span class="ds-kv-k">Group</span><span>@GroupLabel(s.Group)</span>
+                                                 </div>
+                                                 <div class="ds-kv">
+                                                     <span class="ds-kv-k">Provenance</span><span>@ProvenanceLabel(s.Provenance)</span>
+                                                 </div>
+                                                 <div class="ds-kv">
+                                                     <span class="ds-kv-k">Access</span><span>@AccessLabel(s.Access)</span>
+                                                 </div>
+                                                 @if (s.Bytes is { } bytes) {
+                                                     <div class="ds-kv">
+                                                         <span class="ds-kv-k">Size</span><span class="font-mono">@ByteFormat.Compact(bytes)</span>
+                                                     </div>
+                                                 }
+                                                 @if (!string.IsNullOrEmpty(s.Feed)) {
+                                                     <div class="ds-kv">
+                                                         <span class="ds-kv-k">Feed</span><span class="font-mono">@s.Feed</span>
+                                                     </div>
+                                                 }
+                                                 @if (s.Meta?.BinaryVersion is { Length: > 0 } binaryVersion) {
+                                                     <div class="ds-kv">
+                                                         <span class="ds-kv-k">Binary</span><VersionLine App="@binaryVersion"/>
+                                                     </div>
+                                                 }
+                                                 <div class="ds-kv">
+                                                     <span class="ds-kv-k">Route</span><span class="font-mono">@s.Url</span>
+                                                 </div>
+                                                 <div class="apidoc mt-3">
+                                                     <div class="apidoc-body">
+                                                         <pre class="apidoc-example">@CurlLine(s)</pre>
+                                                     </div>
+                                                 </div>
+                                                 @if (Provenance(s) is { Length: > 0 } provenance) {
+                                                     <div class="sub-section-head mt-4 mb-2">Extraction provenance</div>
+                                                     <CodeSurface Text="@provenance" Language="json" ShowFilter="false" MaxHeight="18rem"/>
+                                                 }
+                                             </div>;
+
+    static string Provenance(SourceRow s) {
+        if (s.Meta?.Provenance is not { } element) return "";
+        try {
+            return JsonSerializer.Serialize(element, new JsonSerializerOptions { WriteIndented = true });
+        }
+        catch (NotSupportedException) {
+            return "";
+        }
+    }
+
+    public async Task Open(string? group = null, string? id = null) {
+        _open = true;
+        if (group is { Length: > 0 } g && id is { Length: > 0 } i) State.Select(g, i, null);
+        await LoadIndex();
+        EnsureSelection();
+        await EnsureLoaded();
+        await WriteHash(true);
+        StateHasChanged();
+    }
+
+    async Task CloseAsync() {
+        _open = false;
+        await WriteHash(true, true);
+        StateHasChanged();
+    }
+
+    protected override void OnInitialized() {
+        base.OnInitialized();
+        _origin = SelfBaseAddress;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender) {
+        if (!firstRender) return;
+        try {
+            _nav = await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/hashnav.js"));
+            _selfRef = DotNetObjectReference.Create(this);
+            _navHandle = await _nav.InvokeAsync<IJSObjectReference>("listen", _selfRef);
+            _hashWired = true;
+            var hash = await _nav.InvokeAsync<string>("read");
+            await ApplyHash(hash);
+        }
+        catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
+            Logger.LogDebug(ex, "hash navigation could not be wired");
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnHashChanged(string hash) {
+        await ApplyHash(hash);
+        StateHasChanged();
+    }
+
+    async Task ApplyHash(string hash) {
+        if (!State.ApplyHash(hash)) {
+            if (_open) {
+                _open = false;
+                StateHasChanged();
+            }
+
+            return;
+        }
+
+        _open = true;
+        await LoadIndex();
+        EnsureSelection();
+        await EnsureLoaded();
+        StateHasChanged();
+    }
+
+    async Task WriteHash(bool push = false, bool clear = false) {
+        if (!_hashWired || _nav is null) return;
+        var hash = clear ? "" : State.Hash() ?? "";
+        await _nav.InvokeVoidAsync(push ? "push" : "write", hash);
+    }
+
+    async Task LoadIndex() {
+        if (_sources is not null) return;
+        var index = await Client().OneAsync<DataIndex>("/api/v1/data", Logger);
+        _sources = index?.Sources ?? [];
+        if (_sources.Count == 0) _notice = new WorkbenchNotice("The source catalog could not be read.", StatusNote.Kind.Error);
+    }
+
+    void EnsureSelection() {
+        if (Current is not null) return;
+        var first = _sources?.FirstOrDefault();
+        if (first is null) return;
+        State.Select(first.Group, first.Id, null);
+    }
+
+    async Task Select(SourceRow root, SourceRow? child) {
+        State.Select(root.Group, root.Id, child?.Id);
+        _notice = null;
+        await EnsureLoaded();
+        await WriteHash();
+    }
+
+    async Task SetMode(string mode) {
+        State.Mode = mode;
+        await EnsureLoaded();
+        await WriteHash();
+    }
+
+    async Task EnsureLoaded() {
+        if (State.Mode != DataWorkbenchState.ModeData) return;
+        if (Current is not { } s || s.AcceptsName) return;
+        if (State.Payloads.ContainsKey(s.Url)) return;
+        State.Payloads[s.Url] = await FetchAsync(s.Url);
+    }
+
+    async Task<DataPayloadEntry> FetchAsync(string url) {
+        try {
+            var res = await Client().GetAsync(url);
+            var body = await res.Content.ReadAsStringAsync();
+            return new DataPayloadEntry((int)res.StatusCode, body);
+        }
+        catch (Exception ex) {
+            Logger.LogDebug(ex, "data source {Url} could not be read", url);
+            return new DataPayloadEntry(0, "");
+        }
+    }
+
+    void OnRailFilter(string value) {
+        State.RailFilter = value;
+    }
+
+    void OnNameInput(ChangeEventArgs e) {
+        State.Names[State.Key] = e.Value?.ToString() ?? "";
+    }
+
+    public async ValueTask DisposeAsync() {
+        try {
+            if (_navHandle is not null) {
+                await _navHandle.InvokeVoidAsync("dispose");
+                await _navHandle.DisposeAsync();
+            }
+
+            if (_nav is not null) await _nav.DisposeAsync();
+        }
+        catch (JSDisconnectedException) {
+        }
+        catch (ObjectDisposedException) {
+        }
+
+        _selfRef?.Dispose();
+    }
+
+    public sealed record DataIndex(int Count, List<SourceRow> Sources);
+
+    public sealed record SourceRow(
+        string Id,
+        string Group,
+        string Url,
+        string DisplayName,
+        string? Description,
+        string Provenance,
+        string Access,
+        string? Feed,
+        bool AcceptsName,
+        long? Bytes,
+        MetaRow? Meta,
+        List<SourceRow>? Children);
+
+    public sealed record MetaRow(string? BinaryVersion, JsonElement? Provenance);
+
+}

@@ -1,3 +1,5 @@
+using EggIncognito.Services.Workbench;
+
 namespace EggIncognito.Services.Notifications;
 
 public sealed class NotificationDraft {
@@ -11,24 +13,13 @@ public sealed class NotificationDraft {
     public HashSet<string> Filters { get; set; } = [];
 }
 
-public static class NotificationModes {
-    public const string Config = "config";
-    public const string Preview = "preview";
-    public const string History = "history";
+public sealed class NotificationsWorkbenchState : WorkbenchStateBase {
+    public override IReadOnlyList<WorkbenchMode> Modes { get; } = [];
 
-    public static readonly IReadOnlyList<(string Key, string Label)> All = [
-        (Config, "Config"), (Preview, "Preview"), (History, "History")
-    ];
+    public override string HashPrefix => "notify";
 
-    public static string Normalize(string? mode) =>
-        All.Any(m => m.Key == mode) ? mode! : Config;
-}
-
-public sealed class NotificationsWorkbenchState {
     public int? SelectedId { get; set; }
     public bool Creating { get; set; } = true;
-    public string Mode { get; set; } = NotificationModes.Config;
-    public string RailFilter { get; set; } = "";
     public string SampleKey { get; set; } = "";
     public NotificationDraft NewDraft { get; } = new();
     public Dictionary<int, NotificationDraft> Edits { get; } = [];
@@ -49,19 +40,25 @@ public sealed class NotificationsWorkbenchState {
         NewDraft.Filters = [];
     }
 
-    public string Hash() {
+    public override string? Hash() {
         if (Creating) return "notify";
-        if (SelectedId is not { } id) return "notify";
-        return Mode == NotificationModes.Config ? $"notify_{id}" : $"notify_{id}_{Mode}";
+        return SelectedId is { } id ? $"notify_{id}" : "notify";
     }
 
-    public static (bool Match, int? Id, string Mode) ParseHash(string? hash) {
+    public override bool ApplyHash(string? hash) {
+        (bool match, int? id) = ParseHash(hash);
+        if (!match) return false;
+        Creating = id is null;
+        SelectedId = id;
+        return true;
+    }
+
+    public static (bool Match, int? Id) ParseHash(string? hash) {
         string body = (hash ?? "").TrimStart('#');
-        if (body.Length == 0) return (false, null, NotificationModes.Config);
+        if (body.Length == 0) return (false, null);
         string[] parts = body.Split('_');
-        if (parts[0] != "notify") return (false, null, NotificationModes.Config);
-        if (parts.Length < 2) return (true, null, NotificationModes.Config);
-        if (!int.TryParse(parts[1], out int id)) return (true, null, NotificationModes.Config);
-        return (true, id, NotificationModes.Normalize(parts.Length > 2 ? parts[2] : null));
+        if (parts[0] != "notify") return (false, null);
+        if (parts.Length < 2) return (true, null);
+        return int.TryParse(parts[1], out int id) ? (true, id) : (true, null);
     }
 }

@@ -6,97 +6,73 @@
 @inject NotificationsWorkbenchState State
 @inject ILogger<NotificationsWorkbenchModal> Logger
 @using System.Text.Json
+@using EggIncognito.Components.Shared.Editor
+@using EggIncognito.Components.Shared.Workbench
 @using EggIncognito.Services.Notifications
+@using EggIncognito.Services.Workbench
 @implements IAsyncDisposable
 
-@if (_open) {
-    <ModalShell Title="Notifications" CardClass="nwb-card" OnClose="CloseAsync">
-        <HeadTools>
-            <div class="wb-head-tools">
-                <div class="nwb-seg">
-                    @foreach (var m in NotificationModes.All) {
-                        <button type="button" class="nwb-seg-btn @(State.Mode == m.Key ? "active" : "")"
-                                disabled="@ModeDisabled(m.Key)" @onclick="@(() => SetMode(m.Key))">
-                            @m.Label
-                        </button>
-                    }
-                </div>
-                @if (Current is { } cur && User.IsAuthenticated) {
-                    <button type="button" class="btn-mini" disabled="@_busy" @onclick="@(() => DeleteSub(cur.Id))">Delete</button>
-                }
-                <button type="button" class="reg-edit-btn" title="Close" aria-label="Close" @onclick="CloseAsync">
-                    <Icon Name="x"/>
-                </button>
-            </div>
-        </HeadTools>
-        <ChildContent>
-            <div class="wb-body">
-                <aside class="wb-rail">
-                    <input class="flow-filter-input nwb-rail-filter" placeholder="Filter subscriptions"
-                           value="@State.RailFilter" @oninput="OnRailFilter"/>
-                    <button type="button" class="wb-entry @(State.Creating ? "selected" : "")" @onclick="SelectNew">
-                        <span class="wb-entry-name">New subscription</span>
-                    </button>
-                    @if (!User.IsAuthenticated) {
-                        <div class="text-muted text-xs px-1">Log in to see your subscriptions.</div>
-                    } else if (_subs is null) {
-                        <div class="text-muted text-xs px-1">Loading...</div>
-                    } else if (Filtered.Count == 0) {
-                        <div class="text-muted text-xs px-1">@(_subs.Count == 0 ? "No subscriptions yet." : "No match.")</div>
-                    } else {
-                        @foreach (var g in Filtered.GroupBy(s => s.EventKind).OrderBy(g => g.Key, StringComparer.Ordinal)) {
-                            <div class="nwb-group">@KindLabel(g.Key)</div>
+<WorkbenchModal Open="_open" Title="Notifications" TitleId="notificationsWorkbenchTitle" CardClass="nwb-card"
+                Notice="_notice" NoticeDismissed="DismissNotice" OnClose="CloseAsync">
+    <HeadTools>
+        @if (Current is { } cur && User.IsAuthenticated) {
+            <button type="button" class="btn-mini" disabled="@_busy" @onclick="@(() => DeleteSub(cur.Id))">Delete</button>
+        }
+    </HeadTools>
+    <Rail>
+        <WorkbenchRail Filter="@State.RailFilter" FilterChanged="OnRailFilter" FilterPlaceholder="Filter subscriptions">
+            <WorkbenchEntry Selected="@State.Creating" OnClick="@(_ => SelectNew())">
+                <Name>New subscription</Name>
+            </WorkbenchEntry>
+            @if (!User.IsAuthenticated) {
+                <div class="wb-note">Log in to see your subscriptions.</div>
+            } else {
+                <WorkbenchLoad T="Sub" Items="@FilteredOrNull" EmptyText="@EmptyRailText" Context="subs">
+                    @foreach (var g in subs.GroupBy(s => s.EventKind).OrderBy(g => g.Key, StringComparer.Ordinal)) {
+                        <WorkbenchSection Label="@KindLabel(g.Key)">
                             @foreach (var s in g) {
-                                <button type="button" class="wb-entry @(!State.Creating && State.SelectedId == s.Id ? "selected" : "")"
-                                        @onclick="@(() => Select(s))">
-                                    <span class="wb-entry-name">@s.UrlMasked</span>
-                                    <span class="wb-entry-meta">@TriggerLabel(s.EventKind, s.Trigger)</span>
-                                    <span class="wb-entry-foot">
-                                        <span class="@HealthClass(s)">@Health(s)</span>
-                                    </span>
-                                </button>
+                                <WorkbenchEntry @key="s.Id" Selected="@(!State.Creating && State.SelectedId == s.Id)"
+                                                Status="@HealthStatus(s)" OnClick="@(_ => Select(s))">
+                                    <Name>@s.UrlMasked</Name>
+                                    <MetaLine>@TriggerLabel(s.EventKind, s.Trigger)</MetaLine>
+                                    <Foot>@Health(s)</Foot>
+                                </WorkbenchEntry>
                             }
-                        }
+                        </WorkbenchSection>
                     }
-                </aside>
-                <section class="wb-main">
-                    @if (State.Mode == NotificationModes.Preview) {
-                        @PreviewPane()
-                    } else if (State.Mode == NotificationModes.History) {
-                        @HistoryPane()
-                    } else {
-                        @ConfigPane()
-                    }
-                </section>
-            </div>
-        </ChildContent>
-    </ModalShell>
-}
+                </WorkbenchLoad>
+            }
+        </WorkbenchRail>
+    </Rail>
+    <ChildContent>
+        @ConfigPane()
+    </ChildContent>
+</WorkbenchModal>
 
 @code {
-    static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
+    const int PreviewDebounceMs = 500;
 
     bool _open;
     bool _busy;
     bool _hashWired;
-    string? _msg;
-    bool _msgOk;
     string? _armed;
+    WorkbenchNotice? _notice;
 
     IJSObjectReference? _nav;
     IJSObjectReference? _navHandle;
     DotNetObjectReference<NotificationsWorkbenchModal>? _selfRef;
+    CancellationTokenSource? _debounce;
+    int _previewSeq;
 
     List<KindInfo> _kinds = [];
     List<Sub>? _subs;
     List<PreviewRow>? _preview;
-    List<ActivityRow>? _activity;
 
     Sub? Current => State.Creating ? null : _subs?.FirstOrDefault(s => s.Id == State.SelectedId);
 
-    List<Sub> Filtered {
+    List<Sub>? FilteredOrNull {
         get {
-            if (_subs is null) return [];
+            if (_subs is null) return null;
             var f = State.RailFilter.Trim();
             if (f.Length == 0) return _subs;
             return _subs.Where(s =>
@@ -104,6 +80,8 @@
                 Has(TriggerLabel(s.EventKind, s.Trigger), f)).ToList();
         }
     }
+
+    string EmptyRailText => _subs is { Count: > 0 } ? "No match." : "No subscriptions yet.";
 
     static bool Has(string? value, string needle) {
         return value is not null && value.Contains(needle, StringComparison.OrdinalIgnoreCase);
@@ -138,23 +116,23 @@
         return s.FailCount > 0 ? $"{s.FailCount} failed" : s.LastDeliveryAt is null ? "no sends yet" : "healthy";
     }
 
-    static string HealthClass(Sub s) {
-        if (!s.Active) return "text-muted";
-        return s.FailCount > 0 ? "text-err" : s.LastDeliveryAt is null ? "text-muted" : "text-ok";
-    }
-
-    bool ModeDisabled(string mode) {
-        return mode == NotificationModes.History && State.Creating;
-    }
-
-    static string Tok(string v) {
-        return "{{" + v + "}}";
+    static WorkbenchStatusKind HealthStatus(Sub s) {
+        if (!s.Active) return WorkbenchStatusKind.Muted;
+        if (s.FailCount > 0) return WorkbenchStatusKind.Error;
+        return s.LastDeliveryAt is null ? WorkbenchStatusKind.Muted : WorkbenchStatusKind.Done;
     }
 
     static string Placeholder(string kind) {
         return kind == "periodicals_changed"
             ? "{{feed}} changed (hash {{sha}}) - see {{pageUrl}}"
             : "New build {{appVersion}} ({{build}}) is up on {{platform}}!";
+    }
+
+    PreviewRow? SelectedSample {
+        get {
+            if (_preview is not { Count: > 0 } rows) return null;
+            return rows.FirstOrDefault(p => p.Key == State.SampleKey) ?? rows[0];
+        }
     }
 
     RenderFragment ConfigPane() => @<div class="nwb-pane">
@@ -186,8 +164,10 @@
                                                    <LoginButton Label="Log in" Placement="LoginMenuPlacement.Right"/>
                                                </div>
                                            }
+
+                                           @PreviewBlock()
                                        } else if (Current is { } sub) {
-                                           <div class="font-mono text-xs break-all mb-3">@sub.UrlMasked</div>
+                                           <div class="nwb-url font-mono text-xs mb-3">@sub.UrlMasked</div>
                                            <div class="text-muted text-xs mb-3">@KindLabel(sub.EventKind)</div>
                                            @Fields(State.Draft(sub.Id), true)
                                            @if (User.IsAuthenticated) {
@@ -197,13 +177,10 @@
                                                    </button>
                                                </div>
                                            }
+
+                                           @PreviewBlock()
                                        } else {
                                            <div class="text-muted text-sm">Select a subscription, or start a new one.</div>
-                                       }
-                                       @if (_msg is not null) {
-                                           <div class="mt-3">
-                                               <StatusNote Severity="@(_msgOk ? StatusNote.Kind.Ok : StatusNote.Kind.Error)">@_msg</StatusNote>
-                                           </div>
                                        }
                                    </div>;
 
@@ -213,14 +190,18 @@
                                                                              <fieldset class="sub-field border-0 p-0 m-0">
                                                                                  <legend class="sub-field-label p-0">Platforms</legend>
                                                                                  <div class="sub-checks">
-                                                                                     <label class="settings-check"><input type="checkbox" @bind="d.Android"/> Android</label>
-                                                                                     <label class="settings-check"><input type="checkbox" @bind="d.Ios"/> iOS</label>
+                                                                                     <label class="settings-check">
+                                                                                         <input type="checkbox" @bind="d.Android" @bind:after="RefreshPreview"/> Android
+                                                                                     </label>
+                                                                                     <label class="settings-check">
+                                                                                         <input type="checkbox" @bind="d.Ios" @bind:after="RefreshPreview"/> iOS
+                                                                                     </label>
                                                                                  </div>
                                                                              </fieldset>
                                                                          }
                                                                          <fieldset class="sub-field border-0 p-0 m-0">
                                                                              <legend class="sub-field-label p-0">Trigger</legend>
-                                                                             <select class="field-input" @bind="d.Trigger">
+                                                                             <select class="field-input" @bind="d.Trigger" @bind:after="RefreshPreview">
                                                                                  @foreach (var t in TriggersOf(d.EventKind)) {
                                                                                      <option value="@t.Value">@t.Label</option>
                                                                                  }
@@ -244,88 +225,60 @@
                                                                                      </label>
                                                                                  }
                                                                              </div>
-                                                                             <span class="text-muted text-xs">A blocked event is logged in History instead of being sent.</span>
+                                                                             <span class="text-muted text-xs">A blocked event is logged instead of being sent.</span>
                                                                          }
                                                                      </fieldset>
 
-                                                                     <label class="sub-field">
+                                                                     <div class="sub-field">
                                                                          <span class="sub-field-label">Custom message (optional)</span>
-                                                                         <textarea class="field-input w-full font-mono text-xs" rows="3"
-        placeholder="@Placeholder(d.EventKind)" @bind="d.MessageTemplate" @bind:event="oninput"></textarea>
-                                                                         <span class="text-muted text-xs">
-                                                                             Leave blank for the default embed. Variables:
-                                                                             @foreach (var v in VarsOf(d.EventKind)) {
-                                                                                 <span class="code-chip">@Tok(v)</span>
-                                                                                 <text> </text>
-                                                                             }
-                                                                         </span>
-                                                                     </label>
+                                                                         <TemplateEditor Value="@d.MessageTemplate" ValueChanged="@(v => OnTemplateChanged(d, v))"
+                                                                                         Tokens="@VarsOf(d.EventKind)" Placeholder="@Placeholder(d.EventKind)" Rows="4"/>
+                                                                         <span class="text-muted text-xs">Leave blank for the default embed. Click a variable to insert it at the caret.</span>
+                                                                     </div>
                                                                  </div>;
 
-    RenderFragment PreviewPane() => @<div class="nwb-pane">
-                                        <div class="flex items-center justify-between gap-3 mb-3">
-                                            <span class="text-muted text-xs">Sample events run against this config. Nothing is sent from this view.</span>
-                                            <button type="button" class="btn-mini" disabled="@_busy" @onclick="LoadPreview">Refresh</button>
-                                        </div>
-                                        @if (_preview is null) {
-                                            <p class="text-muted text-sm m-0">Loading...</p>
-                                        } else if (_preview.Count == 0) {
-                                            <p class="text-muted text-sm m-0">No samples for this event kind.</p>
-                                        } else {
-                                            @foreach (var p in _preview) {
-                                                <div class="nwb-sample">
-                                                    <div class="nwb-sample-head">
-                                                        <span class="text-fg">@p.Label</span>
-                                                        <span class="text-muted font-mono text-xs">@p.Event</span>
-                                                        <span class="@OutcomeClass(p)">@Outcome(p)</span>
-                                                    </div>
-                                                    @if (p.Body is { Length: > 0 }) {
-                                                        <pre class="nwb-body">@Pretty(p.Body)</pre>
-                                                        @if (Current is { } cur && User.IsAuthenticated) {
-                                                            <div class="flex items-center gap-2">
-                                                                @if (_armed == p.Key) {
-                                                                    <button type="button" class="btn-primary" disabled="@_busy" @onclick="@(() => SendSample(cur.Id, p.Key))">
-                                                                        Confirm, post to @cur.UrlMasked
-                                                                    </button>
-                                                                    <button type="button" class="btn-mini" @onclick="@(() => _armed = null)">Cancel</button>
-                                                                } else {
-                                                                    <button type="button" class="btn-mini" disabled="@_busy" @onclick="@(() => _armed = p.Key)">
-                                                                        Send this for real
-                                                                    </button>
-                                                                }
-                                                            </div>
-                                                        }
-                                                    }
-                                                </div>
-                                            }
-                                        }
-                                        @if (_msg is not null) {
-                                            <div class="mt-3">
-                                                <StatusNote Severity="@(_msgOk ? StatusNote.Kind.Ok : StatusNote.Kind.Error)">@_msg</StatusNote>
-                                            </div>
-                                        }
-                                    </div>;
-
-    RenderFragment HistoryPane() => @<div class="nwb-pane">
-                                        @if (Current is null) {
-                                            <div class="text-muted text-sm">Select a subscription.</div>
-                                        } else if (_activity is null) {
-                                            <p class="text-muted text-sm m-0">Loading...</p>
-                                        } else if (_activity.Count == 0) {
-                                            <p class="text-muted text-sm m-0">Nothing yet.</p>
-                                        } else {
-                                            <div class="flex flex-col">
-                                                @foreach (var a in _activity) {
-                                                    <div class="nwb-act">
-                                                        <span class="text-muted font-mono">@a.At.ToLocalTime().ToString("MM-dd HH:mm")</span>
-                                                        <span class="@StatusClass(a.Status)">@a.Status</span>
-                                                        <span class="truncate">@a.Event</span>
-                                                        <span class="text-muted font-mono ml-auto">@Detail(a)</span>
-                                                    </div>
-                                                }
-                                            </div>
-                                        }
-                                    </div>;
+    RenderFragment PreviewBlock() => @<div class="nwb-preview">
+                                         <div class="nwb-preview-head">
+                                             <span class="sub-field-label">Preview</span>
+                                             @if (_preview is { Count: > 0 } rows) {
+                                                 <select class="field-input" aria-label="Sample event" value="@SelectedSample?.Key" @onchange="OnSampleChanged">
+                                                     @foreach (var p in rows) {
+                                                         <option value="@p.Key">@p.Label</option>
+                                                     }
+                                                 </select>
+                                             }
+                                             <span class="text-muted text-xs">Sample events run against this config. Nothing is sent from this view.</span>
+                                             <button type="button" class="btn-mini ml-auto" disabled="@_busy" @onclick="RefreshPreview">Refresh</button>
+                                         </div>
+                                         <WorkbenchLoad T="PreviewRow" Items="_preview" EmptyText="No samples for this event kind.">
+                                             @if (SelectedSample is { } row) {
+                                                 <div class="nwb-sample">
+                                                     <div class="nwb-sample-head">
+                                                         <span class="text-muted font-mono text-xs">@row.Event</span>
+                                                         <span class="@OutcomeClass(row)">@Outcome(row)</span>
+                                                     </div>
+                                                     @if (row.Body is { Length: > 0 }) {
+                                                         <CodeSurface Text="@Pretty(row.Body)" Language="json" ShowFilter="false"
+                                                                      ShowWrapToggle="false" MaxHeight="16rem"/>
+                                                         @if (Current is { } cur && User.IsAuthenticated) {
+                                                             <div class="flex items-center gap-2">
+                                                                 @if (_armed == row.Key) {
+                                                                     <button type="button" class="btn-primary" disabled="@_busy" @onclick="@(() => SendSample(cur.Id, row.Key))">
+                                                                         Confirm, post to @cur.UrlMasked
+                                                                     </button>
+                                                                     <button type="button" class="btn-mini" @onclick="@(() => _armed = null)">Cancel</button>
+                                                                 } else {
+                                                                     <button type="button" class="btn-mini" disabled="@_busy" @onclick="@(() => _armed = row.Key)">
+                                                                         Send this for real
+                                                                     </button>
+                                                                 }
+                                                             </div>
+                                                         }
+                                                     }
+                                                 </div>
+                                             }
+                                         </WorkbenchLoad>
+                                     </div>;
 
     static string Outcome(PreviewRow p) {
         if (!p.Matches) return "not this trigger";
@@ -335,19 +288,6 @@
     static string OutcomeClass(PreviewRow p) {
         if (!p.Matches) return "text-muted";
         return p.BlockedBy.Count > 0 ? "text-err" : "text-ok";
-    }
-
-    static string StatusClass(string status) {
-        return status switch {
-            "sent" => "text-ok",
-            "blocked" => "text-muted",
-            _ => "text-err"
-        };
-    }
-
-    static string Detail(ActivityRow a) {
-        if (a.Reason is { Length: > 0 }) return a.Reason;
-        return a.ResponseCode is { } c ? $"http {c}" : "";
     }
 
     static string Pretty(string json) {
@@ -379,6 +319,14 @@
         StateHasChanged();
     }
 
+    void DismissNotice() {
+        _notice = null;
+    }
+
+    void Note(string text, bool ok) {
+        _notice = new WorkbenchNotice(text, ok ? StatusNote.Kind.Ok : StatusNote.Kind.Error);
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender) {
         if (!firstRender) return;
         try {
@@ -401,8 +349,7 @@
     }
 
     async Task ApplyHash(string hash) {
-        var (match, id, mode) = NotificationsWorkbenchState.ParseHash(hash);
-        if (!match) {
+        if (!State.ApplyHash(hash)) {
             if (_open) {
                 _open = false;
                 StateHasChanged();
@@ -411,9 +358,6 @@
             return;
         }
 
-        State.Creating = id is null;
-        State.SelectedId = id;
-        State.Mode = ModeDisabled(mode) ? NotificationModes.Config : mode;
         _open = true;
         await LoadAll();
         StateHasChanged();
@@ -421,7 +365,7 @@
 
     async Task WriteHash(bool push = false, bool clear = false) {
         if (!_hashWired || _nav is null) return;
-        var hash = clear ? "" : State.Hash();
+        var hash = clear ? "" : State.Hash() ?? "";
         await _nav.InvokeVoidAsync(push ? "push" : "write", hash);
     }
 
@@ -433,94 +377,94 @@
             State.SelectedId = null;
         }
 
-        if (State.Mode == NotificationModes.Preview) await LoadPreview();
-        if (State.Mode == NotificationModes.History && Current is { } cur) await LoadActivity(cur.Id);
+        await LoadPreview();
     }
 
     async Task LoadKinds() {
-        try {
-            var res = await Client().GetAsync("/api/protos/feed/kinds");
-            if (res.IsSuccessStatusCode)
-                _kinds = await res.Content.ReadFromJsonAsync<List<KindInfo>>(JsonOpts) ?? [];
-        }
-        catch (Exception ex) {
-            Logger.LogWarning(ex, "feed kinds load failed");
-        }
-
-        if (_kinds.Count > 0 && State.NewDraft.Filters.Count == 0) OnKindChanged(State.NewDraft);
+        _kinds = await Client().ListAsync<KindInfo>("/api/protos/feed/kinds", Logger);
+        if (_kinds.Count > 0 && State.NewDraft.Filters.Count == 0) ApplyKindDefaults(State.NewDraft);
     }
 
     async Task LoadSubs() {
-        try {
-            var res = await Client().GetAsync("/api/protos/feed/mine");
-            _subs = res.IsSuccessStatusCode
-                ? await res.Content.ReadFromJsonAsync<List<Sub>>(JsonOpts) ?? []
-                : [];
-        }
-        catch {
-            _subs = [];
-        }
+        _subs = await Client().ListAsync<Sub>("/api/protos/feed/mine", Logger);
     }
 
     async Task LoadPreview() {
+        var seq = ++_previewSeq;
         var d = State.Active();
         _preview = null;
+        List<PreviewRow> rows;
         try {
             var body = new {
                 eventKind = d.EventKind, trigger = d.Trigger, platforms = PlatformsOf(d),
                 filters = d.Filters.ToArray(),
                 messageTemplate = string.IsNullOrWhiteSpace(d.MessageTemplate) ? null : d.MessageTemplate
             };
-            var res = await Client().PostAsJsonAsync("/api/protos/feed/preview", body, JsonOpts);
-            _preview = res.IsSuccessStatusCode
-                ? await res.Content.ReadFromJsonAsync<List<PreviewRow>>(JsonOpts) ?? []
+            var res = await Client().PostAsJsonAsync("/api/protos/feed/preview", body, SelfCallJson.Web);
+            rows = res.IsSuccessStatusCode
+                ? await res.Content.ReadFromJsonAsync<List<PreviewRow>>(SelfCallJson.Web) ?? []
                 : [];
         }
-        catch {
-            _preview = [];
+        catch (Exception ex) {
+            Logger.LogDebug(ex, "preview load failed");
+            rows = [];
         }
+
+        if (seq != _previewSeq) return;
+        _preview = rows;
+        if (rows.Count == 0 || rows.All(p => p.Key != State.SampleKey)) {
+            State.SampleKey = rows.Count > 0 ? rows[0].Key : "";
+        }
+
+        if (_armed is not null && rows.All(p => p.Key != _armed)) _armed = null;
     }
 
-    async Task LoadActivity(int id) {
-        _activity = null;
-        try {
-            var res = await Client().GetAsync($"/api/protos/feed/{id}/activity");
-            _activity = res.IsSuccessStatusCode
-                ? await res.Content.ReadFromJsonAsync<List<ActivityRow>>(JsonOpts) ?? []
-                : [];
-        }
-        catch {
-            _activity = [];
-        }
-    }
-
-    async Task SetMode(string mode) {
-        State.Mode = mode;
+    Task RefreshPreview() {
         _armed = null;
-        _msg = null;
-        if (mode == NotificationModes.Preview) await LoadPreview();
-        if (mode == NotificationModes.History && Current is { } cur) await LoadActivity(cur.Id);
-        await WriteHash();
+        return LoadPreview();
     }
 
-    void OnRailFilter(ChangeEventArgs e) {
-        State.RailFilter = e.Value?.ToString() ?? "";
+    void OnSampleChanged(ChangeEventArgs e) {
+        State.SampleKey = e.Value?.ToString() ?? "";
+        _armed = null;
+    }
+
+    void OnRailFilter(string value) {
+        State.RailFilter = value;
+    }
+
+    async Task OnTemplateChanged(NotificationDraft d, string value) {
+        d.MessageTemplate = value;
+        _debounce?.Cancel();
+        _debounce?.Dispose();
+        var cts = new CancellationTokenSource();
+        _debounce = cts;
+        StateHasChanged();
+        try {
+            await Task.Delay(PreviewDebounceMs, cts.Token);
+        }
+        catch (OperationCanceledException) {
+            return;
+        }
+
+        if (cts.IsCancellationRequested) return;
+        await LoadPreview();
+        StateHasChanged();
     }
 
     async Task SelectNew() {
         State.Creating = true;
         State.SelectedId = null;
-        _msg = null;
+        _notice = null;
         _armed = null;
-        if (ModeDisabled(State.Mode)) State.Mode = NotificationModes.Config;
-        if (State.Mode == NotificationModes.Preview) await LoadPreview();
+        await LoadPreview();
         await WriteHash();
     }
 
     async Task Select(Sub s) {
         State.Creating = false;
         State.SelectedId = s.Id;
-        _msg = null;
+        _notice = null;
         _armed = null;
         var d = State.Draft(s.Id);
         d.EventKind = s.EventKind;
@@ -530,22 +474,29 @@
         d.Active = s.Active;
         d.MessageTemplate = s.MessageTemplate ?? "";
         d.Filters = [.. s.Filters];
-        if (State.Mode == NotificationModes.Preview) await LoadPreview();
-        if (State.Mode == NotificationModes.History) await LoadActivity(s.Id);
+        await LoadPreview();
         await WriteHash();
     }
 
-    void ToggleFilter(NotificationDraft d, string key, ChangeEventArgs e) {
+    Task ToggleFilter(NotificationDraft d, string key, ChangeEventArgs e) {
         if (e.Value is true) {
             d.Filters.Add(key);
         } else {
             d.Filters.Remove(key);
         }
+
+        return RefreshPreview();
     }
 
-    void OnKindChanged(NotificationDraft d) {
+    void ApplyKindDefaults(NotificationDraft d) {
         d.Trigger = KindOf(d.EventKind)?.DefaultTrigger ?? "version_up";
         d.Filters = [.. FiltersOf(d.EventKind).Where(f => f.DefaultOn).Select(f => f.Key)];
+    }
+
+    Task OnKindChanged(NotificationDraft d) {
+        ApplyKindDefaults(d);
+        State.SampleKey = "";
+        return RefreshPreview();
     }
 
     string[] PlatformsOf(NotificationDraft d) {
@@ -557,7 +508,7 @@
 
     async Task Create() {
         _busy = true;
-        _msg = null;
+        _notice = null;
         try {
             var d = State.NewDraft;
             var body = new {
@@ -566,22 +517,20 @@
                 filters = d.Filters.ToArray(),
                 messageTemplate = string.IsNullOrWhiteSpace(d.MessageTemplate) ? null : d.MessageTemplate
             };
-            var res = await Client().PostAsJsonAsync("/api/protos/feed", body, JsonOpts);
+            var res = await Client().PostAsJsonAsync("/api/protos/feed", body, SelfCallJson.Web);
             if (res.IsSuccessStatusCode) {
                 State.ResetNew();
-                OnKindChanged(State.NewDraft);
+                ApplyKindDefaults(State.NewDraft);
                 await LoadSubs();
                 if (_subs is { Count: > 0 }) await Select(_subs[0]);
             } else {
-                var err = await res.Content.ReadFromJsonAsync<ErrorBody>(JsonOpts);
-                _msgOk = false;
-                _msg = err?.Error ?? $"Subscription failed ({(int)res.StatusCode}).";
+                var err = await res.Content.ReadFromJsonAsync<ErrorBody>(SelfCallJson.Web);
+                Note(err?.Error ?? $"Subscription failed ({(int)res.StatusCode}).", false);
             }
         }
         catch (Exception ex) {
             Logger.LogWarning(ex, "creating subscription failed");
-            _msgOk = false;
-            _msg = "Subscription failed.";
+            Note("Subscription failed.", false);
         }
 
         _busy = false;
@@ -589,7 +538,7 @@
 
     async Task Save(int id) {
         _busy = true;
-        _msg = null;
+        _notice = null;
         try {
             var d = State.Draft(id);
             var body = new {
@@ -597,15 +546,13 @@
                 filters = d.Filters.ToArray(),
                 messageTemplate = string.IsNullOrWhiteSpace(d.MessageTemplate) ? null : d.MessageTemplate
             };
-            var res = await Client().PatchAsJsonAsync($"/api/protos/feed/{id}", body, JsonOpts);
-            _msgOk = res.IsSuccessStatusCode;
-            _msg = _msgOk ? "Saved." : "Save failed.";
-            if (_msgOk) await LoadSubs();
+            var res = await Client().PatchAsJsonAsync($"/api/protos/feed/{id}", body, SelfCallJson.Web);
+            Note(res.IsSuccessStatusCode ? "Saved." : "Save failed.", res.IsSuccessStatusCode);
+            if (res.IsSuccessStatusCode) await LoadSubs();
         }
         catch (Exception ex) {
             Logger.LogWarning(ex, "saving subscription {SubId} failed", id);
-            _msgOk = false;
-            _msg = "Save failed.";
+            Note("Save failed.", false);
         }
 
         _busy = false;
@@ -613,16 +560,15 @@
 
     async Task SendSample(int id, string sampleKey) {
         _busy = true;
-        _msg = null;
+        _notice = null;
         _armed = null;
         try {
             var res = await Client().PostAsync($"/api/protos/feed/{id}/test?sample={Uri.EscapeDataString(sampleKey)}", null);
-            _msgOk = res.IsSuccessStatusCode;
-            _msg = _msgOk ? "Sent to the webhook." : "The webhook rejected it.";
+            Note(res.IsSuccessStatusCode ? "Sent to the webhook." : "The webhook rejected it.", res.IsSuccessStatusCode);
         }
-        catch {
-            _msgOk = false;
-            _msg = "Send failed.";
+        catch (Exception ex) {
+            Logger.LogWarning(ex, "sending sample {SampleKey} failed", sampleKey);
+            Note("Send failed.", false);
         }
 
         _busy = false;
@@ -646,6 +592,9 @@
     }
 
     public async ValueTask DisposeAsync() {
+        _debounce?.Cancel();
+        _debounce?.Dispose();
+        _debounce = null;
         try {
             if (_navHandle is not null) {
                 await _navHandle.InvokeVoidAsync("dispose");
@@ -692,7 +641,5 @@
         string UrlMasked);
 
     record PreviewRow(string Key, string Label, string Event, bool Matches, List<string> BlockedBy, string? Body);
-
-    record ActivityRow(DateTimeOffset At, string Status, string Event, int? ResponseCode, string? Reason);
 
 }

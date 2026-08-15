@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using EggIncognito.Services;
+using EggIncognito.Services.Inspector;
 
 namespace EggIncognito.Components.Inspector;
 
@@ -142,10 +143,10 @@ public static class FieldTreeBuilder {
 
 public sealed partial class EnvRow {
     public required string Key { get; init; }
-    public required string ValueType { get; init; }
+    public required EnvValueType ValueType { get; init; }
     public string Value { get; set; } = "";
 
-    public string Editor { get; init; } = "text";
+    public EnvEditor Editor { get; init; } = EnvEditor.Text;
 
     public IReadOnlyList<string>? Options { get; init; }
 
@@ -154,11 +155,11 @@ public sealed partial class EnvRow {
 
     public bool IsInvalid() {
         return !string.IsNullOrEmpty(Value) && Editor switch {
-            "int" => !int.TryParse(Value, out _),
-            "version" => !VersionRegex().IsMatch(Value),
-            "code" => !MyRegex().IsMatch(Value),
-            "select" => Options is not null && !Options.Contains(Value),
-            "eid" => !EidPattern.Exact.IsMatch(Value),
+            EnvEditor.Int => !int.TryParse(Value, out _),
+            EnvEditor.Version => !VersionRegex().IsMatch(Value),
+            EnvEditor.Code => !MyRegex().IsMatch(Value),
+            EnvEditor.Select => Options is not null && !Options.Contains(Value),
+            EnvEditor.Eid => !EidPattern.Exact.IsMatch(Value),
             _ => false
         };
     }
@@ -175,8 +176,8 @@ public static class EnvCollector {
         var env = new Dictionary<string, object?>();
         foreach (var r in rows) {
             object? v = r.ValueType switch {
-                "number" => int.TryParse(r.Value, out int i) ? i : r.Value,
-                "boolean" => r.Value == "true",
+                EnvValueType.Number => int.TryParse(r.Value, out int i) ? i : r.Value,
+                EnvValueType.Boolean => r.Value == "true",
                 _ => r.Value
             };
             env[r.Key] = v;

@@ -1,0 +1,119 @@
+@using EggIncognito.Components.Capture
+@using EggIncognito.Services.Syntax
+@if (FlattenRoot) {
+    <div class="jtree-flat">
+        @foreach (var child in Node.Children) {
+            <CodeTreeRow Node="child" View="View" Search="@Search" Reveal="Reveal"/>
+        }
+    </div>
+} else {
+    <div class="jtree-node @(IsRoot ? "jtree-root" : "") @(Node.Expanded ? "jtree-expanded" : "") @(Node.Dim ? "jtree-dim" : "") @(Node.SelfMatch ? "jtree-match" : "")">
+        <div class="jtree-row" @onclick="ToggleRow">
+            <span class="jtree-caret @(Node.IsContainer ? "" : "jtree-caret-leaf")"></span>
+            @if (Node.KeyText is not null) {
+                <span class="jtree-key">
+                    <SpanText Text="@Node.KeyText" Spans="@Marks(Node.KeyText)"/>
+                </span>
+                <span class="jtree-colon">: </span>
+            }
+            @if (Node.IsContainer) {
+                <span class="jtree-summary">@Node.Summary</span>
+            } else {
+                @LeafSpan()
+            }
+        </div>
+        @if (Node.IsContainer && Node.Expanded) {
+            <div class="jtree-children">
+                @foreach (var child in Node.Children) {
+                    <CodeTreeRow Node="child" View="View" Search="@Search" Reveal="Reveal"/>
+                }
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public CodeTreeNode Node { get; set; } = default!;
+    [Parameter] public CaptureViewState View { get; set; } = new();
+    [Parameter] public string Search { get; set; } = "";
+    [Parameter] public bool IsRoot { get; set; }
+    [Parameter] public CodeRevealState? Reveal { get; set; }
+
+    bool _clampOpen;
+    string[] _needle = [];
+    CodeRevealState? _ownReveal;
+
+    CodeRevealState RevealState => Reveal ?? (_ownReveal ??= new CodeRevealState());
+
+    void ToggleRow() {
+        if (Node.IsContainer) Node.Expanded = !Node.Expanded;
+    }
+
+
+    bool FlattenRoot => IsRoot && Node.IsContainer && Node.DescendantCount <= CodeTreeNode.SmallChildLimit;
+
+
+    bool IsEmptyLeaf => Node.Kind == "string" && Node.LeafText == "\"\"";
+
+    bool IsSensitive => View.IsSensitiveKey(Node.KeyName) && !IsEmptyLeaf;
+
+    string RevealKey => Node.KeyName + ":" + Node.LeafText;
+
+
+    string LeafDisplay() {
+        var full = Node.LeafText;
+        var searching = Search.Length > 0;
+        if (Node.Kind == "string" && full.Length > CodeTreeNode.ValueClamp + 2 && !_clampOpen && !searching) {
+            var inner = full.Substring(1, Math.Min(CodeTreeNode.ValueClamp, full.Length - 2));
+            return "\"" + inner + "...\"";
+        }
+
+        return full;
+    }
+
+    bool IsClamped =>
+        Node.Kind == "string" && Node.LeafText.Length > CodeTreeNode.ValueClamp + 2;
+
+    IReadOnlyList<Span> Marks(string? text) {
+        if (Search.Length == 0 || string.IsNullOrEmpty(text)) return TextSpans.Empty;
+        return TextSpans.Find(text, _needle, TokenClasses.Mark);
+    }
+
+    protected override void OnParametersSet() {
+        _needle = Search.Length > 0 ? [Search] : [];
+    }
+
+    RenderFragment LeafSpan() {
+        return builder => {
+            var clamped = IsClamped;
+            var sensitive = IsSensitive;
+            var cls = "jv " + Node.TokenClass;
+            if (clamped) cls += " jv-clamped";
+            if (_clampOpen) cls += " jv-open";
+            if (sensitive) {
+                cls += " blurred";
+                if (RevealState.IsRevealed(RevealKey)) cls += " revealed";
+            }
+
+            builder.OpenElement(0, "span");
+            builder.AddAttribute(1, "class", cls);
+            if (clamped || sensitive) {
+                builder.AddAttribute(2, "title", sensitive ? "Click to reveal" : "Click to expand");
+                builder.AddAttribute(3, "onclick", EventCallback.Factory.Create<MouseEventArgs>(this, OnLeafClick));
+                builder.AddEventStopPropagationAttribute(4, "onclick", true);
+            }
+
+            builder.OpenComponent<SpanText>(5);
+            builder.AddComponentParameter(6, nameof(SpanText.Text), LeafDisplay());
+            builder.AddComponentParameter(7, nameof(SpanText.Spans), Marks(LeafDisplay()));
+            builder.CloseComponent();
+            builder.CloseElement();
+        };
+    }
+
+    void OnLeafClick() {
+        if (IsSensitive) RevealState.Toggle(RevealKey);
+        else if (IsClamped) _clampOpen = !_clampOpen;
+    }
+
+}

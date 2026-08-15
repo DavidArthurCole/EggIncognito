@@ -1,4 +1,5 @@
 using EggIncognito.Core.Services.Devices;
+using EggIncognito.Services.Devices.Fake;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -21,16 +22,35 @@ public class HarvestManifestTests {
             NullLogger<IosPlatform>.Instance);
     }
 
+    private static FakeDevicePlatform FakeAndroid() => FakeStack.Android().Platform;
+
+    private static FakeDevicePlatform FakeIos() => FakeStack.Ios().Platform;
+
+    private static IReadOnlyList<HarvestEntry>[] AllManifests() =>
+        [Android().Manifest(), Ios().Manifest(), FakeAndroid().Manifest(), FakeIos().Manifest()];
+
     [Fact]
-    public void BothPlatforms_DeclareTheSameEntryNames() {
-        var android = Android().Manifest().Select(e => e.Name).Order(StringComparer.Ordinal).ToList();
-        var ios = Ios().Manifest().Select(e => e.Name).Order(StringComparer.Ordinal).ToList();
-        Assert.Equal(android, ios);
+    public void EveryPlatform_DeclaresTheSameEntryNames() {
+        var expected = Android().Manifest().Select(e => e.Name).Order(StringComparer.Ordinal).ToList();
+        foreach (var manifest in AllManifests()) {
+            List<string> names = [.. manifest.Select(e => e.Name).Order(StringComparer.Ordinal)];
+            Assert.Equal(expected, names);
+        }
+    }
+
+    [Fact]
+    public void FakePlatforms_MirrorTheirRealCounterpartsSupportFlags() {
+        Assert.Equal(
+            Android().Manifest().Select(e => (e.Name, e.Supported)).Order(),
+            FakeAndroid().Manifest().Select(e => (e.Name, e.Supported)).Order());
+        Assert.Equal(
+            Ios().Manifest().Select(e => (e.Name, e.Supported)).Order(),
+            FakeIos().Manifest().Select(e => (e.Name, e.Supported)).Order());
     }
 
     [Fact]
     public void EveryEntry_HasAKindAndNoDuplicates() {
-        foreach (var manifest in (IReadOnlyList<HarvestEntry>[])[Android().Manifest(), Ios().Manifest()]) {
+        foreach (var manifest in AllManifests()) {
             Assert.NotEmpty(manifest);
             Assert.All(manifest, e => Assert.False(string.IsNullOrWhiteSpace(e.Kind)));
             Assert.Equal(manifest.Count, manifest.Select(e => e.Name).Distinct(StringComparer.Ordinal).Count());
@@ -39,15 +59,15 @@ public class HarvestManifestTests {
 
     [Fact]
     public void UnsupportedEntries_SayWhy() {
-        foreach (var manifest in (IReadOnlyList<HarvestEntry>[])[Android().Manifest(), Ios().Manifest()]) {
+        foreach (var manifest in AllManifests()) {
             foreach (var entry in manifest.Where(e => !e.Supported))
                 Assert.False(string.IsNullOrWhiteSpace(entry.UnsupportedNote));
         }
     }
 
     [Fact]
-    public void BothPlatforms_HarvestTheAppBinaryAndMeshes() {
-        foreach (var manifest in (IReadOnlyList<HarvestEntry>[])[Android().Manifest(), Ios().Manifest()]) {
+    public void EveryPlatform_HarvestsTheAppBinaryAndMeshes() {
+        foreach (var manifest in AllManifests()) {
             Assert.Contains(manifest, e => e.Name == HarvestEntries.AppBinary && e.Supported);
             Assert.Contains(manifest, e => e.Name == HarvestEntries.Meshes && e.Supported);
         }

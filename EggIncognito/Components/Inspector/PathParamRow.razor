@@ -1,0 +1,28 @@
+@if (Show) {
+    <div class="path-param-row">
+        <label>
+            URL path parameter (e.g. EID)
+            <button type="button" class="forget-eids" title="Clear remembered EIDs" @onclick="OnForget">forget</button>
+        </label>
+        <input list="recentEids" placeholder="EI1234567890123456" value="@Value"
+               @attributes="InputAttrs.NoAutofill" @oninput="OnInput"/>
+    </div>
+}
+<datalist id="recentEids">
+    @foreach (var eid in RecentEids) {
+        <option value="@eid"/>
+    }
+</datalist>
+
+@code {
+    [Parameter] public bool Show { get; set; }
+    [Parameter] public string Value { get; set; } = "";
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    [Parameter] public IReadOnlyList<string> RecentEids { get; set; } = [];
+    [Parameter] public EventCallback OnForget { get; set; }
+
+    Task OnInput(ChangeEventArgs e) {
+        return ValueChanged.InvokeAsync(e.Value?.ToString() ?? "");
+    }
+
+}

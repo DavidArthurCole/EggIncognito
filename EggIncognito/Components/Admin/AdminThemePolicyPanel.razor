@@ -1,0 +1,83 @@
+@rendermode @(RenderMode.InteractiveServer)
+@inherits BrowserApiComponentBase
+
+<section class="panel mb-4">
+    <div class="admin-panel-head">
+        <h2 class="admin-panel-title">Theme policy</h2>
+    </div>
+    <div class="flex flex-col gap-3">
+        <label class="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked="@_customCssEnabled" disabled="@(!_configFloor || _busy)" @onchange="ToggleCustomCss"/>
+            <span>Allow contributor custom CSS</span>
+        </label>
+        @if (!_configFloor) {
+            <p class="text-muted text-xs m-0">Theme:CustomCss is false in configuration. That floor cannot be lifted from here.</p>
+        }
+        <label class="theme-field">
+            <span>Default theme for users without one (yours only, no custom CSS)</span>
+            <div class="flex items-center gap-2">
+                <input class="reg-filter-input w-auto" placeholder="theme slug or empty" value="@_defaultThemeSlug" @onchange="OnDefaultSlugChanged"/>
+                <button type="button" class="btn-mini" disabled="@_busy" @onclick="SaveDefault">Save</button>
+            </div>
+        </label>
+    </div>
+    @if (_msg is not null) {
+        <StatusNote>@_msg</StatusNote>
+    }
+</section>
+
+@code {
+    bool _customCssEnabled = true;
+    bool _configFloor = true;
+    string _defaultThemeSlug = "";
+    bool _busy;
+    string? _msg;
+
+    protected override async Task OnApiReadyAsync() {
+        await Load();
+    }
+
+    async Task Load() {
+        if (Api is null) return;
+        var res = await Api.GetAsync("/api/theme/policy");
+        if (!res.Ok) {
+            _msg = $"load failed: {res.Describe()}";
+            return;
+        }
+
+        var policy = res.Json<PolicyView>();
+        if (policy is null) return;
+        _customCssEnabled = policy.CustomCssEnabled;
+        _configFloor = policy.ConfigFloor;
+        _defaultThemeSlug = policy.DefaultThemeSlug ?? "";
+    }
+
+    async Task ToggleCustomCss(ChangeEventArgs e) {
+        _customCssEnabled = e.Value is true;
+        await Save();
+    }
+
+    void OnDefaultSlugChanged(ChangeEventArgs e) {
+        _defaultThemeSlug = e.Value?.ToString() ?? "";
+    }
+
+    async Task SaveDefault() {
+        await Save();
+    }
+
+    async Task Save() {
+        if (Api is null) return;
+        _busy = true;
+        _msg = null;
+        var res = await Api.PutJsonAsync("/api/theme/policy", new {
+            customCssEnabled = _customCssEnabled,
+            defaultThemeSlug = string.IsNullOrWhiteSpace(_defaultThemeSlug) ? null : _defaultThemeSlug.Trim()
+        });
+        _msg = res.Ok ? "policy saved" : $"save failed: {res.Describe()}";
+        await Load();
+        _busy = false;
+    }
+
+    record PolicyView(bool CustomCssEnabled, bool ConfigFloor, string? DefaultThemeSlug);
+
+}

@@ -1,0 +1,91 @@
+<div class="insp-disc @(_sentOpen ? "" : "collapsed")">
+    <div class="insp-disc-head">
+        <button type="button" class="insp-disc-toggle" @onclick="ToggleSent">
+            <span class="ep-caret @(_sentOpen ? "ep-caret-open" : "")"></span>Sent
+        </button>
+    </div>
+    <div class="insp-disc-body">
+        <Pipeline Stages="Build"/>
+    </div>
+</div>
+
+<div class="insp-disc @(_receivedOpen ? "" : "collapsed")">
+    <div class="insp-disc-head">
+        <button type="button" class="insp-disc-toggle" @onclick="@(() => _receivedOpen = !_receivedOpen)">
+            <span class="ep-caret @(_receivedOpen ? "ep-caret-open" : "")"></span>Received
+        </button>
+        @if (CanSaveDb && Response?.Json is not null) {
+            <span class="insp-disc-tools">
+                <button type="button" class="btn-mini" title="Save this response as a stored endpoint"
+                        @onclick="OnSaveToDb">
+                    Save to DB
+                </button>
+            </span>
+        }
+    </div>
+    <div class="insp-disc-body">
+        @if (!string.IsNullOrEmpty(SaveStatus)) {
+            <StatusNote Severity="@(SaveFailed ? StatusNote.Kind.Error : StatusNote.Kind.Ok)">@SaveStatus</StatusNote>
+        }
+        <ResponsePanel Response="Response" IsAdmin="IsAdmin" FixBusy="FixBusy" OnFixWrapped="OnFixWrapped"/>
+    </div>
+</div>
+
+<div class="insp-disc @(_diagOpen ? "" : "collapsed")">
+    <div class="insp-disc-head">
+        <button type="button" class="insp-disc-toggle" @onclick="@(() => _diagOpen = !_diagOpen)">
+            <span class="ep-caret @(_diagOpen ? "ep-caret-open" : "")"></span>Diagnosis
+        </button>
+    </div>
+    <div class="insp-disc-body">
+        <Forensics Result="Diagnosis" RootType="@RootType" ClientFactory="ClientFactory"/>
+    </div>
+</div>
+
+@code {
+    [Parameter] public List<TransportStage>? Build { get; set; }
+    [Parameter] public SendResponse? Response { get; set; }
+    [Parameter] public DiagnoseDto? Diagnosis { get; set; }
+    [Parameter] public string? RootType { get; set; }
+    [Parameter] public bool IsAdmin { get; set; }
+    [Parameter] public bool FixBusy { get; set; }
+    [Parameter] public EventCallback OnFixWrapped { get; set; }
+    [Parameter] public Func<HttpClient> ClientFactory { get; set; } = default!;
+    [Parameter] public bool CanSaveDb { get; set; }
+    [Parameter] public EventCallback OnSaveToDb { get; set; }
+    [Parameter] public string SaveStatus { get; set; } = "";
+    [Parameter] public bool SaveFailed { get; set; }
+
+    bool _sentOpen = true;
+    bool _receivedOpen = true;
+    bool _diagOpen;
+    bool _sentTouched;
+
+    object? _lastBuild;
+    object? _lastResponse;
+    object? _lastDiagnosis;
+
+    protected override void OnParametersSet() {
+        if (!ReferenceEquals(_lastBuild, Build)) {
+            _lastBuild = Build;
+            _sentTouched = false;
+            _sentOpen = true;
+        }
+
+        if (!ReferenceEquals(_lastResponse, Response)) {
+            _lastResponse = Response;
+            if (Response is not null && !_sentTouched) _sentOpen = false;
+        }
+
+        if (!ReferenceEquals(_lastDiagnosis, Diagnosis)) {
+            _lastDiagnosis = Diagnosis;
+            if (Diagnosis is not null) _diagOpen = true;
+        }
+    }
+
+    void ToggleSent() {
+        _sentOpen = !_sentOpen;
+        _sentTouched = true;
+    }
+
+}

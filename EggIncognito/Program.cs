@@ -27,10 +27,11 @@ using EggIncognito.Services.Assets;
 using EggIncognito.Services.Auth;
 using EggIncognito.Services.DataApi;
 using EggIncognito.Services.Devices;
+using EggIncognito.Services.Devices.Fake;
 using EggIncognito.Services.Feed;
 using EggIncognito.Services.Metrics;
-using EggIncognito.Services.Protos;
 using EggIncognito.Services.RateLimiting;
+using EggIncognito.Services.Workbench;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
@@ -510,23 +511,46 @@ if (dbEnabled) {
     builder.Services.AddScoped<IFeedSubscriptionStore>(sp => sp.GetRequiredService<FeedSubscriptionStore>());
     builder.Services.AddScoped<FeedDispatcher>();
     builder.Services.AddScoped<ApiKeyStore>();
+    builder.Services.AddScoped<UserThemeStore>();
 
 
     builder.Services.AddScoped<IProtoBackfillStore>(sp => sp.GetRequiredService<ProtoRegistryStore>());
 }
 
 
+var appModeAtBoot = new AppModeService(builder.Configuration).Mode;
+FakeDeviceGate.Guard(builder.Environment.EnvironmentName, appModeAtBoot, builder.Configuration);
+bool fakeDevices = FakeDeviceGate.IsOn(builder.Environment.EnvironmentName, appModeAtBoot, builder.Configuration);
+var fakeDeviceSettings = fakeDevices ? FakeDeviceOptions.Bind(builder.Configuration) : FakeDeviceSettings.Empty;
+
 var deviceConfig = DeviceConfig.Bind(builder.Configuration);
+if (fakeDevices) deviceConfig = deviceConfig with { Devices = FakeDeviceOptions.Entries(fakeDeviceSettings) };
 builder.Services.AddSingleton(deviceConfig);
 var probeTimeoutSeconds = builder.Configuration.GetValue("DeviceProbe:TimeoutSeconds", 0);
 if (probeTimeoutSeconds > 0)
     DeviceProbeTimeout.Value = TimeSpan.FromSeconds(probeTimeoutSeconds);
-builder.Services.AddSingleton<IProcessRunner, ProcessRunner>();
-builder.Services.AddScoped<ProtoWorkbenchState>();
-builder.Services.AddScoped<DeviceWorkbenchState>();
-builder.Services.AddScoped<EggIncognito.Services.Notifications.NotificationsWorkbenchState>();
+builder.Services.AddWorkbenchStates();
+builder.Services.AddScoped<EggIncognito.Services.Theme.ThemeWorkbenchState>();
+builder.Services.AddScoped<EggIncognito.Services.Inspector.InspectorState>();
+builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<EggIncognito.Services.Theme.ThemeCssSerializer>();
+builder.Services.AddScoped<EggIncognito.Services.Theme.ThemeResolver>();
 builder.Services.TryAddSingleton(TimeProvider.System);
-builder.Services.AddHttpClient<IDeviceAgentClient, DeviceAgentClient>();
+
+if (fakeDevices) {
+    builder.Services.AddSingleton(fakeDeviceSettings);
+    builder.Services.AddSingleton<FakeDeviceVersions>();
+    builder.Services.AddSingleton<FakeFixtureSource>();
+    builder.Services.AddSingleton<IProcessRunner, RefusingProcessRunner>();
+    builder.Services.AddSingleton<FakeDeviceAgent>();
+    builder.Services.AddSingleton<IDeviceAgentClient>(sp => sp.GetRequiredService<FakeDeviceAgent>());
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<FakeDeviceAgent>());
+    if (dbEnabled) builder.Services.AddScoped<DeviceHarvester>();
+} else {
+    builder.Services.AddSingleton<IProcessRunner, ProcessRunner>();
+    builder.Services.AddHttpClient<IDeviceAgentClient, DeviceAgentClient>();
+}
+
 if (deviceConfig.Enabled && deviceConfig.Devices.Count > 0)
     builder.Services.AddHostedService<DeviceMaintenanceService>();
 if (dbEnabled)
@@ -539,37 +563,53 @@ var deviceCaptureConfig = DeviceCaptureConfig.Bind(builder.Configuration);
 builder.Services.AddSingleton(deviceCaptureConfig);
 builder.Services.AddSingleton<IDeviceConnectionFactory,
     DeviceConnectionFactory>();
-builder.Services.AddSingleton<IDeviceProxyConfigurator,
-    AdbProxyConfigurator>();
-builder.Services.AddSingleton<IDeviceProxyConfigurator>(sp =>
-    new IosProxyConfigurator(
-        sp.GetRequiredService<IProcessRunner>(),
-        new IosProxyConfigurator.SshConfig(
-            deviceCaptureConfig.IosSshHost, deviceCaptureConfig.IosSshPort, deviceCaptureConfig.IosSshKeyPath,
-            deviceCaptureConfig.IosSetCommand, deviceCaptureConfig.IosClearCommand,
-            deviceCaptureConfig.IosNetworkServiceGuid, deviceCaptureConfig.IosPlutilPath,
-            deviceCaptureConfig.IosPreferencesPlist)));
-builder.Services.AddSingleton<IDeviceCaInstaller>(sp =>
-    new AdbCaInstaller(
-        sp.GetRequiredService<IProcessRunner>(),
-        deviceCaptureConfig.AndroidCaInstallScript));
-builder.Services.AddSingleton<IDeviceCaInstaller>(sp =>
-    new IosCaInstaller(
-        sp.GetRequiredService<IProcessRunner>(),
-        new IosCaInstaller.SshConfig(
-            deviceCaptureConfig.IosSshHost, deviceCaptureConfig.IosSshPort, deviceCaptureConfig.IosSshKeyPath,
-            deviceCaptureConfig.IosCaInstallCommand, deviceCaptureConfig.IosTrustStorePath)));
+if (fakeDevices) {
+    builder.Services.AddSingleton<IDeviceProxyConfigurator>(new FakeProxyConfigurator(Platforms.Ios));
+    builder.Services.AddSingleton<IDeviceProxyConfigurator>(new FakeProxyConfigurator(Platforms.Android));
+    builder.Services.AddSingleton<IDeviceCaInstaller>(new FakeCaInstaller(Platforms.Ios));
+    builder.Services.AddSingleton<IDeviceCaInstaller>(new FakeCaInstaller(Platforms.Android));
+    builder.Services.AddSingleton<FakeCaptureProxyFactory>();
+} else {
+    builder.Services.AddSingleton<IDeviceProxyConfigurator,
+        AdbProxyConfigurator>();
+    builder.Services.AddSingleton<IDeviceProxyConfigurator>(sp =>
+        new IosProxyConfigurator(
+            sp.GetRequiredService<IProcessRunner>(),
+            new IosProxyConfigurator.SshConfig(
+                deviceCaptureConfig.IosSshHost, deviceCaptureConfig.IosSshPort, deviceCaptureConfig.IosSshKeyPath,
+                deviceCaptureConfig.IosSetCommand, deviceCaptureConfig.IosClearCommand,
+                deviceCaptureConfig.IosNetworkServiceGuid, deviceCaptureConfig.IosPlutilPath,
+                deviceCaptureConfig.IosPreferencesPlist)));
+    builder.Services.AddSingleton<IDeviceCaInstaller>(sp =>
+        new AdbCaInstaller(
+            sp.GetRequiredService<IProcessRunner>(),
+            deviceCaptureConfig.AndroidCaInstallScript));
+    builder.Services.AddSingleton<IDeviceCaInstaller>(sp =>
+        new IosCaInstaller(
+            sp.GetRequiredService<IProcessRunner>(),
+            new IosCaInstaller.SshConfig(
+                deviceCaptureConfig.IosSshHost, deviceCaptureConfig.IosSshPort, deviceCaptureConfig.IosSshKeyPath,
+                deviceCaptureConfig.IosCaInstallCommand, deviceCaptureConfig.IosTrustStorePath)));
+}
+
 builder.Services.AddSingleton(sp => {
     var config = sp.GetRequiredService<IConfiguration>();
     string contentRoot = ContentRoot.Resolve(config["ContentRoot"]);
     string capturePath = config["CapturePath"] ?? Path.Combine(contentRoot, "captures");
     string caPath = config["CaPath"] ?? Path.Combine(capturePath, "eggincognito-ca.cer");
+    Func<bool, ICaptureProxy>? proxyFactory = fakeDevices
+        ? sp.GetRequiredService<FakeCaptureProxyFactory>().Create
+        : null;
     return new DeviceCaptureManager(
-        deviceCaptureConfig, deviceConfig, capturePath, caPath, null, contentRoot,
+        deviceCaptureConfig, deviceConfig, capturePath, caPath, proxyFactory, contentRoot,
         sp.GetRequiredService<ILogger<DeviceCaptureManager>>(),
         sp.GetServices<IDeviceCaInstaller>(),
-        sp.GetRequiredService<DataCatalog>().WireRoutes().ToHashSet(StringComparer.Ordinal),
-        sp.GetService<PeriodicalsChangeNotifier>(),
+#pragma warning disable IDE0028
+        fakeDevices
+            ? new HashSet<string>(StringComparer.Ordinal)
+            : sp.GetRequiredService<DataCatalog>().WireRoutes().ToHashSet(StringComparer.Ordinal),
+#pragma warning restore IDE0028
+        fakeDevices ? null : sp.GetService<PeriodicalsChangeNotifier>(),
         sp.GetRequiredService<IRouteCatalog>());
 });
 builder.Services.AddSingleton<DeviceProxyPusher>();
@@ -587,56 +627,79 @@ builder.Services.AddHttpClient("play", c => {
 builder.Services.AddSingleton<KnownVersionRecorder>();
 builder.Services.AddSingleton<IosStoreCatalog>();
 builder.Services.AddSingleton<AndroidStoreCatalog>();
-string androidDrive = builder.Configuration["DeviceUpdate:Android:DriveCommand"]
-                      ?? builder.Configuration["DeviceCheck:Android:DriveCommand"]
-                      ?? "am start -a android.intent.action.VIEW -d market://details?id={package}";
-int androidPollSeconds = builder.Configuration.GetValue<int?>("DeviceUpdate:Android:PollSeconds")
-                         ?? builder.Configuration.GetValue("DeviceCheck:Android:PollSeconds", 15);
-int androidPollAttempts = builder.Configuration.GetValue<int?>("DeviceUpdate:Android:PollAttempts")
-                          ?? builder.Configuration.GetValue("DeviceCheck:Android:PollAttempts", 24);
-int androidUiFirstWait = builder.Configuration.GetValue("DeviceUpdate:Android:UiFirstWaitSeconds", 3);
-int androidUiRetryWait = builder.Configuration.GetValue("DeviceUpdate:Android:UiRetryWaitSeconds", 2);
-string? androidLookupCountry = builder.Configuration["DeviceUpdate:Android:LookupCountry"];
-string? androidLookupLocale = builder.Configuration["DeviceUpdate:Android:LookupLocale"] ?? "en";
-builder.Services.AddSingleton<IDeviceStoreChecker>(sp =>
-    new StoreUpdateOrchestrator(
-        new AndroidStoreUpdateDriver(
-            sp.GetRequiredService<IProcessRunner>(),
-            new AndroidStoreUpdateDriver.Options(androidDrive, androidUiFirstWait, androidUiRetryWait,
-                androidLookupCountry, androidLookupLocale),
-            sp.GetRequiredService<AndroidStoreCatalog>(),
-            sp.GetRequiredService<KnownVersionRecorder>(),
-            sp.GetRequiredService<ILogger<AndroidStoreUpdateDriver>>()),
-        new StoreUpdateOrchestrator.Options(androidPollSeconds, androidPollAttempts),
-        sp.GetRequiredService<KnownVersionRecorder>(),
-        sp.GetRequiredService<ILoggerFactory>().CreateLogger("device.storeupdate.android")));
+if (fakeDevices) {
+    builder.Services.AddSingleton<IDeviceStoreChecker>(sp => new FakeStoreChecker(
+        Platforms.Ios, fakeDeviceSettings, sp.GetRequiredService<FakeDeviceVersions>(),
+        sp.GetRequiredService<FakeFixtureSource>(), sp.GetRequiredService<KnownVersionRecorder>(),
+        sp.GetRequiredService<ILogger<FakeStoreChecker>>()));
+    builder.Services.AddSingleton<IDeviceStoreChecker>(sp => new FakeStoreChecker(
+        Platforms.Android, fakeDeviceSettings, sp.GetRequiredService<FakeDeviceVersions>(),
+        sp.GetRequiredService<FakeFixtureSource>(), sp.GetRequiredService<KnownVersionRecorder>(),
+        sp.GetRequiredService<ILogger<FakeStoreChecker>>()));
 
-var iosUpdateConfig = builder.Configuration.GetSection("DeviceUpdate").GetSection("Ios");
-string? iosSshHost = iosUpdateConfig["SshHost"];
-string iosSshPort = iosUpdateConfig["SshPort"] ?? "2222";
-string? iosSshKeyPath = iosUpdateConfig["SshKeyPath"];
-string iosTriggerPath = iosUpdateConfig["TriggerPath"] ?? "/var/mobile/eggupdate.trigger";
-string iosTweakPath = iosUpdateConfig["TweakPath"]
-                      ?? "/Library/MobileSubstrate/DynamicLibraries/eggupdate.dylib";
-int iosPollSeconds = iosUpdateConfig.GetValue("PollSeconds", 15);
-int iosPollAttempts = iosUpdateConfig.GetValue("PollAttempts", 24);
-string iosAppId = iosUpdateConfig["AppId"] ?? "993492744";
-string? iosLookupCountry = iosUpdateConfig["LookupCountry"];
-builder.Services.AddSingleton<IDeviceStoreChecker>(sp =>
-    new StoreUpdateOrchestrator(
-        new IosStoreUpdateDriver(
-            sp.GetRequiredService<IProcessRunner>(),
-            new IosStoreUpdateDriver.Options(
-                iosSshHost, iosSshPort, iosSshKeyPath, iosTriggerPath, iosTweakPath, iosAppId, iosLookupCountry),
-            sp.GetRequiredService<IosStoreCatalog>(),
+    builder.Services.AddSingleton<IDevicePlatform>(sp => new FakeDevicePlatform(
+        Platforms.Ios, fakeDeviceSettings, sp.GetRequiredService<FakeDeviceVersions>(),
+        sp.GetRequiredService<FakeFixtureSource>(), sp.GetRequiredService<ILogger<FakeDevicePlatform>>(),
+        sp.GetServices<IDeviceStoreChecker>(), sp.GetServices<IDeviceProxyConfigurator>(),
+        sp.GetServices<IDeviceCaInstaller>()));
+    builder.Services.AddSingleton<IDevicePlatform>(sp => new FakeDevicePlatform(
+        Platforms.Android, fakeDeviceSettings, sp.GetRequiredService<FakeDeviceVersions>(),
+        sp.GetRequiredService<FakeFixtureSource>(), sp.GetRequiredService<ILogger<FakeDevicePlatform>>(),
+        sp.GetServices<IDeviceStoreChecker>(), sp.GetServices<IDeviceProxyConfigurator>(),
+        sp.GetServices<IDeviceCaInstaller>()));
+} else {
+    string androidDrive = builder.Configuration["DeviceUpdate:Android:DriveCommand"]
+                          ?? builder.Configuration["DeviceCheck:Android:DriveCommand"]
+                          ?? "am start -a android.intent.action.VIEW -d market://details?id={package}";
+    int androidPollSeconds = builder.Configuration.GetValue<int?>("DeviceUpdate:Android:PollSeconds")
+                             ?? builder.Configuration.GetValue("DeviceCheck:Android:PollSeconds", 15);
+    int androidPollAttempts = builder.Configuration.GetValue<int?>("DeviceUpdate:Android:PollAttempts")
+                              ?? builder.Configuration.GetValue("DeviceCheck:Android:PollAttempts", 24);
+    int androidUiFirstWait = builder.Configuration.GetValue("DeviceUpdate:Android:UiFirstWaitSeconds", 3);
+    int androidUiRetryWait = builder.Configuration.GetValue("DeviceUpdate:Android:UiRetryWaitSeconds", 2);
+    string? androidLookupCountry = builder.Configuration["DeviceUpdate:Android:LookupCountry"];
+    string? androidLookupLocale = builder.Configuration["DeviceUpdate:Android:LookupLocale"] ?? "en";
+    builder.Services.AddSingleton<IDeviceStoreChecker>(sp =>
+        new StoreUpdateOrchestrator(
+            new AndroidStoreUpdateDriver(
+                sp.GetRequiredService<IProcessRunner>(),
+                new AndroidStoreUpdateDriver.Options(androidDrive, androidUiFirstWait, androidUiRetryWait,
+                    androidLookupCountry, androidLookupLocale),
+                sp.GetRequiredService<AndroidStoreCatalog>(),
+                sp.GetRequiredService<KnownVersionRecorder>(),
+                sp.GetRequiredService<ILogger<AndroidStoreUpdateDriver>>()),
+            new StoreUpdateOrchestrator.Options(androidPollSeconds, androidPollAttempts),
             sp.GetRequiredService<KnownVersionRecorder>(),
-            sp.GetRequiredService<ILogger<IosStoreUpdateDriver>>()),
-        new StoreUpdateOrchestrator.Options(iosPollSeconds, iosPollAttempts),
-        sp.GetRequiredService<KnownVersionRecorder>(),
-        sp.GetRequiredService<ILoggerFactory>().CreateLogger("device.storeupdate.ios")));
+            sp.GetRequiredService<ILoggerFactory>().CreateLogger("device.storeupdate.android")));
 
-builder.Services.AddSingleton<IDevicePlatform, IosPlatform>();
-builder.Services.AddSingleton<IDevicePlatform, AndroidPlatform>();
+    var iosUpdateConfig = builder.Configuration.GetSection("DeviceUpdate").GetSection("Ios");
+    string? iosSshHost = iosUpdateConfig["SshHost"];
+    string iosSshPort = iosUpdateConfig["SshPort"] ?? "2222";
+    string? iosSshKeyPath = iosUpdateConfig["SshKeyPath"];
+    string iosTriggerPath = iosUpdateConfig["TriggerPath"] ?? "/var/mobile/eggupdate.trigger";
+    string iosTweakPath = iosUpdateConfig["TweakPath"]
+                          ?? "/Library/MobileSubstrate/DynamicLibraries/eggupdate.dylib";
+    int iosPollSeconds = iosUpdateConfig.GetValue("PollSeconds", 15);
+    int iosPollAttempts = iosUpdateConfig.GetValue("PollAttempts", 24);
+    string iosAppId = iosUpdateConfig["AppId"] ?? "993492744";
+    string? iosLookupCountry = iosUpdateConfig["LookupCountry"];
+    builder.Services.AddSingleton<IDeviceStoreChecker>(sp =>
+        new StoreUpdateOrchestrator(
+            new IosStoreUpdateDriver(
+                sp.GetRequiredService<IProcessRunner>(),
+                new IosStoreUpdateDriver.Options(
+                    iosSshHost, iosSshPort, iosSshKeyPath, iosTriggerPath, iosTweakPath, iosAppId, iosLookupCountry),
+                sp.GetRequiredService<IosStoreCatalog>(),
+                sp.GetRequiredService<KnownVersionRecorder>(),
+                sp.GetRequiredService<ILogger<IosStoreUpdateDriver>>()),
+            new StoreUpdateOrchestrator.Options(iosPollSeconds, iosPollAttempts),
+            sp.GetRequiredService<KnownVersionRecorder>(),
+            sp.GetRequiredService<ILoggerFactory>().CreateLogger("device.storeupdate.ios")));
+
+    builder.Services.AddSingleton<IDevicePlatform, IosPlatform>();
+    builder.Services.AddSingleton<IDevicePlatform, AndroidPlatform>();
+}
+
 builder.Services.AddSingleton<IDevicePlatforms, DevicePlatforms>();
 
 if (hostedCaptureOn) {
@@ -675,6 +738,14 @@ if (hostedCaptureOn) {
 
 var app = builder.Build();
 
+if (fakeDevices) {
+    app.Logger.LogWarning(
+        "fake device stack active ({Env} plus AppMode.Local plus {Key}): the real device platforms, store " +
+        "checkers, process runner and device agent are not registered. Fake devices: {Devices}",
+        app.Environment.EnvironmentName, FakeDeviceGate.EnabledKey,
+        string.Join(", ", fakeDeviceSettings.Devices.Select(d => $"{d.Id} [{d.Scenario}] {d.Target}")));
+}
+
 if (dbEnabled) {
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<EggIncognitoDbContext>();
@@ -706,6 +777,8 @@ app.Use(async (ctx, next) => {
 });
 
 app.UseExceptionHandler();
+
+app.UseMiddleware<EggIncognito.Services.Security.SecurityHeadersMiddleware>();
 
 app.Use(async (ctx, next) => {
     if (ctx.Request.Host.Host.StartsWith("protos.", StringComparison.OrdinalIgnoreCase)

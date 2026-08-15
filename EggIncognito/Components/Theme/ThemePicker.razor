@@ -1,0 +1,187 @@
+@inherits SelfCallComponentBase
+@inject ICurrentUser User
+@inject IJSRuntime Js
+@inject IWebHostEnvironment HostEnv
+@using System.Text
+@using System.Text.Json
+@using EggIncognito.Services.Theme
+@implements IAsyncDisposable
+
+<div class="theme-picker">
+    <div class="sub-section-head">Appearance</div>
+    @if (!User.IsAuthenticated) {
+        <p class="text-muted text-xs m-0">Pick a preset to retheme this browser. Logging in saves themes and syncs them across devices.</p>
+    }
+    <div class="theme-preset-grid">
+        @foreach (var preset in ThemePresets.All) {
+            <button type="button" class="theme-preset-card" style="border-color: @AccentCss(preset)" @onclick="() => ApplyPresetAsync(preset)">
+                <span style="color: @AccentCss(preset)">@preset.Name</span>
+            </button>
+        }
+    </div>
+    @if (User.IsAuthenticated) {
+        <label class="theme-field">
+            <span>My themes</span>
+            <select class="reg-filter-input w-auto" value="@_activeSlug" @onchange="OnThemeSelectedAsync">
+                <option value="">Default (no theme)</option>
+                @foreach (var t in _themes) {
+                    <option value="@t.Slug">@t.Name</option>
+                }
+            </select>
+        </label>
+    }
+    <div class="theme-picker-actions">
+        <button type="button" class="btn-mini" @onclick="() => _wbOpen = true">Open theme workbench</button>
+        @if (!User.IsAuthenticated) {
+            <button type="button" class="btn-mini" @onclick="ResetLocalAsync">Reset</button>
+        }
+    </div>
+    @if (_status is not null) {
+        <div class="@(_statusOk ? "text-ok" : "text-err") text-xs">@_status</div>
+    }
+</div>
+
+<ThemeWorkbenchModal Open="_wbOpen" OnClose="CloseWorkbenchAsync"/>
+
+@code {
+
+    sealed record ThemeRow(string Slug, string Name, bool IsActive);
+
+    readonly List<ThemeRow> _themes = [];
+    string _activeSlug = "";
+    bool _wbOpen;
+    string? _status;
+    bool _statusOk;
+    IJSObjectReference? _prefs;
+    IJSObjectReference? _preview;
+
+    protected override async Task OnInitializedAsync() {
+        await LoadThemesAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender) {
+        if (firstRender) {
+            try {
+                _prefs = await Js.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(HostEnv, "./interop/uiPrefs.js"));
+                _preview = await Js.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(HostEnv, "./interop/themePreview.js"));
+            }
+            catch (JSDisconnectedException) {
+            }
+            catch (JSException) {
+            }
+        }
+    }
+
+    async Task LoadThemesAsync() {
+        _themes.Clear();
+        _activeSlug = "";
+        if (!User.IsAuthenticated) return;
+        try {
+            using var client = Client();
+            var resp = await client.GetFromJsonAsync<ListResponse>("/api/theme");
+            foreach (var row in resp?.Themes ?? []) {
+                _themes.Add(new ThemeRow(row.Slug ?? "", row.Name ?? "", row.IsActive));
+                if (row.IsActive) _activeSlug = row.Slug ?? "";
+            }
+        }
+        catch (HttpRequestException) {
+        }
+        catch (JsonException) {
+        }
+    }
+
+    async Task ApplyPresetAsync(ThemeModel preset) {
+        if (User.IsAuthenticated) {
+            using var client = Client();
+            var slug = "preset-" + preset.Slug;
+            var model = preset with { Slug = slug };
+            var save = await client.PutAsync($"/api/theme/{slug}",
+                new StringContent(model.ToJson(), Encoding.UTF8, "application/json"));
+            if (!save.IsSuccessStatusCode) {
+                SetStatus("could not save the preset", false);
+                return;
+            }
+
+            var activate = await client.PostAsync($"/api/theme/{slug}/activate", null);
+            if (activate.IsSuccessStatusCode) {
+                SetStatus($"{preset.Name} active; reload to apply everywhere", true);
+                await LoadThemesAsync();
+            } else {
+                SetStatus("preset failed validation", false);
+            }
+
+            return;
+        }
+
+        if (_prefs is null || _preview is null) return;
+        await _prefs.InvokeVoidAsync("set", "theme.model", preset.ToJson());
+        await _prefs.InvokeVoidAsync("set", "theme.active", "1");
+        await _preview.InvokeVoidAsync("applyTokens", TokenCssMap(preset));
+        SetStatus($"{preset.Name} applied in this browser", true);
+    }
+
+    async Task OnThemeSelectedAsync(ChangeEventArgs e) {
+        var slug = e.Value?.ToString() ?? "";
+        using var client = Client();
+        if (slug.Length == 0) {
+            var resp = await client.PostAsync("/api/theme/deactivate", null);
+            SetStatus(resp.IsSuccessStatusCode ? "theme off; reload to apply" : "could not deactivate", resp.IsSuccessStatusCode);
+        } else {
+            var resp = await client.PostAsync($"/api/theme/{Uri.EscapeDataString(slug)}/activate", null);
+            SetStatus(resp.IsSuccessStatusCode ? $"{slug} active; reload to apply" : "activation failed contrast checks", resp.IsSuccessStatusCode);
+        }
+
+        await LoadThemesAsync();
+    }
+
+    async Task ResetLocalAsync() {
+        if (_prefs is null || _preview is null) return;
+        await _prefs.InvokeVoidAsync("remove", "theme.model");
+        await _prefs.InvokeVoidAsync("remove", "theme.active");
+        await _preview.InvokeVoidAsync("clearTokens", ThemeTokens.Settable);
+        SetStatus("reset to the shipped default", true);
+    }
+
+    async Task CloseWorkbenchAsync() {
+        _wbOpen = false;
+        await LoadThemesAsync();
+    }
+
+    static Dictionary<string, string> TokenCssMap(ThemeModel model) {
+        var map = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var token in ThemeTokens.Settable) map[token] = model.ResolveToken(token).ToCss();
+        return map;
+    }
+
+    static string AccentCss(ThemeModel preset) {
+        return preset.ResolveToken("accent").ToCss();
+    }
+
+    void SetStatus(string message, bool ok) {
+        _status = message;
+        _statusOk = ok;
+    }
+
+    sealed class ListResponse {
+        public List<ListRow>? Themes { get; set; }
+    }
+
+    sealed class ListRow {
+        public string? Slug { get; set; }
+        public string? Name { get; set; }
+        public bool IsActive { get; set; }
+    }
+
+    public async ValueTask DisposeAsync() {
+        foreach (var module in new[] { _prefs, _preview }) {
+            if (module is not null) {
+                try {
+                    await module.DisposeAsync();
+                }
+                catch (JSDisconnectedException) {
+                }
+            }
+        }
+    }
+
+}

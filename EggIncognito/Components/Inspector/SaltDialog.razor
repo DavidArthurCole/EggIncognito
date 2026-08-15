@@ -1,0 +1,55 @@
+@inject ILogger<SaltDialog> Logger
+
+@if (Open) {
+    <ModalShell Title="Signing salt" TitleId="saltModalTitle" Width="ModalShell.ModalWidth.Small" OnClose="OnClose">
+        <div class="modal-body">
+            <p class="text-muted text-sm mt-0">
+                Signs requests. Stored in this browser only; never sent to the server beyond the build request.
+            </p>
+            <input type="password" placeholder="EGG_INC_API_SALT value" spellcheck="false"
+                   class="settings-input" @ref="_inputRef" @attributes="InputAttrs.NoAutofill"
+                   @bind="_salt" @bind:event="oninput"/>
+            <div class="insp-dialog-foot">
+                <button type="button" class="btn-secondary" @onclick="OnClose">Cancel</button>
+                <button type="button" class="btn-primary" @onclick="Save">Save salt</button>
+            </div>
+        </div>
+    </ModalShell>
+}
+
+@code {
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public EventCallback<string> OnSave { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    ElementReference _inputRef;
+    string _salt = "";
+    bool _wasOpen;
+    bool _focus;
+
+    protected override void OnParametersSet() {
+        if (Open && !_wasOpen) {
+            _salt = "";
+            _focus = true;
+        }
+
+        _wasOpen = Open;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender) {
+        if (!_focus) return;
+        _focus = false;
+        try {
+            await _inputRef.FocusAsync();
+        }
+        catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
+            Logger.LogDebug(ex, "could not focus the salt input");
+        }
+    }
+
+    async Task Save() {
+        await OnSave.InvokeAsync(_salt);
+        _salt = "";
+    }
+
+}

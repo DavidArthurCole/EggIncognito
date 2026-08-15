@@ -1,0 +1,557 @@
+@inherits SelfCallComponentBase
+@inject ThemeWorkbenchState State
+@inject ThemeCssSerializer Serializer
+@inject ICurrentUser User
+@inject IJSRuntime Js
+@inject IWebHostEnvironment HostEnv
+@using System.Globalization
+@using System.Text
+@using System.Text.Json
+@using EggIncognito.Components.Shared.Workbench
+@using EggIncognito.Services.Theme
+@implements IAsyncDisposable
+
+<WorkbenchModal Open="Open" Title="Theme workbench" TitleId="themeWbTitle" Size="WorkbenchSize.Wide"
+                Notice="_notice" OnClose="CloseAsync">
+    <Rail>
+        <WorkbenchRail>
+            @if (User.IsAuthenticated) {
+                <WorkbenchSection Label="My themes">
+                    <WorkbenchLoad T="ThemeRow" Items="_themes" EmptyText="No saved themes yet."
+                                   Class="wb-rail-empty text-muted text-xs" Context="themes">
+                        @foreach (var t in themes) {
+                            <WorkbenchEntry @key="t.Slug" Selected="@(State.SelectedSlug == t.Slug)"
+                                            OnClick="@(_ => SelectThemeAsync(t.Slug))">
+                                <Name>@t.Name</Name>
+                                <MetaLine>@t.Slug@(t.IsActive ? " (active)" : "")</MetaLine>
+                            </WorkbenchEntry>
+                        }
+                    </WorkbenchLoad>
+                </WorkbenchSection>
+            } else {
+                <div class="wb-rail-empty text-muted text-xs">Log in to save themes. A theme chosen here applies in this browser only.</div>
+            }
+            <WorkbenchSection Label="Presets">
+                @foreach (var preset in ThemePresets.All) {
+                    <WorkbenchEntry @key="preset.Slug" Class="theme-preset-entry" Style="@PresetBorder(preset)"
+                                    OnClick="@(_ => LoadPresetAsync(preset))">
+                        <Name>
+                            <span style="color: @PresetAccentCss(preset)">@preset.Name</span>
+                        </Name>
+                    </WorkbenchEntry>
+                }
+            </WorkbenchSection>
+        </WorkbenchRail>
+    </Rail>
+    <ChildContent>
+        <div class="theme-main">
+            <div class="theme-editor">
+                <div class="theme-head-row">
+                    <label class="theme-field">
+                        <span>Name</span>
+                        <input class="reg-filter-input" value="@State.Draft.Name" @onchange="OnNameChanged"/>
+                    </label>
+                    <label class="theme-field">
+                        <span>Slug</span>
+                        <input class="reg-filter-input" value="@State.Draft.Slug" @onchange="OnSlugChanged"/>
+                    </label>
+                </div>
+                <div>
+                    <WorkbenchModes Modes="State.Modes" Current="@State.Mode" CurrentChanged="SetMode"/>
+                </div>
+                @if (State.Mode == ThemeWorkbenchState.ModeTokens) {
+                    <div class="theme-token-grid">
+                        @foreach (var token in ThemeTokens.Settable) {
+                            <label class="theme-token-row">
+                                <span class="theme-token-name">@token</span>
+                                <input type="color" class="bg-picker-input" value="@TokenHex(token)" @oninput="e => OnTokenChangedAsync(token, e)"/>
+                                <span class="theme-token-hex">@TokenHex(token)</span>
+                            </label>
+                        }
+                    </div>
+                    <div class="theme-oklch-row">
+                        <span class="theme-token-name">accent oklch</span>
+                        <label>L <input type="number" step="0.01" min="0" max="1" class="theme-num" value="@State.Draft.AccentL" @onchange="e => OnAccentOklchAsync(e, 0)"/></label>
+                        <label>C <input type="number" step="0.005" min="0" max="0.5" class="theme-num" value="@State.Draft.AccentC" @onchange="e => OnAccentOklchAsync(e, 1)"/></label>
+                        <label>H <input type="number" step="1" min="0" max="360" class="theme-num" value="@State.Draft.AccentH" @onchange="e => OnAccentOklchAsync(e, 2)"/></label>
+                    </div>
+                } else if (State.Mode == ThemeWorkbenchState.ModeChroma) {
+                    <div class="theme-chroma-grid">
+                        <label class="theme-knob">
+                            <span>Surface tint @Fmt(State.Draft.SurfaceTint)%</span>
+                            <input type="range" min="0" max="12" step="0.5" value="@State.Draft.SurfaceTint" @oninput="e => OnKnobAsync(e, k => State.Draft.SurfaceTint = k)"/>
+                        </label>
+                        <label class="theme-knob">
+                            <span>Gradient hue shift @Fmt(State.Draft.GradientHueShift)deg</span>
+                            <input type="range" min="-60" max="60" step="1" value="@State.Draft.GradientHueShift" @oninput="e => OnKnobAsync(e, k => State.Draft.GradientHueShift = k)"/>
+                        </label>
+                        <label class="theme-knob">
+                            <span>Glow radius @Fmt(State.Draft.GlowRadius)px</span>
+                            <input type="range" min="0" max="24" step="1" value="@State.Draft.GlowRadius" @oninput="e => OnKnobAsync(e, k => State.Draft.GlowRadius = k)"/>
+                        </label>
+                        <label class="theme-knob">
+                            <span>Glow alpha @Fmt(State.Draft.GlowAlpha)%</span>
+                            <input type="range" min="0" max="60" step="1" value="@State.Draft.GlowAlpha" @oninput="e => OnKnobAsync(e, k => State.Draft.GlowAlpha = k)"/>
+                        </label>
+                        <label class="theme-knob theme-knob-toggle">
+                            <input type="checkbox" checked="@State.Draft.HueRotateEnabled" @onchange="OnHueRotateToggleAsync"/>
+                            <span>Hue rotation</span>
+                        </label>
+                        @if (State.Draft.HueRotateEnabled) {
+                            <label class="theme-knob">
+                                <span>Rotation period @Fmt(State.Draft.HueRotateSeconds)s</span>
+                                <input type="range" min="6" max="120" step="1" value="@State.Draft.HueRotateSeconds" @oninput="e => OnKnobAsync(e, k => State.Draft.HueRotateSeconds = k)"/>
+                            </label>
+                        }
+                    </div>
+                    <div class="theme-contrast">
+                        @if (_contrast is { Passes: true }) {
+                            <div class="text-ok text-xs">Contrast checks pass.</div>
+                        } else if (_contrast is not null) {
+                            @foreach (var f in _contrast.Failures) {
+                                <div class="theme-contrast-row text-err text-xs">
+                                    @f.Check: @f.A on @f.B measured @f.Measured, needs @f.Required@(f.AtHue is { } hue ? $" (at hue {Fmt(hue)})" : "")
+                                </div>
+                            }
+                        }
+                    </div>
+                } else if (State.Mode == ThemeWorkbenchState.ModeCss) {
+                    @if (!_cssEligible) {
+                        <p class="text-muted text-xs m-0">Custom CSS needs the contributor role and the admin switch. The rest of the theme works without it.</p>
+                    }
+
+                    <textarea class="theme-css-input" spellcheck="false" value="@State.Draft.Css" @onchange="OnCssChangedAsync" disabled="@(!_cssEligible)"></textarea>
+                    @if (_cssErrors.Count > 0) {
+                        <div class="theme-css-errors">
+                            @foreach (var err in _cssErrors) {
+                                <div class="text-err text-xs">line @err.Line:@err.Col @err.Message</div>
+                            }
+                        </div>
+                    } else if (_cssEligible && State.Draft.Css.Length > 0) {
+                        <div class="text-ok text-xs">Custom CSS parses.</div>
+                    }
+
+                    @if (_cssEligible) {
+                        <button type="button" class="btn-mini" @onclick="SaveCssAsync" disabled="@(!User.IsAuthenticated)">Save CSS to server</button>
+                    }
+                } else if (State.Mode == ThemeWorkbenchState.ModeJson) {
+                    <textarea class="theme-css-input" readonly>@DraftJson()</textarea>
+                    <div class="theme-json-actions">
+                        <button type="button" class="btn-mini" @onclick="ExportAsync">Export file</button>
+                    </div>
+                    <div class="theme-field">
+                        <span>Import</span>
+                        <textarea class="theme-css-input theme-import-input" spellcheck="false" @bind="_importJson"></textarea>
+                        <button type="button" class="btn-mini" @onclick="ImportAsync" disabled="@(!User.IsAuthenticated)">Import</button>
+                    </div>
+                }
+                <div class="theme-actions">
+                    @if (User.IsAuthenticated) {
+                        <button type="button" class="btn-primary" @onclick="SaveAsync">Save</button>
+                        <button type="button" class="btn-mini" @onclick="ActivateAsync">Activate</button>
+                        <button type="button" class="btn-mini" @onclick="DeactivateAsync">Deactivate</button>
+                        @if (State.SelectedSlug is not null) {
+                            <button type="button" class="btn-mini btn-danger" @onclick="DeleteAsync">Delete</button>
+                        }
+                    } else {
+                        <button type="button" class="btn-primary" @onclick="ApplyLocallyAsync">Apply in this browser</button>
+                        <button type="button" class="btn-mini" @onclick="ClearLocalAsync">Reset</button>
+                    }
+                </div>
+            </div>
+            <div class="theme-preview theme-preview-scope" style="@PreviewStyle()">
+                <div class="theme-pv-nav">
+                    <span class="theme-pv-brand">EggIncognito</span>
+                    <span class="theme-pv-nav-link active">Protos</span>
+                    <span class="theme-pv-nav-link">Capture</span>
+                </div>
+                <div class="theme-pv-panel">
+                    <div class="theme-pv-panel-title">Panel title</div>
+                    <table class="theme-pv-table">
+                        <thead>
+                        <tr>
+                            <th>Version</th>
+                            <th>Platform</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr>
+                            <td>1.37.1</td>
+                            <td>ios</td>
+                        </tr>
+                        <tr>
+                            <td>1.37.0</td>
+                            <td>android</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                    <div class="theme-pv-buttons">
+                        <button type="button" class="btn-primary">Primary</button>
+                        <button type="button" class="btn-mini">Mini</button>
+                    </div>
+                    <div class="theme-pv-code">
+                        <span class="theme-pv-gutter">1</span><span>message EggIncFirstContactRequest {</span>
+                    </div>
+                    <div class="theme-pv-lines">
+                        <span class="theme-pv-ok">ok: capture running</span>
+                        <span class="theme-pv-err">err: device unreachable</span>
+                        <span class="theme-pv-info">info: 3 versions behind</span>
+                        <span class="theme-pv-muted">muted: last seen 2h ago</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </ChildContent>
+</WorkbenchModal>
+
+@code {
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    public sealed record ThemeRow(string Slug, string Name, bool IsActive);
+
+    readonly List<ThemeRow> _themes = [];
+    ContrastResult? _contrast;
+    IReadOnlyList<CssError> _cssErrors = [];
+    bool _cssEligible;
+    WorkbenchNotice? _notice;
+    string _importJson = "";
+    string? _nonce;
+    bool _loaded;
+    IJSObjectReference? _preview;
+    IJSObjectReference? _prefs;
+    IJSObjectReference? _download;
+
+    bool StatusOk => _notice is { Severity: StatusNote.Kind.Ok };
+
+    protected override void OnInitialized() {
+        base.OnInitialized();
+        _nonce = HttpContextAccessor.HttpContext?.Items["egi.csp.nonce"] as string;
+    }
+
+    protected override async Task OnParametersSetAsync() {
+        if (Open && !_loaded) {
+            _loaded = true;
+            State.Draft.LoadFrom(ThemePresets.Default);
+            await LoadThemesAsync();
+            await LoadCssEligibilityAsync();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender) {
+        if (Open && _preview is null) {
+            try {
+                _preview = await Js.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(HostEnv, "./interop/themePreview.js"));
+                _prefs = await Js.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(HostEnv, "./interop/uiPrefs.js"));
+                _download = await Js.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(HostEnv, "./interop/download.js"));
+                await PushPreviewAsync();
+            }
+            catch (JSDisconnectedException) {
+            }
+            catch (JSException) {
+            }
+        }
+    }
+
+    async Task LoadThemesAsync() {
+        _themes.Clear();
+        if (!User.IsAuthenticated) return;
+        try {
+            using var client = Client();
+            var resp = await client.GetFromJsonAsync<ThemeListResponse>("/api/theme");
+            if (resp?.Themes is { } rows) {
+                foreach (var row in rows) _themes.Add(new ThemeRow(row.Slug ?? "", row.Name ?? "", row.IsActive));
+            }
+        }
+        catch (HttpRequestException) {
+        }
+        catch (JsonException) {
+        }
+    }
+
+    async Task LoadCssEligibilityAsync() {
+        _cssEligible = User.IsAtLeast(UserRole.Contributor);
+        await Task.CompletedTask;
+    }
+
+    async Task SelectThemeAsync(string slug) {
+        try {
+            using var client = Client();
+            var json = await client.GetStringAsync($"/api/theme/{Uri.EscapeDataString(slug)}");
+            var (model, _) = ThemeModel.Parse(json);
+            if (model is not null) {
+                State.Draft.LoadFrom(model);
+                State.SelectedSlug = slug;
+                await RefreshAllAsync();
+            }
+        }
+        catch (HttpRequestException) {
+            SetStatus("could not load that theme", false);
+        }
+    }
+
+    async Task LoadPresetAsync(ThemeModel preset) {
+        State.LoadPreset(preset);
+        State.Draft.Slug = preset.Slug == "default" ? "my-default" : preset.Slug + "-mine";
+        await RefreshAllAsync();
+    }
+
+    async Task SaveAsync() {
+        var model = State.Draft.ToModel() with { Css = "" };
+        using var client = Client();
+        var resp = await client.PutAsync($"/api/theme/{Uri.EscapeDataString(model.Slug)}",
+            new StringContent(model.ToJson(), Encoding.UTF8, "application/json"));
+        if (resp.IsSuccessStatusCode) {
+            State.SelectedSlug = model.Slug;
+            SetStatus($"saved {model.Slug}", true);
+            await LoadThemesAsync();
+        } else {
+            SetStatus(await Describe(resp), false);
+        }
+    }
+
+    async Task ActivateAsync() {
+        await SaveAsync();
+        if (!StatusOk) return;
+        using var client = Client();
+        var resp = await client.PostAsync($"/api/theme/{Uri.EscapeDataString(State.Draft.Slug)}/activate", null);
+        if (resp.IsSuccessStatusCode) {
+            SetStatus("activated; reload to see it everywhere", true);
+            await LoadThemesAsync();
+        } else {
+            SetStatus(await Describe(resp), false);
+        }
+    }
+
+    async Task DeactivateAsync() {
+        using var client = Client();
+        var resp = await client.PostAsync("/api/theme/deactivate", null);
+        SetStatus(resp.IsSuccessStatusCode ? "deactivated" : await Describe(resp), resp.IsSuccessStatusCode);
+        await LoadThemesAsync();
+    }
+
+    async Task DeleteAsync() {
+        if (State.SelectedSlug is not { } slug) return;
+        using var client = Client();
+        var resp = await client.DeleteAsync($"/api/theme/{Uri.EscapeDataString(slug)}");
+        SetStatus(resp.IsSuccessStatusCode ? $"deleted {slug}" : await Describe(resp), resp.IsSuccessStatusCode);
+        State.SelectedSlug = null;
+        await LoadThemesAsync();
+    }
+
+    async Task SaveCssAsync() {
+        var parsed = ThemeCssParser.Parse(State.Draft.Css);
+        _cssErrors = parsed.Errors;
+        if (!parsed.Ok) return;
+        using var client = Client();
+        var body = JsonSerializer.Serialize(new { slug = State.Draft.Slug, css = State.Draft.Css });
+        var resp = await client.PutAsync("/api/theme/css",
+            new StringContent(body, Encoding.UTF8, "application/json"));
+        SetStatus(resp.IsSuccessStatusCode ? "custom css saved" : await Describe(resp), resp.IsSuccessStatusCode);
+    }
+
+    async Task ImportAsync() {
+        if (string.IsNullOrWhiteSpace(_importJson)) return;
+        using var client = Client();
+        var resp = await client.PostAsync("/api/theme/import",
+            new StringContent(_importJson, Encoding.UTF8, "application/json"));
+        if (resp.IsSuccessStatusCode) {
+            SetStatus("imported", true);
+            _importJson = "";
+            await LoadThemesAsync();
+        } else {
+            SetStatus(await Describe(resp), false);
+        }
+    }
+
+    async Task ExportAsync() {
+        if (_download is null) return;
+        var model = State.Draft.ToModel();
+        await _download.InvokeVoidAsync("text", $"egi-theme-{model.Slug}.json", model.ToJson());
+    }
+
+    async Task ApplyLocallyAsync() {
+        if (_prefs is null || _preview is null) return;
+        var model = State.Draft.ToModel() with { Css = "" };
+        await _prefs.InvokeVoidAsync("set", "theme.model", model.ToJson());
+        await _prefs.InvokeVoidAsync("set", "theme.active", "1");
+        await _preview.InvokeVoidAsync("applyTokens", TokenCssMap(model));
+        SetStatus("applied in this browser", true);
+    }
+
+    async Task ClearLocalAsync() {
+        if (_prefs is null || _preview is null) return;
+        await _prefs.InvokeVoidAsync("remove", "theme.model");
+        await _prefs.InvokeVoidAsync("remove", "theme.active");
+        await _preview.InvokeVoidAsync("clearTokens", ThemeTokens.Settable);
+        SetStatus("reset", true);
+    }
+
+    async Task OnTokenChangedAsync(string token, ChangeEventArgs e) {
+        var value = e.Value?.ToString() ?? "";
+        if (ThemeColor.FromHex(value) is not null) {
+            State.Draft.TokenHex[token] = value.ToLowerInvariant();
+            if (token == "accent") {
+                State.Draft.AccentL = null;
+                State.Draft.AccentC = null;
+                State.Draft.AccentH = null;
+            }
+
+            await RefreshAllAsync();
+        }
+    }
+
+    async Task OnAccentOklchAsync(ChangeEventArgs e, int component) {
+        if (!double.TryParse(e.Value?.ToString(), NumberStyles.Float,
+                CultureInfo.InvariantCulture, out var value)) return;
+        var current = CurrentAccent();
+        var l = component == 0 ? value : current.L;
+        var c = component == 1 ? value : current.C;
+        var h = component == 2 ? value : current.H;
+        var color = ThemeColor.FromOklch(l, c, h);
+        State.Draft.AccentL = color.L;
+        State.Draft.AccentC = color.C;
+        State.Draft.AccentH = color.H;
+        await RefreshAllAsync();
+    }
+
+    async Task OnKnobAsync(ChangeEventArgs e, Action<double> apply) {
+        if (double.TryParse(e.Value?.ToString(), NumberStyles.Float,
+                CultureInfo.InvariantCulture, out var value)) {
+            apply(value);
+            await RefreshAllAsync();
+        }
+    }
+
+    async Task OnHueRotateToggleAsync(ChangeEventArgs e) {
+        State.Draft.HueRotateEnabled = e.Value is true;
+        await RefreshAllAsync();
+    }
+
+    async Task OnCssChangedAsync(ChangeEventArgs e) {
+        State.Draft.Css = e.Value?.ToString() ?? "";
+        _cssErrors = State.Draft.Css.Length > 0 ? ThemeCssParser.Parse(State.Draft.Css).Errors : [];
+        await RefreshAllAsync();
+    }
+
+    Task OnNameChanged(ChangeEventArgs e) {
+        State.Draft.Name = e.Value?.ToString() ?? "";
+        return Task.CompletedTask;
+    }
+
+    Task OnSlugChanged(ChangeEventArgs e) {
+        State.Draft.Slug = (e.Value?.ToString() ?? "").ToLowerInvariant();
+        return Task.CompletedTask;
+    }
+
+    void SetMode(string mode) {
+        State.Mode = mode;
+        if (mode == ThemeWorkbenchState.ModeChroma) _contrast = ThemeContrast.Validate(State.Draft.ToModel());
+    }
+
+    async Task RefreshAllAsync() {
+        _contrast = ThemeContrast.Validate(State.Draft.ToModel());
+        await PushPreviewAsync();
+    }
+
+    async Task PushPreviewAsync() {
+        if (_preview is null) return;
+        var model = State.Draft.ToModel();
+        var css = Serializer.Serialize(model, ThemeScope.Preview, _cssEligible && _cssErrors.Count == 0);
+        try {
+            await _preview.InvokeVoidAsync("setCss", css, _nonce);
+        }
+        catch (JSDisconnectedException) {
+        }
+    }
+
+    string PreviewStyle() {
+        var model = State.Draft.ToModel();
+        var sb = new StringBuilder();
+        foreach (var token in ThemeTokens.Settable)
+            sb.Append("--color-").Append(token).Append(": ").Append(model.ResolveToken(token).ToCss()).Append("; ");
+        return sb.ToString();
+    }
+
+    static Dictionary<string, string> TokenCssMap(ThemeModel model) {
+        var map = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var token in ThemeTokens.Settable) map[token] = model.ResolveToken(token).ToCss();
+        return map;
+    }
+
+    ThemeColor CurrentAccent() {
+        if (State.Draft is { AccentL: { } l, AccentC: { } c, AccentH: { } h }) return ThemeColor.FromOklch(l, c, h);
+        return ThemeColor.FromHex(TokenHex("accent")) ?? ThemePresets.DefaultToken("accent");
+    }
+
+    string TokenHex(string token) {
+        return State.Draft.TokenHex.TryGetValue(token, out var hex) ? hex : ThemePresets.DefaultToken(token).Hex ?? "#000000";
+    }
+
+    static string PresetAccentCss(ThemeModel preset) {
+        return preset.ResolveToken("accent").ToCss();
+    }
+
+    static string PresetBorder(ThemeModel preset) {
+        return $"border-color: {PresetAccentCss(preset)}";
+    }
+
+    string DraftJson() {
+        return State.Draft.ToModel().ToJson();
+    }
+
+    static string Fmt(double v) {
+        return v.ToString("0.#", CultureInfo.InvariantCulture);
+    }
+
+    void SetStatus(string message, bool ok) {
+        _notice = new WorkbenchNotice(message, ok ? StatusNote.Kind.Ok : StatusNote.Kind.Error);
+    }
+
+    static async Task<string> Describe(HttpResponseMessage resp) {
+        try {
+            var body = await resp.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(body);
+            if (doc.RootElement.TryGetProperty("error", out var err)) return err.GetString() ?? $"HTTP {(int)resp.StatusCode}";
+        }
+        catch (JsonException) {
+        }
+
+        return $"HTTP {(int)resp.StatusCode}";
+    }
+
+    async Task CloseAsync() {
+        if (_preview is not null) {
+            try {
+                await _preview.InvokeVoidAsync("clearCss");
+            }
+            catch (JSDisconnectedException) {
+            }
+        }
+
+        await OnClose.InvokeAsync();
+    }
+
+    sealed class ThemeListResponse {
+        public List<ThemeListRow>? Themes { get; set; }
+    }
+
+    sealed class ThemeListRow {
+        public string? Slug { get; set; }
+        public string? Name { get; set; }
+        public bool IsActive { get; set; }
+    }
+
+    public async ValueTask DisposeAsync() {
+        foreach (var module in new[] { _preview, _prefs, _download }) {
+            if (module is not null) {
+                try {
+                    await module.DisposeAsync();
+                }
+                catch (JSDisconnectedException) {
+                }
+            }
+        }
+    }
+
+}

@@ -1,8 +1,7 @@
 @implements IAsyncDisposable
 @using System.Text
 @using System.Text.Json
-@using EggIncognito.Components.Capture
-@using EggIncognito.Core
+@using EggIncognito.Components.Data
 @inherits SelfCallComponentBase
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env
@@ -10,70 +9,41 @@
 
 @if (!_loaded) {
     <div class="panel text-muted text-sm">Loading…</div>
-} else if (_summary is null && _catalog is null) {
+} else if (_summary is null && _seasons is null && _events is null) {
     <div class="panel text-muted text-sm">No data available right now.</div>
 } else {
-    <div class="flex flex-col gap-6">
+    <div class="flex flex-col gap-4">
         @if (_events is { Count: > 0 }) {
             <section class="panel">
                 <h3 class="text-sm font-semibold mt-0 mb-3">Current events</h3>
-                <div class="flex flex-wrap gap-1.5">
+                <div class="evt-list">
                     @foreach (var e in _events) {
-                        <span class="event-pill @(RemainingSeconds(e) <= 0 ? "ended" : "")">
+                        <div class="evt-row @(RemainingSeconds(e) <= 0 ? "ended" : "")">
                             @if (!string.IsNullOrEmpty(e.Icon)) {
-                                <span class="event-icon" style="@IconStyle(e)">
+                                <span class="evt-icon" style="@IconStyle(e)">
                                     <img src="@e.Icon" alt="" loading="lazy"/>
                                 </span>
                             }
-                            <span class="event-name">@(string.IsNullOrEmpty(e.Subtitle) ? Pretty(e.Type) : e.Subtitle)</span>
-                            <span class="event-timer" data-countdown="@FormattableString.Invariant($"{e.EndTime ?? 0:0}")">@RemainingLabel(e)</span>
-                        </span>
-                    }
-                </div>
-            </section>
-        }
-
-        @if (_catalog is not null) {
-            <section class="panel">
-                <h3 class="text-sm font-semibold mt-0 mb-3">Data</h3>
-                <div class="ds-groups">
-                    @foreach (var grp in Groups) {
-                        var rows = _catalog.Sources.Where(s => s.Group == grp.Key).ToList();
-                        if (rows.Count == 0) {
-                            continue;
-                        }
-
-                        <div>
-                            <div class="ds-section-label">@grp.Label</div>
-                            <div class="ds-list">
-                                @foreach (var s in rows) {
-                                    <div class="ds-item">
-                                        <PeriodicalDataset Title="@s.DisplayName" Endpoint="@s.Url"
-                                                           DownloadName="@($"{s.Id}.json")" Fetch="Fetch" View="_view" FormatChoice="_fc">
-                                            <Badges>
-                                                <span class="ds-meta">
-                                                    @if (s.Bytes is { } b) {
-                                                        <span class="ds-meta-chip">@ByteFormat.Compact(b)</span>
-                                                    }
-                                                    @if (s.Meta is { } m && !string.IsNullOrEmpty(m.BinaryVersion)) {
-                                                        <span class="ds-meta-chip">v@(m.BinaryVersion)</span>
-                                                    } else if (s.Meta?.Provenance is not null) {
-                                                        <span class="ds-meta-chip">prov</span>
-                                                    }
-                                                </span>
-                                            </Badges>
-                                        </PeriodicalDataset>
-                                        @if (s.Children is { Count: > 0 }) {
-                                            <SubDatasetChips Items="ChipsOf(s)" Fetch="Fetch" View="_view" FormatChoice="_fc"/>
-                                        }
-                                    </div>
-                                }
-                            </div>
+                            <span class="evt-name">@(string.IsNullOrEmpty(e.Subtitle) ? Pretty(e.Type) : e.Subtitle)</span>
+                            <span class="evt-timer" data-countdown="@FormattableString.Invariant($"{e.EndTime ?? 0:0}")">@RemainingLabel(e)</span>
                         </div>
                     }
                 </div>
             </section>
         }
+
+        <section class="panel">
+            <div class="flex items-stretch gap-2">
+                <div class="flex-1 min-w-0">
+                    <h3 class="text-sm font-semibold mt-0 mb-1">Data</h3>
+                    <p class="text-muted text-xs m-0">Every dataset the API serves, with its provenance and route.</p>
+                </div>
+                <button type="button" class="dropzone-open" title="Open the data workbench"
+                        aria-label="Open the data workbench" @onclick="OpenDataWorkbench">
+                    <Icon Name="chevronRight" Class="icon-sm"/>
+                </button>
+            </div>
+        </section>
 
         @if (_seasons is { Count: > 0 } seasonList) {
             var season = seasonList[Math.Clamp(_seasonIx, 0, seasonList.Count - 1)];
@@ -94,7 +64,7 @@
                         </button>
                     </div>
                 </div>
-                <div class="flex items-start gap-10 mb-3">
+                <div class="season-head">
                     <div class="flex items-center gap-3 min-w-0">
                         <div class="bg-bg border border-border rounded overflow-hidden text-center w-14 shrink-0">
                             <div class="bg-accent text-bg text-[0.625rem] font-semibold uppercase py-0.5">@StartDate(season).ToString("MMM")</div>
@@ -111,13 +81,13 @@
                         </div>
                     </div>
                     @if (season.Colleggtibles is { Count: > 0 } ceggs) {
-                        <div class="shrink-0">
+                        <div class="min-w-0">
                             <div class="text-xs font-semibold mb-1">@(ceggs.Count == 1 ? "Season Colleggtible" : "Season Colleggtibles")</div>
                             <div class="flex flex-col gap-1.5">
                                 @foreach (var egg in ceggs) {
                                     <div class="flex items-center gap-2">
                                         @if (egg.Icon is not null) {
-                                            <img src="@egg.Icon" alt="@egg.Id" loading="lazy" style="width:40px;height:40px;object-fit:contain"/>
+                                            <img class="season-cegg-icon" src="@egg.Icon" alt="@egg.Id" loading="lazy"/>
                                         }
                                         <div class="min-w-0">
                                             <div class="text-xs font-medium">@TitleCase(egg.Id)</div>
@@ -138,9 +108,9 @@
                         <tr>
                             <th class="w-12">Goal</th>
                             @foreach (var g in grades) {
-                                <th class="text-center">
+                                <th>
                                     @if (!string.IsNullOrEmpty(g.GradeIcon)) {
-                                        <img src="@g.GradeIcon" alt="@GradeLabel(g.Grade)" style="width:28px;height:28px;object-fit:contain" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'"/>
+                                        <img class="season-grade-icon" src="@g.GradeIcon" alt="@GradeLabel(g.Grade)" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'"/>
                                         <span style="display:none">@GradeLabel(g.Grade)</span>
                                     } else {
                                         @GradeLabel(g.Grade)
@@ -158,13 +128,17 @@
                                     <td class="text-xs">
                                         @if (goalIx < g.Goals.Count) {
                                             var goal = g.Goals[goalIx];
-                                            <div class="mono text-muted text-center">@FormatAmount(goal.Cxp) CS</div>
                                             <span class="hcard-wrap">
-                                                <span class="flex items-center gap-1.5">
+                                                <span class="season-goal">
                                                     @if (!string.IsNullOrEmpty(goal.Icon)) {
-                                                        <img src="@goal.Icon" alt="" style="width:18px;height:18px;object-fit:contain" loading="lazy" onerror="this.style.display='none'"/>
+                                                        <span class="season-goal-icon">
+                                                            <img src="@goal.Icon" alt="" loading="lazy" onerror="this.style.display='none'"/>
+                                                        </span>
                                                     }
-                                                    @RewardLabel(goal)
+                                                    <span class="season-goal-text">
+                                                        <span class="season-goal-cs">@FormatAmount(goal.Cxp) CS</span>
+                                                        <span>@RewardLabel(goal)</span>
+                                                    </span>
                                                 </span>
                                                 <span class="hcard">
                                                     <span class="hcard-title">@RewardFullName(goal)</span>
@@ -225,9 +199,7 @@
             </section>
         }
 
-        @if (_catalogError is not null) {
-            <StatusNote Severity="StatusNote.Kind.Error">Could not load the source catalog: @_catalogError</StatusNote>
-        }
+        <DataWorkbenchModal @ref="_dataWorkbench"/>
     </div>
 }
 
@@ -236,19 +208,15 @@
 
     bool _loaded;
     Summary? _summary;
-    DataResponse? _catalog;
-    string? _catalogError;
     List<Season>? _seasons;
     int _seasonIx;
     List<EventRow>? _events;
     IJSObjectReference? _countdown;
-    readonly CaptureViewState _view = new();
-    readonly Dictionary<string, string> _fc = new();
+    DataWorkbenchModal? _dataWorkbench;
 
-    static readonly (string Key, string Label)[] Groups = [
-        ("periodical", "Periodical"),
-        ("gamedata", "Game data")
-    ];
+    Task OpenDataWorkbench() {
+        return _dataWorkbench?.Open() ?? Task.CompletedTask;
+    }
 
     protected override async Task OnInitializedAsync() {
         try {
@@ -285,46 +253,7 @@
         }
 
         await LoadBoostCatalog();
-
-        try {
-            var res = await Client().GetAsync("/api/v1/data");
-            if (res.IsSuccessStatusCode) {
-                var cat = await res.Content.ReadFromJsonAsync<DataResponse>(JsonOpts);
-                if (cat is not null) {
-                    _catalog = cat;
-                    _catalogError = null;
-                }
-            } else {
-                _catalogError = $"HTTP {(int)res.StatusCode}";
-            }
-        }
-        catch (Exception ex) {
-            _catalogError = ex.Message;
-        }
-        finally {
-            _loaded = true;
-        }
-    }
-
-    async Task<string> Fetch(string route) {
-        try {
-            var res = await Client().GetAsync(route);
-            var body = await res.Content.ReadAsStringAsync();
-            if (res.IsSuccessStatusCode) return body;
-            var isJson = res.Content.Headers.ContentType?.MediaType?.Contains("json", StringComparison.OrdinalIgnoreCase) == true;
-            return isJson && !string.IsNullOrWhiteSpace(body) ? body : $"HTTP {(int)res.StatusCode}: {body}";
-        }
-        catch (Exception ex) {
-            return ex.Message;
-        }
-    }
-
-    static List<SubDatasetChips.SubDataset> ChipsOf(Source s) {
-        return (s.Children ?? []).Select(k => new SubDatasetChips.SubDataset(k.DisplayName, k.Url, $"{k.Id}.json", k.Bytes, VersionOf(k))).ToList();
-    }
-
-    static string? VersionOf(Source k) {
-        return k.Meta is { } m && !string.IsNullOrEmpty(m.BinaryVersion) ? m.BinaryVersion : null;
+        _loaded = true;
     }
 
     void MoveSeason(int delta) {
@@ -588,23 +517,5 @@
         double? EndTime,
         bool CcOnly,
         string? Icon);
-
-    record DataResponse(int Count, List<Source> Sources);
-
-    record Source(
-        string Id,
-        string Group,
-        string Url,
-        string DisplayName,
-        string? Description,
-        string Provenance,
-        string Access,
-        string? Feed,
-        bool AcceptsName,
-        long? Bytes,
-        MetaRow? Meta,
-        List<Source>? Children);
-
-    record MetaRow(string? BinaryVersion, JsonElement? Provenance);
 
 }

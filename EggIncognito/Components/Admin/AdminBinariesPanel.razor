@@ -24,8 +24,12 @@
                 <tbody>
                 @foreach (var b in _rows) {
                     <tr>
-                        <td class="font-medium mono">@b.Version</td>
-                        <td class="text-xs">@b.Platform</td>
+                        <td>
+                            <VersionLine App="@b.Version"/>
+                        </td>
+                        <td>
+                            <PlatformIcon Platform="@b.Platform"/>
+                        </td>
                         <td class="mono text-xs">@ShaShort(b.Sha256)</td>
                         <td class="mono text-xs">@ByteFormat.Mb(b.ByteSize, "F1")</td>
                         <td class="mono text-xs">

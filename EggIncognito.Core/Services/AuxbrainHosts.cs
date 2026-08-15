@@ -2,11 +2,25 @@ namespace EggIncognito.Services;
 
 public static class AuxbrainHosts {
     public const string Origin = "https://www.auxbrain.com";
+    public const string ContextOrigin = "https://ctx-dot-auxbrainhome.appspot.com";
+
+    private static readonly string[] ContextPrefixes = ["ei_ctx", "ei_srv"];
 
     private static readonly string[] Suffixes = [
         "auxbrain.com",
         "auxbrainhome.appspot.com"
     ];
+
+
+    public static string OriginForPath(string? path) {
+        if (string.IsNullOrEmpty(path)) return Origin;
+        string trimmed = path.TrimStart('/');
+        foreach (string prefix in ContextPrefixes) {
+            if (trimmed.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return ContextOrigin;
+        }
+
+        return Origin;
+    }
 
 
     public static bool IsAuxbrain(string host) {

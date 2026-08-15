@@ -11,7 +11,7 @@ public class InspectorSealedSendTests {
     private static InspectorApiController NewController(
         IAppMode appMode, ICurrentUser user, ISealedProxy sealedProxy) {
         var c = new InspectorApiController(
-            null!, null!, null!, null!,
+            null!, null!, null!,
             appMode, user, sealedProxy, NullLogger<InspectorApiController>.Instance) {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
         };

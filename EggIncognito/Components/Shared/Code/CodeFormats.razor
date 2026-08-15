@@ -1,0 +1,189 @@
+@using System.Text.Json
+@using System.Text.Json.Nodes
+@using EggIncognito.Components.Capture
+@using EggIncognito.Services.Syntax
+@inject ILogger<CodeFormats> Logger
+
+<div class="format-view">
+    @if (ShowLabel && !string.IsNullOrEmpty(Label)) {
+        <div class="section-head">
+            <h3>@Label</h3>
+        </div>
+    }
+    @if (_emptyNoteOnly is not null) {
+        <div class="no-json">@_emptyNoteOnly</div>
+        @if (_showRawBox) {
+            <div class="raw-box">@RawBase64</div>
+        }
+    } else if (_currentFormat == "json-tree") {
+        <div class="data-body">
+            <CodeTree Root="_tree" View="View" Reveal="RevealState" MaxHeight="@MaxHeight">
+                <Tools>
+                    @FormatSelect()
+                    @Tools
+                    <CopyButton GetText="CurrentText" ButtonClass="btn-mini data-copy" IconClass="icon-sm"
+                                Label="Copy" CopiedLabel="Copied"/>
+                </Tools>
+            </CodeTree>
+        </div>
+    } else {
+        <div class="data-body">
+            @if (_decodedEmptyNote is not null) {
+                <div class="no-json">@_decodedEmptyNote</div>
+            }
+            <CodeSurface Text="@_text" Language="@_language" Gutter="@_gutter" GutterLabels="@_gutterLabels"
+                         MaxHeight="@MaxHeight" CopyText="CurrentText" SensitiveValues="@_sensitive"
+                         Reveal="RevealState">
+                <Tools>
+                    @FormatSelect()
+                    @Tools
+                </Tools>
+            </CodeSurface>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string Key { get; set; } = "";
+    [Parameter] public string Label { get; set; } = "";
+    [Parameter] public bool ShowLabel { get; set; } = true;
+    [Parameter] public string? Json { get; set; }
+    [Parameter] public string? RawBase64 { get; set; }
+    [Parameter] public Dictionary<string, string> Choice { get; set; } = new();
+    [Parameter] public CaptureViewState View { get; set; } = new();
+    [Parameter] public string EmptyNote { get; set; } = "(no decoded JSON)";
+    [Parameter] public string MaxHeight { get; set; } = "";
+    [Parameter] public CodeGutter Gutter { get; set; } = CodeGutter.Numbers;
+    [Parameter] public RenderFragment? Tools { get; set; }
+    [Parameter] public CodeRevealState? Reveal { get; set; }
+
+    readonly CodeRevealState _ownReveal = new();
+
+    string? _emptyNoteOnly;
+    string? _decodedEmptyNote;
+    bool _showRawBox;
+    string _currentFormat = "json-tree";
+
+    List<string> _formats = [];
+    JsonNode? _parsed;
+    CodeTreeNode? _tree;
+    string? _treeFor;
+
+    string _text = "";
+    string _language = "text";
+    CodeGutter _gutter = CodeGutter.Numbers;
+    IReadOnlyList<string>? _gutterLabels;
+    IReadOnlySet<string>? _sensitive;
+
+    CodeRevealState RevealState => Reveal ?? _ownReveal;
+
+    string ChoiceKey => string.IsNullOrEmpty(Key) ? Label : Key;
+
+    protected override void OnParametersSet() {
+        RevealState.ResetFor(Json);
+
+        _emptyNoteOnly = null;
+        _decodedEmptyNote = null;
+        _showRawBox = false;
+        _parsed = null;
+        var parseOk = false;
+        if (!string.IsNullOrEmpty(Json)) {
+            try {
+                _parsed = JsonNode.Parse(Json);
+                parseOk = true;
+            }
+            catch (JsonException ex) {
+                Logger.LogDebug(ex, "payload is not valid JSON, falling back to raw views");
+            }
+        }
+
+        var hasBytes = !string.IsNullOrEmpty(RawBase64);
+        var emptyDecoded = !string.IsNullOrEmpty(Json) && parseOk && IsEmptyContainer(_parsed);
+
+        if (string.IsNullOrEmpty(Json) && !hasBytes) {
+            _emptyNoteOnly = EmptyNote;
+            return;
+        }
+
+
+        if (emptyDecoded && !hasBytes) {
+            _emptyNoteOnly = "(empty - all default values)";
+            return;
+        }
+
+        _formats = [];
+        if (!string.IsNullOrEmpty(Json) && parseOk && !emptyDecoded) _formats.AddRange(DataFormats.JsonFormats);
+        if (hasBytes) _formats.AddRange(DataFormats.ByteFormats);
+        if (_formats.Count == 0) {
+            _emptyNoteOnly = EmptyNote;
+            _showRawBox = hasBytes;
+            return;
+        }
+
+        if (emptyDecoded && hasBytes)
+            _decodedEmptyNote = "Decoded to defaults. Raw bytes:";
+
+        var current = Choice.TryGetValue(ChoiceKey, out var c) ? c : View.DefaultFormat;
+        if (!_formats.Contains(current)) current = _formats[0];
+        _currentFormat = current;
+        Choice[ChoiceKey] = current;
+
+        BuildBody();
+    }
+
+    static bool IsEmptyContainer(JsonNode? v) =>
+        v is JsonArray { Count: 0 } || v is JsonObject { Count: 0 };
+
+    void OnFormatChange(ChangeEventArgs e) {
+        _currentFormat = e.Value?.ToString() ?? _currentFormat;
+        Choice[ChoiceKey] = _currentFormat;
+        BuildBody();
+    }
+
+    void BuildBody() {
+        if (_currentFormat == "json-tree") {
+            if (_tree is null || _treeFor != Json) {
+                _tree = CodeTreeNode.Parse(Json);
+                _treeFor = Json;
+            }
+
+            _text = "";
+            _gutterLabels = null;
+            _sensitive = null;
+            return;
+        }
+
+        _tree = null;
+        _treeFor = null;
+
+        var isByte = DataFormats.IsByteFormat(_currentFormat);
+        if (isByte) {
+            var dump = DataFormats.BytesToDump(RawBase64, _currentFormat);
+            _text = dump.Text;
+            _gutterLabels = dump.Labels;
+            _gutter = CodeGutter.Labels;
+            _sensitive = null;
+        } else {
+            _text = DataFormats.JsonToText(Json, _currentFormat);
+            _gutterLabels = null;
+            _gutter = Gutter;
+            _sensitive = View.IsBlurMode && _parsed is not null ? View.CollectSensitiveValues(_parsed) : null;
+        }
+
+        _language = DataFormats.LanguageFor(_currentFormat);
+    }
+
+    string CurrentText() {
+        var fmt = _currentFormat;
+        if (fmt == "json-tree") return Json ?? "";
+        if (DataFormats.IsByteFormat(fmt)) return DataFormats.BytesToText(RawBase64, fmt);
+        return DataFormats.JsonToText(Json, fmt);
+    }
+
+    RenderFragment FormatSelect() => @<select class="code-select data-format" value="@_currentFormat" @onchange="OnFormatChange">
+                                         @foreach (var f in _formats) {
+                                             <option value="@f">@DataFormats.Label(f)</option>
+                                         }
+                                     </select>;
+
+}

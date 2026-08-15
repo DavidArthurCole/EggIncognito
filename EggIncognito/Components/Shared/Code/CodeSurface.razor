@@ -1,0 +1,222 @@
+@using System.Globalization
+@using EggIncognito.Services.Syntax
+@using Microsoft.AspNetCore.Components.Web.Virtualization
+@if (_empty) {
+    @if (!string.IsNullOrEmpty(EmptyText)) {
+        <div class="code-note">@EmptyText</div>
+    }
+} else {
+    <div class="code-surface @GutterClass @CssClass" style="@RootStyle">
+        @if (ShowToolbar) {
+            <div class="code-toolbar">
+                @Tools
+                @if (ShowFilter && Filter is null) {
+                    <FilterInput Class="code-filter" Placeholder="Filter..." AriaLabel="Filter lines"
+                                 Value="@_filter" ValueChanged="OnFilterChanged"/>
+                }
+                <span class="code-toolbar-gap"></span>
+                @if (ShowWrapToggle) {
+                    <button type="button" class="btn-mini code-toggle @(WrapNow ? "code-toggle-on" : "")"
+                            disabled="@WrapLocked" title="@WrapTitle" @onclick="ToggleWrap">
+                        Wrap
+                    </button>
+                }
+                @if (ShowCopy) {
+                    <CopyButton GetText="CurrentText" ButtonClass="btn-mini data-copy" IconClass="icon-sm"
+                                Label="Copy" CopiedLabel="Copied"/>
+                }
+            </div>
+        }
+        <div class="code-scroll" style="@ScrollStyle">
+            <div class="code-rows @(WrapNow ? "code-wrap" : "")">
+                @if (_noMatch) {
+                    <div class="code-row code-note">@NoMatchText</div>
+                } else if (Virtualized) {
+                    <Virtualize Items="_rows" Context="row" ItemSize="CodeMetrics.RowHeightPx"
+                                OverscanCount="CodeMetrics.Overscan">
+                        @Row(row)
+                    </Virtualize>
+                } else {
+                    @foreach (var row in _rows) {
+                        @Row(row)
+                    }
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string? Text { get; set; }
+    [Parameter] public string Language { get; set; } = "text";
+    [Parameter] public CodeGutter Gutter { get; set; } = CodeGutter.Numbers;
+    [Parameter] public IReadOnlyList<string>? GutterLabels { get; set; }
+    [Parameter] public bool Wrap { get; set; }
+    [Parameter] public EventCallback<bool> WrapChanged { get; set; }
+    [Parameter] public bool ShowWrapToggle { get; set; } = true;
+    [Parameter] public string MaxHeight { get; set; } = "";
+    [Parameter] public bool ShowToolbar { get; set; } = true;
+    [Parameter] public bool ShowFilter { get; set; } = true;
+    [Parameter] public string? Filter { get; set; }
+    [Parameter] public bool ShowCopy { get; set; } = true;
+    [Parameter] public Func<string>? CopyText { get; set; }
+    [Parameter] public RenderFragment? Tools { get; set; }
+    [Parameter] public string EmptyText { get; set; } = "";
+    [Parameter] public IReadOnlySet<string>? SensitiveValues { get; set; }
+    [Parameter] public CodeRevealState? Reveal { get; set; }
+    [Parameter] public string? CssClass { get; set; }
+
+    const string NoMatchText = "(no lines match)";
+
+    readonly CodeRevealState _ownReveal = new();
+
+    HighlightedText _highlight = SyntaxHighlighter.Highlight("", "text");
+    List<int> _rows = [];
+    string[] _needles = [];
+    string? _builtText;
+    string? _builtLanguage;
+    string? _filterApplied;
+    string _filter = "";
+    bool _wrap;
+    bool _wrapParam;
+    bool _wrapSeeded;
+    bool _noMatch;
+    bool _empty = true;
+
+    CodeRevealState RevealState => Reveal ?? _ownReveal;
+
+    bool WrapNow => !WrapLocked && (WrapChanged.HasDelegate ? Wrap : _wrap);
+
+    bool WrapLocked => _highlight.LineCount > CodeMetrics.WrapRowCap;
+
+    string WrapTitle => WrapLocked ? CodeMetrics.WrapDisabledTitle : "Wrap long lines";
+
+    bool Virtualized => !WrapNow && _rows.Count > CodeMetrics.VirtualizeAbove;
+
+    string GutterClass => Gutter == CodeGutter.None ? "code-nogutter" : "";
+
+    string? ScrollStyle => string.IsNullOrEmpty(MaxHeight) ? null : $"max-height:{MaxHeight}";
+
+    string? RootStyle {
+        get {
+            if (Gutter == CodeGutter.None) return null;
+            var chars = Gutter == CodeGutter.Labels
+                ? CodeMetrics.WidestLabel(GutterLabels)
+                : CodeMetrics.DigitsFor(_highlight.LineCount);
+            return "--code-gutter-w:" + CodeMetrics.GutterWidth(chars);
+        }
+    }
+
+    protected override void OnParametersSet() {
+        if (!_wrapSeeded || Wrap != _wrapParam) {
+            _wrap = Wrap;
+            _wrapParam = Wrap;
+            _wrapSeeded = true;
+        }
+
+        var text = Text ?? "";
+        _empty = text.Length == 0;
+        var language = SyntaxHighlighter.Resolve(Language);
+        if (!string.Equals(_builtText, text, StringComparison.Ordinal)
+            || !string.Equals(_builtLanguage, language, StringComparison.Ordinal)) {
+            _builtText = text;
+            _builtLanguage = language;
+            _highlight = SyntaxHighlighter.Highlight(text, language);
+            _filterApplied = null;
+        }
+
+        if (WrapLocked) _wrap = false;
+        ApplyFilter();
+    }
+
+    Task OnFilterChanged(string value) {
+        _filter = value;
+        ApplyFilter();
+        return Task.CompletedTask;
+    }
+
+    Task ToggleWrap() {
+        if (WrapLocked) return Task.CompletedTask;
+        if (WrapChanged.HasDelegate) return WrapChanged.InvokeAsync(!Wrap);
+        _wrap = !_wrap;
+        return Task.CompletedTask;
+    }
+
+    void ApplyFilter() {
+        var q = (Filter ?? _filter).Trim();
+        if (_filterApplied is not null && string.Equals(_filterApplied, q, StringComparison.Ordinal)) return;
+        _filterApplied = q;
+        _needles = q.Length > 0 ? [q] : [];
+        var count = _highlight.LineCount;
+        if (q.Length == 0) {
+            var all = new List<int>(count);
+            for (var i = 0; i < count; i++) all.Add(i);
+            _rows = all;
+            _noMatch = false;
+            return;
+        }
+
+        var kept = new List<int>();
+        for (var i = 0; i < count; i++) {
+            if (_highlight.LineAt(i).Contains(q, StringComparison.OrdinalIgnoreCase)) kept.Add(i);
+        }
+
+        _rows = kept;
+        _noMatch = kept.Count == 0;
+    }
+
+    string CurrentText() => CopyText?.Invoke() ?? Text ?? "";
+
+    string GutterLabel(int index) {
+        if (Gutter == CodeGutter.Numbers) return (index + 1).ToString(CultureInfo.InvariantCulture);
+        var labels = GutterLabels;
+        return labels is not null && index < labels.Count ? labels[index] : "";
+    }
+
+    IReadOnlyList<Span> SpansFor(int index) {
+        var line = _highlight.LineAt(index);
+        if (line.Length == 0) return TextSpans.Empty;
+        IReadOnlyList<Span> spans = _highlight.SpansFor(index);
+        if (_needles.Length > 0) {
+            var marks = TextSpans.Find(line, _needles, TokenClasses.Mark);
+            if (marks.Count > 0) spans = TextSpans.Layer(spans, marks, line.Length);
+        }
+
+        var sensitive = SensitiveValues;
+        if (sensitive is { Count: > 0 }) {
+            var blur = BlurSpans(line, sensitive);
+            if (blur.Count > 0) spans = TextSpans.Layer(spans, blur, line.Length);
+        }
+
+        return spans;
+    }
+
+    List<Span> BlurSpans(string line, IReadOnlySet<string> sensitive) {
+        var found = new List<Span>();
+        var reveal = RevealState;
+        foreach (var value in sensitive) {
+            if (value.Length == 0 || value.Length > line.Length) continue;
+            var from = 0;
+            while (from <= line.Length - value.Length) {
+                var idx = line.IndexOf(value, from, StringComparison.Ordinal);
+                if (idx < 0) break;
+                found.Add(new Span(idx, value.Length, reveal.Class(value)));
+                from = idx + value.Length;
+            }
+        }
+
+        return found;
+    }
+
+    void OnRevealClick(string value) => RevealState.Toggle(value);
+
+    RenderFragment Row(int index) => @<div class="code-row" @key="index">
+                                         @if (Gutter != CodeGutter.None) {
+                                             <span class="code-gutter">@GutterLabel(index)</span>
+                                         }
+                                         <span class="code-line">
+                                             <SpanText Text="@_highlight.LineAt(index)" Spans="@SpansFor(index)" OnSegmentClick="OnRevealClick"/>
+                                         </span>
+                                     </div>;
+
+}

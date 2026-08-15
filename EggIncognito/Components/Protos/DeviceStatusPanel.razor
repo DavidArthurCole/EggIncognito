@@ -2,6 +2,7 @@
 @inject ICurrentUser User
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env
+@using System.Globalization
 @implements IDisposable
 
 <div class="panel">
@@ -23,10 +24,10 @@
                      @onclick="@(() => {
                                    if (_isAdmin) OnManage.InvokeAsync(d.Id);
                                })">
-                    <span class="@(d.Reachable ? "text-green-500" : "text-red-500") shrink-0">
-                        <Icon Name="@PlatformIcon(d.Platform)"/>
+                    <span class="@(d.Reachable ? "text-ok" : "text-err") shrink-0">
+                        <PlatformIcon Platform="@d.Platform"/>
                     </span>
-                    <div class="min-w-0 flex-1 max-w-[19rem]">
+                    <div class="min-w-0 flex-1">
                         <div class="flex items-baseline gap-2">
                             <span class="text-sm font-medium truncate">@d.Label</span>
                             @if (DataChip(d) is { } chip) {
@@ -34,19 +35,9 @@
                                     <Icon Name="@chip.Icon" Class="icon-sm"/>
                                 </span>
                             }
-                            @if (d.Result == "new_version") {
-                                <span class="dev-badge-new">NEW</span>
-                            }
                         </div>
                         <div class="text-xs mt-0.5 flex items-center gap-2">
-                            <span class="dev-verline">
-                                @(d.InstalledAppVersion ?? "?")
-                                <span class="dev-versep">|</span> @(d.InstalledBuild ?? "?")
-                                @if (d.ClientVersion is int cv) {
-                                    <span class="dev-versep">|</span>
-                                    <text> @cv</text>
-                                }
-                            </span>
+                            <VersionLine App="@d.InstalledAppVersion" Build="@d.InstalledBuild" Client="@ClientText(d)"/>
                         </div>
                     </div>
                 </div>
@@ -77,9 +68,15 @@
 
     static (string Icon, string Color, string Title)? DataChip(DeviceStatus d) {
         if (!d.Reachable) return null;
+        var icon = d.ClientVersion is null ? "info" : "check";
+        if (d.Result == "new_version") return (icon, "text-accent", "new build detected");
         return d.ClientVersion is null
-            ? ("info", "text-yellow-400", "client version not extracted yet")
-            : ("check", "text-green-400", "app version, build and client version all known");
+            ? (icon, "text-muted", "client version not extracted yet")
+            : (icon, "text-ok", "app version, build and client version all known");
+    }
+
+    static string? ClientText(DeviceStatus d) {
+        return d.ClientVersion?.ToString(CultureInfo.InvariantCulture);
     }
 
     bool _isAdmin;
@@ -152,14 +149,6 @@
         finally {
             _reprobing = false;
         }
-    }
-
-    static string PlatformIcon(string platform) {
-        return platform switch {
-            "ios" => "apple",
-            "android" => "android",
-            _ => "device"
-        };
     }
 
     public void Dispose() {

@@ -1,0 +1,55 @@
+@if (Open) {
+    <ModalShell Title="@Title" TitleId="@TitleId" CardClass="@CardCss"
+                Width="ModalShell.ModalWidth.Custom" OnClose="OnClose">
+        <HeadTools>
+            @if (HeadTools is not null) {
+                <div class="wb-head-tools">@HeadTools</div>
+            }
+        </HeadTools>
+        <ChildContent>
+            <div class="@BodyCss" id="@BodyId">
+                @Rail
+                <section class="wb-main">
+                    @if (Notice is { } notice) {
+                        <div class="wb-notice">
+                            <StatusNote Severity="@notice.Severity">@notice.Text</StatusNote>
+                            @if (NoticeDismissed.HasDelegate) {
+                                <button type="button" class="wb-x" title="Dismiss" aria-label="Dismiss"
+                                        @onclick="@(() => NoticeDismissed.InvokeAsync())">
+                                    <Icon Name="x" Class="icon-sm"/>
+                                </button>
+                            }
+                        </div>
+                    }
+                    @ChildContent
+                </section>
+            </div>
+        </ChildContent>
+    </ModalShell>
+}
+
+@code {
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public string? TitleId { get; set; }
+    [Parameter] public WorkbenchSize Size { get; set; } = WorkbenchSize.Regular;
+    [Parameter] public string? CardClass { get; set; }
+    [Parameter] public string? BodyId { get; set; }
+    [Parameter] public string? BodyClass { get; set; }
+    [Parameter] public RenderFragment? HeadTools { get; set; }
+    [Parameter] public RenderFragment? Rail { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public WorkbenchNotice? Notice { get; set; }
+    [Parameter] public EventCallback NoticeDismissed { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    string CardCss {
+        get {
+            var size = Size == WorkbenchSize.Wide ? "wb-card wb-card-wide" : "wb-card";
+            return string.IsNullOrWhiteSpace(CardClass) ? size : $"{size} {CardClass}";
+        }
+    }
+
+    string BodyCss => string.IsNullOrWhiteSpace(BodyClass) ? "wb-body" : $"wb-body {BodyClass}";
+
+}

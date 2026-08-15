@@ -20,10 +20,9 @@
                 }
             </select>
             <div class="flow-combo">
-                <input class="flow-filter-input" type="search" placeholder="path..." autocomplete="off"
-                       data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
-                       value="@_pathFilter" @oninput="OnPathInput"
-                       @onfocus="@(() => _openCombo = "path")" @onblur="CloseCombo"/>
+                <FilterInput Class="flow-filter-input" Placeholder="path..."
+                             Value="@_pathFilter" ValueChanged="@(v => _pathFilter = v.Trim())"
+                             @onfocus="@(() => _openCombo = "path")" @onblur="CloseCombo"/>
                 @if (_openCombo == "path") {
                     <div class="popover popover-combo open">
                         @{ var pathOpts = PathOptions().ToList(); }
@@ -37,10 +36,9 @@
                 }
             </div>
             <div class="flow-combo">
-                <input class="flow-filter-input" type="search" placeholder="request/response type..." autocomplete="off"
-                       data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
-                       value="@_typeFilter" @oninput="OnTypeInput"
-                       @onfocus="@(() => _openCombo = "type")" @onblur="CloseCombo"/>
+                <FilterInput Class="flow-filter-input" Placeholder="request/response type..."
+                             Value="@_typeFilter" ValueChanged="@(v => _typeFilter = v.Trim())"
+                             @onfocus="@(() => _openCombo = "type")" @onblur="CloseCombo"/>
                 @if (_openCombo == "type") {
                     <div class="popover popover-combo open">
                         @{ var typeOpts = TypeOptions().ToList(); }
@@ -150,8 +148,6 @@
     }
 
     void OnGroupChange(ChangeEventArgs e) => _group = e.Value?.ToString() ?? "";
-    void OnPathInput(ChangeEventArgs e) => _pathFilter = (e.Value?.ToString() ?? "").Trim();
-    void OnTypeInput(ChangeEventArgs e) => _typeFilter = (e.Value?.ToString() ?? "").Trim();
 
     void ClearFilters() {
         _group = "";
@@ -259,7 +255,7 @@
         var seq = 0;
         var hasCounts = CaptureHelpers.HasDiffCounts(flow.Outcome, flow.DiffAdded, flow.DiffRemoved);
         builder.OpenElement(seq++, "span");
-        builder.AddAttribute(seq++, "class", "outcome-tag outcome-" + meta.Kind + (hasCounts ? " outcome-diff-counts" : ""));
+        builder.AddAttribute(seq++, "class", "outcome-text outcome-" + meta.Kind + (hasCounts ? " outcome-diff-counts" : ""));
         if (hasCounts) {
             builder.AddAttribute(seq++, "title", $"endpoint: diff (+{flow.DiffAdded} -{flow.DiffRemoved})");
             if (flow.DiffAdded > 0) {

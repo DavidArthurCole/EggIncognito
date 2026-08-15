@@ -1,8 +1,15 @@
+using System.Data.Common;
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using EggIncognito.Capture;
+using EggIncognito.Core.Services.Devices;
+using EggIncognito.Data.Models;
+using EggIncognito.Data.Services;
 using EggIncognito.Services;
 using EggIncognito.Services.Auth;
+using EggIncognito.Services.ProtoExtract;
 using Google.Protobuf;
 using Google.Protobuf.Reflection;
 using Microsoft.AspNetCore.Mvc;
@@ -15,7 +22,6 @@ namespace EggIncognito.Controllers;
 [ApiAccess(ApiAccessLevel.Public)]
 #pragma warning disable S107
 public sealed class InspectorApiController(
-    IRouteCatalog catalog,
     IProtoReflection reflection,
     ITransportPipeline pipeline,
     IHttpClientFactory httpFactory,
@@ -25,41 +31,66 @@ public sealed class InspectorApiController(
     ILogger<InspectorApiController> logger) : ControllerBase
 #pragma warning restore S107
 {
-    [HttpGet("endpoints")]
-    public IActionResult Endpoints() {
-        var list = catalog.All()
-            .Select(e => new {
-                e.Path,
-                @namespace = e.Path.Split('/')[0],
-                e.Request,
-                e.Response,
-                e.RequestWrapped,
-                e.ResponseWrapped,
-                e.PathParam,
-                e.PathParamOnly,
-                e.RawResponse
-            });
-
-
-        Response.Headers.CacheControl = "private, max-age=20";
-        return Ok(list);
-    }
-
-
     [HttpGet("messages")]
     public IActionResult Messages() {
         Response.Headers.CacheControl = "private, max-age=300";
         return Ok(reflection.AllMessageTypeNames());
     }
 
-    [HttpGet("schema/{typeName}")]
-    public IActionResult Schema(string typeName) {
-        var schema = reflection.Schema(typeName) ?? throw new ApiException(
-            $"unknown message type '{typeName}'",
-            "Type not found in the compiled proto. Check spelling; ei.proto is a frozen upstream snapshot, so a genuinely new type needs ei.proto edited and the solution rebuilt.",
-            StatusCodes.Status404NotFound);
-        return Ok(schema);
+    [HttpGet("rinfo-seed")]
+    [ApiAccess(ApiAccessLevel.Public)]
+    public async Task<IActionResult> RinfoSeed(
+        [FromServices] IServiceProvider services,
+        [FromServices] IConfiguration configuration,
+        CancellationToken ct) {
+        var seed = await RegistrySeedAsync(services, ct) ?? CapturedSeed(configuration) ?? EmptySeed;
+        Response.Headers.CacheControl = "private, max-age=60";
+        return Ok(seed);
     }
+
+    private static readonly RinfoSeedResponse EmptySeed = new("", "", "", "", "", "", "", false);
+
+    private static async Task<RinfoSeedResponse?> RegistrySeedAsync(IServiceProvider services, CancellationToken ct) {
+        if (services.GetService(typeof(ProtoRegistryStore)) is not ProtoRegistryStore store) return null;
+
+        List<ProtoVersion> rows;
+        try {
+            rows = await store.ListAsync(null, ct);
+        } catch (DbException) {
+            return null;
+        }
+
+        var newest = ProtoVersionOrdering.Latest(rows, r => new VersionKey(
+            r.Platform, r.AppVersion, r.Build, r.ClientVersion, null, r.DetectedAt.UtcDateTime));
+        return newest is null
+            ? null
+            : EmptySeed with {
+                ClientVersion = newest.ClientVersion ?? "",
+                Version = newest.AppVersion,
+                Build = newest.Build,
+                Platform = ProtoPlatformName(newest.Platform)
+            };
+    }
+
+    private static RinfoSeedResponse? CapturedSeed(IConfiguration configuration) {
+        string capturePath = configuration["CapturePath"]
+                             ?? Path.Combine(ContentRoot.Resolve(configuration["ContentRoot"]), "captures");
+        var store = new LiveVersionStore(capturePath);
+        var v = store.Latest(Platforms.Ios) ?? store.Latest(Platforms.Android);
+        return v is null
+            ? null
+            : EmptySeed with {
+                ClientVersion = v.ClientVersion?.ToString(CultureInfo.InvariantCulture) ?? "",
+                Version = v.Version ?? "",
+                Build = v.Build ?? "",
+                Platform = ProtoPlatformName(v.Platform)
+            };
+    }
+
+    private static string ProtoPlatformName(string? platform) =>
+        Platforms.Matches(platform, Platforms.Android) ? "DROID"
+        : Platforms.Matches(platform, Platforms.Ios) ? "IOS"
+        : "";
 
     [HttpPost("build")]
     public IActionResult Build([FromBody] BuildRequest body) {
@@ -112,7 +143,7 @@ public sealed class InspectorApiController(
                 StatusCodes.Status403Forbidden);
         }
 
-        var uri = ResolveAllowedUrl(body.Url, Request.Host.Host);
+        var uri = ResolveAllowedUrl(ComposeUrl(body), Request.Host.Host);
 
         var client = useSealed ? sealedProxy.CreateEgressClient() : httpFactory.CreateClient("inspector");
         var content = new StringContent(body.FormBody,
@@ -211,6 +242,22 @@ public sealed class InspectorApiController(
     }
 
 
+    private static string ComposeUrl(SendRequest body) {
+        if (!string.IsNullOrWhiteSpace(body.Url)) return body.Url;
+
+        string path = (body.Path ?? "").TrimStart('/');
+        if (path.Length == 0) {
+            throw new ApiException(
+                "no target for this send",
+                "Send needs either an absolute url or an endpoint path.");
+        }
+
+        string url = $"{AuxbrainHosts.OriginForPath(path)}/{path}";
+        string param = (body.PathParam ?? "").Trim();
+        return param.Length == 0 ? url : url + "/" + Uri.EscapeDataString(param);
+    }
+
+
     private static Uri ResolveAllowedUrl(string url, string selfHost) {
         return !Uri.TryCreate(url, UriKind.Absolute, out var parsed)
                || (parsed.Scheme != Uri.UriSchemeHttp && parsed.Scheme != Uri.UriSchemeHttps)
@@ -239,11 +286,23 @@ public sealed class InspectorApiController(
         string? Salt);
 
     public sealed record SendRequest(
-        string Url,
+        string? Url,
         string FormBody,
         string? ResponseType,
         bool Sealed = false,
-        bool? ResponseWrapped = null);
+        bool? ResponseWrapped = null,
+        string? Path = null,
+        string? PathParam = null);
 
     public sealed record DecodeResponseRequest(string RawBase64, string? ResponseType, bool? ResponseWrapped = null);
+
+    public sealed record RinfoSeedResponse(
+        string EiUserId,
+        string ClientVersion,
+        string Version,
+        string Build,
+        string Platform,
+        string Country,
+        string Language,
+        bool Debug);
 }

@@ -1262,6 +1262,33 @@ namespace EggIncognito.Data.Migrations
                     b.ToTable("route_overrides");
                 });
 
+            modelBuilder.Entity("EggIncognito.Data.Models.SiteThemePolicy", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("CustomCssEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("custom_css_enabled");
+
+                    b.Property<long?>("DefaultThemeId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("default_theme_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by_user_id");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("site_theme_policy");
+                });
+
             modelBuilder.Entity("EggIncognito.Data.Models.StagedProto", b =>
                 {
                     b.Property<int>("Id")
@@ -1602,6 +1629,76 @@ namespace EggIncognito.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("tags");
+                });
+
+            modelBuilder.Entity("EggIncognito.Data.Models.UserTheme", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Model")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("model");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<Guid>("OwnerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("owner_user_id");
+
+                    b.Property<int>("SchemaVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("schema_version");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("slug");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<DateTimeOffset?>("ValidatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("validated_at");
+
+                    b.Property<string>("Validation")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("validation");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerUserId");
+
+                    b.HasIndex("OwnerUserId", "Slug")
+                        .IsUnique();
+
+                    b.HasIndex(new[] { "OwnerUserId" }, "ix_user_themes_owner_active")
+                        .IsUnique()
+                        .HasFilter("is_active");
+
+                    b.ToTable("user_themes");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.DataProtection.EntityFrameworkCore.DataProtectionKey", b =>

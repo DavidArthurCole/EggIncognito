@@ -3,6 +3,7 @@ using Bunit;
 using EggIdentity.Contract;
 using EggIncognito.Components.Pages;
 using EggIncognito.Services;
+using EggIncognito.Services.Data;
 using EggIncognito.Services.Devices;
 using EggIncognito.Services.Notifications;
 using EggIncognito.Services.Protos;
@@ -48,6 +49,7 @@ public class ProtosPageTests {
             Services.AddScoped<ProtoWorkbenchState>();
             Services.AddScoped<DeviceWorkbenchState>();
             Services.AddScoped<NotificationsWorkbenchState>();
+            Services.AddScoped<DataWorkbenchState>();
             Services.AddHttpClient();
 
             JSInterop.Mode = JSRuntimeMode.Loose;

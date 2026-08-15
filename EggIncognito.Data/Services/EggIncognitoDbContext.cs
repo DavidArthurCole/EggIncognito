@@ -38,6 +38,8 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
     public DbSet<GameDataDocument> GameDataDocuments => Set<GameDataDocument>();
     public DbSet<StoredBinary> StoredBinaries => Set<StoredBinary>();
     public DbSet<AnalyzedFile> AnalyzedFiles => Set<AnalyzedFile>();
+    public DbSet<UserTheme> UserThemes => Set<UserTheme>();
+    public DbSet<SiteThemePolicy> SiteThemePolicies => Set<SiteThemePolicy>();
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder) {
@@ -191,6 +193,20 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
             e.HasKey(x => x.FileSha);
             e.HasIndex(x => x.FirstSeen);
             e.Property(x => x.FirstSeen).HasDefaultValueSql("now()");
+        });
+        modelBuilder.Entity<UserTheme>(e => {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.OwnerUserId);
+            e.HasIndex(x => new { x.OwnerUserId, x.Slug }).IsUnique();
+            e.HasIndex(x => x.OwnerUserId, "ix_user_themes_owner_active").IsUnique().HasFilter("is_active");
+            e.Property(x => x.Model).HasColumnType("jsonb");
+            e.Property(x => x.Validation).HasColumnType("jsonb");
+            e.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
+            e.Property(x => x.UpdatedAt).HasDefaultValueSql("now()");
+        });
+        modelBuilder.Entity<SiteThemePolicy>(e => {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedNever();
         });
     }
 }

@@ -1,0 +1,89 @@
+@using EggIncognito.Services.Inspector
+<div class="sendbar">
+    <div class="target-toggle" role="radiogroup" aria-label="Target">
+        <button type="button" class="target-opt @(Target == InspectorTarget.Mock ? "active" : "")"
+                @onclick="@(() => Choose(InspectorTarget.Mock))">
+            Mock
+        </button>
+        <button type="button"
+                class="target-opt @(InspectorTargets.IsLive(Target) ? "active" : "") @(LiveDisabled ? "target-opt-disabled" : "")"
+                disabled="@LiveDisabled"
+                title="@(LiveDisabled ? "Log in to use Live API" : "")"
+                @onclick="@(() => Choose(InspectorTarget.LiveViaServer))">
+            Live API <DocHelp Kind="endpoint" Key="__live_api"/>
+        </button>
+    </div>
+    <div class="sendbar-actions">
+        <button class="btn-primary" disabled="@(!CanBuild)" @onclick="OnBuild">Build</button>
+        <button class="btn-primary" disabled="@(!CanSend)" @onclick="OnSend">Send</button>
+    </div>
+</div>
+
+@if (InspectorTargets.IsLive(Target)) {
+    <div class="live-suboptions">
+        <div class="live-route" role="radiogroup" aria-label="Live route">
+            <span class="text-xs text-muted mr-1">Route via</span>
+            <button type="button" class="seg-btn @(Target == InspectorTarget.LiveViaServer ? "active" : "")"
+                    @onclick="@(() => Choose(InspectorTarget.LiveViaServer))">
+                This server
+            </button>
+            <button type="button" class="seg-btn @(Target == InspectorTarget.LiveViaProxy ? "active" : "")"
+                    @onclick="@(() => Choose(InspectorTarget.LiveViaProxy))">
+                Custom proxy
+            </button>
+        </div>
+
+        @if (Target == InspectorTarget.LiveViaProxy) {
+            <div class="custom-config">
+                <label>Custom proxy URL</label>
+                <input type="url" placeholder="https://your-proxy.example/" spellcheck="false"
+                       value="@CustomTarget" @attributes="InputAttrs.NoAutofill" @oninput="OnCustomInput"/>
+                <span class="muted">
+                    Your browser posts the built request directly to this URL (this server is
+                    bypassed); the proxy must reach auxbrain and allow this origin (CORS).
+                </span>
+            </div>
+        }
+
+        @if (Target == InspectorTarget.LiveViaServer && SealedAvailable) {
+            <div class="sealed-config">
+                <label class="settings-check">
+                    <input type="checkbox" checked="@Sealed" @onchange="OnSealedToggle"/>
+                    Sealed API proxy
+                </label>
+                <span class="muted">
+                    Routes this send through an authenticated tunnel that hides your identity
+                    from the Live API. Supporter perk.
+                </span>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public InspectorTarget Target { get; set; }
+    [Parameter] public EventCallback<InspectorTarget> TargetChanged { get; set; }
+    [Parameter] public bool CanBuild { get; set; }
+    [Parameter] public bool CanSend { get; set; }
+    [Parameter] public bool LiveDisabled { get; set; }
+    [Parameter] public bool SealedAvailable { get; set; }
+    [Parameter] public bool Sealed { get; set; }
+    [Parameter] public EventCallback<bool> SealedChanged { get; set; }
+    [Parameter] public string CustomTarget { get; set; } = "";
+    [Parameter] public EventCallback<string> CustomTargetChanged { get; set; }
+    [Parameter] public EventCallback OnBuild { get; set; }
+    [Parameter] public EventCallback OnSend { get; set; }
+
+    Task Choose(InspectorTarget target) {
+        return TargetChanged.InvokeAsync(target);
+    }
+
+    Task OnCustomInput(ChangeEventArgs e) {
+        return CustomTargetChanged.InvokeAsync(e.Value?.ToString() ?? "");
+    }
+
+    Task OnSealedToggle(ChangeEventArgs e) {
+        return SealedChanged.InvokeAsync(e.Value is bool b && b);
+    }
+
+}

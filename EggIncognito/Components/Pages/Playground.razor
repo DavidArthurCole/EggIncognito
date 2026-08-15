@@ -449,9 +449,15 @@
                 @if (_extents is { } ext) {
                     <div class="text-muted">extents lab @ext.Lab / depot @ext.Depot / hatchery @ext.Hatchery</div>
                 }
-                <div class="tag-chips">
+                <div class="font-mono text-muted">
+                    @{ var firstOrigin = true; }
                     @foreach (var g in OriginCounts()) {
-                        <span class="@OriginChipClass(g.Key)">@g.Key @g.Value</span>
+                        if (!firstOrigin) {
+                            <text> / </text>
+                        }
+
+                        firstOrigin = false;
+                        <span class="@(g.Key == nameof(PlacementOrigin.Authored) && g.Value > 0 ? "text-err" : "")">@g.Key.ToLowerInvariant() @g.Value</span>
                     }
                 </div>
                 @if (AuthoredCount > 0) {
@@ -1606,9 +1612,9 @@
 
     static string OriginChipClass(string? origin) {
         return origin switch {
-            nameof(PlacementOrigin.Binary) => "status-chip status-chip-ok",
-            nameof(PlacementOrigin.Authored) => "status-chip status-chip-err",
-            _ => "status-chip"
+            nameof(PlacementOrigin.Binary) => "text-ok",
+            nameof(PlacementOrigin.Authored) => "text-err",
+            _ => "text-muted"
         };
     }
 

@@ -1,0 +1,58 @@
+<span class="verline@(ToneClass) @Class" title="@Title">
+    @if (!string.IsNullOrWhiteSpace(Platform)) {
+        <PlatformIcon Platform="@Platform"/>
+    }
+    @{ var rendered = false; }
+    @if (!string.IsNullOrWhiteSpace(App)) {
+        <span class="verline-app">@App</span>
+        rendered = true;
+    }
+    @if (!string.IsNullOrWhiteSpace(Build)) {
+        if (rendered) {
+            <span class="verline-sep">|</span>
+        }
+
+        <span class="verline-num">@Build</span>
+        rendered = true;
+    }
+    @if (!string.IsNullOrWhiteSpace(Client)) {
+        if (rendered) {
+            <span class="verline-sep">|</span>
+        }
+
+        <span class="verline-num">@Client</span>
+        rendered = true;
+    }
+    @if (Extra is not null) {
+        if (rendered) {
+            <span class="verline-sep">|</span>
+        }
+
+        <span class="verline-num">@Extra</span>
+    }
+</span>
+
+@code {
+
+    public enum VersionTone {
+        Normal,
+        Flawed,
+        Behind
+    }
+
+    [Parameter] public string? App { get; set; }
+    [Parameter] public string? Build { get; set; }
+    [Parameter] public string? Client { get; set; }
+    [Parameter] public string? Platform { get; set; }
+    [Parameter] public VersionTone Tone { get; set; } = VersionTone.Normal;
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public RenderFragment? Extra { get; set; }
+
+    string ToneClass => Tone switch {
+        VersionTone.Flawed => " verline-flawed",
+        VersionTone.Behind => " verline-behind",
+        _ => ""
+    };
+
+}

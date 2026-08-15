@@ -6,8 +6,8 @@
   height: var(--nav-h);
   padding: 0 0.75rem;
   margin: 0;
-  background: linear-gradient(180deg, #2a2a31 0%, #232329 100%);
-  border-bottom: 1px solid #40404b;
+  background: linear-gradient(180deg, var(--color-panel-hi) 0%, var(--color-panel-lo) 100%);
+  border-bottom: 1px solid var(--color-border-strong);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .04), 0 2px 12px -2px rgba(0, 0, 0, .5);
   font-family: system-ui, -apple-system, Segoe UI, sans-serif;
   font-size: 0.875rem;
@@ -29,18 +29,18 @@
 .app-nav-brand img { height: 1.875rem; width: auto; display: block; }
 .app-nav-brand:hover { opacity: 0.85; }
 .app-nav a {
-  color: #9a9aa5;
+  color: var(--color-muted);
   text-decoration: none;
   padding: 0.35rem 0.7rem;
   border-radius: 6px;
   transition: background 0.12s, color 0.12s;
 }
 .app-nav a:hover {
-  color: #e7e7ea;
-  background: #2e2e36;
+  color: var(--color-fg);
+  background: var(--color-panel2);
 }
 .app-nav a.active {
-  color: #1b1b1f;
+  color: var(--color-bg);
   background: var(--color-accent);
   font-weight: 600;
   box-shadow: 0 2px 10px -2px color-mix(in oklab, var(--color-accent) 50%, transparent);
@@ -74,14 +74,14 @@ main.router-fade { animation: egi-fade-in 0.14s ease both; }
 
 .auth-nav { display: inline-flex; align-items: center; gap: 0.4rem; }
 .auth-nav .auth-avatar { width: 1.375rem; height: 1.375rem; border-radius: 50%; display: block; }
-.auth-nav .auth-name { color: #c7c7cf; font-size: 0.8125rem; }
+.auth-nav .auth-name { color: var(--color-fg-soft); font-size: 0.8125rem; }
 .auth-nav a.auth-name, .auth-nav button.auth-name {
   display: inline-flex; align-items: center; gap: 0.4rem; text-decoration: none;
   background: none; border: none; padding: 0; margin: 0; font-family: inherit; cursor: pointer;
 }
-.auth-nav a.auth-name:hover, .auth-nav button.auth-name:hover { color: #ffffff; }
+.auth-nav a.auth-name:hover, .auth-nav button.auth-name:hover { color: var(--color-fg-max); }
 .auth-nav .auth-btn {
-  color: #1b1b1f; background: var(--color-accent); border: none; border-radius: 6px;
+  color: var(--color-bg); background: var(--color-accent); border: none; border-radius: 6px;
   padding: 0.25rem 0.6rem; font-family: inherit; font-size: 0.8125rem; font-weight: 600; cursor: pointer;
   text-decoration: none;
 }
@@ -91,12 +91,12 @@ main.router-fade { animation: egi-fade-in 0.14s ease both; }
   position: fixed; top: 0; left: 0; z-index: 1000; width: 200px; box-sizing: border-box;
   visibility: hidden;
   display: flex; flex-direction: column; gap: 0.35rem;
-  background: #23232a; border: 1px solid #3a3a44; border-radius: 8px; padding: 0.4rem;
+  background: var(--color-popover); border: 1px solid var(--color-border); border-radius: 8px; padding: 0.4rem;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
 }
 .auth-source-btn {
   display: flex; align-items: center; gap: 0.4rem; white-space: nowrap; min-width: 0;
-  color: #1b1b1f; background: var(--color-accent); border-radius: 6px;
+  color: var(--color-bg); background: var(--color-accent); border-radius: 6px;
   padding: 0.25rem 0.6rem; font-size: 0.8125rem; font-weight: 600; text-decoration: none;
 }
 .auth-source-btn > span { overflow: hidden; text-overflow: ellipsis; }
@@ -118,7 +118,7 @@ main.router-fade { animation: egi-fade-in 0.14s ease both; }
   width: 2px;
   height: 28px;
   transform: translate(-50%, -50%);
-  background: #3a3a44;
+  background: var(--color-border);
   border-radius: 2px;
   transition: background 0.12s;
 }
@@ -147,23 +147,23 @@ main.router-fade { animation: egi-fade-in 0.14s ease both; }
 #components-reconnect-modal.components-pause-visible,
 #components-reconnect-modal.components-resume-failed-visible { display: flex; }
 .reconnect-card {
-  background: #25252b;
-  border: 1px solid #3a3a44;
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
   border-radius: 10px;
   padding: 1.5rem 1.75rem;
   max-width: 360px;
   text-align: center;
-  color: #e7e7ea;
+  color: var(--color-fg);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
 }
-.reconnect-msg { display: none; margin: 0.25rem 0 1rem; color: #c7c7cf; font-size: 0.875rem; line-height: 1.5; }
+.reconnect-msg { display: none; margin: 0.25rem 0 1rem; color: var(--color-fg-soft); font-size: 0.875rem; line-height: 1.5; }
 .components-reconnect-first-attempt-visible .reconnect-first { display: block; }
 .components-reconnect-repeated-attempt-visible .reconnect-repeated { display: block; }
 .components-reconnect-failed-visible .reconnect-failed { display: block; }
 .components-pause-visible .reconnect-pause { display: block; }
 .components-resume-failed-visible .reconnect-resume-failed { display: block; }
 .reconnect-spinner { display: none; width: 26px; height: 26px; margin: 0 auto 0.75rem; border-radius: 50%;
-  border: 3px solid #3a3a44; border-top-color: var(--color-accent); }
+  border: 3px solid var(--color-border); border-top-color: var(--color-accent); }
 .components-reconnect-first-attempt-visible .reconnect-spinner,
 .components-reconnect-repeated-attempt-visible .reconnect-spinner,
 .components-pause-visible .reconnect-spinner { display: block; animation: reconnect-spin 0.7s linear infinite; }

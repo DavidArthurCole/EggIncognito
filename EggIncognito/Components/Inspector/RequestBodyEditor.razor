@@ -1,0 +1,70 @@
+<div class="tree-head">
+    <span>Body</span>
+    <label class="raw-toggle">
+        <input type="checkbox" checked="@RawMode" @onchange="ToggleRaw"/> raw JSON
+    </label>
+</div>
+
+@if (Route is null) {
+    <div class="fields">
+        <span class="muted">Pick an endpoint to start a request.</span>
+    </div>
+} else if (RawMode) {
+    <textarea class="raw-json" spellcheck="false" @attributes="InputAttrs.NoAutofill"
+              value="@RawJson" @oninput="OnRawInput"></textarea>
+    @if (RawError is not null) {
+        <div class="muted">@RawError</div>
+    }
+} else {
+    <div class="fields">
+        @if (Route.PathParamOnly) {
+            <span class="muted">No request body. Identity (EID) is supplied via the URL path parameter; nothing to fill in here.</span>
+        } else if (Route.Request is null) {
+            @if (Hosted) {
+                <span class="muted">No known request type for this endpoint. An admin needs to map a <code>request:</code> type for this route.</span>
+            } else {
+                <span class="muted">No known request type for this endpoint. Add a <code>request:</code> type in routes.yaml.</span>
+            }
+        } else {
+            @if (Route.RequestWrapped) {
+                <div class="wrap-note">These are the inner request fields. On Build they will be wrapped and signed in an AuthenticatedMessage.</div>
+            }
+
+            @if (Nodes is null) {
+                <span class="muted">no schema for @Route.Request</span>
+            } else if (NoFillableFields) {
+                <div class="no-fields-note">
+                    This request needs no extra fields. Every value it carries is
+                    already supplied by the Environment above, so just hit Build.
+                </div>
+            } else {
+                <div class="fields-body">
+                    <FieldTree Nodes="Nodes" OnChanged="OnTreeChanged"/>
+                </div>
+            }
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public RouteInfo? Route { get; set; }
+    [Parameter] public List<FieldNode>? Nodes { get; set; }
+    [Parameter] public bool RawMode { get; set; }
+    [Parameter] public EventCallback<bool> RawModeChanged { get; set; }
+    [Parameter] public string RawJson { get; set; } = "{}";
+    [Parameter] public EventCallback<string> RawJsonChanged { get; set; }
+    [Parameter] public string? RawError { get; set; }
+    [Parameter] public bool Hosted { get; set; }
+    [Parameter] public EventCallback OnTreeChanged { get; set; }
+
+    bool NoFillableFields => Nodes is { Count: > 0 } && Nodes.All(n => n.Locked);
+
+    Task ToggleRaw(ChangeEventArgs e) {
+        return RawModeChanged.InvokeAsync(e.Value is bool b && b);
+    }
+
+    Task OnRawInput(ChangeEventArgs e) {
+        return RawJsonChanged.InvokeAsync(e.Value?.ToString() ?? "");
+    }
+
+}

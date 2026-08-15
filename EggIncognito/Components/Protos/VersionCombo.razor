@@ -1,0 +1,296 @@
+@using Microsoft.AspNetCore.Components.Web.Virtualization
+@inject IJSRuntime JS
+@inject ILogger<VersionCombo> Logger
+
+<div class="pwb-combo">
+    <span class="pwb-combo-label">@Label</span>
+    @if (_open) {
+        <div class="popover-backdrop" @onclick="Cancel"></div>
+        <div class="pwb-combo-field" @onkeydown="OnOpenKey" @onkeydown:stopPropagation="true">
+            <FilterInput Class="pwb-combo-btn pwb-combo-query" Id="@_inputId" Placeholder="@Placeholder"
+                         AriaLabel="@($"{Label} version")" Value="@_query" ValueChanged="OnQuery"
+                         role="combobox" aria-autocomplete="list" aria-expanded="true"
+                         aria-controls="@_listId" aria-activedescendant="@ActiveId"/>
+            <div id="@_listId" class="popover popover-combo open pwb-combo-list" role="listbox"
+                 aria-label="@($"{Label} version")">
+                @if (_shown.Count == 0) {
+                    <div class="pwb-combo-empty">No matches</div>
+                } else {
+                    <Virtualize Items="_shown" Context="row" ItemSize="OptionHeight" OverscanCount="4">
+                        <div id="@OptionId(row.Index)" class="@OptionCss(row)" role="option"
+                             aria-selected="@(IsSelected(row.Item) ? "true" : "false")" title="@OptionTitle(row.Item)"
+                             @onmousedown:preventDefault="true" @onclick="@(() => Commit(row.Item))">
+                            <PlatformIcon Platform="@row.Item.Platform"/>
+                            <VersionLine App="@row.Item.App" Build="@row.Item.Build" Client="@row.Item.Client"/>
+                            <span class="pwb-combo-sha">@row.Item.Sha</span>
+                        </div>
+                    </Virtualize>
+                }
+            </div>
+        </div>
+    } else {
+        <button type="button" class="pwb-combo-btn" role="combobox" aria-haspopup="listbox" aria-expanded="false"
+                aria-controls="@_listId" title="@TriggerTitle" @onclick="OpenList" @onkeydown="OnClosedKey">
+            @if (Current is { } current) {
+                <PlatformIcon Platform="@current.Platform"/>
+                <VersionLine App="@current.App" Build="@current.Build" Client="@current.Client"/>
+                <span class="pwb-combo-sha">@current.Sha</span>
+            } else {
+                <span class="pwb-combo-ph">@Placeholder</span>
+            }
+        </button>
+        @if (AllowClear && Selected is { Length: > 0 }) {
+            <button type="button" class="pwb-combo-clear" title="@($"Clear {Label}")"
+                    aria-label="@($"Clear {Label}")" @onclick="Clear">
+                <Icon Name="x" Class="icon-sm"/>
+            </button>
+        }
+    }
+</div>
+
+@code {
+
+    public sealed record VersionComboItem(
+        string Value,
+        string Platform,
+        string? App,
+        string? Build,
+        string? Client,
+        string? Sha,
+        bool Dim,
+        string? Note);
+
+    sealed record ComboRow(int Index, VersionComboItem Item);
+
+    const int OptionHeight = 34;
+
+    [Parameter] public IReadOnlyList<VersionComboItem> Items { get; set; } = [];
+
+    [Parameter] public string? Selected { get; set; }
+
+    [Parameter] public EventCallback<string?> SelectedChanged { get; set; }
+
+    [Parameter] public string Label { get; set; } = "";
+
+    [Parameter] public string Placeholder { get; set; } = "";
+
+    [Parameter] public bool AllowClear { get; set; }
+
+    readonly string _listId = "vc-" + Guid.NewGuid().ToString("N")[..8];
+
+    string _inputId = "";
+    bool _open;
+    bool _focusPending;
+    bool _scrollPending;
+    string _query = "";
+    int _active = -1;
+    List<ComboRow> _shown = [];
+
+    VersionComboItem? Current => Items.FirstOrDefault(IsSelected);
+
+    string? ActiveId => _active >= 0 && _active < _shown.Count ? OptionId(_active) : null;
+
+    string TriggerTitle => Current is { } current ? $"{Label}: {Plain(current)}" : Placeholder;
+
+    protected override void OnInitialized() {
+        _inputId = _listId + "-q";
+    }
+
+    protected override void OnParametersSet() {
+        if (_open) Rebuild();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender) {
+        if (!_open) return;
+        if (_focusPending) {
+            _focusPending = false;
+            await Call(_inputId, "focus", null);
+        }
+
+        if (_scrollPending) {
+            _scrollPending = false;
+            var top = Math.Max(0, (_active - 2) * OptionHeight);
+            await Call(_listId, "scrollTo", new { top, left = 0 });
+        }
+    }
+
+    async Task Call(string id, string method, object? argument) {
+        IJSObjectReference? element = null;
+        try {
+            element = await JS.InvokeAsync<IJSObjectReference>("document.getElementById", id);
+            if (element is null) return;
+            if (argument is null) {
+                await element.InvokeVoidAsync(method);
+            } else {
+                await element.InvokeVoidAsync(method, argument);
+            }
+        }
+        catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
+            Logger.LogDebug(ex, "combobox {Method} on {Id} failed", method, id);
+        }
+        finally {
+            await element.DisposeModuleQuietAsync(logger: Logger);
+        }
+    }
+
+    bool IsSelected(VersionComboItem item) {
+        return Selected is { Length: > 0 } value && string.Equals(item.Value, value, StringComparison.Ordinal);
+    }
+
+    string OptionId(int index) {
+        return $"{_listId}-o{index}";
+    }
+
+    string OptionCss(ComboRow row) {
+        var css = "popover-combo-opt pwb-combo-opt";
+        if (row.Index == _active) css += " pwb-combo-on";
+        if (IsSelected(row.Item)) css += " pwb-combo-sel";
+        return row.Item.Dim ? css + " pwb-dim" : css;
+    }
+
+    static string OptionTitle(VersionComboItem item) {
+        return item.Note is { Length: > 0 } note ? note : Plain(item);
+    }
+
+    static string Plain(VersionComboItem item) {
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(item.App)) parts.Add(item.App);
+        if (!string.IsNullOrWhiteSpace(item.Build)) parts.Add(item.Build);
+        if (!string.IsNullOrWhiteSpace(item.Client)) parts.Add(item.Client);
+        var body = parts.Count > 0 ? string.Join(" ", parts) : item.Sha ?? item.Value;
+        return $"{item.Platform} {body}".Trim();
+    }
+
+    void Rebuild() {
+        var query = _query.Trim();
+        var rows = new List<ComboRow>();
+        foreach (var item in Items) {
+            if (query.Length > 0 && !Matches(item, query)) continue;
+            rows.Add(new ComboRow(rows.Count, item));
+        }
+
+        _shown = rows;
+        if (_active >= _shown.Count) _active = _shown.Count - 1;
+        if (_active < 0 && _shown.Count > 0) _active = 0;
+    }
+
+    static bool Matches(VersionComboItem item, string query) {
+        return Has(item.App, query) || Has(item.Build, query) || Has(item.Client, query) || Has(item.Sha, query);
+    }
+
+    static bool Has(string? value, string query) {
+        return value is { Length: > 0 } && value.Contains(query, StringComparison.OrdinalIgnoreCase);
+    }
+
+    void OpenList() {
+        Show();
+        _active = _shown.Count == 0 ? -1 : SelectedIndex();
+        _scrollPending = _active > 0;
+    }
+
+    void OpenAt(int index) {
+        Show();
+        _active = _shown.Count == 0 ? -1 : Math.Clamp(index, 0, _shown.Count - 1);
+        _scrollPending = _active > 0;
+    }
+
+    void Show() {
+        _open = true;
+        _query = "";
+        _active = -1;
+        Rebuild();
+        _focusPending = true;
+    }
+
+    int SelectedIndex() {
+        for (var i = 0; i < _shown.Count; i++) {
+            if (IsSelected(_shown[i].Item)) return i;
+        }
+
+        return 0;
+    }
+
+    void Cancel() {
+        _open = false;
+        _query = "";
+        _active = -1;
+    }
+
+    void OnQuery(string value) {
+        _query = value;
+        _active = _shown.Count > 0 ? 0 : -1;
+        Rebuild();
+        _scrollPending = false;
+    }
+
+    void OnClosedKey(KeyboardEventArgs e) {
+        if (e.CtrlKey || e.MetaKey) return;
+        if (e.Key == "ArrowDown") {
+            OpenAt(0);
+            return;
+        }
+
+        if (e.Key == "ArrowUp") {
+            OpenAt(int.MaxValue);
+            return;
+        }
+
+        if (e.Key is { Length: 1 } && !e.AltKey) {
+            OpenAt(0);
+            _query = e.Key;
+            Rebuild();
+        }
+    }
+
+    Task OnOpenKey(KeyboardEventArgs e) {
+        switch (e.Key) {
+            case "ArrowDown":
+                Move(1);
+                return Task.CompletedTask;
+            case "ArrowUp":
+                Move(-1);
+                return Task.CompletedTask;
+            case "Home":
+                Jump(0);
+                return Task.CompletedTask;
+            case "End":
+                Jump(_shown.Count - 1);
+                return Task.CompletedTask;
+            case "Escape":
+            case "Tab":
+                Cancel();
+                return Task.CompletedTask;
+            case "Enter":
+                return _active >= 0 && _active < _shown.Count ? Commit(_shown[_active].Item) : Task.CompletedTask;
+            default:
+                return Task.CompletedTask;
+        }
+    }
+
+    void Move(int delta) {
+        if (_shown.Count == 0) return;
+        _active = ((_active + delta) % _shown.Count + _shown.Count) % _shown.Count;
+        _scrollPending = true;
+    }
+
+    void Jump(int index) {
+        if (_shown.Count == 0) return;
+        _active = Math.Clamp(index, 0, _shown.Count - 1);
+        _scrollPending = true;
+    }
+
+    Task Commit(VersionComboItem item) {
+        _open = false;
+        _query = "";
+        _active = -1;
+        return SelectedChanged.InvokeAsync(item.Value);
+    }
+
+    Task Clear() {
+        _open = false;
+        _query = "";
+        _active = -1;
+        return SelectedChanged.InvokeAsync(null);
+    }
+
+}
