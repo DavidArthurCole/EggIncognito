@@ -8,7 +8,6 @@
         <button type="button"
                 class="insp-target-opt @(InspectorTargets.IsLive(Target) ? "on" : "")"
                 disabled="@LiveDisabled"
-                title="@(LiveDisabled ? "Log in to use Live API" : "")"
                 @onclick="@(() => Choose(InspectorTarget.LiveViaServer))">
             Live API
         </button>

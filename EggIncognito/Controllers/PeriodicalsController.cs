@@ -53,6 +53,7 @@ public sealed class PeriodicalsController(
                 extracted.Add(new {
                     key = f.Key,
                     count = f.Effects.Count,
+                    binaryVersion = f.BinaryVersion,
                     provenance = JsonSerializer.Serialize(f.Provenance, ProvenanceJson)
                 });
             }
@@ -353,13 +354,13 @@ public sealed class PeriodicalsController(
 
     private object FeedInfo(DataSource src) {
         string route = src.WireRoute!;
-        string path = FixturePath(route);
-        bool exists = System.IO.File.Exists(path);
+        var file = new FileInfo(FixturePath(route));
         return new {
             name = src.Feed,
             path = route,
-            present = exists,
-            bytes = exists ? new FileInfo(path).Length : 0
+            present = file.Exists,
+            bytes = file.Exists ? file.Length : 0,
+            updatedAt = file.Exists ? file.LastWriteTimeUtc : (DateTime?)null
         };
     }
 }

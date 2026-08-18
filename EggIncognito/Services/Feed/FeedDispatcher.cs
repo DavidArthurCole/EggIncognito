@@ -20,7 +20,8 @@ public sealed class FeedDispatcher(
         var subs = await store.ActiveAsync(ct);
         var http = httpFactory.CreateClient("discord-api");
         foreach (var sub in subs) {
-            if (!string.Equals(sub.EventKind, evt.EventKind, StringComparison.Ordinal)) continue;
+            if (!string.Equals(FeedEventKinds.Normalize(sub.EventKind), evt.EventKind, StringComparison.Ordinal))
+                continue;
             if (!evt.Matches(sub)) continue;
             if (await store.AlreadyDeliveredAsync(sub.Id, evt.EventKind, evt.DedupKey, ct)) continue;
 

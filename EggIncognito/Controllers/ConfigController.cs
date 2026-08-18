@@ -21,7 +21,7 @@ public sealed class ConfigController(
     ICurrentUser currentUser,
     IAppMode appMode,
     IConfiguration config,
-    PeriodicalsChangeNotifier notifier,
+    ConfigChangeNotifier notifier,
     DataCatalog catalog,
     ILogger<ConfigController> logger) : ControllerBase {
     private const string GetConfigUrl = AuxbrainHosts.Origin + "/ei/get_config";

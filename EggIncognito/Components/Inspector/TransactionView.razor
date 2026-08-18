@@ -16,8 +16,7 @@
         </button>
         @if (CanSaveDb && Response?.Json is not null) {
             <span class="insp-disc-tools">
-                <button type="button" class="btn-mini" title="Save this response as a stored endpoint"
-                        @onclick="OnSaveToDb">
+                <button type="button" class="btn-mini" @onclick="OnSaveToDb">
                     Save to DB
                 </button>
             </span>

@@ -7,7 +7,7 @@
     @if (_open) {
         <div class="popover-backdrop" @onmousedown="Cancel" @onwheel="Cancel"></div>
         <div class="pwb-combo-field" @onkeydown="OnOpenKey" @onkeydown:stopPropagation="true">
-            <FilterInput Class="pwb-combo-btn pwb-combo-query" Id="@_inputId" Placeholder="@Placeholder"
+            <FilterInput Class="pwb-combo-btn pwb-combo-query" Id="@_inputId"
                          AriaLabel="@($"{Label} version")" Value="@_query" ValueChanged="OnQuery"
                          role="combobox" aria-autocomplete="list" aria-expanded="true"
                          aria-controls="@_listId" aria-activedescendant="@ActiveId"/>
@@ -18,7 +18,7 @@
                 } else {
                     <Virtualize Items="_shown" Context="row" ItemSize="OptionHeight" OverscanCount="4">
                         <div id="@OptionId(row.Index)" class="@OptionCss(row)" role="option"
-                             aria-selected="@(IsSelected(row.Item) ? "true" : "false")" title="@OptionTitle(row.Item)"
+                             aria-selected="@(IsSelected(row.Item) ? "true" : "false")"
                              @onmousedown:preventDefault="true" @onclick="@(() => Commit(row.Item))">
                             <PlatformIcon Platform="@row.Item.Platform"/>
                             <VersionLine App="@row.Item.App" Build="@row.Item.Build" Client="@row.Item.Client"/>
@@ -30,17 +30,15 @@
         </div>
     } else {
         <button type="button" class="pwb-combo-btn" role="combobox" aria-haspopup="listbox" aria-expanded="false"
-                aria-controls="@_listId" title="@TriggerTitle" @onclick="OpenList" @onkeydown="OnClosedKey">
+                aria-controls="@_listId" @onclick="OpenList" @onkeydown="OnClosedKey">
             @if (Current is { } current) {
                 <PlatformIcon Platform="@current.Platform"/>
                 <VersionLine App="@current.App" Build="@current.Build" Client="@current.Client"/>
                 <span class="pwb-combo-sha">@current.Sha</span>
-            } else {
-                <span class="pwb-combo-ph">@Placeholder</span>
             }
         </button>
         @if (AllowClear && Selected is { Length: > 0 }) {
-            <button type="button" class="pwb-combo-clear" title="@($"Clear {Label}")"
+            <button type="button" class="pwb-combo-clear"
                     aria-label="@($"Clear {Label}")" @onclick="Clear">
                 <Icon Name="x" Class="icon-sm"/>
             </button>
@@ -72,8 +70,6 @@
 
     [Parameter] public string Label { get; set; } = "";
 
-    [Parameter] public string Placeholder { get; set; } = "";
-
     [Parameter] public bool AllowClear { get; set; }
 
     readonly string _listId = "vc-" + Guid.NewGuid().ToString("N")[..8];
@@ -89,8 +85,6 @@
     VersionComboItem? Current => Items.FirstOrDefault(IsSelected);
 
     string? ActiveId => _active >= 0 && _active < _shown.Count ? OptionId(_active) : null;
-
-    string TriggerTitle => Current is { } current ? $"{Label}: {Plain(current)}" : Placeholder;
 
     protected override void OnInitialized() {
         _inputId = _listId + "-q";
@@ -146,19 +140,6 @@
         if (row.Index == _active) css += " pwb-combo-on";
         if (IsSelected(row.Item)) css += " pwb-combo-sel";
         return row.Item.Dim ? css + " pwb-dim" : css;
-    }
-
-    static string OptionTitle(VersionComboItem item) {
-        return item.Note is { Length: > 0 } note ? note : Plain(item);
-    }
-
-    static string Plain(VersionComboItem item) {
-        var parts = new List<string>();
-        if (!string.IsNullOrWhiteSpace(item.App)) parts.Add(item.App);
-        if (!string.IsNullOrWhiteSpace(item.Build)) parts.Add(item.Build);
-        if (!string.IsNullOrWhiteSpace(item.Client)) parts.Add(item.Client);
-        var body = parts.Count > 0 ? string.Join(" ", parts) : item.Sha ?? item.Value;
-        return $"{item.Platform} {body}".Trim();
     }
 
     void Rebuild() {

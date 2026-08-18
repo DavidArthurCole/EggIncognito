@@ -5,9 +5,9 @@
 @if (Auth.Enabled) {
     <LoginWidgetButton CssClass="@CssClass" Label="@Label" Placement="@Placement"/>
 } else if (Auth.LocalIdentityActive) {
-    <span class="text-muted">Local identity active; the role comes from Auth:LocalIdentity:Role.</span>
+    <span class="text-muted">Local identity active.</span>
 } else {
-    <span class="text-muted">Login is not configured on this instance.</span>
+    <span class="text-muted">Login is not configured.</span>
 }
 
 @code {

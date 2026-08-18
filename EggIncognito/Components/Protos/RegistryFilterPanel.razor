@@ -69,10 +69,10 @@
                         }
 
                         @if (!Complete(row)) {
-                            <span class="pwb-fil-warn" title="Fill in the missing field">!</span>
+                            <span class="pwb-fil-warn">!</span>
                         }
 
-                        <button type="button" class="pwb-fil-x" title="Remove condition" aria-label="Remove condition"
+                        <button type="button" class="pwb-fil-x" aria-label="Remove condition"
                                 @onclick="@(() => RemoveRow(groupIndex, rowIndex))">
                             <Icon Name="x" Class="icon-sm"/>
                         </button>

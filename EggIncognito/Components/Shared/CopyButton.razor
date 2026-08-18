@@ -3,7 +3,7 @@
 @inject ILogger<CopyButton> Logger
 @implements IAsyncDisposable
 
-<button type="button" class="@ButtonClass" title="@TitleNow" aria-label="@AriaLabel" @onclick="Copy" @onclick:stopPropagation="StopPropagation">
+<button type="button" class="@ButtonClass" aria-label="@AriaLabel" @onclick="Copy" @onclick:stopPropagation="StopPropagation">
     @if (ShowIcon && Label is not null) {
         <Icon Name="@IconName" Class="@IconClass"/>
         @LabelNow
@@ -22,8 +22,6 @@
     [Parameter] public bool ShowIcon { get; set; } = true;
     [Parameter] public string? Label { get; set; }
     [Parameter] public string? CopiedLabel { get; set; }
-    [Parameter] public string? Title { get; set; }
-    [Parameter] public string? CopiedTitle { get; set; }
     [Parameter] public string? AriaLabel { get; set; }
     [Parameter] public bool StopPropagation { get; set; }
     [Parameter] public int ResetDelayMs { get; set; } = 1200;
@@ -34,7 +32,6 @@
 
     string IconName => _copied ? "check" : "copy";
     string? LabelNow => _copied ? CopiedLabel ?? Label : Label;
-    string? TitleNow => _copied ? CopiedTitle ?? Title : Title;
 
     async Task Copy() {
         try {

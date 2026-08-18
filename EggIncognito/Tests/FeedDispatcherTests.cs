@@ -1,6 +1,7 @@
 using System.Net;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
+using EggIncognito.Services.DataApi;
 using EggIncognito.Services.Feed;
 using EggIncognito.Services.ProtoExtract;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -21,15 +22,21 @@ public class FeedDispatcherTests {
         Active = true
     };
 
-    private static FeedSubscription PeriodicalsSub(int id, string trigger) => new() {
+    private static FeedSubscription KindSub(int id, string eventKind, string trigger) => new() {
         Id = id,
         Kind = "discord",
-        EventKind = "periodicals_changed",
+        EventKind = eventKind,
         TargetUrl = "https://discord.com/api/webhooks/1/abc",
         Trigger = trigger,
         Platforms = [],
         Active = true
     };
+
+    private static FeedSubscription ConfigSub(int id, string trigger) =>
+        KindSub(id, FeedEventKinds.ConfigChanged, trigger);
+
+    private static ConfigChangedEvent ConfigEvt(string feed, string sha) =>
+        new(feed, sha, "https://x/periodicals");
 
     private static ProtoBuildEvent ProtoEvt(bool protoChanged, string platform = "android", int id = 7) =>
         new(id, platform, "1.0", "111343", "72", "sha", true, protoChanged, "https://x/y");
@@ -95,7 +102,7 @@ public class FeedDispatcherTests {
 
     [Fact]
     public async Task WrongKind_Subscription_NotFired() {
-        var store = new FakeStore(PeriodicalsSub(1, "any"));
+        var store = new FakeStore(ConfigSub(1, FeedEventKinds.TriggerAnyFeed));
         var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
         await Dispatcher(store, handler).DispatchAsync(ProtoEvt(true));
 
@@ -104,40 +111,110 @@ public class FeedDispatcherTests {
     }
 
     [Fact]
-    public async Task Periodicals_Any_Fires_ProtoSubIgnored() {
-        var store = new FakeStore(PeriodicalsSub(1, "any"), Sub(2, "proto_changed", "android"));
+    public async Task Config_Any_Fires_ProtoSubIgnored() {
+        var store = new FakeStore(
+            ConfigSub(1, FeedEventKinds.TriggerAnyFeed), Sub(2, "proto_changed", "android"));
         var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
-        await Dispatcher(store, handler)
-            .DispatchAsync(new PeriodicalsChangedEvent("periodicals", "abc123", "https://x/periodicals"));
+        await Dispatcher(store, handler).DispatchAsync(ConfigEvt(ConfigFeeds.Periodicals, "abc123"));
 
         Assert.Equal(1, handler.Posts);
         Assert.Single(store.Deliveries);
-        Assert.Equal("periodicals_changed", store.Deliveries[0].EventKind);
+        Assert.Equal(FeedEventKinds.ConfigChanged, store.Deliveries[0].EventKind);
         Assert.Equal("periodicals:abc123", store.Deliveries[0].DedupKey);
     }
 
     [Fact]
-    public async Task Periodicals_FeedTrigger_MatchesOnlyThatFeed() {
-        var store = new FakeStore(PeriodicalsSub(1, "afx-config"));
+    public async Task LegacyPeriodicalsKind_StillMatchesConfigEvents() {
+        var store = new FakeStore(KindSub(1, FeedEventKinds.LegacyPeriodicalsChanged, ConfigFeeds.Periodicals));
         var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
-        var d = Dispatcher(store, handler);
-        await d.DispatchAsync(new PeriodicalsChangedEvent("periodicals", "h1", "https://x/periodicals"));
-        Assert.Equal(0, handler.Posts);
-        await d.DispatchAsync(new PeriodicalsChangedEvent("afx-config", "h2", "https://x/periodicals"));
+        await Dispatcher(store, handler).DispatchAsync(ConfigEvt(ConfigFeeds.Periodicals, "legacy"));
+
         Assert.Equal(1, handler.Posts);
     }
 
     [Fact]
-    public async Task Periodicals_SameContentHash_Deduped() {
-        var store = new FakeStore(PeriodicalsSub(1, "any"));
+    public async Task Config_FeedTrigger_MatchesOnlyThatFeed() {
+        var store = new FakeStore(ConfigSub(1, ConfigFeeds.Afx));
         var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
         var d = Dispatcher(store, handler);
-        await d.DispatchAsync(new PeriodicalsChangedEvent("periodicals", "samehash", "https://x/periodicals"));
-        await d.DispatchAsync(new PeriodicalsChangedEvent("periodicals", "samehash", "https://x/periodicals"));
+        await d.DispatchAsync(ConfigEvt(ConfigFeeds.Periodicals, "h1"));
+        Assert.Equal(0, handler.Posts);
+        await d.DispatchAsync(ConfigEvt(ConfigFeeds.Afx, "h2"));
+        Assert.Equal(1, handler.Posts);
+    }
+
+    [Fact]
+    public async Task Config_GetConfigFeed_Fires() {
+        var store = new FakeStore(ConfigSub(1, ConfigFeeds.Config));
+        var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
+        await Dispatcher(store, handler).DispatchAsync(ConfigEvt(ConfigFeeds.Config, "cfg1"));
 
         Assert.Equal(1, handler.Posts);
-        await d.DispatchAsync(new PeriodicalsChangedEvent("periodicals", "newhash", "https://x/periodicals"));
+    }
+
+    [Fact]
+    public async Task Config_SameContentHash_Deduped() {
+        var store = new FakeStore(ConfigSub(1, FeedEventKinds.TriggerAnyFeed));
+        var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
+        var d = Dispatcher(store, handler);
+        await d.DispatchAsync(ConfigEvt(ConfigFeeds.Periodicals, "samehash"));
+        await d.DispatchAsync(ConfigEvt(ConfigFeeds.Periodicals, "samehash"));
+
+        Assert.Equal(1, handler.Posts);
+        await d.DispatchAsync(ConfigEvt(ConfigFeeds.Periodicals, "newhash"));
         Assert.Equal(2, handler.Posts);
+    }
+
+    [Fact]
+    public async Task Config_DedupsOnAspects_NotFixtureHash() {
+        var store = new FakeStore(ConfigSub(1, FeedEventKinds.TriggerAnyFeed));
+        var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
+        var d = Dispatcher(store, handler);
+        var change = new ConfigChangeSummary(["events"], [], []);
+        await d.DispatchAsync(new ConfigChangedEvent(
+            ConfigFeeds.Periodicals, "fixture1", "https://x/periodicals", change, "aspects"));
+        await d.DispatchAsync(new ConfigChangedEvent(
+            ConfigFeeds.Periodicals, "fixture2", "https://x/periodicals", change, "aspects"));
+
+        Assert.Equal(1, handler.Posts);
+    }
+
+    [Fact]
+    public async Task Config_RequireAspects_BlocksUncharacterisedChange() {
+        var sub = ConfigSub(1, FeedEventKinds.TriggerAnyFeed);
+        sub.Filters = [FeedEventKinds.FilterRequireAspects];
+        var store = new FakeStore(sub);
+        var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
+        await Dispatcher(store, handler).DispatchAsync(ConfigEvt(ConfigFeeds.Periodicals, "bare"));
+
+        Assert.Equal(0, handler.Posts);
+        var blocked = Assert.Single(store.Suppressions);
+        Assert.Contains(FeedEventKinds.FilterRequireAspects, blocked.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GameData_AnyRebuild_Fires_BinaryUp_Filters() {
+        var store = new FakeStore(
+            KindSub(1, FeedEventKinds.GameDataRebuilt, FeedEventKinds.TriggerBinaryUp),
+            KindSub(2, FeedEventKinds.GameDataRebuilt, FeedEventKinds.TriggerAnyRebuild));
+        var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
+        await Dispatcher(store, handler).DispatchAsync(new GameDataRebuiltEvent(
+            "1.37.0", "1.37.0", "android", "sha-same", ["eggs"], "https://x/data"));
+
+        Assert.Equal(1, handler.Posts);
+        Assert.Single(store.Deliveries);
+        Assert.Equal(2, store.Deliveries[0].SubscriptionId);
+    }
+
+    [Fact]
+    public async Task GameData_NoChangedDocs_NeverFires() {
+        var store = new FakeStore(KindSub(1, FeedEventKinds.GameDataRebuilt, FeedEventKinds.TriggerAnyRebuild));
+        var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
+        await Dispatcher(store, handler).DispatchAsync(new GameDataRebuiltEvent(
+            "1.37.0", "1.36.4", "android", "sha", [], "https://x/data"));
+
+        Assert.Equal(0, handler.Posts);
+        Assert.Empty(store.Deliveries);
     }
 
     private static FeedSubscription Guarded(int id, string trigger, params string[] platforms) {
@@ -151,7 +228,7 @@ public class FeedDispatcherTests {
 
 
     private static ProtoBuildEvent BrokenIosEvt(int id = 42) {
-        var flaws = ProtoVersionQuality.Flaws("ios", "1.36.4", "111340", null, "", false);
+        var flaws = ProtoVersionQuality.Flaws("ios", "111340", null, "", false);
         return new ProtoBuildEvent(id, "ios", "1.36.4", "111340", null, "", true, true, "https://x/y",
             VersionDelta.Unknown, "1.37.0", "1.37.0.1", flaws);
     }

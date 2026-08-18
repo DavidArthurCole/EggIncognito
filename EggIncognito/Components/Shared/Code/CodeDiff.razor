@@ -1,6 +1,10 @@
+@using System.Globalization
 @using EggIncognito.Services.ProtoExtract
 @using EggIncognito.Services.Syntax
 @using Microsoft.AspNetCore.Components.Web.Virtualization
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject IWebHostEnvironment Env
 @if (Mode == CodeDiffMode.Structured) {
     @if (Structural is null || Structural.IsEmpty) {
         <p class="text-muted text-sm m-0">@EmptyText</p>
@@ -88,8 +92,8 @@
                 <span class="code-toolbar-gap"></span>
                 @Actions
                 @if (ShowWrapToggle) {
-                    <button type="button" class="btn-mini code-toggle code-toggle-wrap @(WrapNow ? "code-toggle-on" : "")"
-                            disabled="@WrapLocked" title="@WrapTitle" @onclick="ToggleWrap">
+                    <button type="button" class="btn-mini code-toggle-wrap @(WrapNow ? "code-toggle-on" : "")"
+                            disabled="@WrapLocked" @onclick="ToggleWrap">
                         Wrap
                     </button>
                 }
@@ -99,33 +103,42 @@
                 }
             </div>
         }
-        <div class="code-scroll" style="@ScrollStyle">
-            <div class="cdiff @ModeClass @(WrapNow ? "code-wrap" : "")">
-                @if (_noMatch) {
-                    <div class="code-row code-note">@NoMatchText</div>
-                } else if (Mode == CodeDiffMode.Split) {
-                    @if (Virtualized) {
-                        <Virtualize Items="_split" Context="line" ItemSize="CodeMetrics.RowHeightPx"
-                                    OverscanCount="CodeMetrics.Overscan">
-                            @SplitRow(line)
-                        </Virtualize>
+        <div class="code-view" @ref="_view">
+            @if (Marks() is { Count: > 0 } marks) {
+                <div class="cdiff-map" aria-hidden="true">
+                    @foreach (var mark in marks) {
+                        <span class="cdiff-mark cdiff-mark-@mark.Kind" style="@($"top:{mark.At}%")"></span>
+                    }
+                </div>
+            }
+            <div class="code-scroll cdiff-scroll" style="@ScrollStyle">
+                <div class="cdiff @ModeClass @(WrapNow ? "code-wrap" : "")">
+                    @if (_noMatch) {
+                        <div class="code-row code-note">@NoMatchText</div>
+                    } else if (Mode == CodeDiffMode.Split) {
+                        @if (Virtualized) {
+                            <Virtualize Items="_split" Context="line" ItemSize="CodeMetrics.RowHeightPx"
+                                        OverscanCount="CodeMetrics.Overscan">
+                                @SplitRow(line)
+                            </Virtualize>
+                        } else {
+                            @foreach (var line in _split) {
+                                @SplitRow(line)
+                            }
+                        }
                     } else {
-                        @foreach (var line in _split) {
-                            @SplitRow(line)
+                        @if (Virtualized) {
+                            <Virtualize Items="_unified" Context="line" ItemSize="CodeMetrics.RowHeightPx"
+                                        OverscanCount="CodeMetrics.Overscan">
+                                @UnifiedRow(line)
+                            </Virtualize>
+                        } else {
+                            @foreach (var line in _unified) {
+                                @UnifiedRow(line)
+                            }
                         }
                     }
-                } else {
-                    @if (Virtualized) {
-                        <Virtualize Items="_unified" Context="line" ItemSize="CodeMetrics.RowHeightPx"
-                                    OverscanCount="CodeMetrics.Overscan">
-                            @UnifiedRow(line)
-                        </Virtualize>
-                    } else {
-                        @foreach (var line in _unified) {
-                            @UnifiedRow(line)
-                        }
-                    }
-                }
+                </div>
             </div>
         </div>
     </div>
@@ -190,8 +203,6 @@
     bool WrapLocked => _total > CodeMetrics.WrapRowCap;
 
     bool WrapNow => !WrapLocked && _wrap;
-
-    string WrapTitle => WrapLocked ? CodeMetrics.WrapDisabledTitle : "Wrap long lines";
 
     bool Virtualized => !WrapNow && _shown > CodeMetrics.VirtualizeAbove;
 
@@ -337,6 +348,7 @@
         _total = total;
         _shown = _split.Count;
         _noMatch = total > 0 && _shown == 0;
+        _marksFor = -1;
     }
 
     void BuildUnifiedRows(string q) {
@@ -366,6 +378,7 @@
         _total = total;
         _shown = _unified.Count;
         _noMatch = total > 0 && _shown == 0;
+        _marksFor = -1;
     }
 
     Task OnFilterChanged(string value) {
@@ -383,6 +396,97 @@
     static bool Matches(DiffRow row, string q) {
         return (row.Left?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)
                || (row.Right?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false);
+    }
+
+    readonly record struct DiffMark(string Kind, string At);
+
+    const int MapBuckets = 240;
+
+    List<DiffMark> _marks = [];
+    int _marksFor = -1;
+
+    ElementReference _view;
+    IJSObjectReference? _mapModule;
+    IJSObjectReference? _mapHandle;
+    string _mapKey = "";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender) {
+        var key = Mode == CodeDiffMode.Structured || _marks.Count == 0
+            ? ""
+            : FormattableString.Invariant($"{Mode}:{_marks.Count}");
+        if (string.Equals(key, _mapKey, StringComparison.Ordinal)) return;
+        _mapKey = key;
+        await ReleaseMapAsync();
+        if (key.Length == 0) return;
+        try {
+            _mapModule ??= await JS.InvokeAsync<IJSObjectReference>(
+                "import", InteropAsset.Url(Env, "./interop/diffmap.js"));
+            _mapHandle = await _mapModule.InvokeAsync<IJSObjectReference?>("attach", _view);
+        }
+        catch (JSException) {
+            _mapKey = "";
+        }
+        catch (JSDisconnectedException) {
+            _mapKey = "";
+        }
+    }
+
+    async Task ReleaseMapAsync() {
+        if (_mapHandle is null) return;
+        try {
+            await _mapHandle.InvokeVoidAsync("dispose");
+        }
+        catch (JSException) {
+        }
+        catch (JSDisconnectedException) {
+        }
+
+        try {
+            await _mapHandle.DisposeAsync();
+        }
+        catch (JSDisconnectedException) {
+        }
+
+        _mapHandle = null;
+    }
+
+    public async ValueTask DisposeAsync() {
+        await ReleaseMapAsync();
+        if (_mapModule is null) return;
+        try {
+            await _mapModule.DisposeAsync();
+        }
+        catch (JSDisconnectedException) {
+        }
+
+        _mapModule = null;
+    }
+
+    List<DiffMark> Marks() {
+        var shown = Mode == CodeDiffMode.Split ? _split.Count : _unified.Count;
+        if (_marksFor == shown) return _marks;
+        _marksFor = shown;
+        _marks = shown == 0 ? [] : Build(shown);
+        return _marks;
+    }
+
+    List<DiffMark> Build(int shown) {
+        var buckets = new string?[Math.Min(MapBuckets, shown)];
+        for (var i = 0; i < shown; i++) {
+            var kind = Mode == CodeDiffMode.Split ? RowClass(_split[i].Row.Kind) : _unified[i].Kind;
+            if (kind is not ("add" or "rem" or "chg")) continue;
+            var slot = i * buckets.Length / shown;
+            if (buckets[slot] is null || kind == "chg") buckets[slot] = kind;
+        }
+
+        var marks = new List<DiffMark>();
+        for (var i = 0; i < buckets.Length; i++) {
+            if (buckets[i] is not { } kind) continue;
+            marks.Add(new DiffMark(kind,
+                (i * 100.0 / buckets.Length).ToString("0.###", CultureInfo.InvariantCulture)));
+        }
+
+        return marks;
     }
 
     Task RaiseHunk(SplitLine line) {

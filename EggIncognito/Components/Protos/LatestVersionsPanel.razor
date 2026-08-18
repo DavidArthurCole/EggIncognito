@@ -1,20 +1,21 @@
 @using EggIncognito.Services.ProtoExtract
 @using EggIncognito.Services.Protos
-<div class="group">
-    <div class="ds-state">
+<div class="pd-vergroup">
+    <div class="pd-vergroup-head">
         <span class="ds-state-k">Latest</span>
-        @if (_latest.Count == 0) {
-            <span class="text-muted">none yet</span>
+        @if (Updated is { } u) {
+            <span class="verline-sep">|</span>
+            <TimeAgo Value="@TimeAgo.FromUtc(u)"/>
         }
     </div>
+    @if (_latest.Count == 0) {
+        <span class="text-muted text-xs">none yet</span>
+    }
     @foreach (var r in _latest) {
         <button type="button" class="pv-latest-row @(IsBehind(r) ? "pv-latest-row-behind" : "")"
-                title="@Title(r)" @onclick="@(() => OnOpen.InvokeAsync(r))">
+                @onclick="@(() => OnOpen.InvokeAsync(r))">
             <VersionLine Platform="@r.Platform" App="@r.AppVersion" Build="@r.Build" Client="@r.ClientVersion"/>
         </button>
-    }
-    @if (Updated is { } u) {
-        <div class="ds-state-sub">updated @u.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</div>
     }
 </div>
 
@@ -35,12 +36,6 @@
     bool IsBehind(ProtoRegistryRow r) {
         return _newest is { } n && !ReferenceEquals(n, r)
                                 && ProtoVersionOrdering.CompareRelease(r.Key(), n.Key()) > 0;
-    }
-
-    string Title(ProtoRegistryRow r) {
-        return IsBehind(r) && _newest is { } n
-            ? $"{r.Platform} is on an older release than {n.Platform}"
-            : $"open {r.Platform} {r.Build} in the workbench";
     }
 
 }

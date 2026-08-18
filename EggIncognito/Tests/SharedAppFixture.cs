@@ -1,3 +1,5 @@
+using EggIncognito.Services.Auth;
+using EggIncognito.Services.Devices.Fake;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -12,6 +14,8 @@ public abstract class EgiTestFactory : WebApplicationFactory<Program> {
 
     protected override void ConfigureWebHost(IWebHostBuilder builder) {
         builder.UseSetting("NoBrowser", "true");
+        builder.UseSetting(FakeDeviceGate.EnabledKey, "false");
+        builder.UseSetting(LocalIdentityGate.EnabledKey, "false");
         Configure(builder);
         builder.ConfigureTestServices(services =>
             services.AddHttpClient(string.Empty).ConfigurePrimaryHttpMessageHandler(sp =>

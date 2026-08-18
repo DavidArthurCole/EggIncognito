@@ -13,24 +13,22 @@
         <div class="insp-rail-top">
             <WorkbenchModes Modes="ListModes" Current="@ListKey" CurrentChanged="OnListChanged" Label="Left list"/>
             <a class="icon-btn icon-btn-sm ml-auto" href="/api/tools/postman-collection" download
-               title="Download Postman collection" aria-label="Download Postman collection">
+               aria-label="Download Postman collection">
                 <Icon Name="postman"/>
             </a>
             @if (State.RailList == InspectorRailList.Endpoints) {
                 <button type="button" class="icon-btn icon-btn-sm @(StatusLoading ? "spinning" : "")"
-                        title="@(string.IsNullOrEmpty(StatusSummary) ? "Endpoint status" : $"Endpoint status {StatusSummary}")"
                         aria-label="Endpoint status" @onclick="OnOpenStatus">
                     <Icon Name="refresh"/>
                 </button>
             }
-            <button type="button" class="icon-btn icon-btn-sm" title="Inspector settings"
+            <button type="button" class="icon-btn icon-btn-sm"
                     aria-label="Inspector settings" @onclick="OnOpenSettings">
                 <Icon Name="gear"/>
             </button>
         </div>
 
         <button type="button" class="insp-salt @(State.HasSalt ? "on" : "")"
-                title="@(State.HasSalt ? "Signing salt is set (stored in this browser). Click to change it." : "No signing salt set. Click to set it.")"
                 @onclick="OnOpenSalt">
             @(State.HasSalt ? "salt set" : "salt unset")
         </button>
@@ -55,7 +53,7 @@
                                  @onclick="@(() => OnSelectEndpoint.InvokeAsync(row.Route))">
                                 <span class="ep-name">@row.Label</span>
                                 @if (row.Route.RequestWrapped) {
-                                    <span class="ep-signed" title="wrapped + signed in an AuthenticatedMessage">
+                                    <span class="ep-signed">
                                         <Icon Name="lock" Class="icon-sm"/>
                                     </span>
                                 }
@@ -96,7 +94,6 @@
     [Parameter] public EventCallback OnOpenSettings { get; set; }
     [Parameter] public EventCallback OnOpenStatus { get; set; }
     [Parameter] public bool StatusLoading { get; set; }
-    [Parameter] public string StatusSummary { get; set; } = "";
     [Parameter] public EventCallback<InspectorHistoryEntry> OnRestoreHistory { get; set; }
     [Parameter] public EventCallback<string> OnDeleteHistory { get; set; }
     [Parameter] public EventCallback OnClearHistory { get; set; }
@@ -106,8 +103,8 @@
     const string ListMaxHeight = "60vh";
 
     static readonly WorkbenchMode[] ListModes = [
-        new(EndpointsKey, "Endpoints", "Mock and live API routes"),
-        new(ObjectsKey, "Objects", "Proto message types")
+        new(EndpointsKey, "Endpoints"),
+        new(ObjectsKey, "Objects")
     ];
 
     readonly HashSet<string> _collapsed = [];

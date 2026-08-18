@@ -26,7 +26,6 @@ public static class PageMeta {
             "A TLS-intercepting proxy that records live Egg, Inc. game traffic into reusable endpoint " +
             "fixtures.")),
         ("/protos", ProtoRegistry),
-        ("/protodata", ProtoRegistry),
         ("/docs", new Meta(
             "EggIncognito - Docs",
             "Per-message and per-endpoint documentation for the Egg, Inc. API, with tags and a full proto " +

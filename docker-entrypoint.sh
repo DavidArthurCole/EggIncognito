@@ -1,5 +1,4 @@
 #!/bin/sh
-#
 CAPTURE_IFACE="${CAPTURE_IFACE:-lo}"
 
 if [ "${HostedCaptureEnabled}" = "true" ] && [ -n "${Capture__Ipv6Prefix}" ]; then

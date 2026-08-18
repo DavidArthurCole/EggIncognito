@@ -2,12 +2,12 @@
     @if (_open) {
         <div class="popover-backdrop" @onclick="@(() => _open = false)"></div>
     }
-    <button type="button" class="icon-btn" title="Notifications"
+    <button type="button" class="icon-btn" aria-label="Notifications"
             aria-haspopup="true" aria-expanded="@_open" @onclick="ToggleOpen">
         <Icon Name="bell"/>
     </button>
     @if (Unread > 0) {
-        <span class="notices-dot" title="@Unread unread"></span>
+        <span class="notices-dot"></span>
     }
 
     <div class="settings-menu settings-menu-lg notices-menu @(_open ? "open" : "")">
@@ -26,7 +26,7 @@
                             <div class="notif-time">@n.Timestamp</div>
                         }
                     </div>
-                    <button class="notif-dismiss" title="Dismiss" aria-label="Dismiss notification"
+                    <button class="notif-dismiss" aria-label="Dismiss notification"
                             @onclick="@(() => DismissNotice(n.Id))">
                         <Icon Name="x" Class="icon-sm"/>
                     </button>

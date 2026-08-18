@@ -1,8 +1,10 @@
 using System.Text;
+using System.Text.Json.Nodes;
 using EggIncognito.Core;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using EggIncognito.GameData;
+using EggIncognito.Services.Feed;
 using EggIncognito.Services.ProtoExtract;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,6 +17,10 @@ public sealed class GameDataRebuilder(
     GameBinaryProvider binaries,
     ILogger<GameDataRebuilder> logger) {
     private string _inputSha = "";
+    private readonly List<string> _changedDocs = [];
+    private string _binaryVersion = "";
+    private string _platform = "";
+    private string? _prevBinaryVersion;
 
     private static readonly string[] Unbuildable = ["boosts", "artifacts"];
 
@@ -32,6 +38,10 @@ public sealed class GameDataRebuilder(
     public async Task<(IReadOnlyList<RebuildDocResult> Results, string? BinaryNote)> RebuildAsync(bool force,
         CancellationToken ct) {
         var results = new List<RebuildDocResult>();
+        _changedDocs.Clear();
+        _binaryVersion = "";
+        _platform = "";
+        _prevBinaryVersion = null;
 
         string inputSha = await BinaryInputShaAsync(ct);
         var stored = await StoredInputShasAsync(ct);
@@ -136,7 +146,36 @@ public sealed class GameDataRebuilder(
             : "binaries " + string.Join(", ", candidates.Select(c => $"{c.Platform} {c.Version}"));
 
         LogUnbuilt(results);
+        await DispatchRebuiltAsync(ct);
         return (results, note);
+    }
+
+    private async Task DispatchRebuiltAsync(CancellationToken ct) {
+        if (_changedDocs.Count == 0) return;
+        if (services.GetService(typeof(FeedDispatcher)) is not FeedDispatcher dispatcher) return;
+
+        string? configured = (services.GetService(typeof(IConfiguration)) as IConfiguration)?["Feed:PageBaseUrl"];
+        string root = string.IsNullOrEmpty(configured)
+            ? FeedDispatcher.DefaultPageBaseUrl
+            : configured.TrimEnd('/');
+        string dedup = _inputSha.Length > 0
+            ? _inputSha
+            : Hashes.Sha256Hex(string.Join('\n', _changedDocs));
+        try {
+            await dispatcher.DispatchAsync(new GameDataRebuiltEvent(
+                _binaryVersion, _prevBinaryVersion, _platform, dedup, [.. _changedDocs], $"{root}/data"), ct);
+        } catch (Exception ex) {
+            logger.LogWarning(ex, "gamedata rebuild dispatch threw");
+        }
+    }
+
+    private static string? BinaryVersionOf(string? json) {
+        if (string.IsNullOrEmpty(json)) return null;
+        try {
+            return JsonNode.Parse(json)?["binaryVersion"]?.GetValue<string>();
+        } catch (Exception ex) when (ex is System.Text.Json.JsonException or InvalidOperationException) {
+            return null;
+        }
     }
 
     private Task LandColleggtiblesAsync(List<RebuildDocResult> results, CancellationToken ct) =>
@@ -221,6 +260,11 @@ public sealed class GameDataRebuilder(
                 return;
             }
 
+            if (_binaryVersion.Length == 0) {
+                _binaryVersion = c.Version;
+                _platform = c.Platform;
+            }
+
             string tag = $"{c.Platform} {c.Version}";
             results.Add(new RebuildDocResult(id, "built", count, Encoding.UTF8.GetByteCount(json),
                 note is null ? tag : $"{tag}; {note}"));
@@ -258,6 +302,11 @@ public sealed class GameDataRebuilder(
         var now = DateTimeOffset.UtcNow;
         string? inputSha = BinaryDocIds.Contains(id, StringComparer.Ordinal) ? _inputSha : null;
         var row = await db.GameDataDocuments.FirstOrDefaultAsync(d => d.Id == id, ct);
+        if (row is null || !string.Equals(row.Json, json, StringComparison.Ordinal)) {
+            _prevBinaryVersion ??= BinaryVersionOf(row?.Json);
+            _changedDocs.Add(id);
+        }
+
         if (row is null) {
             db.GameDataDocuments.Add(new GameDataDocument {
                 Id = id,

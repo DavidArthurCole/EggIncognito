@@ -52,6 +52,10 @@ The app embeds a TLS-intercepting proxy that records real game traffic into reus
 - [EggIncognito.Data](EggIncognito.Data/README.md) - the optional Postgres layer.
 - [EggIncognito.Bot](EggIncognito.Bot/README.md) - the optional Discord bot.
 - [EggIncognito.RouteGenerator](EggIncognito.RouteGenerator/README.md) - the controller source generator.
+- EggIncognito.GameData - data-free game-data catalogs and effect folding, published as a package.
+- EggIncognito.Runner - the device-farm agent.
+- EggIncognito.CssBuild - the build-time stylesheet compiler.
+- EggIncognito.RelayAgent - the host-side sidecar for hosted capture routing.
 
 ## HTTPS (optional)
 

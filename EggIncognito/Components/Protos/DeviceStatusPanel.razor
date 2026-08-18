@@ -9,7 +9,7 @@
     <div class="flex items-center justify-between mb-2">
         <h3 class="text-sm font-semibold my-0">Devices</h3>
         @if (_isAdmin) {
-            <button type="button" class="dropzone-open" title="Open device workbench" aria-label="Open device workbench"
+            <button type="button" class="dropzone-open" aria-label="Open device workbench"
                     @onclick="@(() => OnManage.InvokeAsync(null))">
                 <Icon Name="chevronRight" Class="icon-sm"/>
             </button>
@@ -31,7 +31,7 @@
                         <div class="flex items-baseline gap-2">
                             <span class="text-sm font-medium truncate">@d.Label</span>
                             @if (DataChip(d) is { } chip) {
-                                <span class="@chip.Color shrink-0 self-center inline-flex" title="@chip.Title">
+                                <span class="@chip.Color shrink-0 self-center inline-flex">
                                     <Icon Name="@chip.Icon" Class="icon-sm"/>
                                 </span>
                             }
@@ -66,13 +66,11 @@
 
     List<DeviceStatus> _devices = [];
 
-    static (string Icon, string Color, string Title)? DataChip(DeviceStatus d) {
+    static (string Icon, string Color)? DataChip(DeviceStatus d) {
         if (!d.Reachable) return null;
         var icon = d.ClientVersion is null ? "info" : "check";
-        if (d.Result == "new_version") return (icon, "text-accent", "new build detected");
-        return d.ClientVersion is null
-            ? (icon, "text-muted", "client version not extracted yet")
-            : (icon, "text-ok", "app version, build and client version all known");
+        if (d.Result == "new_version") return (icon, "text-accent");
+        return d.ClientVersion is null ? (icon, "text-muted") : (icon, "text-ok");
     }
 
     static string? ClientText(DeviceStatus d) {

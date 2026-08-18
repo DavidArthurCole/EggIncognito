@@ -35,7 +35,7 @@
                         <td class="mono text-xs">@s.DecryptOk ok / <span class="@(s.DecryptErr > 0 ? "text-err" : "")">@s.DecryptErr err</span></td>
                         <td>
                             @if (s.Kind == "device") {
-                                <a class="btn-mini no-underline" href="/capture/device/@DeviceId(s.Key)" title="Open read-only live view">View</a>
+                                <a class="btn-mini no-underline" href="/capture/device/@DeviceId(s.Key)">View</a>
                             } else if (s.Killable) {
                                 <button type="button" class="btn-mini btn-danger" disabled="@_busy" @onclick="() => Kill(s.Key)">Kill</button>
                             }

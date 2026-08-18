@@ -21,9 +21,6 @@ public static class CodeMetrics {
     public const int WrapRowCap = 5000;
     public const int MinGutterChars = 2;
 
-    public static readonly string WrapDisabledTitle = string.Create(CultureInfo.InvariantCulture,
-        $"Wrapping is off above {WrapRowCap} rows: a variable row height and a fixed virtualized row size cannot both be right.");
-
     public static string GutterWidth(int chars) {
         int n = Math.Max(MinGutterChars, chars);
         return string.Create(CultureInfo.InvariantCulture, $"calc({n}ch + 0.75rem)");

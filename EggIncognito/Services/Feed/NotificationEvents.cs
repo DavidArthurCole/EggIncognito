@@ -1,5 +1,6 @@
 using System.Globalization;
 using EggIncognito.Data.Models;
+using EggIncognito.Services.DataApi;
 using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Services.Feed;
@@ -65,34 +66,71 @@ public sealed record ProtoBuildEvent(
             messageTemplate, Delta, PrevAppVersion, PrevBuild, FlawList);
 }
 
-public sealed record PeriodicalsAspectSummary(
-    IReadOnlyList<string> ChangedAspects,
-    IReadOnlyList<string> AddedEvents,
-    IReadOnlyList<string> AddedContracts,
-    IReadOnlyList<string> AddedColleggtibles);
-
-public sealed record PeriodicalsChangedEvent(
+public sealed record ConfigChangedEvent(
     string Feed,
     string Sha,
     string PageUrl,
-    PeriodicalsAspectSummary? Aspects = null) : INotificationEvent {
-    public string EventKind => FeedEventKinds.PeriodicalsChanged;
-    public string DedupKey => $"{Feed}:{Sha}";
+    ConfigChangeSummary? Change = null,
+    string? DedupSha = null) : INotificationEvent {
+    public string EventKind => FeedEventKinds.ConfigChanged;
+    public string DedupKey => $"{Feed}:{DedupSha ?? Sha}";
 
-    public string Summary => $"{Feed} {(Sha.Length > 12 ? Sha[..12] : Sha)}";
+    public string FeedLabel => ConfigFeeds.LabelOf(Feed);
+
+    public IReadOnlyList<string> Changed => Change?.Changed ?? [];
+    public IReadOnlyList<string> Added => Change?.Added ?? [];
+    public IReadOnlyList<string> Removed => Change?.Removed ?? [];
+
+    public string Summary => Changed.Count == 0
+        ? $"{FeedLabel} changed"
+        : $"{FeedLabel}: {string.Join(", ", Changed)}";
 
     public bool Matches(FeedSubscription sub) =>
-        sub.Trigger is "any" || string.Equals(sub.Trigger, Feed, StringComparison.Ordinal);
+        sub.Trigger is FeedEventKinds.TriggerAnyFeed
+        || string.Equals(sub.Trigger, Feed, StringComparison.Ordinal);
 
-    public IReadOnlyList<string> BlockedBy(FeedSubscription sub) =>
-        sub.Filters.Contains(FeedEventKinds.FilterRequireAspects, StringComparer.Ordinal) && !HasIdentifiedChange
-            ? [FeedEventKinds.FilterRequireAspects]
-            : [];
+    public IReadOnlyList<string> BlockedBy(FeedSubscription sub) {
+        var blocked = new List<string>();
+        foreach (string filter in sub.Filters) {
+            bool fails = filter switch {
+                FeedEventKinds.FilterRequireAspects => Changed.Count == 0,
+                FeedEventKinds.FilterRequireIds => Added.Count == 0 && Removed.Count == 0,
+                _ => false
+            };
+            if (fails) blocked.Add(filter);
+        }
 
-    private bool HasIdentifiedChange =>
-        Aspects is not null && (Aspects.ChangedAspects.Count > 0 || Aspects.AddedEvents.Count > 0 ||
-                                Aspects.AddedContracts.Count > 0 || Aspects.AddedColleggtibles.Count > 0);
+        return blocked;
+    }
 
     public string BuildBody(string? messageTemplate) =>
-        DiscordFeedPayload.BuildPeriodicals(Feed, Sha, PageUrl, messageTemplate, Aspects);
+        DiscordFeedPayload.BuildConfig(Feed, FeedLabel, Sha, PageUrl, messageTemplate, Changed, Added, Removed);
+}
+
+public sealed record GameDataRebuiltEvent(
+    string BinaryVersion,
+    string? PrevBinaryVersion,
+    string Platform,
+    string InputSha,
+    IReadOnlyList<string> ChangedDocs,
+    string PageUrl) : INotificationEvent {
+    public string EventKind => FeedEventKinds.GameDataRebuilt;
+    public string DedupKey => InputSha;
+
+    public bool BinaryMoved =>
+        !string.Equals(BinaryVersion, PrevBinaryVersion, StringComparison.Ordinal);
+
+    public string Summary =>
+        $"game data {BinaryVersion} ({ChangedDocs.Count} doc{(ChangedDocs.Count == 1 ? "" : "s")})";
+
+    public bool Matches(FeedSubscription sub) {
+        if (ChangedDocs.Count == 0) return false;
+        return sub.Trigger != FeedEventKinds.TriggerBinaryUp || BinaryMoved;
+    }
+
+    public IReadOnlyList<string> BlockedBy(FeedSubscription sub) => [];
+
+    public string BuildBody(string? messageTemplate) =>
+        DiscordFeedPayload.BuildGameData(BinaryVersion, PrevBinaryVersion, Platform, InputSha, ChangedDocs,
+            PageUrl, messageTemplate);
 }

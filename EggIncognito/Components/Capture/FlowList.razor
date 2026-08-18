@@ -13,7 +13,7 @@
         <h2>Requests</h2>
         <div class="flow-filters">
             <span class="flow-filters-label">Filters</span>
-            <select class="flow-filter-select" title="API group" value="@_group" @onchange="OnGroupChange">
+            <select class="flow-filter-select" aria-label="API group" value="@_group" @onchange="OnGroupChange">
                 <option value="">All groups</option>
                 @foreach (var g in GroupOptions()) {
                     <option value="@g">@g</option>
@@ -51,7 +51,7 @@
                     </div>
                 }
             </div>
-            <button type="button" class="icon-btn icon-btn-sm" title="Reset all filters" aria-label="Reset all filters" @onclick="ClearFilters">
+            <button type="button" class="icon-btn icon-btn-sm" aria-label="Reset all filters" @onclick="ClearFilters">
                 <Icon Name="x"/>
             </button>
         </div>
@@ -225,31 +225,24 @@
                                                   }
                                                   <span class="fseq">#@flow.Id</span>
                                                   <span class="ftime">@flow.Timestamp</span>
-                                                  <span class="fpath" title="@flow.Path">@flow.Path</span>
-                                                  <span class="ftypes" title="@($"{reqType} › {respType}")">
+                                                  <span class="fpath">@flow.Path</span>
+                                                  <span class="ftypes">
                                                       <span class="@(flow.RequestType is null ? "unknown" : "")">@reqType</span>
                                                       <span class="type-arrow">›</span>
                                                       <span class="@(flow.ResponseType is null ? "unknown" : "")">@respType</span>
                                                   </span>
                                                   @if (flow.Known || flow.Saved) {
-                                                      <span class="known-dot" title="@KnownDotTitle(flow)"></span>
+                                                      <span class="known-dot"></span>
                                                   }
                                                   @if (outcome is not null) {
                                                       @OutcomeTag(flow, outcome)
                                                   }
                                                   @if (flow.Status is >= 200 and < 300) {
-                                                      <span class="status-dot" title="HTTP @flow.Status"></span>
+                                                      <span class="status-dot"></span>
                                                   } else {
                                                       <span class="status-badge @CaptureHelpers.StatusClass(flow.Status)">@flow.Status</span>
                                                   }
                                               </div>;
-
-    static string KnownDotTitle(DashboardFlow flow) {
-        if (flow.Known)
-            return "Known endpoint" + (flow.ResponseType is not null ? $" ({flow.ResponseType})" : "");
-        return "Saved as endpoint";
-    }
-
 
     RenderFragment OutcomeTag(DashboardFlow flow, CaptureHelpers.OutcomeMeta meta) => builder => {
         var seq = 0;

@@ -15,8 +15,7 @@
         <div class="flex items-center gap-2 flex-wrap mb-2">
             <div class="text-sm font-semibold">Staged submissions (@_rows.Count)</div>
             @if (_rows.Any(r => r.IsIncomplete)) {
-                <button type="button" class="btn-mini" @onclick="CopyAllMissing"
-                        title="Copy a structured report of every row with a missing field, for closer audit">
+                <button type="button" class="btn-mini" @onclick="CopyAllMissing">
                     Copy Missing Info (@_rows.Count(r => r.IsIncomplete))
                 </button>
             }
@@ -85,8 +84,7 @@
                                 <button type="button" class="btn-mini" disabled="@_busy" @onclick="@(() => Approve(r))">Approve</button>
                                 <button type="button" class="btn-mini" disabled="@_busy" @onclick="@(() => Reject(r))">Reject</button>
                                 @if (r.IsIncomplete) {
-                                    <button type="button" class="btn-mini" @onclick="@(() => CopyOne(r))"
-                                            title="Copy this row's audit info">
+                                    <button type="button" class="btn-mini" @onclick="@(() => CopyOne(r))">
                                         Copy
                                     </button>
                                 }
@@ -103,7 +101,7 @@
                 @if (st.Bulk is { } b) {
                     <span class="status-chip status-chip-ok">@b.Approved approved</span>
                     @if (b.Skipped > 0) {
-                        <span class="status-chip" title="No version info yet; rows stay staged">@b.Skipped skipped</span>
+                        <span class="status-chip">@b.Skipped skipped</span>
                     }
 
                     @if (b.Failed > 0) {

@@ -1,11 +1,11 @@
 @inject ICurrentUser User
 @inject AuthState Auth
 <nav class="app-nav">
-    <a href="/" class="app-nav-brand" title="EggIncognito">
+    <a href="/" class="app-nav-brand">
         <img src="/brand/logo.png" alt="EggIncognito"/>
     </a>
     <NavLink href="inspector" Match="NavLinkMatch.Prefix" ActiveClass="active">Inspector</NavLink>
-    <NavLink href="protodata" Match="NavLinkMatch.Prefix" ActiveClass="active">Protos & Data</NavLink>
+    <NavLink href="protos" Match="NavLinkMatch.Prefix" ActiveClass="active">Protos & Data</NavLink>
     @if (User.IsAtLeast(UserRole.Admin)) {
         <NavLink href="playground" ActiveClass="active">Playground</NavLink>
     }

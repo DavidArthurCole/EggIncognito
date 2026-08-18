@@ -7,7 +7,7 @@
             var s = Stages[idx];
             var open = _open.Contains(idx);
             <div class="stage @(s.Skipped ? "skipped" : "") @(s.Role is not null ? $"role-{s.Role}" : "")">
-                <button type="button" class="stage-row" title="@s.Description" @onclick="() => Toggle(idx)">
+                <button type="button" class="stage-row" @onclick="() => Toggle(idx)">
                     <span class="ep-caret @(open ? "ep-caret-open" : "")"></span>
                     <span class="stage-name">@s.Name</span>
                     @if (s.Role is not null) {

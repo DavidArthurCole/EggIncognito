@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using EggIncognito.Services.ProtoExtract;
@@ -6,6 +7,9 @@ namespace EggIncognito.Services.Feed;
 
 public static class DiscordFeedPayload {
     public const string TestNotice = "EggIncognito feed test. Sample data, not a real release.";
+
+    private const int MaxFieldChars = 900;
+    private const int MaxListed = 12;
 
     public static string MarkAsTest(string body) {
         JsonNode? node;
@@ -42,7 +46,7 @@ public static class DiscordFeedPayload {
 
         var fields = new List<object> {
             new { name = "Proto", value = protoChanged ? "changed" : "unchanged", inline = true },
-            new { name = "SHA", value = protoSha.Length > 12 ? protoSha[..12] : protoSha, inline = true },
+            new { name = "SHA", value = Short(protoSha), inline = true },
             new { name = "Delta", value = VersionDeltaCalc.Label(delta), inline = true }
         };
         if (!string.IsNullOrEmpty(clientVersion))
@@ -65,45 +69,80 @@ public static class DiscordFeedPayload {
         return JsonSerializer.Serialize(new { embeds = new[] { embed } });
     }
 
-    public static string BuildPeriodicals(string feed, string sha, string pageUrl, string? messageTemplate = null,
-        PeriodicalsAspectSummary? aspects = null) {
+    public static string BuildConfig(
+        string feed, string feedLabel, string sha, string pageUrl, string? messageTemplate,
+        IReadOnlyList<string> changed, IReadOnlyList<string> added, IReadOnlyList<string> removed) {
         if (!string.IsNullOrWhiteSpace(messageTemplate)) {
-            var vars = FeedTemplate.PeriodicalsVars(feed, sha, pageUrl, aspects);
+            var vars = FeedTemplate.ConfigVars(feed, feedLabel, sha, pageUrl, changed, added, removed);
             return JsonSerializer.Serialize(new { content = FeedTemplate.Render(messageTemplate, vars) });
         }
 
         var fields = new List<object> {
-            new { name = "Feed", value = feed, inline = true },
-            new { name = "Hash", value = sha.Length > 12 ? sha[..12] : sha, inline = true }
+            new { name = "Response", value = feedLabel, inline = true },
+            new { name = "Hash", value = Short(sha), inline = true }
         };
-        if (aspects is not null) {
-            if (aspects.ChangedAspects.Count > 0)
-                fields.Add(new { name = "Changed", value = string.Join(", ", aspects.ChangedAspects), inline = true });
-            if (aspects.AddedEvents.Count > 0)
-                fields.Add(new { name = "New events", value = string.Join(", ", aspects.AddedEvents), inline = false });
-            if (aspects.AddedContracts.Count > 0) {
-                fields.Add(new {
-                    name = "New contracts",
-                    value = string.Join(", ", aspects.AddedContracts),
-                    inline = false
-                });
-            }
-
-            if (aspects.AddedColleggtibles.Count > 0) {
-                fields.Add(new {
-                    name = "New colleggtibles",
-                    value = string.Join(", ", aspects.AddedColleggtibles),
-                    inline = false
-                });
-            }
-        }
+        if (changed.Count > 0)
+            fields.Add(new { name = "Changed", value = Listed(changed), inline = false });
+        if (added.Count > 0)
+            fields.Add(new { name = "Added", value = Listed(added), inline = false });
+        if (removed.Count > 0)
+            fields.Add(new { name = "Removed", value = Listed(removed), inline = false });
 
         var embed = new {
-            title = $"Egg, Inc. periodicals changed: {feed}",
+            title = $"Egg, Inc. {feedLabel} changed",
             url = pageUrl,
-            color = 0x8b5cf6,
+            color = changed.Count == 0 ? 0x5aa9e6 : 0x8b5cf6,
             fields = fields.ToArray()
         };
         return JsonSerializer.Serialize(new { embeds = new[] { embed } });
+    }
+
+    public static string BuildGameData(
+        string binaryVersion, string? prevBinaryVersion, string platform, string inputSha,
+        IReadOnlyList<string> changedDocs, string pageUrl, string? messageTemplate) {
+        if (!string.IsNullOrWhiteSpace(messageTemplate)) {
+            var vars = FeedTemplate.GameDataVars(binaryVersion, prevBinaryVersion, platform, inputSha,
+                changedDocs, pageUrl);
+            return JsonSerializer.Serialize(new { content = FeedTemplate.Render(messageTemplate, vars) });
+        }
+
+        var fields = new List<object> {
+            new { name = "Binary", value = Or(binaryVersion, "unknown"), inline = true },
+            new { name = "Platform", value = Or(platform, "unknown"), inline = true },
+            new {
+                name = "Documents",
+                value = changedDocs.Count.ToString(CultureInfo.InvariantCulture),
+                inline = true
+            }
+        };
+        if (!string.IsNullOrEmpty(prevBinaryVersion) &&
+            !string.Equals(prevBinaryVersion, binaryVersion, StringComparison.Ordinal)) {
+            fields.Add(new { name = "Previous", value = prevBinaryVersion, inline = true });
+        }
+        if (changedDocs.Count > 0)
+            fields.Add(new { name = "Changed", value = Listed(changedDocs), inline = false });
+
+        var embed = new {
+            title = $"Egg, Inc. game data rebuilt from {Or(binaryVersion, "an unknown binary")}",
+            url = pageUrl,
+            color = 0x3fa06a,
+            fields = fields.ToArray()
+        };
+        return JsonSerializer.Serialize(new { embeds = new[] { embed } });
+    }
+
+    private static string Short(string sha) => sha.Length > 12 ? sha[..12] : sha;
+
+    private static string Or(string? value, string fallback) =>
+        string.IsNullOrEmpty(value) ? fallback : value;
+
+    private static string Listed(IReadOnlyList<string> items) {
+        var shown = items.Count <= MaxListed ? items : items.Take(MaxListed).ToList();
+        string text = string.Join(", ", shown);
+        if (text.Length > MaxFieldChars) text = text[..MaxFieldChars] + "...";
+        int hidden = items.Count - shown.Count;
+        return hidden > 0
+            ? text + " (+" + hidden.ToString(CultureInfo.InvariantCulture) + " more)"
+            : text;
     }
 }

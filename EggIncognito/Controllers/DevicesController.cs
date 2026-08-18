@@ -6,7 +6,6 @@ using EggIncognito.Data.Services;
 using EggIncognito.Services;
 using EggIncognito.Services.Auth;
 using EggIncognito.Services.Devices;
-using EggIncognito.Services.Feed;
 using EggIncognito.Services.ProtoExtract;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -442,21 +441,6 @@ public sealed class DevicesController(
                 true, HttpContext.RequestAborted);
             logger.LogInformation("device save: {Id} -> registry {Plat} build {Build} ({State}, sha {Sha})",
                 id, device.Platform, build, upsert.Created ? "created" : "updated", sha[..12]);
-
-
-            var dispatcher = services.GetService(typeof(FeedDispatcher))
-                as FeedDispatcher;
-            if (dispatcher is not null) {
-                var cfg = services.GetService(typeof(IConfiguration)) as IConfiguration;
-                string pageUrl = FeedDispatcher.BuildPageUrl(
-                    cfg?["Feed:PageBaseUrl"], device.Platform, build);
-                var flaws = ProtoVersionQuality.Flaws(
-                    device.Platform, appVersion, build, clientVersion, sha, !string.IsNullOrEmpty(carve.Proto));
-                await dispatcher.DispatchAsync(new ProtoBuildEvent(
-                    upsert.Row.Id, device.Platform, appVersion, build, clientVersion,
-                    sha, upsert.Created, upsert.ProtoChanged, pageUrl,
-                    upsert.Delta, upsert.PrevAppVersion, upsert.PrevBuild, flaws), HttpContext.RequestAborted);
-            }
         } catch (Exception ex) {
             logger.LogError(ex, "device save: {Id} registry upsert failed for build {Build}", id, build);
             return StatusCode(500, new { error = $"registry write failed: {ex.Message}" });

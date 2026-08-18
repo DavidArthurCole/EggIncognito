@@ -1,4 +1,4 @@
-<span class="verline@(ToneClass) @Class" title="@Title">
+<span class="verline@(ToneClass) @Class">
     @if (!string.IsNullOrWhiteSpace(Platform)) {
         <PlatformIcon Platform="@Platform"/>
     }
@@ -45,7 +45,6 @@
     [Parameter] public string? Client { get; set; }
     [Parameter] public string? Platform { get; set; }
     [Parameter] public VersionTone Tone { get; set; } = VersionTone.Normal;
-    [Parameter] public string? Title { get; set; }
     [Parameter] public string? Class { get; set; }
     [Parameter] public RenderFragment? Extra { get; set; }
 

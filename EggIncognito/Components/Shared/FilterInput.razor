@@ -1,14 +1,22 @@
-<input type="search" class="@Class" id="@Id" placeholder="@Placeholder" aria-label="@AriaLabel"
-       disabled="@Disabled" value="@Value" @oninput="OnInput" @attributes="Attrs"/>
+@if (ShowIcon) {
+    <label class="@WrapCss">
+        <Icon Name="search" Class="icon-sm filter-glass"/>
+        @Field()
+    </label>
+} else {
+    @Field()
+}
 
 @code {
     [Parameter] public string Value { get; set; } = "";
     [Parameter] public EventCallback<string> ValueChanged { get; set; }
-    [Parameter] public string? Placeholder { get; set; }
+    [Parameter] public string? Placeholder { get; set; } = "Filter";
     [Parameter] public string? Class { get; set; }
     [Parameter] public string? Id { get; set; }
     [Parameter] public string? AriaLabel { get; set; }
     [Parameter] public bool Disabled { get; set; }
+    [Parameter] public bool ShowIcon { get; set; }
+    [Parameter] public string? WrapClass { get; set; }
 
     [Parameter(CaptureUnmatchedValues = true)]
     public IReadOnlyDictionary<string, object>? Additional { get; set; }
@@ -21,6 +29,11 @@
             return merged;
         }
     }
+
+    string WrapCss => string.IsNullOrWhiteSpace(WrapClass) ? "filter-field" : $"filter-field {WrapClass}";
+
+    RenderFragment Field() => @<input type="search" class="@Class" id="@Id" placeholder="@Placeholder" aria-label="@AriaLabel"
+                                      disabled="@Disabled" value="@Value" @oninput="OnInput" @attributes="Attrs"/>;
 
     Task OnInput(ChangeEventArgs e) {
         return ValueChanged.InvokeAsync(e.Value?.ToString() ?? "");

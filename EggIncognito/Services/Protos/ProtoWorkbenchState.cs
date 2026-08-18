@@ -50,7 +50,7 @@ public sealed record DiffBundle(
 
 public sealed class ProtoWorkbenchState : WorkbenchStateBase {
     public override IReadOnlyList<WorkbenchMode> Modes { get; } =
-        [.. ProtoRefParser.Modes.Select(m => new WorkbenchMode(m, m, ModeTitle(m)))];
+        [.. ProtoRefParser.Modes.Select(m => new WorkbenchMode(m, m))];
 
     public List<StagedEntry> Entries { get; } = [];
     public Guid? SelectedId { get; set; }
@@ -69,15 +69,5 @@ public sealed class ProtoWorkbenchState : WorkbenchStateBase {
 
     public StagedEntry? Find(Guid? id) {
         return id is { } g ? Entries.FirstOrDefault(e => e.Id == g) : null;
-    }
-
-    private static string ModeTitle(string mode) {
-        return mode switch {
-            "text" => "Proto text of A",
-            "split" => "Side by side line diff",
-            "unified" => "Unified diff patch",
-            "struct" => "Structural message diff",
-            _ => "Metadata compare"
-        };
     }
 }

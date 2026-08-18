@@ -2,7 +2,7 @@
     <div class="path-param-row">
         <label>
             URL path parameter (e.g. EID)
-            <button type="button" class="forget-eids" title="Clear remembered EIDs" @onclick="OnForget">forget</button>
+            <button type="button" class="forget-eids" @onclick="OnForget">forget</button>
         </label>
         <input list="recentEids" placeholder="EI1234567890123456" value="@Value"
                @attributes="InputAttrs.NoAutofill" @oninput="OnInput"/>

@@ -35,7 +35,7 @@ public class VersionDeltaTests {
 
     [Fact]
     public void BrokenIosCarve_FlagsClientVersionBuildAndProto() {
-        var flaws = ProtoVersionQuality.Flaws("ios", "1.36.4", "111340", null, "", false);
+        var flaws = ProtoVersionQuality.Flaws("ios", "111340", null, "", false);
 
         Assert.Contains(ProtoVersionQuality.FlawNoClientVersion, flaws);
         Assert.Contains(ProtoVersionQuality.FlawBuildPlatformMismatch, flaws);
@@ -44,5 +44,5 @@ public class VersionDeltaTests {
 
     [Fact]
     public void HealthyCarve_HasNoFlaws() =>
-        Assert.Empty(ProtoVersionQuality.Flaws("android", "1.37.0", "111358", "72", "abc123", true));
+        Assert.Empty(ProtoVersionQuality.Flaws("android", "111358", "72", "abc123", true));
 }

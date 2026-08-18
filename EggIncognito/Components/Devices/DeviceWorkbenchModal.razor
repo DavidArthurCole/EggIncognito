@@ -22,212 +22,168 @@
         <button type="button" class="btn-mini" disabled="@_bulkBusy" @onclick="ProbeAll">Probe all</button>
         <button type="button" class="btn-mini" disabled="@_bulkBusy" @onclick="PokeAll">Poke all</button>
     </HeadTools>
-    <Rail>
-        <WorkbenchRail>
-            @if (_devices.Count == 0) {
-                <div class="wb-note">No devices declared on this host.</div>
-            } else {
-                @foreach (var d in Ordered()) {
-                    <WorkbenchEntry @key="d.Id" Selected="@(State.SelectedId == d.Id)" Title="@d.Id"
-                                    Status="@RunStatus(d.Id)" Foot="@JobFoot(d.Id)"
-                                    OnClick="@(_ => Select(d.Id))">
-                        <Lead>
-                            <span class="@(d.Reachable ? "dwb-dot-ok" : "dwb-dot-bad")"></span>
-                        </Lead>
-                        <Name>@d.Label</Name>
-                        <MetaLine>
-                            <VersionLine App="@d.InstalledAppVersion" Build="@d.InstalledBuild"
-                                         Client="@Number(d.ClientVersion)" Platform="@d.Platform"/>
-                        </MetaLine>
-                    </WorkbenchEntry>
-                }
-            }
-        </WorkbenchRail>
-    </Rail>
     <ChildContent>
-        @if (Current is null) {
-            <div class="wb-note">Select a device.</div>
+        @if (_devices.Count == 0) {
+            <div class="wb-note">No devices declared on this host.</div>
         } else {
-            <div class="mb-3">
-                <WorkbenchModes Modes="State.Modes" Current="@State.Mode" CurrentChanged="SetMode"/>
+            <div class="dwb-devices" role="group" aria-label="Devices">
+                @foreach (var d in Ordered()) {
+                    <button type="button" class="dwb-dev @(State.SelectedId == d.Id ? "dwb-dev-on" : "")"
+                            @key="d.Id" @onclick="@(() => Select(d.Id))">
+                        <span class="@(d.Reachable ? "dwb-dot-ok" : "dwb-dot-bad")"></span>
+                        <PlatformIcon Platform="@d.Platform"/>
+                        <span class="dwb-dev-name">@d.Label</span>
+                        <VersionLine App="@d.InstalledAppVersion" Build="@d.InstalledBuild"
+                                     Client="@Number(d.ClientVersion)"/>
+                        @if (RunningFor(d.Id) is { } busy) {
+                            <span class="wb-st-run">@busy.Kind</span>
+                        }
+                    </button>
+                }
             </div>
+        }
 
-            @if (State.Mode == DeviceWorkbenchState.ModeStatus && Current is { } dev) {
-                <div class="dwb-grid">
-                    <div class="ds-state">
-                        <span class="ds-state-k">Reachable</span>
-                        <span class="@(dev.Reachable ? "text-ok" : "text-err")">
-                            @(dev.Reachable ? "yes" : "no")
-                        </span>
-                        <div class="ds-state-sub">probed @dev.ProbedAt.ToLocalTime().ToString("HH:mm:ss")</div>
-                    </div>
-                    <div class="ds-state">
-                        <span class="ds-state-k">Installed</span>
-                        <VersionLine App="@dev.InstalledAppVersion" Build="@dev.InstalledBuild"
-                                     Client="@Number(dev.ClientVersion)"/>
-                    </div>
-                    <div class="ds-state">
-                        <span class="ds-state-k">Store</span>
-                        @if (dev.StoreLatest is { Length: > 0 }) {
-                            <VersionLine App="@dev.StoreLatest"/>
-                        } else {
-                            <span class="text-muted text-xs">unknown</span>
-                        }
-                        @if (dev.StoreAhead) {
-                            <div class="ds-state-sub dwb-warn">newer than installed</div>
-                        }
-                    </div>
-                    <div class="ds-state">
-                        <span class="ds-state-k">Harvest</span>
-                        <span class="font-mono whitespace-nowrap">@HarvestLine()</span>
-                    </div>
-                </div>
-                @if (!string.IsNullOrEmpty(dev.Note)) {
-                    <div class="font-mono text-xs text-muted mt-2">@dev.Note</div>
-                }
-
-                <div class="dwb-actions">
-                    <button type="button" class="btn-mini" disabled="@Busy" title="@BusyTitle" @onclick="ProbeNow">Probe now</button>
-                    <button type="button" class="btn-mini" disabled="@Busy" title="@BusyTitle" @onclick="CheckStore">Check store</button>
-                    <button type="button" class="btn-mini" disabled="@Busy" title="@BusyTitle" @onclick="RestartApp">Restart app</button>
-                    <button type="button" class="btn-mini" disabled="@Busy" title="@BusyTitle" @onclick="SaveToRegistry">Save to registry</button>
-                    <button type="button" class="btn-mini" disabled="@Busy" title="@BusyTitle" @onclick="Poke">Poke harvest</button>
-                </div>
-                @if (RunningFor(dev.Id) is { } run) {
-                    <div class="wb-st-run text-xs mt-2">@run.Kind: @run.Message</div>
-                }
+        @if (Current is { } dev) {
+            <div class="dwb-meta">
+                <span class="@(dev.Reachable ? "text-ok" : "text-err")">@(dev.Reachable ? "reachable" : "unreachable")</span>
+                <span class="dwb-sep">|</span>
+                <TimeAgo Value="@dev.ProbedAt"/>
+                <span class="dwb-sep">|</span>
+                <span class="@(dev.StoreAhead ? "dwb-warn" : "")">
+                    store @(dev.StoreLatest is { Length: > 0 } ? dev.StoreLatest : "unknown")
+                </span>
+                <span class="dwb-sep">|</span>
+                <span class="font-mono">@HarvestLine()</span>
+                <span class="dwb-sep">|</span>
+                <span class="font-mono">@(dev.Target ?? "?")</span>
+                <span class="dwb-sep">|</span>
+                <span class="font-mono">@(dev.Package ?? "?")</span>
+                <span class="dwb-sep">|</span>
+                <span class="font-mono">@(_hub is null ? "no capture" : $"capture :{_port}")</span>
+            </div>
+            @if (!string.IsNullOrEmpty(dev.Note)) {
+                <div class="font-mono text-xs text-muted mt-1">@dev.Note</div>
             }
 
-            @if (State.Mode == DeviceWorkbenchState.ModeJobs) {
-                <WorkbenchLoad T="JobRow" Items="_jobs" EmptyText="No jobs yet." Context="jobs">
-                    <div class="flex flex-col">
-                        @foreach (var j in jobs) {
-                            <div class="dwb-job">
-                                <button type="button" class="dwb-job-head" @onclick="@(() => ToggleJob(j.Id))">
-                                    <span class="font-mono text-muted">@j.StartedAt.ToLocalTime().ToString("MM-dd HH:mm:ss")</span>
-                                    <span class="font-medium">@j.Kind</span>
-                                    <span class="@StateClass(j.State)">@(j.Outcome ?? j.State)</span>
-                                    <span class="text-muted truncate">@j.Message</span>
-                                    <span class="text-muted font-mono">@Duration(j)</span>
-                                    <span class="text-muted">@j.Trigger</span>
-                                </button>
-                                @if (State.Expanded.Contains(j.Id) && j.Lines.Count > 0) {
-                                    <div class="dwb-job-lines">
-                                        @foreach (var l in j.Lines) {
-                                            <div class="dwb-job-line">
-                                                <span class="font-mono text-muted">@l.At.ToLocalTime().ToString("HH:mm:ss")</span>
-                                                @if (l.Entry is not null) {
-                                                    <span class="font-mono">@l.Entry</span>
-                                                }
-                                                <span class="@LevelClass(l.Level)">@l.Text</span>
-                                                @if (l.Bytes is > 0) {
-                                                    <span class="text-muted font-mono">@ByteFormat.Mb(l.Bytes.Value, "F1")</span>
-                                                }
-                                            </div>
-                                        }
-                                    </div>
-                                }
-                            </div>
-                        }
-                    </div>
-                </WorkbenchLoad>
+            <div class="dwb-actions">
+                <button type="button" class="btn-mini" disabled="@Busy" @onclick="ProbeNow">Probe now</button>
+                <button type="button" class="btn-mini" disabled="@Busy" @onclick="CheckStore">Check store</button>
+                <button type="button" class="btn-mini" disabled="@Busy" @onclick="RestartApp">Restart app</button>
+                <button type="button" class="btn-mini" disabled="@Busy" @onclick="SaveToRegistry">Save to registry</button>
+                <button type="button" class="btn-mini" disabled="@Busy" @onclick="Poke">Poke harvest</button>
+            </div>
+            @if (RunningFor(dev.Id) is { } run) {
+                <div class="wb-st-run text-xs mt-2">@run.Kind: @run.Message</div>
             }
 
-            @if (State.Mode == DeviceWorkbenchState.ModeCapture) {
-                @if (_hub is null) {
-                    <div class="wb-note">Capture is not configured for this device on this host.</div>
-                } else {
-                    <div class="dwb-capture">
-                        <StatsPanel Stats="_stats" FlowCount="_flows.Count" Running="_capturing" Port="_port"/>
-                        <div class="flex gap-2 items-center my-2">
-                            <button type="button" class="btn-mini" disabled="@Busy" title="@BusyTitle" @onclick="RestartApp">Restart app</button>
-                            <a class="btn-mini no-underline" href="/capture/device/@Current!.Id">Open full capture</a>
+            <section class="dwb-sec">
+                @SectionHead(DeviceWorkbenchState.SectionJobs, "Jobs", _jobs?.Count)
+                @if (IsOpen(DeviceWorkbenchState.SectionJobs)) {
+                    <WorkbenchLoad T="JobRow" Items="_jobs" EmptyText="No jobs yet." Context="jobs">
+                        <div class="flex flex-col">
+                            @foreach (var j in jobs) {
+                                <div class="dwb-job">
+                                    <button type="button" class="dwb-job-head" @onclick="@(() => ToggleJob(j.Id))">
+                                        <span class="font-mono text-muted">@j.StartedAt.ToLocalTime().ToString("MM-dd HH:mm:ss")</span>
+                                        <span class="font-medium">@j.Kind</span>
+                                        <span class="@StateClass(j.State)">@(j.Outcome ?? j.State)</span>
+                                        <span class="text-muted truncate">@j.Message</span>
+                                        <span class="text-muted font-mono">@Duration(j)</span>
+                                        <span class="text-muted">@j.Trigger</span>
+                                    </button>
+                                    @if (State.Expanded.Contains(j.Id) && j.Lines.Count > 0) {
+                                        <div class="dwb-job-lines">
+                                            @foreach (var l in j.Lines) {
+                                                <div class="dwb-job-line">
+                                                    <span class="font-mono text-muted">@l.At.ToLocalTime().ToString("HH:mm:ss")</span>
+                                                    @if (l.Entry is not null) {
+                                                        <span class="font-mono">@l.Entry</span>
+                                                    }
+                                                    <span class="@LevelClass(l.Level)">@l.Text</span>
+                                                    @if (l.Bytes is > 0) {
+                                                        <span class="text-muted font-mono">@ByteFormat.Mb(l.Bytes.Value, "F1")</span>
+                                                    }
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            }
                         </div>
-                        <FlowList Flows="_flows" SelectedId="_selectedFlowId" Connected="true"
-                                  View="State.Capture" OnSelect="SelectFlow"/>
-                        <DetailPane Flow="_selectedFlow" View="State.Capture" ClientFactory="Client"/>
-                    </div>
+                    </WorkbenchLoad>
                 }
-            }
+            </section>
 
-            @if (State.Mode == DeviceWorkbenchState.ModeBinaries) {
-                <div class="flex items-center gap-2 mb-2">
-                    <button type="button" class="btn-mini" disabled="@Busy" title="@BusyTitle" @onclick="Poke">Poke harvest</button>
-                </div>
-                <div class="reg-wrap">
-                    <table class="data-table">
-                        <thead>
-                        <tr>
-                            <th>Version</th><th>SHA-256</th><th>Size</th><th>Symbols</th><th>Source</th><th>Pulled</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        @foreach (var b in _binaries.Where(x => x.Platform == Current!.Platform)) {
-                            <tr>
-                                <td>
-                                    <VersionLine App="@b.Version"/>
-                                </td>
-                                <td class="font-mono text-xs">@(b.Sha256.Length >= 12 ? b.Sha256[..12] : b.Sha256)</td>
-                                <td class="font-mono text-xs">@ByteFormat.Mb(b.ByteSize, "F1")</td>
-                                <td class="font-mono text-xs">@(b.EffectiveSymbols > 0 ? b.EffectiveSymbols : b.NativeSymbols)</td>
-                                <td class="text-xs">@b.Source</td>
-                                <td class="text-muted text-xs">@b.PulledAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
-                            </tr>
-                        }
-                        </tbody>
-                    </table>
-                </div>
-                @if (_harvest is { Entries.Count: > 0 }) {
-                    <div class="sub-section-head mt-4 mb-2">Latest harvest</div>
+            <section class="dwb-sec">
+                @SectionHead(DeviceWorkbenchState.SectionCapture, "Capture", _flows.Count)
+                @if (IsOpen(DeviceWorkbenchState.SectionCapture)) {
+                    @if (_hub is null) {
+                        <div class="wb-note">Capture is not configured for this device on this host.</div>
+                    } else {
+                        <div class="dwb-capture">
+                            <StatsPanel Stats="_stats" FlowCount="_flows.Count" Running="_capturing" Port="_port"/>
+                            <div class="flex gap-2 items-center my-2">
+                                <button type="button" class="btn-mini" disabled="@Busy" @onclick="RestartApp">Restart app</button>
+                                <a class="btn-mini no-underline" href="/capture/device/@Current!.Id">Open full capture</a>
+                            </div>
+                            <FlowList Flows="_flows" SelectedId="_selectedFlowId" Connected="true"
+                                      View="State.Capture" OnSelect="SelectFlow"/>
+                            <DetailPane Flow="_selectedFlow" View="State.Capture" ClientFactory="Client"/>
+                        </div>
+                    }
+                }
+            </section>
+
+            <section class="dwb-sec">
+                @SectionHead(DeviceWorkbenchState.SectionBinaries, "Binaries", BinaryCount())
+                @if (IsOpen(DeviceWorkbenchState.SectionBinaries)) {
                     <div class="reg-wrap">
                         <table class="data-table">
                             <thead>
                             <tr>
-                                <th>Entry</th><th>Outcome</th><th>Size</th><th>When</th>
+                                <th>Version</th><th>SHA-256</th><th>Size</th><th>Symbols</th><th>Source</th><th>Pulled</th>
                             </tr>
                             </thead>
                             <tbody>
-                            @foreach (var e in _harvest.Entries) {
+                            @foreach (var b in _binaries.Where(x => x.Platform == Current!.Platform)) {
                                 <tr>
-                                    <td class="font-mono text-xs">@e.Entry</td>
-                                    <td class="text-xs">@e.Outcome</td>
-                                    <td class="font-mono text-xs">@ByteFormat.Mb(e.Bytes, "F1")</td>
-                                    <td class="text-muted text-xs">@e.RanAt.ToLocalTime().ToString("HH:mm:ss")</td>
+                                    <td>
+                                        <VersionLine App="@b.Version"/>
+                                    </td>
+                                    <td class="font-mono text-xs">@(b.Sha256.Length >= 12 ? b.Sha256[..12] : b.Sha256)</td>
+                                    <td class="font-mono text-xs">@ByteFormat.Mb(b.ByteSize, "F1")</td>
+                                    <td class="font-mono text-xs">@(b.EffectiveSymbols > 0 ? b.EffectiveSymbols : b.NativeSymbols)</td>
+                                    <td class="text-xs">@b.Source</td>
+                                    <td class="text-muted text-xs">@b.PulledAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
                                 </tr>
                             }
                             </tbody>
                         </table>
                     </div>
+                    @if (_harvest is { Entries.Count: > 0 }) {
+                        <div class="sub-section-head mt-4 mb-2">Latest harvest</div>
+                        <div class="reg-wrap">
+                            <table class="data-table">
+                                <thead>
+                                <tr>
+                                    <th>Entry</th><th>Outcome</th><th>Size</th><th>When</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                @foreach (var e in _harvest.Entries) {
+                                    <tr>
+                                        <td class="font-mono text-xs">@e.Entry</td>
+                                        <td class="text-xs">@e.Outcome</td>
+                                        <td class="font-mono text-xs">@ByteFormat.Mb(e.Bytes, "F1")</td>
+                                        <td class="text-muted text-xs">@e.RanAt.ToLocalTime().ToString("HH:mm:ss")</td>
+                                    </tr>
+                                }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
                 }
-            }
-
-            @if (State.Mode == DeviceWorkbenchState.ModeConfig && Current is { } cfg) {
-                <div class="dwb-grid">
-                    <div class="ds-state">
-                        <span class="ds-state-k">Id</span><span class="font-mono text-xs">@cfg.Id</span>
-                    </div>
-                    <div class="ds-state">
-                        <span class="ds-state-k">Platform</span>
-                        <PlatformIcon Platform="@cfg.Platform" Title="@cfg.Platform"/>
-                    </div>
-                    <div class="ds-state">
-                        <span class="ds-state-k">Label</span><span class="text-xs">@cfg.Label</span>
-                    </div>
-                    <div class="ds-state">
-                        <span class="ds-state-k">Target</span><span class="font-mono text-xs">@(cfg.Target ?? "?")</span>
-                    </div>
-                    <div class="ds-state">
-                        <span class="ds-state-k">Package</span><span class="font-mono text-xs">@(cfg.Package ?? "?")</span>
-                    </div>
-                    <div class="ds-state">
-                        <span class="ds-state-k">Capture</span>
-                        <span class="font-mono text-xs">@(_hub is null ? "not configured" : $"port {_port}")</span>
-                    </div>
-                </div>
-                <p class="text-muted text-xs mt-3 mb-0">
-                    Devices are declared in configuration and seeded on start. Nothing here is editable.
-                </p>
-            }
+            </section>
         }
     </ChildContent>
 </WorkbenchModal>
@@ -264,22 +220,27 @@
 
     bool Busy => Current is not null && RunningFor(Current.Id) is not null;
 
-    string? BusyTitle => Current is null ? null
-        : RunningFor(Current.Id) is { } j ? $"{j.Kind} is already running on this device" : null;
-
     LiveJob? RunningFor(string id) {
         return _live.FirstOrDefault(j => j.Device == id);
     }
 
-    WorkbenchStatusKind? RunStatus(string id) {
-        return RunningFor(id) is null ? null : WorkbenchStatusKind.Running;
+    bool IsOpen(string section) {
+        return State.Sections.Contains(section);
     }
 
-    RenderFragment? JobFoot(string id) {
-        return RunningFor(id) is { } job ? KindFragment(job) : null;
+    int BinaryCount() {
+        return Current is null ? 0 : _binaries.Count(x => x.Platform == Current.Platform);
     }
 
-    RenderFragment KindFragment(LiveJob job) => @<text>@job.Kind</text>;
+    RenderFragment SectionHead(string section, string label, int? count) => @<button type="button" class="dwb-sec-head"
+                                                                                     aria-expanded="@(IsOpen(section) ? "true" : "false")"
+                                                                                     @onclick="@(() => ToggleSection(section))">
+                                                                                <Icon Name="@(IsOpen(section) ? "chevronDown" : "chevronRight")" Class="icon-sm"/>
+                                                                                <span>@label</span>
+                                                                                @if (count is { } n) {
+                                                                                    <span class="dwb-sec-count">@n</span>
+                                                                                }
+                                                                            </button>;
 
     static string? Number(int? value) {
         return value?.ToString(CultureInfo.InvariantCulture);
@@ -324,16 +285,16 @@
         await LoadForDeviceAsync();
     }
 
-    async Task SetMode(string mode) {
-        State.Mode = mode;
-        if (State.Mode == DeviceWorkbenchState.ModeCapture) AttachCapture();
-        if (State.Mode == DeviceWorkbenchState.ModeJobs) await LoadJobsAsync();
+    async Task ToggleSection(string section) {
+        if (!State.Sections.Remove(section)) State.Sections.Add(section);
+        if (section == DeviceWorkbenchState.SectionCapture && IsOpen(section)) AttachCapture();
+        if (section == DeviceWorkbenchState.SectionJobs && IsOpen(section)) await LoadJobsAsync();
     }
 
     async Task TickAsync() {
         if (_disposed || !_open) return;
         await LoadLiveAsync();
-        if (State.Mode == DeviceWorkbenchState.ModeJobs) await LoadJobsAsync();
+        if (IsOpen(DeviceWorkbenchState.SectionJobs)) await LoadJobsAsync();
         StateHasChanged();
     }
 
@@ -345,7 +306,7 @@
     async Task LoadForDeviceAsync() {
         await LoadHarvestAsync();
         await LoadJobsAsync();
-        if (State.Mode == DeviceWorkbenchState.ModeCapture) AttachCapture();
+        if (IsOpen(DeviceWorkbenchState.SectionCapture)) AttachCapture();
     }
 
     async Task LoadLiveAsync() {

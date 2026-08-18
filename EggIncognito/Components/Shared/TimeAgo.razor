@@ -1,0 +1,39 @@
+@using System.Globalization
+@if (Hover) {
+    <span class="hcard-wrap hcard-below">
+        <span class="time-ago">@Relative</span>
+        <span class="hcard">
+            <span class="hcard-line">@Full</span>
+        </span>
+    </span>
+} else {
+    <span class="time-ago">@Relative</span>
+}
+
+@code {
+    [Parameter] public DateTimeOffset Value { get; set; }
+
+    [Parameter] public bool Hover { get; set; } = true;
+
+    DateTimeOffset Local => Value.ToLocalTime();
+
+    string Full => Local.ToString("dddd d MMMM yyyy 'at' HH:mm:ss zzz", CultureInfo.CurrentCulture);
+
+    string Relative {
+        get {
+            var delta = DateTimeOffset.Now - Local;
+            if (delta < TimeSpan.Zero) delta = TimeSpan.Zero;
+            if (delta.TotalSeconds < 60) return "just now";
+            if (delta.TotalMinutes < 60) return FormattableString.Invariant($"{(int)delta.TotalMinutes}m ago");
+            if (delta.TotalHours < 24) return FormattableString.Invariant($"{(int)delta.TotalHours}h ago");
+            if (delta.TotalDays < 30) return FormattableString.Invariant($"{(int)delta.TotalDays}d ago");
+            if (delta.TotalDays < 365) return FormattableString.Invariant($"{(int)(delta.TotalDays / 30)}mo ago");
+            return FormattableString.Invariant($"{(int)(delta.TotalDays / 365)}y ago");
+        }
+    }
+
+    public static DateTimeOffset FromUtc(DateTime value) {
+        return new DateTimeOffset(DateTime.SpecifyKind(value, DateTimeKind.Utc));
+    }
+
+}

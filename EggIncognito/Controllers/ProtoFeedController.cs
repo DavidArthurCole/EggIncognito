@@ -22,7 +22,15 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
             as ICurrentUser)?.UserId;
 
     [HttpGet("kinds")]
-    public IActionResult Kinds() => Ok(FeedEventKinds.All);
+    public IActionResult Kinds() => Ok(FeedEventKinds.All.Select(k => new {
+        k.Key,
+        k.Label,
+        k.Triggers,
+        k.DefaultTrigger,
+        k.PlatformScoped,
+        k.Filters,
+        Vars = FeedVars.Describe(k)
+    }));
 
     [HttpPost]
     [EnableRateLimiting("write")]
@@ -69,7 +77,7 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
         return Ok(subs.Select(s => new {
             s.Id,
             s.Label,
-            s.EventKind,
+            EventKind = FeedEventKinds.Normalize(s.EventKind),
             s.Platforms,
             s.Trigger,
             s.Filters,
@@ -105,8 +113,9 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
         var sub = (await Store.ByOwnerAsync(owner.Value, ct)).FirstOrDefault(s => s.Id == id);
         if (sub is null) return NotFound(new { error = "subscription not found" });
 
-        var fallback = FeedSamples.For(sub.EventKind);
-        var chosen = FeedSamples.Find(sub.EventKind, sample) ?? (fallback.Count > 0 ? fallback[0] : null);
+        string kind = FeedEventKinds.Normalize(sub.EventKind);
+        var fallback = FeedSamples.For(kind);
+        var chosen = FeedSamples.Find(kind, sample) ?? (fallback.Count > 0 ? fallback[0] : null);
         string body = chosen is null
             ? """{"content":"EggIncognito feed test."}"""
             : DiscordFeedPayload.MarkAsTest(chosen.Event.BuildBody(sub.MessageTemplate));
@@ -152,7 +161,8 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
         var sub = (await Store.ByOwnerAsync(owner.Value, ct)).FirstOrDefault(s => s.Id == id);
         if (sub is null) return NotFound(new { error = "subscription not found" });
 
-        string trigger = FeedEventKinds.NormalizeTrigger(sub.EventKind, req.Trigger ?? sub.Trigger);
+        string trigger = FeedEventKinds.NormalizeTrigger(
+            FeedEventKinds.Normalize(sub.EventKind), req.Trigger ?? sub.Trigger);
         bool ok = await Store.UpdateAsync(
             id, owner.Value,
             req.Platforms ?? ["android", "ios"],
@@ -200,7 +210,7 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
 
 
     public static string[] ResolveFilters(FeedSubscription sub, string[]? requested) =>
-        FeedEventKinds.NormalizeFilters(sub.EventKind, requested ?? sub.Filters);
+        FeedEventKinds.NormalizeFilters(FeedEventKinds.Normalize(sub.EventKind), requested ?? sub.Filters);
 
     public static string MaskWebhook(string url) {
         string[] parts = url.Split('/', StringSplitOptions.RemoveEmptyEntries);

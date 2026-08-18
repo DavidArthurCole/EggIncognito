@@ -25,7 +25,7 @@
                 @foreach (var s in _sources) {
                     <a class="auth-source-btn" href="@Abs(s.Url)">
                         @if (!string.IsNullOrEmpty(s.IconUrl)) {
-                            <img class="auth-source-logo" src="@Abs(s.IconUrl)" alt="" width="16" height="16" style="width:16px;height:16px;"/>
+                            <img class="auth-source-logo" src="@Abs(s.IconUrl)" alt="" width="16" height="16"/>
                         }
                         <span>@s.Name</span>
                     </a>

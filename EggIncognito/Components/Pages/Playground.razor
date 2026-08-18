@@ -496,7 +496,7 @@
                     <div class="picker-group-title">Slots (click to focus)</div>
                     <div class="picker-body">
                         @foreach (var p in _placements) {
-                            <button class="picker-item flex items-center justify-between gap-2" title="@ProvenanceTip(p)" @onclick="() => FocusPlacement(p.Key)">
+                            <button class="picker-item flex items-center justify-between gap-2" @onclick="() => FocusPlacement(p.Key)">
                                 <span class="truncate">@p.Key</span>
                                 <span class="@OriginChipClass(p.Provenance?.Origin)">@(p.Provenance?.Origin ?? "?")</span>
                             </button>
@@ -519,7 +519,7 @@
                 </label>
                 <button class="btn-secondary w-full" @onclick="ApplyCamera" disabled="@_busy">Frame element</button>
                 @if (!string.IsNullOrEmpty(_cameraLocator)) {
-                    <div class="text-muted truncate" title="@_cameraLocator">@_cameraLocator</div>
+                    <div class="text-muted truncate">@_cameraLocator</div>
                 }
                 <button class="btn-secondary w-full" @onclick="MenuResetView">Reset view</button>
             </div>
@@ -1621,19 +1621,6 @@
             nameof(PlacementOrigin.Authored) => "text-err",
             _ => "text-muted"
         };
-    }
-
-    static string ProvenanceTip(PlacementDto p) {
-        var prov = p.Provenance;
-        var parts = new List<string> { $"origin: {prov?.Origin ?? "unknown"}" };
-        if (prov is not null && !string.IsNullOrEmpty(prov.Locator)) parts.Add($"locator: {prov.Locator}");
-        if (prov is not null && !string.IsNullOrEmpty(prov.Method)) parts.Add($"method: {prov.Method}");
-        if (!string.IsNullOrEmpty(p.Stem)) parts.Add($"mesh: {p.Stem}");
-        if (p.Pos is { } pos) {
-            parts.Add(string.Create(CultureInfo.InvariantCulture, $"pos: {pos.X:0.###}, {pos.Y:0.###}, {pos.Z:0.###}"));
-        }
-
-        return string.Join("\n", parts);
     }
 
     static bool SplitSlot(string key, out ShellSpec.Types.AssetType type, out int index) {

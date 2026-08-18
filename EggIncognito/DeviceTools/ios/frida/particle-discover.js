@@ -1,7 +1,3 @@
-
-//
-
-
 const WINDOW_MS = 2500;
 const TOP = 40;
 

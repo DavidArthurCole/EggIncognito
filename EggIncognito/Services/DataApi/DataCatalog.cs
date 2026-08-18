@@ -84,16 +84,16 @@ public sealed class DataCatalog {
 
     private static IReadOnlyList<DataSource> Build() => [
         Wire("get_periodicals", "Periodicals", "Raw get_periodicals response fixture.",
-            PeriodicalsRoute, "periodicals",
+            PeriodicalsRoute, ConfigFeeds.Periodicals,
             p => new GetPeriodicalsRequest { Rinfo = new BasicRequestInfo { Platform = p } }.ToByteArray()),
         Wire("afx-config", "Artifacts config", "Raw ei_afx/config response fixture.",
-            "ei_afx/config", "afx-config",
+            "ei_afx/config", ConfigFeeds.Afx,
             p => new ArtifactsConfigurationRequest { Rinfo = new BasicRequestInfo { Platform = p } }.ToByteArray()),
         Wire("season-infos", "Season infos", "Raw get_season_infos_v2 response fixture.",
-            "ei_ctx/get_season_infos_v2", "season-infos",
+            "ei_ctx/get_season_infos_v2", ConfigFeeds.Seasons,
             p => new BasicRequestInfo { Platform = p }.ToByteArray(), listed: false),
         Wire("config", "Game config", "Raw get_config response fixture.",
-            ConfigRoute, null,
+            ConfigRoute, ConfigFeeds.Config,
             p => new ConfigRequest { Rinfo = new BasicRequestInfo { Platform = p } }.ToByteArray()),
 
         new("colleggtibles", "periodical", "Colleggtibles",

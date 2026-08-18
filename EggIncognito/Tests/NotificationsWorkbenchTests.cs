@@ -66,17 +66,48 @@ public class NotificationsWorkbenchTests {
     }
 
     [Fact]
-    public void BarePeriodicalsSample_BlockedWhenAspectsRequired() {
-        var bare = FeedSamples.Find(FeedEventKinds.PeriodicalsChanged, "bare");
+    public void BareConfigSample_BlockedWhenAspectsRequired() {
+        var bare = FeedSamples.Find(FeedEventKinds.ConfigChanged, "bare");
         Assert.NotNull(bare);
 
-        var sub = Probe(FeedEventKinds.PeriodicalsChanged, "any", FeedEventKinds.FilterRequireAspects);
+        var sub = Probe(FeedEventKinds.ConfigChanged, FeedEventKinds.TriggerAnyFeed,
+            FeedEventKinds.FilterRequireAspects);
         Assert.True(bare.Event.Matches(sub));
         Assert.Equal(FeedEventKinds.FilterRequireAspects, Assert.Single(bare.Event.BlockedBy(sub)));
 
-        var identified = FeedSamples.Find(FeedEventKinds.PeriodicalsChanged, "identified");
+        var identified = FeedSamples.Find(FeedEventKinds.ConfigChanged, "periodicals");
         Assert.NotNull(identified);
         Assert.Empty(identified.Event.BlockedBy(sub));
+    }
+
+    [Fact]
+    public void AfxSample_HasAspects_ButNoIdentifiers() {
+        var afx = FeedSamples.Find(FeedEventKinds.ConfigChanged, "afx");
+        Assert.NotNull(afx);
+
+        var aspects = Probe(FeedEventKinds.ConfigChanged, FeedEventKinds.TriggerAnyFeed,
+            FeedEventKinds.FilterRequireAspects);
+        Assert.Empty(afx.Event.BlockedBy(aspects));
+
+        var ids = Probe(FeedEventKinds.ConfigChanged, FeedEventKinds.TriggerAnyFeed,
+            FeedEventKinds.FilterRequireIds);
+        Assert.Equal(FeedEventKinds.FilterRequireIds, Assert.Single(afx.Event.BlockedBy(ids)));
+    }
+
+    [Fact]
+    public void GameDataSamples_OnlyBinaryUpMatchesTheBinaryUpTrigger() {
+        var moved = FeedSamples.Find(FeedEventKinds.GameDataRebuilt, "binary_up");
+        var same = FeedSamples.Find(FeedEventKinds.GameDataRebuilt, "same_binary");
+        Assert.NotNull(moved);
+        Assert.NotNull(same);
+
+        var sub = Probe(FeedEventKinds.GameDataRebuilt, FeedEventKinds.TriggerBinaryUp);
+        Assert.True(moved.Event.Matches(sub));
+        Assert.False(same.Event.Matches(sub));
+
+        var any = Probe(FeedEventKinds.GameDataRebuilt, FeedEventKinds.TriggerAnyRebuild);
+        Assert.True(moved.Event.Matches(any));
+        Assert.True(same.Event.Matches(any));
     }
 
     [Fact]

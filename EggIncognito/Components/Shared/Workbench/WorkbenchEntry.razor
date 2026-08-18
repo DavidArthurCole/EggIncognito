@@ -1,5 +1,5 @@
 @using EggIncognito.Services.Workbench
-<div class="@Css" style="@Style" role="button" tabindex="0" title="@Title" @onclick="OnClick" @onkeydown="OnKeyDown">
+<div class="@Css" style="@Style" role="button" tabindex="0" @onclick="OnClick" @onkeydown="OnKeyDown">
     @if (Lead is not null || Name is not null || Trail is not null) {
         <div class="wb-entry-head">
             @Lead
@@ -23,7 +23,6 @@
     [Parameter] public WorkbenchTone Tone { get; set; } = WorkbenchTone.Normal;
     [Parameter] public WorkbenchStatusKind? Status { get; set; }
     [Parameter] public EventCallback<MouseEventArgs> OnClick { get; set; }
-    [Parameter] public string? Title { get; set; }
     [Parameter] public string? Class { get; set; }
     [Parameter] public string? Style { get; set; }
     [Parameter] public RenderFragment? Lead { get; set; }

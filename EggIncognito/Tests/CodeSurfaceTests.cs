@@ -82,7 +82,6 @@ public class CodeSurfaceTests : BunitContext {
 
         var toggle = cut.Find(".code-toggle-wrap");
         Assert.True(toggle.HasAttribute("disabled"));
-        Assert.Contains("cannot both be right", toggle.GetAttribute("title"));
     }
 
     [Fact]

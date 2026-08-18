@@ -10,6 +10,7 @@ public sealed class SecurityHeadersMiddleware(RequestDelegate next, IConfigurati
     private const string ModeEnforce = "enforce";
     private const string EnforceHeader = "Content-Security-Policy";
     private const string ReportOnlyHeader = "Content-Security-Policy-Report-Only";
+    private const string GameAssetHost = "https://www.auxbrain.com";
 
     public async Task InvokeAsync(HttpContext context) {
         string mode = (configuration[ConfigKey] ?? "").Trim();
@@ -43,7 +44,7 @@ public sealed class SecurityHeadersMiddleware(RequestDelegate next, IConfigurati
         sb.Append("script-src 'self'; ");
         sb.Append("style-src 'self' 'nonce-").Append(nonce).Append("'; ");
         sb.Append("style-src-attr 'unsafe-inline'; ");
-        sb.Append("img-src 'self' data:").Append(identityHost).Append("; ");
+        sb.Append("img-src 'self' data: ").Append(GameAssetHost).Append(identityHost).Append("; ");
         sb.Append("connect-src 'self' ws: wss:; ");
         sb.Append("frame-ancestors 'none'; ");
         sb.Append("object-src 'none'; ");

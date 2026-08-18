@@ -20,7 +20,6 @@ public sealed class NotificationsWorkbenchState : WorkbenchStateBase {
 
     public int? SelectedId { get; set; }
     public bool Creating { get; set; } = true;
-    public string SampleKey { get; set; } = "";
     public NotificationDraft NewDraft { get; } = new();
     public Dictionary<int, NotificationDraft> Edits { get; } = [];
 

@@ -46,7 +46,6 @@
             } else {
                 <input class="field-input @(node.Locked ? "env-locked" : "")" disabled="@node.Locked"
                        value="@node.Value"
-                       title="@(node.Locked ? "Set by the BasicRequestInfo Setup above" : "")"
                        @attributes="InputAttrs.NoAutofill"
                        @oninput="e => Set(node, e.Value?.ToString())"/>
             }

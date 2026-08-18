@@ -2,6 +2,8 @@
 @using System.Text
 @using System.Text.Json
 @using EggIncognito.Components.Data
+@using EggIncognito.Core
+@using EggIncognito.Services.Assets
 @inherits SelfCallComponentBase
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env
@@ -12,7 +14,7 @@
 } else if (_summary is null && _seasons is null && _events is null) {
     <div class="panel text-muted text-sm">No data available right now.</div>
 } else {
-    <div class="flex flex-col gap-4">
+    <div class="pd-widgets">
         @if (_events is { Count: > 0 }) {
             <section class="panel">
                 <h3 class="text-sm font-semibold mt-0 mb-3">Current events</h3>
@@ -35,23 +37,44 @@
         <section class="panel">
             <div class="flex items-stretch gap-2">
                 <div class="flex-1 min-w-0">
-                    <h3 class="text-sm font-semibold mt-0 mb-1">Data</h3>
+                    <h3 class="text-sm font-semibold mt-0 mb-2">Data</h3>
                     @if (_summary is { } s) {
-                        var keys = string.Join(", ", s.Extracted.Select(x => x.Key));
-                        <div class="pd-facts">
-                            <span><strong>@s.Extracted.Count</strong> extracted sets</span>
-                            <span><strong>@(s.Extracted.Sum(x => x.Count).ToString("N0"))</strong> rows</span>
-                            <span><strong>@(s.Feeds.Count(f => f.Present))</strong>/@s.Feeds.Count captures</span>
-                            @if (s.Colleggtibles is { } cg) {
-                                <span><strong>@cg.Count</strong> colleggtibles</span>
+                        <div class="pd-data">
+                            @if (s.Extracted.Count > 0) {
+                                <span class="ds-state-k">Game data</span>
+                                <span class="pd-data-v">
+                                    @if (ExtractVersion(s) is { Length: > 0 } bin) {
+                                        <VersionLine App="@bin"/>
+                                        <span class="dwb-sep">|</span>
+                                    }
+                                    <span>@s.Extracted.Count sets</span>
+                                </span>
+                            }
+                            @if (s.Feeds.Count > 0) {
+                                <span class="ds-state-k">Fixtures</span>
+                                <span class="pd-data-v">
+                                    <span>@(s.Feeds.Count(f => f.Present))/@s.Feeds.Count</span>
+                                    <span class="dwb-sep">|</span>
+                                    <span>@ByteFormat.Compact(s.Feeds.Sum(f => f.Bytes))</span>
+                                    @if (NewestFeed(s) is { } captured) {
+                                        <span class="dwb-sep">|</span>
+                                        <TimeAgo Value="@captured"/>
+                                    }
+                                </span>
+                            }
+                            @if (s.Config.Platforms.Count > 0) {
+                                <span class="ds-state-k">Config</span>
+                                <span class="pd-data-v">
+                                    @foreach (var p in s.Config.Platforms) {
+                                        <PlatformIcon Platform="@p.Platform"/>
+                                        <TimeAgo Value="@p.SavedAt"/>
+                                    }
+                                </span>
                             }
                         </div>
-                        @if (keys.Length > 0) {
-                            <div class="pd-facts-keys" title="@keys">@keys</div>
-                        }
                     }
                 </div>
-                <button type="button" class="dropzone-open" title="Open the data workbench"
+                <button type="button" class="dropzone-open"
                         aria-label="Open the data workbench" @onclick="OpenDataWorkbench">
                     <Icon Name="chevronRight" Class="icon-sm"/>
                 </button>
@@ -61,18 +84,18 @@
         @if (_seasons is { Count: > 0 } seasonList) {
             var season = seasonList[Math.Clamp(_seasonIx, 0, seasonList.Count - 1)];
             var grades = season.GradeGoals.Where(g => g.Goals.Count > 0).ToList();
-            <section class="panel panel-hcards">
+            <section class="panel panel-hcards pd-w-season">
                 <div class="flex items-center justify-between mb-3">
                     <h3 class="text-sm font-semibold m-0">Seasons</h3>
                     <div class="flex items-center gap-1">
                         <button type="button" class="reg-edit-btn disabled:opacity-40 disabled:cursor-default disabled:hover:border-border"
                                 disabled="@(_seasonIx >= seasonList.Count - 1)"
-                                title="Older season" aria-label="Older season" @onclick="() => MoveSeason(1)">
+                                aria-label="Older season" @onclick="() => MoveSeason(1)">
                             <Icon Name="chevronLeft"/>
                         </button>
                         <button type="button" class="reg-edit-btn disabled:opacity-40 disabled:cursor-default disabled:hover:border-border"
                                 disabled="@(_seasonIx <= 0)"
-                                title="Newer season" aria-label="Newer season" @onclick="() => MoveSeason(-1)">
+                                aria-label="Newer season" @onclick="() => MoveSeason(-1)">
                             <Icon Name="chevronRight"/>
                         </button>
                     </div>
@@ -100,7 +123,7 @@
                                 @foreach (var egg in ceggs) {
                                     <div class="flex items-center gap-2">
                                         @if (egg.Icon is not null) {
-                                            <img class="season-cegg-icon" src="@egg.Icon" alt="@egg.Id" loading="lazy" onerror="this.style.display='none'"/>
+                                            <img class="season-cegg-icon" src="@egg.Icon" alt="@egg.Id" loading="lazy" data-fallback/>
                                         }
                                         <div class="min-w-0">
                                             <div class="text-xs font-medium">@TitleCase(egg.Id)</div>
@@ -123,8 +146,8 @@
                             @foreach (var g in grades) {
                                 <th>
                                     @if (!string.IsNullOrEmpty(g.GradeIcon)) {
-                                        <img class="season-grade-icon" src="@g.GradeIcon" alt="@GradeLabel(g.Grade)" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'"/>
-                                        <span style="display:none">@GradeLabel(g.Grade)</span>
+                                        <img class="season-grade-icon" src="@g.GradeIcon" alt="@GradeLabel(g.Grade)" loading="lazy" data-fallback/>
+                                        <span data-fallback-for style="display:none">@GradeLabel(g.Grade)</span>
                                     } else {
                                         @GradeLabel(g.Grade)
                                     }
@@ -145,7 +168,7 @@
                                                 <span class="season-goal">
                                                     @if (!string.IsNullOrEmpty(goal.Icon)) {
                                                         <span class="season-goal-icon">
-                                                            <img src="@goal.Icon" alt="" loading="lazy" onerror="this.style.display='none'"/>
+                                                            <img src="@goal.Icon" alt="" loading="lazy" data-fallback/>
                                                         </span>
                                                     }
                                                     <span class="season-goal-text">
@@ -184,7 +207,7 @@
             <section class="panel">
                 <div class="flex items-center justify-between mb-3">
                     <h3 class="text-sm font-semibold m-0">Colleggtibles</h3>
-                    <a class="reg-edit-btn" href="/api/v1/data/periodical/get_periodicals/colleggtibles" download="colleggtibles.json" title="Download JSON" aria-label="Download JSON">
+                    <a class="reg-edit-btn" href="/api/v1/data/periodical/get_periodicals/colleggtibles" download="colleggtibles.json" aria-label="Download JSON">
                         <Icon Name="download"/>
                     </a>
                 </div>
@@ -199,9 +222,9 @@
                         <tr>
                             <td>
                                 @if (!string.IsNullOrEmpty(e.Icon)) {
-                                    <img class="w-[1.875rem] h-[1.875rem] object-contain" src="@e.Icon" alt="@e.Identifier" loading="lazy"
-                                         onerror="this.style.display='none';this.nextElementSibling.style.display='inline'"/>
-                                    <span class="text-muted text-xs" style="display:none">-</span>
+                                    <img class="w-[1.875rem] h-[1.875rem] object-contain" src="@e.Icon" alt="@e.Identifier"
+                                         loading="lazy" data-fallback/>
+                                    <span class="text-muted text-xs" data-fallback-for style="display:none">-</span>
                                 } else {
                                     <span class="text-muted text-xs">-</span>
                                 }
@@ -229,10 +252,19 @@
     int _seasonIx;
     List<EventRow>? _events;
     IJSObjectReference? _countdown;
+    IJSObjectReference? _images;
     DataWorkbenchModal? _dataWorkbench;
 
     Task OpenDataWorkbench() {
         return _dataWorkbench?.Open() ?? Task.CompletedTask;
+    }
+
+    static string? ExtractVersion(Summary s) {
+        return s.Extracted.Select(x => x.BinaryVersion).FirstOrDefault(v => !string.IsNullOrEmpty(v));
+    }
+
+    static DateTimeOffset? NewestFeed(Summary s) {
+        return s.Feeds.Where(f => f.UpdatedAt is not null).Max(f => f.UpdatedAt);
     }
 
     protected override async Task OnInitializedAsync() {
@@ -451,29 +483,12 @@
         return sb.ToString();
     }
 
-    static readonly Dictionary<string, string> EventColors = new(StringComparer.OrdinalIgnoreCase) {
-        ["epic-research-sale"] = "#ef4444",
-        ["piggy-boost"] = "#f97316",
-        ["piggy-cap-boost"] = "#f59e0b",
-        ["prestige-boost"] = "#f59e0b",
-        ["earnings-boost"] = "#84cc16",
-        ["gift-boost"] = "#10b981",
-        ["drone-boost"] = "#10b981",
-        ["research-sale"] = "#14b8a6",
-        ["hab-sale"] = "#06b6d4",
-        ["vehicle-sale"] = "#0ea5e9",
-        ["boost-sale"] = "#3b82f6",
-        ["boost-duration"] = "#6366f1",
-        ["crafting-sale"] = "#8b5cf6",
-        ["mission-fuel"] = "#8b5cf6",
-        ["mission-capacity"] = "#d946ef",
-        ["mission-duration"] = "#ec4899",
-        ["shell-sale"] = "#f43f5e"
-    };
-
     static string IconStyle(EventRow e) {
-        if (e.CcOnly) return "background:linear-gradient(90deg,#f5a709,#900fb1)";
-        return $"background:{EventColors.GetValueOrDefault(e.Type, "#9ca3af")}";
+        if (e.CcOnly) {
+            return $"background:linear-gradient(90deg,{EventPalette.CcGradientFrom},{EventPalette.CcGradientTo})";
+        }
+
+        return $"background:{EventPalette.ColorFor(e.Type)}";
     }
 
     static double RemainingSeconds(EventRow e) {
@@ -489,18 +504,24 @@
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender) {
+        if (firstRender && _images is null) {
+            _images = await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/imgFallback.js"));
+            await _images.InvokeVoidAsync("wire");
+        }
+
         if (_countdown is not null || _events is not { Count: > 0 }) return;
         _countdown = await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/countdown.js"));
         await _countdown.InvokeVoidAsync("start");
     }
 
-    public ValueTask DisposeAsync() {
-        return _countdown.DisposeModuleAsync("stop", Logger);
+    public async ValueTask DisposeAsync() {
+        await _countdown.DisposeModuleAsync("stop", Logger);
+        await _images.DisposeModuleAsync("unwire", Logger);
     }
 
     record Summary(List<ExtractedRow> Extracted, ColleggtiblesInfo? Colleggtibles, ConfigInfo Config, List<FeedInfo> Feeds);
 
-    record ExtractedRow(string Key, int Count, string Provenance);
+    record ExtractedRow(string Key, int Count, string Provenance, string? BinaryVersion);
 
     record ColleggtiblesInfo(int Count, string Provenance, List<EggRow> Eggs);
 
@@ -510,7 +531,7 @@
 
     record PlatformRow(string Platform, DateTimeOffset SavedAt, long Bytes);
 
-    record FeedInfo(string Name, string Path, bool Present, long Bytes);
+    record FeedInfo(string Name, string Path, bool Present, long Bytes, DateTimeOffset? UpdatedAt);
 
     record SeasonsResponse(List<Season> Seasons);
 

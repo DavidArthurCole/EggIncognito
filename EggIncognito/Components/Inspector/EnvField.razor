@@ -1,6 +1,6 @@
 @using EggIncognito.Services.Inspector
 @if (Row is not null) {
-    <label class="env-cell @WidthClass" title="@Row.Key">
+    <label class="env-cell @WidthClass">
         <span class="env-key">@Row.Key</span>
         @if (Row.Editor == EnvEditor.Select) {
             <select class="env-input" value="@Row.Value" @onchange="OnSelect">

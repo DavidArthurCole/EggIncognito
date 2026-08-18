@@ -25,7 +25,7 @@ public class AdminPageTests {
             Assert.Contains("adminMain", html);
             Assert.Contains("id=\"denied\"", html);
 
-            Assert.Contains("Login is not configured on this instance.", html);
+            Assert.Contains("Login is not configured.", html);
             Assert.DoesNotContain("<h2>Users</h2>", html);
         }
     }

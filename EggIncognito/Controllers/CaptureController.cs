@@ -309,7 +309,7 @@ public sealed class CaptureController(
         }
 
         await db.SaveChangesAsync();
-        if (services.GetService(typeof(PeriodicalsChangeNotifier)) is PeriodicalsChangeNotifier notifier)
+        if (services.GetService(typeof(ConfigChangeNotifier)) is ConfigChangeNotifier notifier)
             notifier.OnEndpointWritten(flow.Path, json, previousJson);
         session.Hub.MarkSaved(body.Id);
         return Ok(new { saved = flow.Path, store = "db" });

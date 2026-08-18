@@ -146,7 +146,7 @@ builder.Services.AddScoped<GameDataRebuilder>();
 builder.Services.AddScoped<EndpointCatalogRebuilder>();
 
 builder.Services.AddSingleton<GameConfigStore>();
-builder.Services.AddSingleton<PeriodicalsChangeNotifier>();
+builder.Services.AddSingleton<ConfigChangeNotifier>();
 builder.Services.AddSingleton<DataCatalog>();
 builder.Services.AddSingleton<ConfigSliceCache>();
 var sealedProxyOptions = SealedProxyOptions.FromConfig(builder.Configuration);
@@ -399,24 +399,10 @@ if (!string.IsNullOrWhiteSpace(eventSecret)) {
             if (string.IsNullOrEmpty(build) || string.IsNullOrEmpty(appVersion)) return;
 
             string platform = evt.Platform ?? "android";
-            var upsert = await store.UpsertAsync(
+            await store.UpsertAsync(
                 platform, appVersion, build, evt.ClientVersion, evt.Package, protoSha, evt.ApkRef,
                 DateTimeOffset.TryParse(evt.DetectedAt, out var dt) ? dt : DateTimeOffset.UtcNow,
                 null, protoText, ct: ct);
-
-
-            var dispatcher = scope.ServiceProvider.GetService<FeedDispatcher>();
-            if (dispatcher is not null) {
-                var cfg = scope.ServiceProvider.GetService<IConfiguration>();
-                string pageUrl = FeedDispatcher.BuildPageUrl(
-                    cfg?["Feed:PageBaseUrl"], platform, build);
-                var flaws = EggIncognito.Services.ProtoExtract.ProtoVersionQuality.Flaws(
-                    platform, appVersion, build, evt.ClientVersion, protoSha, !string.IsNullOrEmpty(protoText));
-                await dispatcher.DispatchAsync(new ProtoBuildEvent(
-                    upsert.Row.Id, platform, appVersion, build, evt.ClientVersion,
-                    protoSha, upsert.Created, upsert.ProtoChanged, pageUrl,
-                    upsert.Delta, upsert.PrevAppVersion, upsert.PrevBuild, flaws), ct);
-            }
         }
 
 
@@ -469,7 +455,7 @@ builder.Services.AddSingleton(sp => {
     var routeCatalog = sp.GetRequiredService<IRouteCatalog>();
     return new CaptureSessionManager(hostedCaptureOpts, (key, basePort) => {
         var liveRoutes = sp.GetRequiredService<DataCatalog>().WireRoutes();
-        var writeObserver = sp.GetService<PeriodicalsChangeNotifier>();
+        var writeObserver = sp.GetService<ConfigChangeNotifier>();
         if (key == CaptureSessionManager.LocalKey) {
             string capturePath = config["CapturePath"] ?? Path.Combine(contentRoot, "captures");
             string caPath = config["CaPath"] ?? Path.Combine(capturePath, "eggincognito-ca.cer");
@@ -517,6 +503,7 @@ if (dbEnabled) {
     builder.Services.AddScoped<FeedSubscriptionStore>();
     builder.Services.AddScoped<IFeedSubscriptionStore>(sp => sp.GetRequiredService<FeedSubscriptionStore>());
     builder.Services.AddScoped<FeedDispatcher>();
+    builder.Services.AddScoped<IProtoUpsertObserver, ProtoUpsertNotifier>();
     builder.Services.AddScoped<ApiKeyStore>();
     builder.Services.AddScoped<UserThemeStore>();
 
@@ -616,7 +603,7 @@ builder.Services.AddSingleton(sp => {
             ? new HashSet<string>(StringComparer.Ordinal)
             : sp.GetRequiredService<DataCatalog>().WireRoutes().ToHashSet(StringComparer.Ordinal),
 #pragma warning restore IDE0028
-        fakeDevices ? null : sp.GetService<PeriodicalsChangeNotifier>(),
+        fakeDevices ? null : sp.GetService<ConfigChangeNotifier>(),
         sp.GetRequiredService<IRouteCatalog>());
 });
 builder.Services.AddSingleton<DeviceProxyPusher>();

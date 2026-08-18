@@ -2,7 +2,7 @@
 @if (Modes.Count > 0) {
     <div class="wb-seg" role="group" aria-label="@Label">
         @foreach (var mode in Modes) {
-            <button type="button" class="@BtnCss(mode.Key)" disabled="@IsDisabled(mode.Key)" title="@mode.Title"
+            <button type="button" class="@BtnCss(mode.Key)" disabled="@IsDisabled(mode.Key)"
                     aria-pressed="@(Current == mode.Key ? "true" : "false")"
                     @onclick="@(() => CurrentChanged.InvokeAsync(mode.Key))">
                 @mode.Label

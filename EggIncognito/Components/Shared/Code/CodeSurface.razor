@@ -25,14 +25,14 @@
                 <span class="code-toolbar-gap"></span>
                 @Actions
                 @if (ShowGutterToggle && Gutter != CodeGutter.None) {
-                    <button type="button" class="btn-mini code-toggle code-toggle-gutter @(_gutterOff ? "" : "code-toggle-on")"
-                            title="@GutterTitle" @onclick="ToggleGutter">
+                    <button type="button" class="btn-mini code-toggle-gutter @(_gutterOff ? "" : "code-toggle-on")"
+                            @onclick="ToggleGutter">
                         @GutterLabelText
                     </button>
                 }
                 @if (ShowWrapToggle) {
-                    <button type="button" class="btn-mini code-toggle code-toggle-wrap @(WrapNow ? "code-toggle-on" : "")"
-                            disabled="@WrapLocked" title="@WrapTitle" @onclick="ToggleWrap">
+                    <button type="button" class="btn-mini code-toggle-wrap @(WrapNow ? "code-toggle-on" : "")"
+                            disabled="@WrapLocked" @onclick="ToggleWrap">
                         Wrap
                     </button>
                 }
@@ -73,6 +73,7 @@
     [Parameter] public EventCallback<bool> WrapChanged { get; set; }
     [Parameter] public bool ShowWrapToggle { get; set; } = true;
     [Parameter] public string MaxHeight { get; set; } = "";
+    [Parameter] public string MinHeight { get; set; } = "";
     [Parameter] public bool ShowToolbar { get; set; } = true;
     [Parameter] public bool ShowFilter { get; set; } = true;
     [Parameter] public string? Filter { get; set; }
@@ -81,6 +82,7 @@
     [Parameter] public RenderFragment? Tools { get; set; }
     [Parameter] public RenderFragment? Actions { get; set; }
     [Parameter] public string EmptyText { get; set; } = "";
+    [Parameter] public bool AllowEmpty { get; set; }
     [Parameter] public IReadOnlySet<string>? SensitiveValues { get; set; }
     [Parameter] public CodeRevealState? Reveal { get; set; }
     [Parameter] public string? CssClass { get; set; }
@@ -115,17 +117,20 @@
 
     bool WrapLocked => _highlight.LineCount > CodeMetrics.WrapRowCap;
 
-    string WrapTitle => WrapLocked ? CodeMetrics.WrapDisabledTitle : "Wrap long lines";
-
     string GutterLabelText => Gutter == CodeGutter.Labels ? "Offsets" : "Lines";
-
-    string GutterTitle => Gutter == CodeGutter.Labels ? "Show byte offsets" : "Show line numbers";
 
     bool Virtualized => !WrapNow && _rows.Count > CodeMetrics.VirtualizeAbove;
 
     string GutterClass => GutterNow == CodeGutter.None ? "code-nogutter" : "";
 
-    string? ScrollStyle => string.IsNullOrEmpty(MaxHeight) ? null : $"max-height:{MaxHeight}";
+    string? ScrollStyle {
+        get {
+            var parts = new List<string>();
+            if (!string.IsNullOrEmpty(MinHeight)) parts.Add($"min-height:{MinHeight}");
+            if (!string.IsNullOrEmpty(MaxHeight)) parts.Add($"max-height:{MaxHeight}");
+            return parts.Count == 0 ? null : string.Join(';', parts);
+        }
+    }
 
     string? RootStyle {
         get {
@@ -154,7 +159,7 @@
 
     void Rebuild() {
         var text = Text ?? "";
-        _empty = text.Length == 0;
+        _empty = text.Length == 0 && !AllowEmpty;
         var language = LanguageNow;
         if (!string.Equals(_builtText, text, StringComparison.Ordinal)
             || !string.Equals(_builtLanguage, language, StringComparison.Ordinal)) {

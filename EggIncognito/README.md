@@ -14,10 +14,8 @@ Blazor Server, InteractiveServer over a SignalR circuit.
 
 - `/inspector` - build, sign, send, and decode any API request.
 - `/capture` - live capture dashboard.
-- `/import` - HAR import (local mode only).
-- `/protodata` - proto registry, game-data repository, public data API + key management.
-- `/docs` - per-message and per-endpoint documentation with tags.
-- `/admin` - roles, contribution review, API activity.
+- `/protos` - proto registry, game-data repository, public data API + key management.
+- `/admin` - roles, contribution review, API activity, themes, device status.
 - `/playground` - 3D farm playground (admin).
 
 ## Adding an endpoint

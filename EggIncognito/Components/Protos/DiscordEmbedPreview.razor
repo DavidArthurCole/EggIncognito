@@ -1,0 +1,148 @@
+@using System.Globalization
+@using System.Text.Json
+<div class="dsc-msg">
+    @if (_content is { Length: > 0 }) {
+        <div class="dsc-content">@_content</div>
+    }
+    @foreach (var embed in _embeds) {
+        <div class="dsc-embed">
+            <span class="dsc-embed-bar" style="@Bar(embed)"></span>
+            <div class="dsc-embed-body">
+                @if (embed.Author is { Length: > 0 }) {
+                    <div class="dsc-embed-author">@embed.Author</div>
+                }
+                @if (embed.Title is { Length: > 0 }) {
+                    @if (embed.Url is { Length: > 0 }) {
+                        <a class="dsc-embed-title" href="@embed.Url" target="_blank" rel="noopener">@embed.Title</a>
+                    } else {
+                        <div class="dsc-embed-title">@embed.Title</div>
+                    }
+                }
+                @if (embed.Description is { Length: > 0 }) {
+                    <div class="dsc-embed-desc">@embed.Description</div>
+                }
+                @if (embed.Fields.Count > 0) {
+                    <div class="dsc-fields">
+                        @foreach (var field in embed.Fields) {
+                            <div class="@(field.Inline ? "dsc-field" : "dsc-field dsc-field-wide")">
+                                <div class="dsc-field-k">@field.Name</div>
+                                <div class="dsc-field-v">@field.Value</div>
+                            </div>
+                        }
+                    </div>
+                }
+                @if (embed.Footer is { Length: > 0 } || embed.Stamp is { Length: > 0 }) {
+                    <div class="dsc-embed-foot">
+                        @if (embed.Footer is { Length: > 0 }) {
+                            <span>@embed.Footer</span>
+                        }
+                        @if (embed.Stamp is { Length: > 0 }) {
+                            <span class="dsc-embed-time">@embed.Stamp</span>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    }
+    @if (_content is not { Length: > 0 } && _embeds.Count == 0) {
+        <div class="dsc-empty">@EmptyText</div>
+    }
+</div>
+
+@code {
+    [Parameter] public string? Payload { get; set; }
+    [Parameter] public string EmptyText { get; set; } = "Empty message.";
+
+    string? _parsed;
+    string? _content;
+    List<Embed> _embeds = [];
+
+    protected override void OnParametersSet() {
+        if (_parsed == Payload) return;
+        _parsed = Payload;
+        _content = null;
+        _embeds = [];
+        if (Payload is not { Length: > 0 }) return;
+        try {
+            using var doc = JsonDocument.Parse(Payload);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object) return;
+            _content = Str(doc.RootElement, "content");
+            if (doc.RootElement.TryGetProperty("embeds", out var embeds) && embeds.ValueKind == JsonValueKind.Array) {
+                foreach (var embed in embeds.EnumerateArray()) {
+                    if (embed.ValueKind == JsonValueKind.Object) _embeds.Add(Read(embed));
+                }
+            }
+        }
+        catch (JsonException) {
+            _content = Payload;
+        }
+    }
+
+    static Embed Read(JsonElement source) {
+        var fields = new List<Field>();
+        if (source.TryGetProperty("fields", out var list) && list.ValueKind == JsonValueKind.Array) {
+            foreach (var field in list.EnumerateArray()) {
+                if (field.ValueKind != JsonValueKind.Object) continue;
+                fields.Add(new Field(
+                    Str(field, "name") ?? "",
+                    Str(field, "value") ?? "",
+                    field.TryGetProperty("inline", out var inline) && inline.ValueKind == JsonValueKind.True));
+            }
+        }
+
+        return new Embed(
+            Str(source, "title"),
+            Str(source, "url"),
+            Str(source, "description"),
+            Nested(source, "author", "name"),
+            Nested(source, "footer", "text"),
+            Stamp(Str(source, "timestamp")),
+            Color(source),
+            fields);
+    }
+
+    static string? Str(JsonElement source, string name) {
+        return source.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : null;
+    }
+
+    static string? Nested(JsonElement source, string name, string key) {
+        return source.TryGetProperty(name, out var child) && child.ValueKind == JsonValueKind.Object
+            ? Str(child, key)
+            : null;
+    }
+
+    static int? Color(JsonElement source) {
+        return source.TryGetProperty("color", out var value) && value.ValueKind == JsonValueKind.Number
+                                                             && value.TryGetInt32(out var number)
+            ? number
+            : null;
+    }
+
+    static string? Stamp(string? raw) {
+        if (raw is not { Length: > 0 }) return null;
+        return DateTimeOffset.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var at)
+            ? at.UtcDateTime.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)
+            : raw;
+    }
+
+    static string? Bar(Embed embed) {
+        return embed.Color is { } color
+            ? $"background-color: #{(color & 0xFFFFFF).ToString("x6", CultureInfo.InvariantCulture)}"
+            : null;
+    }
+
+    sealed record Field(string Name, string Value, bool Inline);
+
+    sealed record Embed(
+        string? Title,
+        string? Url,
+        string? Description,
+        string? Author,
+        string? Footer,
+        string? Stamp,
+        int? Color,
+        List<Field> Fields);
+
+}

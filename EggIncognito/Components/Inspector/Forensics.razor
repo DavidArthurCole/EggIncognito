@@ -111,8 +111,7 @@
     };
 
     RenderFragment TreeNode(WireNodeDto n, int depth) => @<div class="forensics-node @(n.SchemaMismatch ? "mismatch" : "")"
-                                                               style="@DepthStyle(depth)"
-                                                               title="@(n.SchemaMismatch ? "wire/schema mismatch" : null)">
+                                                               style="@DepthStyle(depth)">
                                                              <span class="muted">@n.Path</span>
                                                              @if (n.ResolvedName is not null) {
                                                                  <span class="forensics-name">@n.ResolvedName</span>

@@ -21,17 +21,15 @@ public static class ProtoVersionQuality {
     public const string FlawNoClientVersion = "no_client_version";
     public const string FlawBuildPlatformMismatch = "build_platform_mismatch";
     public const string FlawNoProto = "no_proto";
-    public const string FlawNoAppVersion = "no_app_version";
 
 
     public static IReadOnlyList<string> Flaws(
-        string? platform, string? appVersion, string? build, string? clientVersion,
+        string? platform, string? build, string? clientVersion,
         string? protoSha, bool hasProtoText) {
         var flaws = new List<string>();
         if (string.IsNullOrWhiteSpace(clientVersion)) flaws.Add(FlawNoClientVersion);
         if (HasPlatformBuildMismatch(platform, build)) flaws.Add(FlawBuildPlatformMismatch);
         if (!hasProtoText || string.IsNullOrWhiteSpace(protoSha)) flaws.Add(FlawNoProto);
-        if (string.IsNullOrWhiteSpace(appVersion)) flaws.Add(FlawNoAppVersion);
         return flaws;
     }
 

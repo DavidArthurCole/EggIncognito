@@ -23,14 +23,13 @@
     <InspectorRail Overlay="_railOpen" OnDismiss="CloseRail"
                    OnSelectEndpoint="SelectEndpointFromRail" OnSelectObject="SelectObjectFromRail"
                    OnOpenSalt="OpenSalt" OnOpenSettings="@(() => _settingsOpen = true)"
-                   OnOpenStatus="OpenStatus" StatusLoading="_statusLoading" StatusSummary="@_statusSummary"
+                   OnOpenStatus="OpenStatus" StatusLoading="_statusLoading"
                    OnRestoreHistory="RestoreHistory" OnDeleteHistory="DeleteHistory"
                    OnClearHistory="ClearHistory"/>
 
     <section class="panel insp-compose">
         <div class="insp-compose-head">
-            <button type="button" class="insp-subject" @onclick="OpenRail"
-                    title="@(State.Selected is null ? "Pick an endpoint" : State.Selected.Path)">
+            <button type="button" class="insp-subject" @onclick="OpenRail">
                 @(State.Selected?.Path ?? "Pick an endpoint")
             </button>
         </div>
@@ -71,7 +70,7 @@
                                 @sel.Request
                             </button>
                             @if (sel.RequestWrapped) {
-                                <span class="ep-signed" title="wrapped + signed in an AuthenticatedMessage">
+                                <span class="ep-signed">
                                     <Icon Name="lock" Class="icon-sm"/>
                                 </span>
                             }
@@ -93,7 +92,7 @@
                 <span class="text-xs text-muted">Pick an endpoint to see its transaction here.</span>
             }
             <button type="button" class="btn-mini insp-docs-btn" disabled="@(State.Selected is null)"
-                    title="Documentation for this endpoint" @onclick="OpenDocs">
+                    @onclick="OpenDocs">
                 <Icon Name="log" Class="icon-sm"/> Docs
             </button>
         </div>

@@ -1,4 +1,3 @@
-@page "/protodata"
 @page "/protos"
 @page "/protos/{Platform}/{Build}"
 @page "/data"
@@ -10,6 +9,7 @@
 @inject IWebHostEnvironment Env
 @inject ILogger<Protos> Logger
 @inject ProtoWorkbenchState State
+@using System.Globalization
 @using System.Text.Json
 @using EggIncognito.Components.Protos
 @using EggIncognito.Services.ProtoExtract
@@ -25,16 +25,22 @@
 <div class="pd-grid">
 <div class="pd-mod pd-head">
     <DeviceStatusPanel OnManage="OpenDeviceWorkbench"/>
-    <section class="panel">
+    <section class="panel panel-hcards">
         <h3 class="text-sm font-semibold m-0 mb-2">Versions</h3>
-        <LatestVersionsPanel Rows="_rows" OnOpen="OpenVersion"/>
-        <div class="pd-serverline">
-            <span class="ds-state-k">Server</span>
-            <VersionLine App="@_serverVersion"/><span class="verline-sep">|</span><a class="pd-server-sha" href="@_serverCommitUrl" target="_blank" rel="noopener">@_serverSha</a>
-            @if (!string.IsNullOrEmpty(_serverBuildDate)) {
-                <span class="verline-sep">|</span>
-                <span class="pd-server-built">@_serverBuildDate</span>
-            }
+        <div class="pd-versions">
+            <LatestVersionsPanel Rows="_rows" OnOpen="OpenVersion"/>
+            <div class="pd-vergroup">
+                <div class="pd-vergroup-head">
+                    <span class="ds-state-k">Server</span>
+                    @if (_serverBuiltAt is { } built) {
+                        <span class="verline-sep">|</span>
+                        <TimeAgo Value="@built"/>
+                    }
+                </div>
+                <div class="pd-serverline">
+                    <VersionLine App="@_serverVersion"/><span class="verline-sep">|</span><a class="pd-server-sha" href="@_serverCommitUrl" target="_blank" rel="noopener">@_serverSha</a>
+                </div>
+            </div>
         </div>
     </section>
     <section class="panel pd-note">
@@ -51,7 +57,7 @@
             <label id="protoPageDrop" class="dropzone intake-half" for="wbFile">
                 <DropZonePrompt Prompt="Drop .ipa, .apk, or bundle files here"/>
             </label>
-            <button type="button" class="dropzone-open intake-open intake-half" title="Open the proto workbench"
+            <button type="button" class="dropzone-open intake-open intake-half"
                     aria-label="Open the proto workbench" @onclick="@(() => _workbench?.Open())">
                 <Icon Name="chevronRight" Class="intake-chevron"/>
                 <span class="text-[0.95rem]">Open the proto workbench</span>
@@ -72,19 +78,19 @@
             </label>
             <label class="text-xs text-muted">
                 App version
-                <FilterInput Class="protos-filter w-full" AriaLabel="App version" @bind-Value="_addAppVersion"/>
+                <FilterInput Class="protos-filter w-full" Placeholder="" AriaLabel="App version" @bind-Value="_addAppVersion"/>
             </label>
             <label class="text-xs text-muted">
                 Build
-                <FilterInput Class="protos-filter w-full" AriaLabel="Build" @bind-Value="_addBuild"/>
+                <FilterInput Class="protos-filter w-full" Placeholder="" AriaLabel="Build" @bind-Value="_addBuild"/>
             </label>
             <label class="text-xs text-muted">
                 Client version
-                <FilterInput Class="protos-filter w-full" AriaLabel="Client version" @bind-Value="_addClient"/>
+                <FilterInput Class="protos-filter w-full" Placeholder="" AriaLabel="Client version" @bind-Value="_addClient"/>
             </label>
             <label class="text-xs text-muted">
                 Source
-                <FilterInput Class="protos-filter w-full" AriaLabel="Source" @bind-Value="_addSource"/>
+                <FilterInput Class="protos-filter w-full" Placeholder="" AriaLabel="Source" @bind-Value="_addSource"/>
             </label>
         </div>
         <label class="text-xs text-muted block mb-2">
@@ -139,18 +145,17 @@
                 <option value="sha">Proto SHA</option>
                 <option value="detected">Detected</option>
             </select>
-            <button type="button" class="reg-sort-dir" aria-label="Toggle sort direction"
-                    title="@(_sortDesc ? "Sorted descending" : "Sorted ascending")" @onclick="ToggleSortDir">
+            <button type="button" class="reg-sort-dir" aria-label="Toggle sort direction" @onclick="ToggleSortDir">
                 @(_sortDesc ? "▾" : "▴")
             </button>
         </div>
         <div class="reg-toolbar-end">
             @if (AnyFilter) {
-                <button type="button" class="reg-filter-clear" title="Clear filters" aria-label="Clear filters" @onclick="ClearFilters">×</button>
+                <button type="button" class="reg-filter-clear" aria-label="Clear filters" @onclick="ClearFilters">×</button>
             }
             @if (_isAdmin) {
-                <button type="button" class="reg-add-toggle" title="@(_addOpen ? "Close" : "Add version")"
-                        aria-label="Add version" @onclick="@(() => _addOpen = !_addOpen)">
+                <button type="button" class="reg-add-toggle" aria-label="@(_addOpen ? "Close add version" : "Add version")"
+                        @onclick="@(() => _addOpen = !_addOpen)">
                     @(_addOpen ? "×" : "+")
                 </button>
             }
@@ -263,12 +268,12 @@
                                         <a class="reg-build-link" href="@VersionHref(m)" @onclick:stopPropagation="true"
                                            @onclick:preventDefault="true" @onclick="@(() => OpenVersion(m))">
                                             <PlatformIcon Platform="@m.Platform"/>
-                                            <span class="reg-num @(m.BuildFlag is null ? "" : "reg-num-bad")" title="@BuildTitle(m)">@m.Build</span>
+                                            <span class="reg-num @(m.BuildFlag is null ? "" : "reg-num-bad")">@m.Build</span>
                                         </a>
                                     }
                                 </span>
                             } else {
-                                <span class="reg-num @(primary.BuildFlag is null ? "" : "reg-num-bad")" title="@BuildTitle(primary)">@primary.Build</span>
+                                <span class="reg-num @(primary.BuildFlag is null ? "" : "reg-num-bad")">@primary.Build</span>
                             }
                             @if (ClientText(primary).Length > 0) {
                                 <span class="reg-fold">
@@ -289,12 +294,12 @@
                                 }
                             }
                             <span class="inline-flex items-center gap-1">
-                                <span class="code-chip reg-sha" title="@ShaTitle(lane)"
+                                <span class="code-chip reg-sha"
                                       @onclick:stopPropagation="true" @onclick="@(() => FilterBySha(primary))">
                                     @Short(primary.ProtoSha)
                                 </span>
                                 @if (primary.SortOrder is { } so && so != 0) {
-                                    <span class="text-muted text-xs" title="manual sort order">@OrderLabel(so)</span>
+                                    <span class="text-muted text-xs">@OrderLabel(so)</span>
                                 }
                             </span>
                         </td>
@@ -303,12 +308,12 @@
                             <div class="reg-actions-row">
                                 <a class="reg-edit-btn" download="@($"{primary.Platform}-{primary.Build}.proto")"
                                    href="@($"/api/protos/versions/{primary.Platform}/{Uri.EscapeDataString(primary.Build)}/proto")"
-                                   title="Download .proto" aria-label="Download .proto">
+                                   aria-label="Download .proto">
                                     <Icon Name="download"/>
                                 </a>
                                 @if (_canWrite) {
                                     <button type="button" class="reg-edit-btn @(_editingKey == rel.Key ? "active" : "")"
-                                            title="Edit" aria-label="Edit" @onclick="@(() => ToggleEdit(rel))">
+                                            aria-label="Edit" @onclick="@(() => ToggleEdit(rel))">
                                         <Icon Name="pencil"/>
                                     </button>
                                 }
@@ -338,7 +343,7 @@
 </div>
 </main>
 
-<NotificationsWorkbenchModal @ref="_subscribeModal"/>
+<NotificationsWorkbenchModal @ref="_notificationsModal"/>
 <ProtoWorkbenchModal @ref="_workbench" OnChanged="OnMutated" OnRefChanged="OnWorkbenchRef" OnClosed="OnWorkbenchClosed"/>
 <DeviceWorkbenchModal @ref="_deviceWorkbench" OnChanged="OnMutated"/>
 
@@ -383,16 +388,16 @@
     long? _editingKey;
     List<MergeSuggestion> _suggestions = [];
     StagedReviewPanel? _stagedPanel;
-    NotificationsWorkbenchModal? _subscribeModal;
+    NotificationsWorkbenchModal? _notificationsModal;
 
     Task OpenNotifications() {
-        return _subscribeModal?.Open() ?? Task.CompletedTask;
+        return _notificationsModal?.Open() ?? Task.CompletedTask;
     }
 
     string _serverVersion = "";
     string _serverSha = "";
     string _serverCommitUrl = "";
-    string _serverBuildDate = "";
+    DateTimeOffset? _serverBuiltAt;
 
     [Parameter] public string? Platform { get; set; }
 
@@ -459,7 +464,7 @@
             if (HasVersionRoute) {
                 var build = Uri.UnescapeDataString(Build!);
                 _workbench?.OpenAt(new ProtoRef(ProtoRefSource.Registry, Platform!, build, null), null, null);
-                await _hashnav.InvokeVoidAsync("replacePath", "/protodata", $"{Platform}_{build}");
+                await _hashnav.InvokeVoidAsync("replacePath", "/protos", $"{Platform}_{build}");
                 return;
             }
 
@@ -607,24 +612,12 @@
         };
     }
 
-    static string ShaTitle(ShaLaneRow? lane) {
-        if (lane is null || lane.GroupSize < 2) return "proto sha";
-        var others = lane.GroupSize - 1;
-        var hidden = lane.GroupSize - lane.VisibleGroupSize;
-        var text = $"proto sha shared with {others} other {(others == 1 ? "version" : "versions")}";
-        return hidden > 0 ? $"{text} ({hidden} hidden by filters)" : text;
-    }
-
     static string ClientText(ProtoRegistryRow r) {
         return r.ClientVersion ?? "";
     }
 
     static string DetectedText(ProtoRegistryRow r) {
         return r.DetectedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "";
-    }
-
-    static string? BuildTitle(ProtoRegistryRow r) {
-        return r.BuildFlag is null ? null : $"bad build: {r.BuildFlag}";
     }
 
     MarkupString Caret(string col) {
@@ -673,7 +666,10 @@
         _serverVersion = $"v{b.Version}";
         _serverSha = b.ShortSha;
         _serverCommitUrl = b.CommitUrl;
-        _serverBuildDate = b.BuildDate == "unknown" ? "" : b.BuildDate;
+        _serverBuiltAt = DateTime.TryParse(b.BuildDate, CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var built)
+            ? new DateTimeOffset(built, TimeSpan.Zero)
+            : null;
     }
 
     protected override async Task OnInitializedAsync() {

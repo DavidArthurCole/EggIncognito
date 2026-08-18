@@ -14,7 +14,7 @@
                         <div class="wb-notice">
                             <StatusNote Severity="@notice.Severity">@notice.Text</StatusNote>
                             @if (NoticeDismissed.HasDelegate) {
-                                <button type="button" class="wb-x" title="Dismiss" aria-label="Dismiss"
+                                <button type="button" class="wb-x" aria-label="Dismiss"
                                         @onclick="@(() => NoticeDismissed.InvokeAsync())">
                                     <Icon Name="x" Class="icon-sm"/>
                                 </button>

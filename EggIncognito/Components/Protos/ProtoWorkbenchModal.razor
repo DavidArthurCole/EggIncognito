@@ -39,18 +39,18 @@
                     @{ var items = RegistryItems(); }
                     <div class="pwb-reg-stack">
                         <div class="pwb-plat" role="radiogroup" aria-label="Platform">
-                            <label class="pwb-plat-item" title="All platforms">
+                            <label class="pwb-plat-item">
                                 <input type="radio" class="pwb-plat-radio" name="@_platformGroup"
                                        checked="@(State.Query.Platform.Length == 0)" @onchange="@(() => SetRegPlatform(""))"/>
                                 <span>all</span>
                             </label>
-                            <label class="pwb-plat-item" title="iOS only">
+                            <label class="pwb-plat-item">
                                 <input type="radio" class="pwb-plat-radio" name="@_platformGroup"
                                        checked="@(State.Query.Platform == "ios")" @onchange="@(() => SetRegPlatform("ios"))"/>
                                 <PlatformIcon Platform="ios"/>
                                 <span class="pwb-sr">ios</span>
                             </label>
-                            <label class="pwb-plat-item" title="Android only">
+                            <label class="pwb-plat-item">
                                 <input type="radio" class="pwb-plat-radio" name="@_platformGroup"
                                        checked="@(State.Query.Platform == "android")" @onchange="@(() => SetRegPlatform("android"))"/>
                                 <PlatformIcon Platform="android"/>
@@ -59,29 +59,27 @@
                         </div>
                         <div class="pwb-filter-row">
                             <FilterInput Class="pwb-filter" AriaLabel="Filter stored versions"
-                                         title="Filter stored versions" Value="@State.Query.Quick"
+                                         Value="@State.Query.Quick"
                                          ValueChanged="OnQuickChanged"/>
                             <button type="button" class="pwb-funnel @(State.Query.Groups.Count > 0 ? "pwb-funnel-on" : "")"
-                                    title="Conditions" aria-label="Conditions"
+                                    aria-label="Conditions"
                                     aria-expanded="@(_filterOpen ? "true" : "false")"
                                     @onclick="@(() => _filterOpen = !_filterOpen)">
                                 <Icon Name="filter" Class="icon-sm"/>
                             </button>
-                            @if (_filterOpen) {
-                                <div class="popover-backdrop" @onmousedown="CloseFilter" @onwheel="CloseFilter"></div>
-                                <div class="pwb-fil-pop">
-                                    <RegistryFilterPanel Query="State.Query" QueryChanged="OnQueryChanged"
-                                                         Rows="State.Registry"/>
-                                </div>
-                            }
                         </div>
+                        @if (_filterOpen) {
+                            <div class="pwb-fil-pop">
+                                <RegistryFilterPanel Query="State.Query" QueryChanged="OnQueryChanged"
+                                                     Rows="State.Registry"/>
+                            </div>
+                        }
                         @if (State.Query.Groups.Count > 0) {
                             <div class="pwb-cond-list">
                                 @foreach (var line in ConditionLines()) {
                                     <div class="pwb-cond">
                                         <span class="pwb-cond-text">@line.Text</span>
-                                        <button type="button" class="wb-x" title="Remove condition"
-                                                aria-label="Remove condition"
+                                        <button type="button" class="wb-x" aria-label="Remove condition"
                                                 @onclick="@(() => RemoveCondition(line.Group, line.Index))">
                                             <Icon Name="x" Class="icon-sm"/>
                                         </button>
@@ -104,6 +102,11 @@
                                             <VersionLine App="@row.AppVersion" Build="@row.Build" Client="@row.ClientVersion"/>
                                         </span>
                                         <span class="pwb-reg-sha">@Sha12(row.ProtoSha)</span>
+                                        @if (row.DetectedAt is { } seen) {
+                                            <span class="pwb-reg-when">
+                                                <TimeAgo Value="@TimeAgo.FromUtc(seen)" Hover="false"/>
+                                            </span>
+                                        }
                                     </div>
                                 </Virtualize>
                             </div>
@@ -122,14 +125,14 @@
                                 <div class="wb-group-head">
                                     <VersionLine App="@g.AppVersion" Build="@g.Build" Client="@g.ClientVersionText"/>
                                     @if (g is { Conflict: false, Status.Offerable: true }) {
-                                        <span title="offerable">
+                                        <span>
                                             <Icon Name="arrow-up" Class="icon-sm wb-st-offer"/>
                                         </span>
                                     } else {
                                         <span class="pwb-note-inline @GroupStatusTone(g)">@GroupStatusText(g)</span>
                                     }
                                     @if (g.Status is { Failed: true }) {
-                                        <button type="button" class="btn-mini ml-auto" title="Retry check" aria-label="Retry check"
+                                        <button type="button" class="btn-mini ml-auto" aria-label="Retry check"
                                                 @onclick="@(() => RetryCheck(g))">
                                             <Icon Name="refresh" Class="icon-sm"/> Retry
                                         </button>
@@ -154,32 +157,29 @@
     </Rail>
     <ChildContent>
         <div class="pwb-slots">
-            <div class="@SlotClass(State.A)" title="@SlotTitle(State.A)">
+            <div class="@SlotClass(State.A)">
                 <VersionCombo Label="A" Items="ComboItems(null)" Selected="@State.A?.Format()"
-                              SelectedChanged="OnPickA" Placeholder="pick a version"/>
+                              SelectedChanged="OnPickA"/>
                 @if (State.A is { } refA && IsLegacySha(refA)) {
-                    <span class="pwb-slot-note pwb-warn"
-                          title="The stored sha does not match the canonical form of the stored text">
+                    <span class="pwb-slot-note pwb-warn">
                         legacy sha
                     </span>
                 }
             </div>
-            <button type="button" class="pwb-swap" title="Swap A and B" aria-label="Swap A and B"
+            <button type="button" class="pwb-swap" aria-label="Swap A and B"
                     disabled="@(State.B is null)" @onclick="SwapRefs">
                 <Icon Name="swap" Class="icon-sm"/>
             </button>
-            <div class="@SlotClass(State.B)" title="@SlotTitle(State.B)">
+            <div class="@SlotClass(State.B)">
                 <VersionCombo Label="B" Items="ComboItems(State.A)" Selected="@State.B?.Format()"
-                              SelectedChanged="OnPickB" Placeholder="pick a version to compare" AllowClear="true"/>
+                              SelectedChanged="OnPickB" AllowClear="true"/>
                 @if (State.B is { } refB && IsLegacySha(refB)) {
-                    <span class="pwb-slot-note pwb-warn"
-                          title="The stored sha does not match the canonical form of the stored text">
+                    <span class="pwb-slot-note pwb-warn">
                         legacy sha
                     </span>
                 }
                 @if (TierOf(counterparts, State.B) is { } tier) {
-                    <span class="pwb-slot-note pwb-tier-note @(tier.Weak ? "pwb-warn" : "")"
-                          title="@TierTitle(tier)">
+                    <span class="pwb-slot-note pwb-tier-note @(tier.Weak ? "pwb-warn" : "")">
                         @tier.Reason
                     </span>
                 }
@@ -221,7 +221,7 @@
                         <span class="text-muted text-xs">This proto text is already stored under different version metadata.</span>
                     } else if (selGroup?.Status is { Failed: true }) {
                         <span class="pwb-note-inline pwb-err">check failed</span>
-                        <button type="button" class="btn-mini" title="Retry check" aria-label="Retry check"
+                        <button type="button" class="btn-mini" aria-label="Retry check"
                                 @onclick="@(() => RetryCheck(selGroup))">
                             <Icon Name="refresh" Class="icon-sm"/> Retry
                         </button>
@@ -236,7 +236,7 @@
                     }
 
                     @if (selGroup is { } sg && CanOffer(sg)) {
-                        <button type="button" class="btn-mini" title="Offer to registry" disabled="@_offerBusy"
+                        <button type="button" class="btn-mini" disabled="@_offerBusy"
                                 @onclick="@(() => Offer(sg))">
                             <Icon Name="arrow-up" Class="icon-sm"/> Offer
                         </button>
@@ -246,16 +246,16 @@
         }
         <div class="pwb-head">
             <WorkbenchModes Modes="State.Modes" Current="@State.Mode" CurrentChanged="SetMode" Disabled="ModeDisabled"/>
-            <button type="button" class="btn-mini" title="Older version" aria-label="Older version"
+            <button type="button" class="btn-mini" aria-label="Older version"
                     disabled="@(StepRef(1) is null)" @onclick="@(() => SetA(StepRef(1)))">
                 <Icon Name="chevronLeft" Class="icon-sm"/>
             </button>
-            <button type="button" class="btn-mini" title="Newer version" aria-label="Newer version"
+            <button type="button" class="btn-mini" aria-label="Newer version"
                     disabled="@(StepRef(-1) is null)" @onclick="@(() => SetA(StepRef(-1)))">
                 <Icon Name="chevronRight" Class="icon-sm"/>
             </button>
             <div class="pwb-menu-wrap">
-                <button type="button" class="pwb-menu-btn" aria-haspopup="true"
+                <button type="button" class="pwb-menu-btn" aria-haspopup="true" disabled="@(State.A is null)"
                         aria-expanded="@(_menu == "file" ? "true" : "false")" @onclick="@(() => ToggleMenu("file"))">
                     File
                 </button>
@@ -295,12 +295,12 @@
                         <CopyButton GetText="ViewText" ButtonClass="pwb-menu-item" IconClass="icon-sm"
                                     Label="Copy view text" CopiedLabel="Copied"/>
                         <CopyButton GetText="Permalink" ButtonClass="pwb-menu-item" IconClass="icon-sm"
-                                    Label="Copy permalink" CopiedLabel="Copied" Title="Copy a link to this view"/>
+                                    Label="Copy permalink" CopiedLabel="Copied"/>
                     </div>
                 }
             </div>
             <div class="pwb-menu-wrap">
-                <button type="button" class="pwb-menu-btn" aria-haspopup="true"
+                <button type="button" class="pwb-menu-btn" aria-haspopup="true" disabled="@(State.A is null)"
                         aria-expanded="@(_menu == "compare" ? "true" : "false")"
                         @onclick="@(() => ToggleMenu("compare"))">
                     Compare
@@ -309,19 +309,16 @@
                     <div class="popover-backdrop" @onmousedown="CloseMenu" @onwheel="CloseMenu"></div>
                     <div class="pwb-menu">
                         <button type="button" class="pwb-menu-item" disabled="@(StepRef(1) is null)"
-                                title="Compare against the previous version"
                                 @onclick="@(() => MenuDo(() => SetB(StepRef(1))))">
                             vs previous
                         </button>
                         <button type="button" class="pwb-menu-item" disabled="@(LatestRef() is null)"
-                                title="Compare against the latest stored version"
                                 @onclick="@(() => MenuDo(() => SetB(LatestRef())))">
                             vs latest
                         </button>
                         @foreach (var target in CounterpartTargets()) {
                             var link = counterparts.FirstOrDefault(l => l.Platform == target);
                             <button type="button" class="pwb-menu-item" disabled="@(link is null)"
-                                    title="@CounterpartTitle(target, link)"
                                     @onclick="@(() => MenuDo(() => SetCounterpart(link)))">
                                 vs @target
                             </button>
@@ -350,7 +347,8 @@
         </div>
         <div class="pwb-view" id="pwbView">
             @if (State.A is not { } viewA) {
-                <div class="text-muted text-sm">Pick a stored version in the rail, or add files. Archives are unpacked in the browser; the app binary is uploaded and parsed server-side.</div>
+                <CodeSurface Text="" AllowEmpty="true" Language="proto" Gutter="CodeGutter.None"
+                             MinHeight="22.5rem" MaxHeight="48vh" ShowToolbar="false"/>
             } else if (State.Mode == "meta") {
                 <table class="data-table">
                     <thead>
@@ -451,7 +449,7 @@
 
     WorkbenchNotice? Notice => _notice is { Length: > 0 } text ? new WorkbenchNotice(text) : null;
 
-    RenderFragment Card(StagedEntry e, OfferGroup? g, bool grouped) => @<WorkbenchEntry @key="e.Id" Title="@e.FileName"
+    RenderFragment Card(StagedEntry e, OfferGroup? g, bool grouped) => @<WorkbenchEntry @key="e.Id"
                                                                                         Selected="@(State.SelectedId == e.Id || RefMark(SessionRef(e)) == "A")"
                                                                                         Compare="@(RefMark(SessionRef(e)) == "B")"
                                                                                         Tone="@CardTone(e)" Status="@CardStatus(e)"
@@ -473,7 +471,7 @@
                                                                                }
                                                                            </Name>
                                                                            <Trail>
-                                                                               <button type="button" class="wb-x" title="Remove" aria-label="Remove"
+                                                                               <button type="button" class="wb-x" aria-label="Remove"
                                                                                        @onclick:stopPropagation="true" @onkeydown:stopPropagation="true"
                                                                                        @onclick="@(() => Remove(e))">
                                                                                    <Icon Name="x" Class="icon-sm"/>
@@ -489,14 +487,14 @@
                                                                                    <span class="truncate">@step</span>
                                                                                }
                                                                                @if (SessionRef(e) is { } sref) {
-                                                                                   <button type="button" class="pwb-pin" title="Set as B" aria-label="Set as B"
+                                                                                   <button type="button" class="pwb-pin" aria-label="Set as B"
                                                                                            @onclick:stopPropagation="true" @onkeydown:stopPropagation="true"
                                                                                            @onclick="@(() => SetB(sref))">
                                                                                        B
                                                                                    </button>
                                                                                }
                                                                                @if (!grouped && g is { Conflict: false, Status.Offerable: true }) {
-                                                                                   <span title="offerable">
+                                                                                   <span>
                                                                                        <Icon Name="arrow-up" Class="icon-sm wb-st-offer"/>
                                                                                    </span>
                                                                                }
@@ -505,22 +503,22 @@
                                                                            </Foot>
                                                                        </WorkbenchEntry>;
 
-    RenderFragment LineFilter() => @<FilterInput Class="code-filter" AriaLabel="Filter lines" title="Filter lines"
+    RenderFragment LineFilter() => @<FilterInput Class="code-filter" AriaLabel="Filter lines"
                                                  Value="@ViewFilter" ValueChanged="OnLineFilterChanged"/>;
 
     RenderFragment LineTools() => @<text>
-                                       <button type="button" class="btn-mini code-toggle @(_context == FullContext ? "code-toggle-on" : "")"
-                                               title="Toggle full file context" @onclick="ToggleContext">
+                                       <button type="button" class="btn-mini @(_context == FullContext ? "code-toggle-on" : "")"
+                                               @onclick="ToggleContext">
                                            @(_context == FullContext ? "all" : "3") ctx
                                        </button>
                                        @if (HunkCount() > 0) {
                                            <span class="pwb-hunk">
-                                               <button type="button" class="btn-mini" title="Previous hunk" aria-label="Previous hunk"
+                                               <button type="button" class="btn-mini" aria-label="Previous hunk"
                                                        @onclick="@(() => StepHunk(-1))">
                                                    &uarr;
                                                </button>
                                                <span class="pwb-hunk-at">@(_hunk + 1)/@HunkCount()</span>
-                                               <button type="button" class="btn-mini" title="Next hunk" aria-label="Next hunk"
+                                               <button type="button" class="btn-mini" aria-label="Next hunk"
                                                        @onclick="@(() => StepHunk(1))">
                                                    &darr;
                                                </button>
@@ -586,10 +584,6 @@
 
     void CloseMenu() {
         _menu = null;
-    }
-
-    void CloseFilter() {
-        _filterOpen = false;
     }
 
     async Task MenuDo(Func<Task> action) {
@@ -1068,11 +1062,6 @@
         return value is not null && !HasTextFor(value) ? "pwb-slot pwb-dim" : "pwb-slot";
     }
 
-    string SlotTitle(ProtoRef? value) {
-        if (value is null) return "";
-        return HasTextFor(value) ? RefLabel(value) : "no stored proto text";
-    }
-
     IReadOnlyList<VersionCombo.VersionComboItem> ComboItems(ProtoRef? exclude) {
         var items = new List<VersionCombo.VersionComboItem>();
         foreach (var e in State.Entries.Where(x => x.IsAnalyzed)) {
@@ -1439,21 +1428,6 @@
         return value is null ? null : links.FirstOrDefault(l => l.Row is { } row && SameRef(value, RegistryRef(row)));
     }
 
-    static string TierTitle(ProtoCounterpart link) {
-        return link.Weak
-            ? $"B was matched to A by {link.Reason}, the weakest link the translator walks. Treat it as a guess."
-            : $"B was matched to A by {link.Reason}.";
-    }
-
-    string CounterpartTitle(string target, ProtoCounterpart? link) {
-        if (link is null) return $"Select a stored registry version as A to find its {target} counterpart";
-        if (link.Row is not { } row) return $"No {target} counterpart for this version";
-        var label = RefLabel(RegistryRef(row));
-        return link.Weak
-            ? $"Set B to {label}, matched by {link.Reason}, the weakest link the translator walks"
-            : $"Set B to {label}, matched by {link.Reason}";
-    }
-
     async Task SetCounterpart(ProtoCounterpart? link) {
         if (link is null) return;
         if (link.Row is not { } row) {
@@ -1579,7 +1553,7 @@
 
     string Permalink() {
         var hash = ProtoRefParser.Format(new WorkbenchRef(State.A, State.B, State.Mode));
-        var page = Nav.ToAbsoluteUri("/protodata").ToString();
+        var page = Nav.ToAbsoluteUri("/protos").ToString();
         return hash.Length == 0 ? page : $"{page}#{hash}";
     }
 

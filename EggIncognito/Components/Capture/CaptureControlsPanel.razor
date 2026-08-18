@@ -10,13 +10,12 @@
         <div class="flex flex-wrap items-center gap-1.5">
             @if (!ReadOnly) {
                 <button type="button" class="icon-btn @(Running ? "capture-stop" : "capture-start")" disabled="@ToggleBusy"
-                        title="@(Running ? "Stop capture" : "Start capture")"
                         aria-label="@(Running ? "Stop capture" : "Start capture")" @onclick="OnToggleCapture">
                     <Icon Name="@(Running ? "pause" : "play")"/>
                 </button>
 
-                <div class="settings-wrap" style="position: relative;">
-                    <button type="button" class="icon-btn" title="Clear list" aria-label="Clear list"
+                <div class="settings-wrap">
+                    <button type="button" class="icon-btn" aria-label="Clear list"
                             aria-haspopup="true" aria-expanded="@(_open == "clear")" @onclick="@(() => Toggle("clear"))">
                         <Icon Name="trash"/>
                     </button>
@@ -30,8 +29,8 @@
                     </div>
                 </div>
 
-                <div class="settings-wrap" style="position: relative;">
-                    <button type="button" class="icon-btn" title="Export" aria-label="Export"
+                <div class="settings-wrap">
+                    <button type="button" class="icon-btn" aria-label="Export"
                             aria-haspopup="true" aria-expanded="@(_open == "export")" @onclick="@(() => Toggle("export"))">
                         <Icon Name="download"/>
                     </button>
@@ -42,19 +41,19 @@
                 </div>
 
                 @if (Hosted) {
-                    <button type="button" class="icon-btn" title="DM me my setup config (CA + proxy address)"
+                    <button type="button" class="icon-btn"
                             aria-label="DM setup config" disabled="@_dmBusy" @onclick="SendConfig">
                         <Icon Name="bell"/>
                     </button>
-                    <button type="button" class="icon-btn" title="Rotate my proxy address (invalidates the old one)"
+                    <button type="button" class="icon-btn"
                             aria-label="Rotate proxy address" disabled="@_rotateBusy" @onclick="RotateAddress">
                         <Icon Name="refresh"/>
                     </button>
                 }
             }
 
-            <div class="settings-wrap" style="position: relative;">
-                <button type="button" class="icon-btn" title="Settings" aria-label="Settings"
+            <div class="settings-wrap">
+                <button type="button" class="icon-btn" aria-label="Settings"
                         aria-haspopup="true" aria-expanded="@(_open == "settings")" @onclick="@(() => Toggle("settings"))">
                     <Icon Name="gear"/>
                 </button>

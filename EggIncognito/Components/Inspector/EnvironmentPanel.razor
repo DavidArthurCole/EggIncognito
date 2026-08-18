@@ -31,8 +31,7 @@
 
         <div class="env-foot">
             @if (!State.EnvValidated && State.EnvError is not null) {
-                <button type="button" class="btn-mini" title="Keep these values and collapse without validating"
-                        @onclick="OnForceSave">
+                <button type="button" class="btn-mini" @onclick="OnForceSave">
                     Save anyway
                 </button>
             }

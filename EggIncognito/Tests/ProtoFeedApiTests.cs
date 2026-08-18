@@ -133,8 +133,15 @@ public class ProtoFeedApiTests {
     }
 
     [Fact]
-    public void ResolveFilters_NullRequest_KeepsPeriodicalsOptIn() {
-        var sub = Sub(FeedEventKinds.PeriodicalsChanged, FeedEventKinds.FilterRequireAspects);
+    public void ResolveFilters_NullRequest_KeepsConfigOptIn() {
+        var sub = Sub(FeedEventKinds.ConfigChanged, FeedEventKinds.FilterRequireAspects);
+
+        Assert.Equal([FeedEventKinds.FilterRequireAspects], ProtoFeedController.ResolveFilters(sub, null));
+    }
+
+    [Fact]
+    public void ResolveFilters_LegacyPeriodicalsKind_NormalizesAgainstConfig() {
+        var sub = Sub(FeedEventKinds.LegacyPeriodicalsChanged, FeedEventKinds.FilterRequireAspects);
 
         Assert.Equal([FeedEventKinds.FilterRequireAspects], ProtoFeedController.ResolveFilters(sub, null));
     }

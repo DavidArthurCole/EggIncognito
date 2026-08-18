@@ -1,3 +1,4 @@
+using EggIncognito.Services.DataApi;
 using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Services.Feed;
@@ -14,7 +15,7 @@ public static class FeedSamples {
         bool hasProto) =>
         new(0, platform, appVersion, build, clientVersion, sha, created, protoChanged,
             FeedDispatcher.BuildPageUrl(SampleUrl, platform, build), delta, prevAppVersion, prevBuild,
-            ProtoVersionQuality.Flaws(platform, appVersion, build, clientVersion, sha, hasProto));
+            ProtoVersionQuality.Flaws(platform, build, clientVersion, sha, hasProto));
 
     private static readonly IReadOnlyList<FeedSample> ProtoSamples = [
         new("forward", "New version",
@@ -31,17 +32,42 @@ public static class FeedSamples {
                 VersionDelta.Unknown, "1.37.0", "1.37.0.1", false))
     ];
 
-    private static readonly IReadOnlyList<FeedSample> PeriodicalsSamples = [
-        new("identified", "Identified change",
-            new PeriodicalsChangedEvent("periodicals", SampleSha, $"{SampleUrl}/periodicals",
-                new PeriodicalsAspectSummary(["events", "contracts"], ["Egg Boost"], ["hab-rush-2026"], []))),
-        new("bare", "Fixture changed, nothing identified",
-            new PeriodicalsChangedEvent("periodicals", SampleSha, $"{SampleUrl}/periodicals"))
+    private static ConfigChangedEvent Config(string feed, ConfigChangeSummary? change) =>
+        new(feed, SampleSha, ConfigChangeNotifier.PageUrl(SampleUrl, feed), change);
+
+    private static readonly IReadOnlyList<FeedSample> ConfigSamples = [
+        new("periodicals", "Periodicals: new contract and event",
+            Config(ConfigFeeds.Periodicals, new ConfigChangeSummary(
+                ["events", "contracts"],
+                ["contract:hab-rush-2026", "event:egg-boost"],
+                ["contract:winter-warmup-2026"]))),
+        new("dlc", "Config: new shell set",
+            Config(ConfigFeeds.Config, new ConfigChangeSummary(
+                ["shellSets", "shellObjects"],
+                ["shellSet:glacier", "shellObject:glacier_silo"],
+                []))),
+        new("afx", "Artifacts config: values changed",
+            Config(ConfigFeeds.Afx, new ConfigChangeSummary(["artifacts"], [], []))),
+        new("seasons", "Season infos: new season",
+            Config(ConfigFeeds.Seasons, new ConfigChangeSummary(
+                ["seasons"], ["season:fall-2026"], []))),
+        new("bare", "Response changed, nothing identified",
+            Config(ConfigFeeds.Periodicals, null))
+    ];
+
+    private static readonly IReadOnlyList<FeedSample> GameDataSamples = [
+        new("binary_up", "New binary, documents rebuilt",
+            new GameDataRebuiltEvent("1.37.0", "1.36.4", "android", SampleSha,
+                ["eggs", "research", "habs", "missions"], $"{SampleUrl}/protos")),
+        new("same_binary", "Same binary, one document changed",
+            new GameDataRebuiltEvent("1.37.0", "1.37.0", "ios", SampleSha,
+                ["boost-catalog"], $"{SampleUrl}/protos"))
     ];
 
     private static readonly Dictionary<string, IReadOnlyList<FeedSample>> ByKind = new(StringComparer.Ordinal) {
         [FeedEventKinds.ProtoBuild] = ProtoSamples,
-        [FeedEventKinds.PeriodicalsChanged] = PeriodicalsSamples
+        [FeedEventKinds.ConfigChanged] = ConfigSamples,
+        [FeedEventKinds.GameDataRebuilt] = GameDataSamples
     };
 
     public static IReadOnlyList<FeedSample> For(string? eventKind) =>

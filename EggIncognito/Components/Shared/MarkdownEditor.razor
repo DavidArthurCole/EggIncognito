@@ -11,9 +11,9 @@
     <div class="md-editor">
         <div class="md-toolbar">
             @foreach (var b in Buttons) {
-                <button type="button" class="md-tb-btn" title="@b.Title" @onclick="() => Insert(b.Token)">@b.Label</button>
+                <button type="button" class="md-tb-btn" aria-label="@b.Title" @onclick="() => Insert(b.Token)">@b.Label</button>
             }
-            <label class="md-tb-btn" title="Upload image (png/jpeg/gif/webp)">
+            <label class="md-tb-btn">
                 upload
                 <InputFile accept="image/png,image/jpeg,image/gif,image/webp" hidden="hidden" OnChange="OnImagePicked"/>
             </label>

@@ -8,7 +8,7 @@
             <div class="ep hist-row" @onclick="() => OnRestoreHistory.InvokeAsync(h)">
                 <span class="hist-path mono">@h.Path</span>
                 <span class="hist-meta">@h.Summary</span>
-                <button type="button" class="hist-del" title="Remove" aria-label="Remove"
+                <button type="button" class="hist-del" aria-label="Remove"
                         @onclick:stopPropagation="true" @onclick="() => OnDeleteHistory.InvokeAsync(h.Id)">
                     <Icon Name="x" Class="icon-sm"/>
                 </button>

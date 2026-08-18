@@ -5,30 +5,50 @@
 @implements IAsyncDisposable
 
 <div class="tpl-editor">
-    @if (Tokens.Count > 0) {
-        <div class="tpl-palette">
-            @foreach (var name in Tokens) {
-                <button type="button" class="tpl-token" title="@($"Insert {Wrap(name)}")"
-                        @onclick="@(() => Insert(name))">
-                    @Wrap(name)
-                </button>
+    @if (Label is { Length: > 0 } || Hint is { Length: > 0 }) {
+        <div class="tpl-bar">
+            @if (Label is { Length: > 0 }) {
+                <span class="tpl-label">@Label</span>
+            }
+            @if (Hint is { Length: > 0 }) {
+                <span class="tpl-hint">@Hint</span>
             }
         </div>
     }
-    <textarea class="field-input w-full font-mono text-xs" rows="@Rows" spellcheck="false"
-              placeholder="@Placeholder" value="@Value" @oninput="OnInput" @ref="_area"></textarea>
+    <div class="tpl-main">
+        <textarea class="tpl-area" rows="@Rows" spellcheck="false" aria-label="@(Label is { Length: > 0 } ? Label : "Message")"
+                  value="@Value" @oninput="OnInput" @ref="_area"></textarea>
+        @if (Tokens.Count > 0) {
+            <div class="tpl-tokens">
+                <span class="tpl-tokens-head">Variables</span>
+                <ul class="tpl-token-list">
+                    @foreach (var token in Tokens) {
+                        <li>
+                            <button type="button" class="tpl-token" @onclick="@(() => Insert(token.Name))">
+                                <span class="tpl-token-name">@token.Label</span>
+                                @if (token.Example is { Length: > 0 }) {
+                                    <span class="tpl-token-ex">(@token.Example)</span>
+                                }
+                            </button>
+                        </li>
+                    }
+                </ul>
+            </div>
+        }
+    </div>
     @if (Unknown() is { Count: > 0 } unknown) {
-        <span class="tpl-warn">
+        <div class="tpl-warn">
             @(unknown.Count == 1 ? "Unknown variable" : "Unknown variables"): @string.Join(", ", unknown.Select(Wrap))
-        </span>
+        </div>
     }
 </div>
 
 @code {
     [Parameter] public string Value { get; set; } = "";
     [Parameter] public EventCallback<string> ValueChanged { get; set; }
-    [Parameter] public IReadOnlyList<string> Tokens { get; set; } = [];
-    [Parameter] public string? Placeholder { get; set; }
+    [Parameter] public IReadOnlyList<FeedVarInfo> Tokens { get; set; } = [];
+    [Parameter] public string? Label { get; set; }
+    [Parameter] public string? Hint { get; set; }
     [Parameter] public int Rows { get; set; } = 4;
 
     ElementReference _area;
@@ -41,7 +61,7 @@
     List<string> Unknown() {
         var missing = new List<string>();
         foreach (var name in FeedTemplate.Tokens(Value)) {
-            if (!Tokens.Contains(name, StringComparer.Ordinal)) missing.Add(name);
+            if (!Tokens.Any(t => string.Equals(t.Name, name, StringComparison.Ordinal))) missing.Add(name);
         }
 
         return missing;

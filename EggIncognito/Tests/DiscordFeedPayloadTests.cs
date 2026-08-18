@@ -79,6 +79,53 @@ public class DiscordFeedPayloadTests {
     }
 
     [Fact]
+    public void BuildConfig_NamesTheResponse_AndListsAspects() {
+        string json = DiscordFeedPayload.BuildConfig(
+            "config", "Game config", "abcdef0123456789deadbeef", "https://x/data", null,
+            ["shellSets"], ["shellSet:glacier"], []);
+
+        Assert.Contains("Egg, Inc. Game config changed", json);
+        Assert.Contains("shellSet:glacier", json);
+        Assert.Contains("abcdef012345", json);
+        Assert.DoesNotContain("deadbeef", json);
+        Assert.DoesNotContain("Removed", json);
+    }
+
+    [Fact]
+    public void BuildConfig_Template_RendersEveryVariable() {
+        string json = DiscordFeedPayload.BuildConfig(
+            "afx-config", "Artifacts config", "sha1", "https://x/data",
+            "{{feed}}|{{feedLabel}}|{{sha}}|{{pageUrl}}|{{changed}}|{{added}}|{{removed}}",
+            ["artifacts"], ["artifact:ORNATE_GUSSET"], ["artifact:LUNAR_TOTEM"]);
+
+        using var doc = JsonDocument.Parse(json);
+        Assert.Equal(
+            "afx-config|Artifacts config|sha1|https://x/data|artifacts|artifact:ORNATE_GUSSET|artifact:LUNAR_TOTEM",
+            doc.RootElement.GetProperty("content").GetString());
+    }
+
+    [Fact]
+    public void BuildGameData_ShowsBinaryAndChangedDocuments() {
+        string json = DiscordFeedPayload.BuildGameData(
+            "1.37.0", "1.36.4", "android", "sha", ["eggs", "research"], "https://x/data", null);
+
+        Assert.Contains("Egg, Inc. game data rebuilt from 1.37.0", json);
+        Assert.Contains("eggs, research", json);
+        Assert.Contains("1.36.4", json);
+    }
+
+    [Fact]
+    public void BuildGameData_UnknownBinary_StillHasNonEmptyFields() {
+        string json = DiscordFeedPayload.BuildGameData(
+            "", null, "", "sha", ["colleggtibles"], "https://x/data", null);
+
+        using var doc = JsonDocument.Parse(json);
+        var fields = doc.RootElement.GetProperty("embeds")[0].GetProperty("fields");
+        foreach (var field in fields.EnumerateArray())
+            Assert.False(string.IsNullOrEmpty(field.GetProperty("value").GetString()));
+    }
+
+    [Fact]
     public void MarkAsTest_NonObjectBody_ReturnedUnchanged() {
         Assert.Equal("not json", DiscordFeedPayload.MarkAsTest("not json"));
         Assert.Equal("[1,2]", DiscordFeedPayload.MarkAsTest("[1,2]"));

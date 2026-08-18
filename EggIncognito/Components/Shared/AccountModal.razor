@@ -10,7 +10,7 @@
 @inject IHttpContextAccessor HttpContextAccessor
 @inject IServiceProvider Services
 
-<button type="button" class="auth-name" title="Manage account" @onclick="Open">
+<button type="button" class="auth-name" @onclick="Open">
     @if (!string.IsNullOrEmpty(User.AvatarUrl)) {
         <img class="auth-avatar" src="@User.AvatarUrl" alt=""/>
     }
@@ -63,7 +63,7 @@
                                         @if (item.Identity is { } id) {
                                             <span class="flex items-center gap-2 min-w-0">
                                                 @if (!string.IsNullOrEmpty(id.Avatar)) {
-                                                    <button type="button" class="acct-chip" title="Use this picture" @onclick="item.OnSelectAvatar">
+                                                    <button type="button" class="acct-chip" aria-label="Use this picture" @onclick="item.OnSelectAvatar">
                                                         <img src="@LinkHref(id.Avatar!)" alt=""/>
                                                     </button>
                                                 }
@@ -81,7 +81,7 @@
                                             @if (item.CanUnlink) {
                                                 <button type="button" class="btn-mini btn-danger" @onclick="item.OnUnlink">Unlink</button>
                                             } else {
-                                                <button type="button" class="btn-mini" disabled title="Cannot unlink the last login">Linked</button>
+                                                <button type="button" class="btn-mini" disabled>Linked</button>
                                             }
                                         }
                                     </td>

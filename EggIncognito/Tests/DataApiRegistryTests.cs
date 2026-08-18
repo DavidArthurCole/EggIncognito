@@ -63,10 +63,19 @@ public class DataApiRegistryTests {
         var c = new DataCatalog();
         string[] feeds = [.. c.PeriodicalFeeds().OrderBy(x => x, StringComparer.Ordinal)];
         string[] triggers = [
-            .. FeedEventKinds.Periodicals.Triggers
-                .Select(t => t.Value).Where(v => v != "any").OrderBy(x => x, StringComparer.Ordinal)
+            .. FeedEventKinds.Config.Triggers
+                .Select(t => t.Value).Where(v => v != FeedEventKinds.TriggerAnyFeed)
+                .OrderBy(x => x, StringComparer.Ordinal)
         ];
         Assert.Equal(triggers, feeds);
+    }
+
+    [Fact]
+    public void Catalog_Feeds_MatchConfigFeedIds() {
+        var c = new DataCatalog();
+        string[] feeds = [.. c.PeriodicalFeeds().OrderBy(x => x, StringComparer.Ordinal)];
+        string[] declared = [.. ConfigFeeds.All.Select(f => f.Id).OrderBy(x => x, StringComparer.Ordinal)];
+        Assert.Equal(declared, feeds);
     }
 
     [Fact]

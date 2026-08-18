@@ -20,7 +20,8 @@ public interface IProtoBackfillStore {
     Task<List<(string Platform, string Build, string ProtoText)>> LatestProtoTextsAsync(CancellationToken ct = default);
 }
 
-public sealed class ProtoRegistryStore(EggIncognitoDbContext db) : IProtoBackfillStore {
+public sealed class ProtoRegistryStore(EggIncognitoDbContext db, IEnumerable<IProtoUpsertObserver> observers)
+    : IProtoBackfillStore {
     public enum MetadataUpdate {
         Ok,
         NotFound,
@@ -135,7 +136,18 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db) : IProtoBackfil
         bool protoChanged = prevLatest is not null && prevLatest.ProtoSha != protoSha;
         var delta = VersionDeltaCalc.Classify(
             platform, build, appVersion, prevLatest?.Build, prevLatest?.AppVersion);
-        return new UpsertOutcome(row, created, protoChanged, delta, prevLatest?.AppVersion, prevLatest?.Build);
+        var outcome = new UpsertOutcome(row, created, protoChanged, delta,
+            prevLatest?.AppVersion, prevLatest?.Build);
+
+        await NotifyAsync(new ProtoUpsertNotice(
+            row.Id, platform, appVersion, build, clientVersion, protoSha,
+            !string.IsNullOrEmpty(protoText), created, protoChanged, delta,
+            prevLatest?.AppVersion, prevLatest?.Build), ct);
+        return outcome;
+    }
+
+    private async Task NotifyAsync(ProtoUpsertNotice notice, CancellationToken ct) {
+        foreach (var observer in observers) await observer.OnUpsertAsync(notice, ct);
     }
 
 

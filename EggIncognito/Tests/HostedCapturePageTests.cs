@@ -75,7 +75,7 @@ public class HostedCapturePageTests {
             string html = await f.CreateClient().GetStringAsync("/capture");
             Assert.Contains("id=\"hostedLogin\"", html);
 
-            Assert.Contains("Login is not configured on this instance.", html);
+            Assert.Contains("Login is not configured.", html);
             Assert.DoesNotContain("id=\"statsPanel\"", html);
         }
 

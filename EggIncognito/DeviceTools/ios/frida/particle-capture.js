@@ -1,7 +1,3 @@
-
-//
-//
-
 const SYMBOL = '__ZN19ParticleBatchedMesh11addParticleEN5Eigen9TransformIfLi3ELi2ELi0EEEf';
 const MODULE = 'egginc';
 const OUT_PATH = '/var/root/particle-capture.ndjson';

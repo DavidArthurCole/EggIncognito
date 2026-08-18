@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 using EggIncognito.Services.ProtoExtract;
 
@@ -40,15 +41,29 @@ public static partial class FeedTemplate {
             ["flaws"] = Joined(flaws)
         };
 
-    public static Dictionary<string, string> PeriodicalsVars(string feed, string sha, string pageUrl,
-        PeriodicalsAspectSummary? aspects = null) => new() {
+    public static Dictionary<string, string> ConfigVars(
+        string feed, string feedLabel, string sha, string pageUrl,
+        IReadOnlyList<string> changed, IReadOnlyList<string> added,
+        IReadOnlyList<string> removed) => new() {
             ["feed"] = feed,
+            ["feedLabel"] = feedLabel,
             ["sha"] = sha,
             ["pageUrl"] = pageUrl,
-            ["changedAspects"] = Joined(aspects?.ChangedAspects),
-            ["addedEvents"] = Joined(aspects?.AddedEvents),
-            ["addedContracts"] = Joined(aspects?.AddedContracts),
-            ["addedColleggtibles"] = Joined(aspects?.AddedColleggtibles)
+            ["changed"] = Joined(changed),
+            ["added"] = Joined(added),
+            ["removed"] = Joined(removed)
+        };
+
+    public static Dictionary<string, string> GameDataVars(
+        string binaryVersion, string? prevBinaryVersion, string platform, string inputSha,
+        IReadOnlyList<string> changedDocs, string pageUrl) => new() {
+            ["binaryVersion"] = binaryVersion,
+            ["prevBinaryVersion"] = prevBinaryVersion ?? "",
+            ["platform"] = platform,
+            ["changedDocs"] = Joined(changedDocs),
+            ["docCount"] = changedDocs.Count.ToString(CultureInfo.InvariantCulture),
+            ["inputSha"] = inputSha,
+            ["pageUrl"] = pageUrl
         };
 
     private static string Joined(IReadOnlyList<string>? items) =>

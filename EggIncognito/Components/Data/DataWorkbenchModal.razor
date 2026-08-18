@@ -20,14 +20,14 @@
                         @foreach (var root in RootsOf(sources, group)) {
                             <WorkbenchEntry @key="root.Url"
                                             Selected="@(State.Sub is null && State.Group == root.Group && State.Id == root.Id)"
-                                            Title="@root.Url" OnClick="@(_ => Select(root, null))">
+                                            OnClick="@(_ => Select(root, null))">
                                 <Name>@root.DisplayName</Name>
                                 <MetaLine>@root.Id</MetaLine>
                             </WorkbenchEntry>
                             @foreach (var child in ChildrenOf(root)) {
                                 <WorkbenchEntry @key="child.Url" Class="ds-sub"
                                                 Selected="@(State.Sub == child.Id && State.Group == root.Group && State.Id == root.Id)"
-                                                Title="@child.Url" OnClick="@(_ => Select(root, child))">
+                                                OnClick="@(_ => Select(root, child))">
                                     <Name>@child.DisplayName</Name>
                                     <MetaLine>@child.Id</MetaLine>
                                 </WorkbenchEntry>
@@ -54,46 +54,24 @@
                     @if (!string.IsNullOrWhiteSpace(s.Description)) {
                         <p class="ds-desc">@s.Description</p>
                     }
-                    <dl class="ds-facts">
-                        <div class="ds-kv">
-                            <dt class="ds-kv-k">Group</dt>
-                            <dd class="ds-kv-v">@GroupLabel(s.Group)</dd>
-                        </div>
-                        <div class="ds-kv">
-                            <dt class="ds-kv-k">Provenance</dt>
-                            <dd class="ds-kv-v">@ProvenanceLabel(s.Provenance)</dd>
-                        </div>
-                        <div class="ds-kv">
-                            <dt class="ds-kv-k">Access</dt>
-                            <dd class="ds-kv-v">@AccessLabel(s.Access)</dd>
-                        </div>
+                    <div class="ds-meta">
+                        <span>@ProvenanceLabel(s.Provenance)</span>
+                        <span class="ds-meta-sep">|</span>
+                        <span>@AccessLabel(s.Access)</span>
                         @if (s.Bytes is { } bytes) {
-                            <div class="ds-kv">
-                                <dt class="ds-kv-k">Size</dt>
-                                <dd class="ds-kv-v font-mono">@ByteFormat.Compact(bytes)</dd>
-                            </div>
+                            <span class="ds-meta-sep">|</span>
+                            <span class="font-mono">@ByteFormat.Compact(bytes)</span>
                         }
                         @if (!string.IsNullOrEmpty(s.Feed)) {
-                            <div class="ds-kv">
-                                <dt class="ds-kv-k">Feed</dt>
-                                <dd class="ds-kv-v font-mono">@s.Feed</dd>
-                            </div>
+                            <span class="ds-meta-sep">|</span>
+                            <span class="font-mono">@s.Feed</span>
                         }
                         @if (s.Meta?.BinaryVersion is { Length: > 0 } binaryVersion) {
-                            <div class="ds-kv">
-                                <dt class="ds-kv-k">Binary</dt>
-                                <dd class="ds-kv-v">
-                                    <VersionLine App="@binaryVersion"/>
-                                </dd>
-                            </div>
+                            <span class="ds-meta-sep">|</span>
+                            <VersionLine App="@binaryVersion"/>
                         }
-                        <div class="ds-kv ds-kv-wide">
-                            <dt class="ds-kv-k">Route</dt>
-                            <dd class="ds-kv-v font-mono">
-                                <a class="ds-route" href="@s.Url" target="_blank" rel="noopener">@s.Url</a>
-                            </dd>
-                        </div>
-                    </dl>
+                    </div>
+                    <a class="ds-route font-mono" href="@s.Url" target="_blank" rel="noopener">@s.Url</a>
                     <div class="ds-curl">
                         <code class="ds-curl-text">@CurlLine(s)</code>
                         <CopyButton GetText="@(() => CurlLine(s))" ButtonClass="btn-mini" IconClass="icon-sm"
@@ -105,7 +83,8 @@
                         var name = State.NameFor(State.Key);
                         <label class="sub-field ds-field">
                             <span class="sub-field-label">Asset name</span>
-                            <input class="field-input" value="@name" @oninput="OnNameInput"/>
+                            <input class="field-input font-mono" placeholder="afx_ornate_gusset_2" value="@name"
+                                   @oninput="OnNameInput"/>
                         </label>
                         @if (name.Length > 0) {
                             <img class="ds-asset" src="@AssetUrl(s, name)" alt="@name"/>
@@ -115,20 +94,11 @@
                                     Download
                                 </a>
                             </div>
-                        } else {
-                            <p class="ds-note">
-                                This source serves one asset per name. Type a name, for example
-                                <span class="font-mono">afx_ornate_gusset_2</span>.
-                            </p>
                         }
                     } else if (State.Payloads.GetValueOrDefault(s.Url) is not { } entry) {
                         <p class="ds-note">Loading...</p>
                     } else if (entry.Status == 401) {
                         <div class="ds-gate">
-                            <p class="ds-note">
-                                This dataset is served to accounts and API keys only. Log in to read it here,
-                                or mint an API key and call the route above.
-                            </p>
                             <LoginButton Label="Log in" Placement="LoginMenuPlacement.Right"/>
                         </div>
                     } else if (entry.Status is < 200 or > 299) {
