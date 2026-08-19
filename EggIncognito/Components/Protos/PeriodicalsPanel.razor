@@ -16,7 +16,7 @@
 } else {
     <div class="pd-widgets">
         @if (_events is { Count: > 0 }) {
-            <section class="panel">
+            <section class="panel pd-w-events">
                 <h3 class="text-sm font-semibold mt-0 mb-3">Current events</h3>
                 <div class="evt-list">
                     @foreach (var e in _events) {
@@ -239,8 +239,8 @@
             </section>
         }
 
-        <DataWorkbenchModal @ref="_dataWorkbench"/>
     </div>
+    <DataWorkbenchModal @ref="_dataWorkbench"/>
 }
 
 @code {

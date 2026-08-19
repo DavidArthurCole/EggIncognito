@@ -38,6 +38,8 @@ public sealed class FakeCaptureProxy(
     private static readonly string[] Paths =
         [DataCatalog.ConfigRoute, DataCatalog.PeriodicalsRoute, PathContracts];
 
+    private readonly HashSet<string> _unreplayable = [with(StringComparer.Ordinal)];
+
     private CancellationTokenSource? _cts;
     private Task? _pump;
 
@@ -89,17 +91,31 @@ public sealed class FakeCaptureProxy(
         try {
             while (!ct.IsCancellationRequested) {
                 await Task.Delay(delay, ct);
-                var flow = await BuildAsync(Paths[index++ % Paths.Length], ct);
-                if (flow is null) continue;
-                ConnectSeen?.Invoke(AuxbrainHost, true);
-                AuxbrainConnect?.Invoke();
-                FlowCaptured?.Invoke(flow);
+                await ReplayAsync(Paths[index++ % Paths.Length], ct);
             }
         } catch (OperationCanceledException ex) {
             logger.LogDebug(ex, "fake capture: {Id} replay stopped", device?.Id ?? "?");
         } catch (Exception ex) {
             logger.LogWarning(ex, "fake capture: {Id} replay threw", device?.Id ?? "?");
         }
+    }
+
+    private async Task ReplayAsync(string path, CancellationToken ct) {
+        CapturedFlow? flow;
+        try {
+            flow = await BuildAsync(path, ct);
+        } catch (Exception ex) when (ex is not OperationCanceledException) {
+            if (_unreplayable.Add(path)) {
+                logger.LogWarning(ex, "fake capture: {Id} cannot replay {Path}; skipping it for this session",
+                    device?.Id ?? "?", path);
+            }
+            return;
+        }
+
+        if (flow is null) return;
+        ConnectSeen?.Invoke(AuxbrainHost, true);
+        AuxbrainConnect?.Invoke();
+        FlowCaptured?.Invoke(flow);
     }
 
     private async Task<CapturedFlow?> BuildAsync(string path, CancellationToken ct) {

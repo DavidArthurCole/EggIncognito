@@ -8,6 +8,8 @@ using Google.Protobuf;
 namespace EggIncognito.Services;
 
 public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string eidPlaceholder, bool overwrite) {
+    private static readonly UTF8Encoding Utf8NoBom = new(false);
+
     private readonly HashSet<string> _reqErrorSeen = [with(StringComparer.Ordinal)];
 
 
@@ -213,7 +215,7 @@ public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string 
                 Counts.Diff++;
                 string stagedFile = Path.Combine(dirs.StagedDir, EndpointFile(slug));
                 Directory.CreateDirectory(Path.GetDirectoryName(stagedFile)!);
-                File.WriteAllText(stagedFile, json, Encoding.UTF8);
+                File.WriteAllText(stagedFile, json, Utf8NoBom);
                 Out($"  diff  {slug}.json");
                 Out(
                     $"        code-insiders --diff \"{Path.Combine(dirs.OutDir, EndpointFile(slug))}\" \"{stagedFile}\"");
@@ -225,7 +227,7 @@ public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string 
             Directory.CreateDirectory(Path.GetDirectoryName(reqFile)!);
             if (!File.Exists(reqFile)) {
                 string scrubbed = ScrubEid(Redactor.Redact(request.Json), eid, eidPlaceholder);
-                File.WriteAllText(reqFile, scrubbed, Encoding.UTF8);
+                File.WriteAllText(reqFile, scrubbed, Utf8NoBom);
                 Out($"  req   {slug}.request.json  (wrote)");
             }
         }
@@ -385,13 +387,13 @@ public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string 
     private static string WriteEndpointFile(string path, string json, bool overwrite, string? existing, bool live) {
         if (existing is null) {
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            File.WriteAllText(path, json, Encoding.UTF8);
+            File.WriteAllText(path, json, Utf8NoBom);
             return "wrote";
         }
 
         if (Comparable(existing, live) == Comparable(json, live)) return "same";
         if (!overwrite) return "diff";
-        File.WriteAllText(path, json, Encoding.UTF8);
+        File.WriteAllText(path, json, Utf8NoBom);
         return "upd";
     }
 

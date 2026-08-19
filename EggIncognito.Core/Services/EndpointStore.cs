@@ -27,14 +27,17 @@ public sealed class EndpointStore(
                 using var scope = scopeFactory.CreateScope();
                 var db = scope.ServiceProvider.GetService<DbEndpointSourceMarker>()?.Source;
                 byte[]? hit = db?.Lookup(path, eid);
-                if (hit is not null) return hit;
+                if (hit is not null) return StripBom(hit);
             } catch (Exception ex) {
                 logger.LogDbEndpointLookupFailed(ex, path, eid);
             }
         }
 
-        return fileSource.Lookup(path, eid);
+        return StripBom(fileSource.Lookup(path, eid));
     }
+
+    private static byte[]? StripBom(byte[]? bytes) =>
+        bytes is [0xEF, 0xBB, 0xBF, .. var rest] ? rest : bytes;
 }
 
 public sealed class DbEndpointSourceMarker(IEndpointSource source) {

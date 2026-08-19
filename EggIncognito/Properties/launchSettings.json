@@ -20,6 +20,20 @@
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       }
+    },
+    "subprod": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "applicationUrl": "http://localhost:5080",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Staging",
+        "Feed__PageBaseUrl": "http://localhost:5080",
+        "Devices__Fake__Enabled": "true",
+        "DeviceCapture__Enabled": "true",
+        "Auth__LocalIdentity__Enabled": "true",
+        "Auth__LocalIdentity__Role": "Admin"
+      }
     }
   }
 }

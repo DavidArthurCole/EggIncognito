@@ -51,20 +51,6 @@
         <button type="button" class="btn-primary" @onclick="OpenNotifications">Manage notifications</button>
     </section>
 </div>
-<div class="pd-mod pd-full">
-    <section class="panel">
-        <div class="intake">
-            <label id="protoPageDrop" class="dropzone intake-half" for="wbFile">
-                <DropZonePrompt Prompt="Drop .ipa, .apk, or bundle files here"/>
-            </label>
-            <button type="button" class="dropzone-open intake-open intake-half"
-                    aria-label="Open the proto workbench" @onclick="@(() => _workbench?.Open())">
-                <Icon Name="chevronRight" Class="intake-chevron"/>
-                <span class="text-[0.95rem]">Open the proto workbench</span>
-            </button>
-        </div>
-    </section>
-</div>
 <div class="pd-mod pd-main pd-stack">
 @if (_isAdmin && _addOpen) {
     <div class="panel">
@@ -153,6 +139,15 @@
             @if (AnyFilter) {
                 <button type="button" class="reg-filter-clear" aria-label="Clear filters" @onclick="ClearFilters">×</button>
             }
+            <label id="protoPageDrop" class="reg-intake reg-intake-drop" for="wbFile"
+                   title="Drop .ipa, .apk, or bundle files here, or click to browse"
+                   aria-label="Drop .ipa, .apk, or bundle files here, or click to browse">
+                <Icon Name="arrow-up" Class="icon-sm"/>
+            </label>
+            <button type="button" class="reg-intake" title="Open the proto workbench"
+                    aria-label="Open the proto workbench" @onclick="@(() => _workbench?.Open())">
+                <Icon Name="chevronRight" Class="icon-sm"/>
+            </button>
             @if (_isAdmin) {
                 <button type="button" class="reg-add-toggle" aria-label="@(_addOpen ? "Close add version" : "Add version")"
                         @onclick="@(() => _addOpen = !_addOpen)">
@@ -166,7 +161,7 @@
     } else if (_rows.Count == 0) {
         <div class="reg-empty">
             <div>No proto versions yet.</div>
-            <div class="reg-empty-hint">Open the proto workbench above to add one.</div>
+            <div class="reg-empty-hint">Drop a build on the toolbar, or open the proto workbench, to add one.</div>
         </div>
     } else {
         var releases = SortedReleases;
@@ -716,7 +711,8 @@
             State.Registry = _rows;
             State.RegistryLoadedAt = DateTime.UtcNow;
         }
-        catch {
+        catch (Exception ex) {
+            if (ex is not OperationCanceledException) Logger.LogWarning(ex, "proto registry load failed");
             if (!background) _rows = [];
         }
 
