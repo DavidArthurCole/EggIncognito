@@ -124,7 +124,7 @@
         @if (_seasons is { Count: > 0 } seasonList) {
             var season = seasonList[Math.Clamp(_seasonIx, 0, seasonList.Count - 1)];
             var grades = season.GradeGoals.Where(g => g.Goals.Count > 0).ToList();
-            <section class="panel panel-hcards pd-w-season">
+            <section class="panel pd-w-season">
                 <div class="flex items-center justify-between mb-3">
                     <h3 class="text-sm font-semibold m-0">Seasons</h3>
                     <div class="flex items-center gap-1">
@@ -204,32 +204,34 @@
                                     <td class="text-xs">
                                         @if (goalIx < g.Goals.Count) {
                                             var goal = g.Goals[goalIx];
-                                            <span class="hcard-wrap">
-                                                <span class="season-goal">
-                                                    @if (!string.IsNullOrEmpty(goal.Icon)) {
-                                                        <span class="season-goal-icon">
-                                                            <img src="@goal.Icon" alt="" loading="lazy" data-fallback/>
+                                            <Tooltip>
+                                                <ChildContent>
+                                                    <span class="season-goal">
+                                                        @if (!string.IsNullOrEmpty(goal.Icon)) {
+                                                            <span class="season-goal-icon">
+                                                                <img src="@goal.Icon" alt="" loading="lazy" data-fallback/>
+                                                            </span>
+                                                        }
+                                                        <span class="season-goal-text">
+                                                            <span class="season-goal-cs">@FormatAmount(goal.Cxp) CS</span>
+                                                            <span>@RewardLabel(goal)</span>
                                                         </span>
-                                                    }
-                                                    <span class="season-goal-text">
-                                                        <span class="season-goal-cs">@FormatAmount(goal.Cxp) CS</span>
-                                                        <span>@RewardLabel(goal)</span>
                                                     </span>
-                                                </span>
-                                                <span class="hcard">
-                                                    <span class="hcard-title">@RewardFullName(goal)</span>
-                                                    <span class="hcard-line">@goal.RewardAmount.ToString("N0") @RewardFullNoun(goal)</span>
+                                                </ChildContent>
+                                                <Tip>
+                                                    <span class="tt-title">@RewardFullName(goal)</span>
+                                                    <span class="tt-line">@goal.RewardAmount.ToString("N0") @RewardFullNoun(goal)</span>
                                                     @if (BoostInfo(goal) is { } bi) {
                                                         @if (bi.Duration is { } bd) {
-                                                            <span class="hcard-line">Lasts @bd</span>
+                                                            <span class="tt-line">Lasts @bd</span>
                                                         }
 
                                                         @if (bi.Effect is { } be) {
-                                                            <span class="hcard-line">@be</span>
+                                                            <span class="tt-line">@be</span>
                                                         }
                                                     }
-                                                </span>
-                                            </span>
+                                                </Tip>
+                                            </Tooltip>
                                         }
                                     </td>
                                 }

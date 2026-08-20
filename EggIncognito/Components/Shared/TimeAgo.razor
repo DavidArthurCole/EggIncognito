@@ -1,11 +1,13 @@
 @using System.Globalization
 @if (Hover) {
-    <span class="hcard-wrap hcard-below">
-        <span class="time-ago">@Relative</span>
-        <span class="hcard">
-            <span class="hcard-line">@Full</span>
-        </span>
-    </span>
+    <Tooltip>
+        <ChildContent>
+            <span class="time-ago">@Relative</span>
+        </ChildContent>
+        <Tip>
+            <span class="tt-line">@Full</span>
+        </Tip>
+    </Tooltip>
 } else {
     <span class="time-ago">@Relative</span>
 }
