@@ -32,6 +32,10 @@ public class ProtosPageTests {
 
 
         [Fact]
+        public async Task ProtoDataRoute_StillResponds() =>
+            Assert.Equal(HttpStatusCode.OK, (await _f.CreateClient().GetAsync("/protodata")).StatusCode);
+
+        [Fact]
         public async Task SubscribeRoute_StillResponds() =>
             Assert.Equal(HttpStatusCode.OK, (await _f.CreateClient().GetAsync("/protos/subscribe")).StatusCode);
 

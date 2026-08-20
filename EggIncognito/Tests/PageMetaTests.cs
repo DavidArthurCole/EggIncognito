@@ -20,6 +20,7 @@ public class PageMetaTests {
 
     [Theory]
     [InlineData("/protos")]
+    [InlineData("/protodata")]
     [InlineData("/protos/subscribe")]
     [InlineData("/protos/sources")]
     public void RegistryPathsKeepTheRegistryCard(string path) {
