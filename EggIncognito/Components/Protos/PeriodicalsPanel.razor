@@ -15,26 +15,8 @@
     <div class="panel text-muted text-sm">No data available right now.</div>
 } else {
     <div class="pd-widgets">
-        @if (_events is { Count: > 0 }) {
-            <section class="panel pd-w-events">
-                <h3 class="text-sm font-semibold mt-0 mb-3">Current events</h3>
-                <div class="evt-list">
-                    @foreach (var e in _events) {
-                        <div class="evt-row @(RemainingSeconds(e) <= 0 ? "ended" : "")">
-                            @if (!string.IsNullOrEmpty(e.Icon)) {
-                                <span class="evt-icon" style="@IconStyle(e)">
-                                    <img src="@e.Icon" alt="" loading="lazy"/>
-                                </span>
-                            }
-                            <span class="evt-name">@(string.IsNullOrEmpty(e.Subtitle) ? Pretty(e.Type) : e.Subtitle)</span>
-                            <span class="evt-timer" data-countdown="@FormattableString.Invariant($"{e.EndTime ?? 0:0}")">@RemainingLabel(e)</span>
-                        </div>
-                    }
-                </div>
-            </section>
-        }
-
-        <section class="panel">
+        <div class="pd-wcol">
+        <section class="panel pd-w-data">
             <div class="flex items-stretch gap-2">
                 <div class="flex-1 min-w-0">
                     <h3 class="text-sm font-semibold mt-0 mb-2">Data</h3>
@@ -80,6 +62,63 @@
                 </button>
             </div>
         </section>
+
+        @if (_summary?.Colleggtibles is { } c) {
+            <section class="panel pd-w-cegg">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-sm font-semibold m-0">Colleggtibles</h3>
+                    <a class="reg-edit-btn" href="/api/v1/data/periodical/get_periodicals/colleggtibles" download="colleggtibles.json" aria-label="Download JSON">
+                        <Icon Name="download"/>
+                    </a>
+                </div>
+                <table class="data-table cegg-table">
+                    <thead>
+                    <tr>
+                        <th class="w-8"></th><th>Identifier</th><th>Dimension</th><th>Tier values</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var e in c.Eggs) {
+                        <tr>
+                            <td>
+                                @if (!string.IsNullOrEmpty(e.Icon)) {
+                                    <img class="w-[1.875rem] h-[1.875rem] object-contain" src="@e.Icon" alt="@e.Identifier"
+                                         loading="lazy" data-fallback/>
+                                    <span class="text-muted text-xs" data-fallback-for style="display:none">-</span>
+                                } else {
+                                    <span class="text-muted text-xs">-</span>
+                                }
+                            </td>
+                            <td class="font-mono text-accent">@e.Identifier</td>
+                            <td class="mono text-muted text-xs">@e.Dimension</td>
+                            <td class="mono text-xs cegg-tier">@string.Join(", ", e.TierValues)</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </section>
+        }
+        </div>
+
+        <div class="pd-wcol">
+        @if (_events is { Count: > 0 }) {
+            <section class="panel pd-w-events">
+                <h3 class="text-sm font-semibold mt-0 mb-3">Current events</h3>
+                <div class="evt-list">
+                    @foreach (var e in _events) {
+                        <div class="evt-row @(RemainingSeconds(e) <= 0 ? "ended" : "")">
+                            @if (!string.IsNullOrEmpty(e.Icon)) {
+                                <span class="evt-icon" style="@IconStyle(e)">
+                                    <img src="@e.Icon" alt="" loading="lazy"/>
+                                </span>
+                            }
+                            <span class="evt-name">@(string.IsNullOrEmpty(e.Subtitle) ? Pretty(e.Type) : e.Subtitle)</span>
+                            <span class="evt-timer" data-countdown="@FormattableString.Invariant($"{e.EndTime ?? 0:0}")">@RemainingLabel(e)</span>
+                        </div>
+                    }
+                </div>
+            </section>
+        }
 
         @if (_seasons is { Count: > 0 } seasonList) {
             var season = seasonList[Math.Clamp(_seasonIx, 0, seasonList.Count - 1)];
@@ -203,42 +242,7 @@
             </section>
         }
 
-        @if (_summary?.Colleggtibles is { } c) {
-            <section class="panel">
-                <div class="flex items-center justify-between mb-3">
-                    <h3 class="text-sm font-semibold m-0">Colleggtibles</h3>
-                    <a class="reg-edit-btn" href="/api/v1/data/periodical/get_periodicals/colleggtibles" download="colleggtibles.json" aria-label="Download JSON">
-                        <Icon Name="download"/>
-                    </a>
-                </div>
-                <table class="data-table">
-                    <thead>
-                    <tr>
-                        <th class="w-8"></th><th>Identifier</th><th>Dimension</th><th>Tier values</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    @foreach (var e in c.Eggs) {
-                        <tr>
-                            <td>
-                                @if (!string.IsNullOrEmpty(e.Icon)) {
-                                    <img class="w-[1.875rem] h-[1.875rem] object-contain" src="@e.Icon" alt="@e.Identifier"
-                                         loading="lazy" data-fallback/>
-                                    <span class="text-muted text-xs" data-fallback-for style="display:none">-</span>
-                                } else {
-                                    <span class="text-muted text-xs">-</span>
-                                }
-                            </td>
-                            <td class="font-mono text-accent">@e.Identifier</td>
-                            <td class="mono text-muted text-xs">@e.Dimension</td>
-                            <td class="mono text-xs">@string.Join(", ", e.TierValues)</td>
-                        </tr>
-                    }
-                    </tbody>
-                </table>
-            </section>
-        }
-
+        </div>
     </div>
     <DataWorkbenchModal @ref="_dataWorkbench"/>
 }
