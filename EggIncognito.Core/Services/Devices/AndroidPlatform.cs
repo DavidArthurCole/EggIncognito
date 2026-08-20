@@ -126,11 +126,13 @@ public sealed class AndroidPlatform(
 
     private static HarvestBatch Collect(IReadOnlyList<string> stems, Func<string, byte[]?> read, string contentType) {
         var items = new List<HarvestItem>(stems.Count);
+        int failed = 0;
         foreach (string stem in stems) {
             if (read(stem) is { } bytes) items.Add(new HarvestItem(stem, bytes, contentType));
+            else failed++;
         }
 
-        return new HarvestBatch(items, stems, true);
+        return new HarvestBatch(items, stems, true, failed);
     }
 
     public override Task<DeviceProbeResult> ProbeAsync(DeviceTarget target, CancellationToken ct) =>

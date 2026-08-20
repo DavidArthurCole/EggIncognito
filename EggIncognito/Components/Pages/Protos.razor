@@ -139,12 +139,11 @@
             @if (AnyFilter) {
                 <button type="button" class="reg-filter-clear" aria-label="Clear filters" @onclick="ClearFilters">×</button>
             }
-            <label id="protoPageDrop" class="reg-intake reg-intake-drop" for="wbFile"
-                   title="Drop .ipa, .apk, or bundle files here, or click to browse"
-                   aria-label="Drop .ipa, .apk, or bundle files here, or click to browse">
+            <label id="protoPageDrop" class="reg-drop" for="wbFile">
                 <Icon Name="arrow-up" Class="icon-sm"/>
+                <span>Drop a build</span>
             </label>
-            <button type="button" class="reg-intake" title="Open the proto workbench"
+            <button type="button" class="reg-intake"
                     aria-label="Open the proto workbench" @onclick="@(() => _workbench?.Open())">
                 <Icon Name="chevronRight" Class="icon-sm"/>
             </button>

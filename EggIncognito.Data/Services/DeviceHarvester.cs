@@ -92,7 +92,7 @@ public sealed class DeviceHarvester(
                 continue;
             }
 
-            if (pulled.Authoritative && entry.Kind != DeviceAssetKinds.Binary)
+            if (pulled.Authoritative && pulled.Present.Count > 0 && entry.Kind != DeviceAssetKinds.Binary)
                 await assets.PruneAsync(target.Platform, entry.Kind, [.. pulled.Present], ct);
 
             if (fp is { Ok: true, Value: { Length: > 0 } fresh }) {
@@ -100,7 +100,10 @@ public sealed class DeviceHarvester(
                     Encoding.UTF8.GetBytes(fresh), "text/plain", state.AppVersion, ct);
             }
 
-            await jobs.LineAsync(job, entry.Name, wrote > 0 ? "updated" : "unchanged", null, bytes, fp.Value, ct);
+            string? line = wrote > 0 ? null
+                : pulled.Present.Count == 0 ? "nothing found on device"
+                : $"{pulled.Items.Count} of {pulled.Present.Count} pulled, all already stored";
+            await jobs.LineAsync(job, entry.Name, wrote > 0 ? "updated" : "unchanged", line, bytes, fp.Value, ct);
             if (wrote > 0) changed++; else skipped++;
         }
 

@@ -605,16 +605,27 @@ public sealed class DevicesController(
             lastHarvestAt = row.LastHarvestAt,
             lastHarvestStatus = row.LastHarvestStatus,
             lastHarvestNote = row.LastHarvestNote,
-            entries = entries.Select(e => new {
-                ranAt = e.At,
-                entry = e.Entry,
-                kind = (string?)null,
-                outcome = e.Level == DeviceJobLevels.Error ? "failed" : "ok",
-                note = e.Text,
-                bytes = e.Bytes ?? 0,
-                sha256 = e.Sha256
+            entries = entries.Select(e => {
+                (string outcome, string? note) = SplitJobLine(e.Text);
+                return new {
+                    ranAt = e.At,
+                    entry = e.Entry,
+                    kind = (string?)null,
+                    outcome,
+                    note,
+                    bytes = e.Bytes ?? 0,
+                    sha256 = e.Sha256
+                };
             })
         });
+    }
+
+    private static (string Outcome, string? Note) SplitJobLine(string? text) {
+        if (string.IsNullOrWhiteSpace(text)) return ("ok", null);
+        int sep = text.IndexOf(':', StringComparison.Ordinal);
+        if (sep <= 0) return (text, null);
+        string note = text[(sep + 1)..].Trim();
+        return (text[..sep], note.Length == 0 ? null : note);
     }
 
 

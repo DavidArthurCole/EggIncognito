@@ -166,7 +166,7 @@
                             <table class="data-table">
                                 <thead>
                                 <tr>
-                                    <th>Entry</th><th>Outcome</th><th>Size</th><th>When</th>
+                                    <th>Entry</th><th>Outcome</th><th>Size</th><th>Detail</th><th>When</th>
                                 </tr>
                                 </thead>
                                 <tbody>
@@ -175,6 +175,7 @@
                                         <td class="font-mono text-xs">@e.Entry</td>
                                         <td class="text-xs">@e.Outcome</td>
                                         <td class="font-mono text-xs">@ByteFormat.Mb(e.Bytes, "F1")</td>
+                                        <td class="text-muted text-xs">@e.Note</td>
                                         <td class="text-muted text-xs">@e.RanAt.ToLocalTime().ToString("HH:mm:ss")</td>
                                     </tr>
                                 }
