@@ -68,6 +68,7 @@ public sealed class PeriodicalsController(
                 provenance = JsonSerializer.Serialize(live.Provenance, ProvenanceJson),
                 eggs = live.Extract.Eggs.Select(e => new {
                     e.Identifier,
+                    name = live.Names.GetValueOrDefault(e.Identifier),
                     dimension = DimensionName(e.Dimension),
                     e.TierValues,
                     icon = live.Icons.GetValueOrDefault(e.Identifier)

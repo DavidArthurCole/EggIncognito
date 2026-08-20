@@ -10,6 +10,7 @@ namespace EggIncognito.Services.DataApi;
 public sealed record LiveColleggtibles(
     ColleggtibleExtract Extract,
     IReadOnlyDictionary<string, string> Icons,
+    IReadOnlyDictionary<string, string> Names,
     string GameVersion,
     IReadOnlyDictionary<string, ProvenanceSource> Provenance,
     string Json);
@@ -35,7 +36,7 @@ public static class LiveColleggtibleSource {
 
             var extract = ColleggtibleExtractor.FromPeriodicals(per);
             if (extract.Eggs.Count == 0) continue;
-            return Build(services, route, extract, IconMap(per), origin);
+            return Build(services, route, extract, IconMap(per), NameMap(per), origin);
         }
 
         return null;
@@ -46,6 +47,15 @@ public static class LiveColleggtibleSource {
         foreach (var egg in per.Contracts?.CustomEggs ?? []) {
             string? url = egg.Icon?.Url;
             if (!string.IsNullOrEmpty(egg.Identifier) && !string.IsNullOrEmpty(url)) map[egg.Identifier] = url;
+        }
+
+        return map;
+    }
+
+    private static Dictionary<string, string> NameMap(PeriodicalsResponse per) {
+        var map = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var egg in per.Contracts?.CustomEggs ?? []) {
+            if (!string.IsNullOrEmpty(egg.Identifier) && !string.IsNullOrEmpty(egg.Name)) map[egg.Identifier] = egg.Name;
         }
 
         return map;
@@ -80,7 +90,7 @@ public static class LiveColleggtibleSource {
     }
 
     private static LiveColleggtibles Build(IServiceProvider services, string route, ColleggtibleExtract extract,
-        IReadOnlyDictionary<string, string> icons, string origin) {
+        IReadOnlyDictionary<string, string> icons, IReadOnlyDictionary<string, string> names, string origin) {
         string gameVersion = services.GetService(typeof(GameDataStore)) is GameDataStore store
             ? store.Provider?.Colleggtibles.GameVersion ?? ""
             : "";
@@ -99,7 +109,8 @@ public static class LiveColleggtibleSource {
             gameVersion,
             provenance
         };
-        return new LiveColleggtibles(extract, icons, gameVersion, provenance, JsonSerializer.Serialize(doc, CamelJson));
+        return new LiveColleggtibles(extract, icons, names, gameVersion, provenance,
+            JsonSerializer.Serialize(doc, CamelJson));
     }
 
     private static string DimensionName(int code) =>

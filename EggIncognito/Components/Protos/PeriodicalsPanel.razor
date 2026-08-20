@@ -1,4 +1,5 @@
 @implements IAsyncDisposable
+@using System.Globalization
 @using System.Text
 @using System.Text.Json
 @using EggIncognito.Components.Data
@@ -74,7 +75,7 @@
                 <table class="data-table cegg-table">
                     <thead>
                     <tr>
-                        <th class="w-8"></th><th>Identifier</th><th>Dimension</th><th>Tier values</th>
+                        <th class="w-8"></th><th>Name</th><th>Dimension</th><th>Tier values</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -89,9 +90,9 @@
                                     <span class="text-muted text-xs">-</span>
                                 }
                             </td>
-                            <td class="font-mono text-accent">@e.Identifier</td>
-                            <td class="mono text-muted text-xs">@e.Dimension</td>
-                            <td class="mono text-xs cegg-tier">@string.Join(", ", e.TierValues)</td>
+                            <td class="text-accent">@EggName(e)</td>
+                            <td class="text-muted text-xs">@TitleCase(e.Dimension)</td>
+                            <td class="mono text-xs cegg-tier">@string.Join(", ", e.TierValues.Select(TierLabel))</td>
                         </tr>
                     }
                     </tbody>
@@ -472,6 +473,16 @@
             .Select(w => char.ToUpperInvariant(w[0]) + w[1..].ToLowerInvariant()));
     }
 
+    static string EggName(EggRow e) {
+        return string.IsNullOrWhiteSpace(e.Name) ? TitleCase(e.Identifier) : e.Name;
+    }
+
+    static string TierLabel(double value) {
+        double magnitude = Math.Abs(value - 1) * 100;
+        string digits = magnitude >= 10 ? "0.#" : "0.##";
+        return $"{(value < 1 ? "-" : "+")}{magnitude.ToString(digits, CultureInfo.InvariantCulture)}%";
+    }
+
     static string Pretty(string raw) {
         var words = raw.Replace('-', '_').Split('_', StringSplitOptions.RemoveEmptyEntries);
         if (words.Length > 1 || raw.Contains('_')) {
@@ -529,7 +540,7 @@
 
     record ColleggtiblesInfo(int Count, string Provenance, List<EggRow> Eggs);
 
-    record EggRow(string Identifier, string Dimension, List<double> TierValues, string? Icon);
+    record EggRow(string Identifier, string? Name, string Dimension, List<double> TierValues, string? Icon);
 
     record ConfigInfo(bool Enabled, List<PlatformRow> Platforms);
 
