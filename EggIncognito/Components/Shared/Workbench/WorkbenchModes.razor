@@ -6,6 +6,9 @@
                     aria-pressed="@(Current == mode.Key ? "true" : "false")"
                     @onclick="@(() => CurrentChanged.InvokeAsync(mode.Key))">
                 @mode.Label
+                @if (mode.Count is { } n) {
+                    <span class="wb-seg-count">@n</span>
+                }
             </button>
         }
     </div>

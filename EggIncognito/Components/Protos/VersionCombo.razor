@@ -1,3 +1,4 @@
+@using EggIncognito.Models.Registry
 @using Microsoft.AspNetCore.Components.Web.Virtualization
 @inject IJSRuntime JS
 @inject ILogger<VersionCombo> Logger
@@ -47,18 +48,6 @@
 </div>
 
 @code {
-
-    public sealed record VersionComboItem(
-        string Value,
-        string Platform,
-        string? App,
-        string? Build,
-        string? Client,
-        string? Sha,
-        bool Dim,
-        string? Note);
-
-    sealed record ComboRow(int Index, VersionComboItem Item);
 
     const int OptionHeight = 34;
 

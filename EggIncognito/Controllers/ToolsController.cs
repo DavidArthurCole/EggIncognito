@@ -2,6 +2,7 @@ using System.Data.Common;
 using System.Text;
 using EggIncognito.Capture;
 using EggIncognito.Data.Services;
+using EggIncognito.Models.Tools;
 using EggIncognito.Services;
 using EggIncognito.Services.Auth;
 using EggIncognito.Services.ProtoExtract;
@@ -165,10 +166,4 @@ public sealed class ToolsController(
         var result = WireForensics.Diagnose(inner, body.RootType, reflection);
         return Ok(result);
     }
-
-    public sealed record DecodeRequest(string Base64);
-
-    public sealed record ExtractIosProtoRequest(string BinaryBase64);
-
-    public sealed record DiagnoseRequest(string Base64, string? RootType);
 }

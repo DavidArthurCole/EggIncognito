@@ -1,3 +1,4 @@
+@using EggIncognito.Models.Capture
 <div class="settings-wrap">
     @if (_open) {
         <div class="popover-backdrop" @onclick="@(() => _open = false)"></div>
@@ -60,7 +61,5 @@
     Task ClearAllNotices() {
         return OnClearNotices.InvokeAsync();
     }
-
-    public sealed record NoticeItem(int Id, string Severity, string Message, string Timestamp);
 
 }

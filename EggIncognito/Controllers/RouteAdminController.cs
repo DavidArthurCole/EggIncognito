@@ -1,5 +1,6 @@
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
+using EggIncognito.Models.Routes;
 using EggIncognito.Services;
 using EggIncognito.Services.Auth;
 using EggIncognito.Services.DataApi;
@@ -197,11 +198,4 @@ public sealed class RouteAdminController(
             updatedAt = o.UpdatedAt,
             updatedBy = o.UpdatedBy
         };
-
-    public sealed record UpsertRouteOverride(
-        string? Request,
-        string? Response,
-        bool? RequestWrapped,
-        bool? ResponseWrapped,
-        bool? PathParam);
 }

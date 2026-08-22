@@ -1,5 +1,6 @@
 using System.Text;
 using EggIdentity.Contract;
+using EggIncognito.Models.Config;
 using EggIncognito.Services;
 using EggIncognito.Services.Auth;
 using EggIncognito.Services.DataApi;
@@ -232,13 +233,4 @@ public sealed class ConfigController(
         currentUser.IsAtLeast(UserRole.Admin)
             ? null
             : StatusCode(403, new { error = "admin role required" });
-
-    public sealed record IngestRequest(string ConfigResponseBase64);
-
-    public sealed record IngestJsonRequest(string Json);
-
-
-    public sealed record RefreshRequest(string? Salt);
-
-    public sealed record RefreshEndpointsRequest(string? Salt, string? Platform);
 }

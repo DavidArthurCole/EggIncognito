@@ -1,12 +1,12 @@
 @page "/capture"
 @page "/capture/device/{DeviceId}"
 @rendermode @(RenderMode.InteractiveServer)
+@implements IAsyncDisposable
 @using System.Threading.Channels
 @using EggIncognito.Capture
 @using EggIncognito.Components.Capture
+@using EggIncognito.Models.Capture
 @using EggIncognito.Services.Devices
-@using static Components.Capture.CaptureNoticesPanel
-@implements IAsyncDisposable
 @inherits SelfCallComponentBase
 @inject CaptureSessionManager Manager
 @inject IServiceProvider Services
@@ -428,7 +428,5 @@
         _loopCts?.Dispose();
         await _store.DisposeModuleQuietAsync(logger: Logger);
     }
-
-    sealed record ToastItem(int Id, string Severity, string Message, string Timestamp);
 
 }

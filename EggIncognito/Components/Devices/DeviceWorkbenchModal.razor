@@ -12,6 +12,7 @@
 @using EggIncognito.Components.Capture
 @using EggIncognito.Components.Shared.Workbench
 @using EggIncognito.Core
+@using EggIncognito.Models.Devices
 @using EggIncognito.Services.Devices
 @using EggIncognito.Services.Workbench
 @implements IDisposable
@@ -70,7 +71,7 @@
                     </div>
                     <div class="dwb-fact">
                         <span class="dwb-fact-k">Capture</span>
-                        <span class="dwb-fact-v">@(_hub is null ? "not configured" : $"running :{_port}")</span>
+                        <span class="dwb-fact-v">@CaptureLine()</span>
                     </div>
                     <div class="dwb-fact dwb-fact-wide">
                         <span class="dwb-fact-k">Package</span>
@@ -99,9 +100,12 @@
                 <div class="wb-st-run text-xs mt-2">@run.Kind: @run.Message</div>
             }
 
-            <section class="dwb-sec">
-                @SectionHead(DeviceWorkbenchState.SectionJobs, "Jobs", _jobs?.Count)
-                @if (IsOpen(DeviceWorkbenchState.SectionJobs)) {
+            <div class="dwb-tabs">
+                <WorkbenchModes Modes="@Tabs()" Current="@State.Mode" CurrentChanged="SelectTab" Label="Device view"/>
+            </div>
+
+            <div class="dwb-pane">
+                @if (State.Mode == DeviceWorkbenchState.TabJobs) {
                     <WorkbenchLoad T="JobRow" Items="_jobs" EmptyText="No jobs yet." Context="jobs">
                         <div class="dwb-jobs">
                             @foreach (var j in jobs) {
@@ -138,11 +142,8 @@
                         </div>
                     </WorkbenchLoad>
                 }
-            </section>
 
-            <section class="dwb-sec">
-                @SectionHead(DeviceWorkbenchState.SectionCapture, "Capture", CaptureCount())
-                @if (IsOpen(DeviceWorkbenchState.SectionCapture)) {
+                @if (State.Mode == DeviceWorkbenchState.TabCapture) {
                     @if (_hub is null) {
                         <div class="wb-note">Capture is not configured for this device on this host.</div>
                     } else {
@@ -159,11 +160,8 @@
                         </div>
                     }
                 }
-            </section>
 
-            <section class="dwb-sec">
-                @SectionHead(DeviceWorkbenchState.SectionBinaries, "Binaries", BinaryCount())
-                @if (IsOpen(DeviceWorkbenchState.SectionBinaries)) {
+                @if (State.Mode == DeviceWorkbenchState.TabBinaries) {
                     <div class="reg-wrap">
                         <table class="data-table">
                             <thead>
@@ -211,7 +209,7 @@
                         </div>
                     }
                 }
-            </section>
+            </div>
         }
     </ChildContent>
 </WorkbenchModal>
@@ -230,7 +228,7 @@
     List<DeviceRow> _devices = [];
     List<LiveJob> _live = [];
     List<JobRow>? _jobs;
-    List<BinaryRow>? _binaries;
+    List<StoredBinaryRow>? _binaries;
     HarvestInfo? _harvest;
 
     CaptureHub? _hub;
@@ -252,28 +250,22 @@
         return _live.FirstOrDefault(j => j.Device == id);
     }
 
-    bool IsOpen(string section) {
-        return State.Sections.Contains(section);
+    IReadOnlyList<WorkbenchMode> Tabs() {
+        return [.. State.Modes.Select(m => m with { Count = TabCount(m.Key) })];
     }
 
-    int? BinaryCount() {
-        if (Current is null || _binaries is null) return null;
-        return _binaries.Count(x => x.Platform == Current.Platform);
+    int TabCount(string key) {
+        return key switch {
+            DeviceWorkbenchState.TabJobs => _jobs?.Count ?? 0,
+            DeviceWorkbenchState.TabCapture => _flows.Count,
+            _ => _binaries?.Count(x => x.Platform == Current?.Platform) ?? 0
+        };
     }
 
-    int? CaptureCount() {
-        return _stats is null ? null : _flows.Count;
+    string CaptureLine() {
+        if (_hub is null) return "not configured";
+        return _capturing ? $"running :{_port}" : "idle";
     }
-
-    RenderFragment SectionHead(string section, string label, int? count) => @<button type="button" class="dwb-sec-head"
-                                                                                     aria-expanded="@(IsOpen(section) ? "true" : "false")"
-                                                                                     @onclick="@(() => ToggleSection(section))">
-                                                                                <Icon Name="@(IsOpen(section) ? "chevronDown" : "chevronRight")" Class="icon-sm"/>
-                                                                                <span>@label</span>
-                                                                                @if (count is { } n) {
-                                                                                    <span class="dwb-sec-count">@n</span>
-                                                                                }
-                                                                            </button>;
 
     static string? Number(int? value) {
         return value?.ToString(CultureInfo.InvariantCulture);
@@ -318,16 +310,17 @@
         await LoadForDeviceAsync();
     }
 
-    async Task ToggleSection(string section) {
-        if (!State.Sections.Remove(section)) State.Sections.Add(section);
-        if (section == DeviceWorkbenchState.SectionCapture && IsOpen(section)) AttachCapture();
-        if (section == DeviceWorkbenchState.SectionJobs && IsOpen(section)) await LoadJobsAsync();
+    async Task SelectTab(string tab) {
+        State.Mode = tab;
+        if (State.Mode == DeviceWorkbenchState.TabCapture) AttachCapture();
+        if (State.Mode == DeviceWorkbenchState.TabJobs) await LoadJobsAsync();
     }
 
     async Task TickAsync() {
         if (_disposed || !_open) return;
         await LoadLiveAsync();
-        if (IsOpen(DeviceWorkbenchState.SectionJobs)) await LoadJobsAsync();
+        if (State.Mode == DeviceWorkbenchState.TabJobs) await LoadJobsAsync();
+        if (_subscription is null) ResolveHub();
         StateHasChanged();
     }
 
@@ -337,9 +330,10 @@
     }
 
     async Task LoadForDeviceAsync() {
+        ResolveHub();
         await LoadHarvestAsync();
         await LoadJobsAsync();
-        if (IsOpen(DeviceWorkbenchState.SectionCapture)) AttachCapture();
+        if (State.Mode == DeviceWorkbenchState.TabCapture) AttachCapture();
     }
 
     async Task LoadLiveAsync() {
@@ -357,7 +351,7 @@
     }
 
     async Task LoadBinariesAsync() {
-        var list = await Client().OneAsync<BinaryList>("/api/decomp/stored-binaries", Logger);
+        var list = await Client().OneAsync<StoredBinaryList>("/api/decomp/stored-binaries", Logger);
         _binaries = list?.Binaries ?? [];
     }
 
@@ -390,7 +384,7 @@
     }
 
     void Note(string text, bool ok) {
-        _notice = new WorkbenchNotice(text, ok ? StatusNote.Kind.Ok : StatusNote.Kind.Error);
+        _notice = new WorkbenchNotice(text, ok ? StatusNoteKind.Ok : StatusNoteKind.Error);
     }
 
     async Task Act(string url, string ok) {
@@ -465,11 +459,17 @@
         _bulkBusy = false;
     }
 
-    void AttachCapture() {
-        if (_hub is not null || Current is null) return;
+    void ResolveHub() {
+        if (Current is null) return;
         if (Services.GetService(typeof(DeviceCaptureManager)) is not DeviceCaptureManager dcm) return;
         if (dcm.HubFor(Current.Id) is not { } hub) return;
         _hub = hub;
+        foreach (var f in hub.Snapshot()) AddOrUpdateFlow(f);
+        ApplyStats(hub.StatsSnapshot());
+    }
+
+    void AttachCapture() {
+        if (_hub is not { } hub || _subscription is not null) return;
 
         var (reader, subscription) = hub.Subscribe();
         _subscription = subscription;
@@ -559,84 +559,5 @@
         _timer?.Dispose();
         DetachCapture();
     }
-
-    public sealed record DeviceRow(
-        string Id,
-        string Platform,
-        string Label,
-        string? Target,
-        string? Package,
-        bool Reachable,
-        string? InstalledAppVersion,
-        string? InstalledBuild,
-        string? StoreLatest,
-        bool StoreAhead,
-        string Result,
-        string? Note,
-        DateTimeOffset ProbedAt,
-        int? ClientVersion);
-
-    public sealed record LiveJob(string Device, long Id, string Kind, string? Message, DateTimeOffset StartedAt);
-
-    public sealed record JobRow(
-        long Id,
-        string Kind,
-        string State,
-        string Trigger,
-        DateTimeOffset StartedAt,
-        DateTimeOffset? FinishedAt,
-        string? Outcome,
-        string? Message,
-        string? AppVersion,
-        string? Build,
-        string? Revision,
-        List<JobLineRow> Lines);
-
-    public sealed record JobLineRow(
-        DateTimeOffset At,
-        string Level,
-        string Text,
-        string? Entry,
-        long? Bytes,
-        string? Sha256);
-
-    public sealed record HarvestInfo(
-        string Device,
-        string Platform,
-        string? AppVersion,
-        string? Build,
-        bool InRegistry,
-        string Revision,
-        string? HarvestedRevision,
-        bool Stale,
-        bool Dirty,
-        bool Harvesting,
-        DateTimeOffset? LastHarvestAt,
-        string LastHarvestStatus,
-        string? LastHarvestNote,
-        List<HarvestEntryRow> Entries);
-
-    public sealed record HarvestEntryRow(
-        DateTimeOffset RanAt,
-        string? Entry,
-        string? Kind,
-        string Outcome,
-        string? Note,
-        long Bytes,
-        string? Sha256);
-
-    public sealed record BinaryRow(
-        string Platform,
-        string Version,
-        string Sha256,
-        long ByteSize,
-        int NativeSymbols,
-        int EffectiveSymbols,
-        string Source,
-        DateTimeOffset PulledAt);
-
-    public sealed record BinaryList(bool Ok, int Count, List<BinaryRow> Binaries);
-
-    public sealed record LiveProbe(int? ClientVersion);
 
 }

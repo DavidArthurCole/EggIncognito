@@ -1,6 +1,7 @@
 using EggIdentity.Contract;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
+using EggIncognito.Models.Docs;
 using EggIncognito.Services;
 using EggIncognito.Services.Auth;
 using Microsoft.AspNetCore.Mvc;
@@ -223,8 +224,4 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
         CacheFor(30);
         return Ok(map);
     }
-
-    public sealed record UpsertDoc(string SubjectKind, string SubjectKey, string BodyMd);
-
-    public sealed record SetSubjectTags(string SubjectKind, string SubjectKey, long[] TagIds);
 }

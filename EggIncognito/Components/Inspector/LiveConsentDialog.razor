@@ -1,7 +1,7 @@
 @inject ILogger<LiveConsentDialog> Logger
 
 @if (Open) {
-    <ModalShell Title="Live API mode" TitleId="liveConsentTitle" Width="ModalShell.ModalWidth.Small" OnClose="OnClose">
+    <ModalShell Title="Live API mode" TitleId="liveConsentTitle" Width="ModalWidth.Small" OnClose="OnClose">
         <div class="modal-body">
             <p class="text-muted text-sm mt-0">
                 This sends real requests to the Egg, Inc. API (auxbrain.com) using the values you provide.

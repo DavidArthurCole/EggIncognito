@@ -5,21 +5,14 @@
 
 @code {
 
-    public enum Kind {
-        Info,
-        Busy,
-        Ok,
-        Error
-    }
-
-    [Parameter] public Kind Severity { get; set; } = Kind.Info;
+    [Parameter] public StatusNoteKind Severity { get; set; } = StatusNoteKind.Info;
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
-    static string IconFor(Kind k) {
+    static string IconFor(StatusNoteKind k) {
         return k switch {
-            Kind.Ok => "check",
-            Kind.Error => "x",
-            Kind.Busy => "clock",
+            StatusNoteKind.Ok => "check",
+            StatusNoteKind.Error => "x",
+            StatusNoteKind.Busy => "clock",
             _ => "info"
         };
     }

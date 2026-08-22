@@ -3,11 +3,11 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using EggIdentity.Contract;
 using EggIncognito.Capture;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
+using EggIncognito.Models.Capture;
 using EggIncognito.Services;
 using EggIncognito.Services.Auth;
 using EggIncognito.Services.Feed;
@@ -264,7 +264,7 @@ public sealed class CaptureController(
     }
 
     [HttpPost("save-endpoint")]
-    public async Task<IActionResult> SaveEndpoint([FromBody] SaveEndpointRequest body,
+    public async Task<IActionResult> SaveEndpoint([FromBody] SaveFlowRequest body,
         [FromServices] IRouteCatalog routes) {
         var (session, error) = Resolve();
         if (session is null) return error!;
@@ -373,6 +373,4 @@ public sealed class CaptureController(
             return StatusCode(500, new { error = "stored CA could not be read" });
         }
     }
-
-    public sealed record SaveEndpointRequest([property: JsonRequired] long Id);
 }

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using EggIdentity.Contract;
 using EggIncognito.Controllers;
+using EggIncognito.Models.Routes;
 using EggIncognito.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
@@ -73,7 +74,7 @@ public sealed class RouteAdminControllerTests : IDisposable {
     public async Task Put_UnknownPath_404() {
         var routes = new FakeCatalog(Route("ei/known"));
         var r = await Controller(routes, YamlWith()).UpsertAsync("ei/missing",
-            new RouteAdminController.UpsertRouteOverride(null, "PeriodicalsResponse", null, null, null));
+            new UpsertRouteOverride(null, "PeriodicalsResponse", null, null, null));
         Assert.IsType<NotFoundObjectResult>(r);
     }
 
@@ -81,7 +82,7 @@ public sealed class RouteAdminControllerTests : IDisposable {
     public async Task Put_AllFieldsNull_400() {
         var routes = new FakeCatalog(Route("ei/known"));
         var r = await Controller(routes, YamlWith()).UpsertAsync("ei/known",
-            new RouteAdminController.UpsertRouteOverride(null, null, null, null, null));
+            new UpsertRouteOverride(null, null, null, null, null));
         Assert.IsType<BadRequestObjectResult>(r);
     }
 
@@ -89,7 +90,7 @@ public sealed class RouteAdminControllerTests : IDisposable {
     public async Task Put_UnknownRequestType_400() {
         var routes = new FakeCatalog(Route("ei/known"));
         var r = await Controller(routes, YamlWith()).UpsertAsync("ei/known",
-            new RouteAdminController.UpsertRouteOverride("NotARealProtoType", null, null, null, null));
+            new UpsertRouteOverride("NotARealProtoType", null, null, null, null));
         Assert.IsType<BadRequestObjectResult>(r);
     }
 
@@ -97,7 +98,7 @@ public sealed class RouteAdminControllerTests : IDisposable {
     public async Task Put_UnknownResponseType_400() {
         var routes = new FakeCatalog(Route("ei/known"));
         var r = await Controller(routes, YamlWith()).UpsertAsync("ei/known",
-            new RouteAdminController.UpsertRouteOverride(null, "NotARealProtoType", null, null, null));
+            new UpsertRouteOverride(null, "NotARealProtoType", null, null, null));
         Assert.IsType<BadRequestObjectResult>(r);
     }
 
@@ -105,7 +106,7 @@ public sealed class RouteAdminControllerTests : IDisposable {
     public async Task Put_ValidBody_NoDb_503() {
         var routes = new FakeCatalog(Route("ei/known"));
         var r = await Controller(routes, YamlWith()).UpsertAsync("ei/known",
-            new RouteAdminController.UpsertRouteOverride(null, "PeriodicalsResponse", null, null, null));
+            new UpsertRouteOverride(null, "PeriodicalsResponse", null, null, null));
         var sc = Assert.IsType<ObjectResult>(r);
         Assert.Equal(503, sc.StatusCode);
     }

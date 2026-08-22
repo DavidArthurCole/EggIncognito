@@ -6,6 +6,7 @@
 @using System.Text.Json
 @using System.Text.Json.Nodes
 @using EggIncognito.Core.Services.Farm
+@using EggIncognito.Models.Playground
 @using Ei
 @using Google.Protobuf
 @inherits SelfCallComponentBase
@@ -155,7 +156,7 @@
         </div>
 
         @if (!string.IsNullOrEmpty(_status)) {
-            <StatusNote Severity="@(_error ? StatusNote.Kind.Error : StatusNote.Kind.Info)">@_status</StatusNote>
+            <StatusNote Severity="@(_error ? StatusNoteKind.Error : StatusNoteKind.Info)">@_status</StatusNote>
         }
     </section>
 
@@ -280,7 +281,7 @@
             @if (_presetsOpen) {
                 <div class="designer-section-body flex flex-col gap-2 text-xs">
                     @if (!string.IsNullOrEmpty(_showcaseDiagnostics)) {
-                        <StatusNote Severity="StatusNote.Kind.Error">@_showcaseDiagnostics</StatusNote>
+                        <StatusNote Severity="StatusNoteKind.Error">@_showcaseDiagnostics</StatusNote>
                     }
                     @if (_presets.Count > 0) {
                         <input class="reg-filter-input w-full" placeholder="Search showcase farms" value="@_presetSearch" @oninput="e => _presetSearch = e.Value?.ToString() ?? string.Empty"/>
@@ -467,13 +468,13 @@
                     }
                 </div>
                 @if (AuthoredCount > 0) {
-                    <StatusNote Severity="StatusNote.Kind.Error">
+                    <StatusNote Severity="StatusNoteKind.Error">
                         @AuthoredCount placement(s) still carry authored coordinates. They must be replaced by an
                         extraction before the replica is trustworthy.
                     </StatusNote>
                 }
                 @if (!string.IsNullOrEmpty(_diagnostics)) {
-                    <StatusNote Severity="StatusNote.Kind.Error">@_diagnostics</StatusNote>
+                    <StatusNote Severity="StatusNoteKind.Error">@_diagnostics</StatusNote>
                 }
                 @if (_unresolved.Length > 0) {
                     <div class="picker-group-title">Unresolved slots</div>
@@ -1653,172 +1654,6 @@
     static int Chan(float v) {
         return Math.Clamp((int)MathF.Round(v * 255f), 0, 255);
     }
-
-    public sealed class FarmStateModel {
-        public int[] Habs { get; set; } = [0, FarmState.EmptyHabTier, FarmState.EmptyHabTier, FarmState.EmptyHabTier];
-        public int SilosOwned { get; set; }
-        public string SiloAssetType { get; set; } = "Silo0Small";
-        public string EggType { get; set; } = "Edible";
-        public int LabTier { get; set; }
-        public int DepotTier { get; set; }
-        public int HoaTier { get; set; }
-        public int MissionControlLevel { get; set; }
-        public int FuelTankTier { get; set; }
-        public bool HyperloopStation { get; set; }
-        public bool HyperloopUnderConstruction { get; set; }
-        public bool ArtifactsEnabled { get; set; }
-        public bool HomeFarm { get; set; } = true;
-        public bool FuelTankUnlocked { get; set; }
-        public bool HasUnreadMail { get; set; }
-    }
-
-    public sealed class LightingModel {
-        public bool Enabled { get; set; }
-        public float DirX { get; set; } = 0.5f;
-        public float DirY { get; set; } = 0.8f;
-        public float DirZ { get; set; } = 0.5f;
-        public string DirectColor { get; set; } = "#ffffff";
-        public float DirectIntensity { get; set; } = 1.0f;
-        public string AmbientColor { get; set; } = "#ffffff";
-        public float AmbientIntensity { get; set; } = 0.55f;
-        public string FogColor { get; set; } = "#1a1a1f";
-        public float FogNear { get; set; }
-        public float FogFar { get; set; }
-        public float FogDensity { get; set; }
-    }
-
-    public sealed class FarmDesignPayload {
-        public int Schema { get; set; } = 2;
-        public string Platform { get; set; } = MeshPlatform;
-        public FarmStateModel? State { get; set; }
-        public JsonNode? FarmConfig { get; set; }
-        public int ChickenCount { get; set; }
-        public string? ShowcaseId { get; set; }
-        public string Background { get; set; } = "#1a1a1f";
-        public bool BackgroundTransparent { get; set; } = true;
-    }
-
-    sealed class AutosaveRecord {
-        public string Json { get; } = "";
-        public string Version { get; set; } = "";
-        public long SavedAt { get; set; }
-    }
-
-    readonly record struct SlotRef(string Element, string AssetType, int Index);
-
-    readonly record struct TierOption(int Value, string Label);
-
-    record CatalogShell(string Identifier, string? Name, string? SetIdentifier);
-
-    record CatalogAssetType(string AssetType, string? BaseStem, string[]? SubPieces, CatalogShell[]? Shells);
-
-    record CatalogElement(string Element, CatalogAssetType[]? AssetTypes);
-
-    record CatalogResult(bool Ok, string? Platform, int AssetTypeCount, CatalogElement[]? Elements, string? Diagnostics);
-
-    record PresetRow(string Id, string? Name, string Bucket);
-
-    record ShowcaseResult(bool Ok, int Count, PresetRow[]? Presets, string? Diagnostics);
-
-    record Vec3Dto(float X, float Y, float Z);
-
-    record Vec4Dto(float X, float Y, float Z, float W);
-
-    record ProvenanceDto(string? Origin, string? Locator, string? Method);
-
-    record PlacementDto(
-        string Key,
-        string? Element,
-        string? AssetType,
-        int Index,
-        Vec3Dto? Pos,
-        Vec3Dto? RotDeg,
-        float Scale,
-        string? Stem,
-        string? ShellIdentifier,
-        string? MeshUrl,
-        ProvenanceDto? Provenance);
-
-    record ExtentsDto(float Lab, float Depot, float Hatchery);
-
-    record LayoutStateDto(
-        int[]? Habs,
-        int SilosOwned,
-        string? SiloAssetType,
-        string? EggType,
-        string? HatcheryAssetType,
-        int LabTier,
-        int DepotTier,
-        int HoaTier,
-        int MissionControlLevel,
-        int FuelTankTier,
-        bool HyperloopStation,
-        bool ArtifactsEnabled,
-        bool HomeFarm,
-        bool FuelTankUnlocked,
-        bool HasUnreadMail);
-
-    record LightingDto(
-        bool Enabled,
-        Vec3Dto? LightDir,
-        Vec4Dto? LightDirectColor,
-        float LightDirectIntensity,
-        Vec4Dto? LightAmbientColor,
-        float LightAmbientIntensity,
-        Vec4Dto? FogColor,
-        float FogNear,
-        float FogFar,
-        float FogDensity);
-
-    record LayoutResult(
-        bool Ok,
-        string? Platform,
-        string? BinaryVersion,
-        ExtentsDto? Extents,
-        LayoutStateDto? State,
-        LightingDto? Lighting,
-        PlacementDto[]? Placements,
-        JsonElement? Motion,
-        string[]? Unresolved,
-        string? Diagnostics);
-
-    record CameraResult(
-        bool Ok,
-        string? Element,
-        int Index,
-        Vec3Dto? Focus,
-        float Distance,
-        float Height,
-        string? Locator,
-        string? Diagnostics);
-
-    record SkipRow(string? Key, string? Element, string? Stem, string? Reason);
-
-    record SetFarmResult(int Loaded, SkipRow[]? Skipped);
-
-    record ShellObjRow(string Identifier, string? Name, string AssetType, string Url, float[]? Anchor, bool NoHats);
-
-    record ShellObjResult(bool Ok, ShellObjRow[]? Objects);
-
-    record ShellSetMember(string Identifier, string AssetType);
-
-    record ShellSetRow(string Identifier, string? Name, bool Decorator, ShellSetMember[]? Members);
-
-    record ShellSetsResult(bool Ok, ShellSetRow[]? Decorators);
-
-    record DesignVersionRow(int VersionNo, string? Note, DateTimeOffset CreatedAt, Guid? AuthorUserId, int? RolledBackFrom);
-
-    record DesignVersionsResult(DesignVersionRow[]? Versions);
-
-    record DesignRow(string Name, DateTimeOffset UpdatedAt, Guid? Owner);
-
-    record DesignListResult(DesignRow[]? Designs);
-
-    record SaveResult(string Saved, int Version);
-
-    record RollbackResult(string RolledBack, int FromVersion, int NewVersion);
-
-    record AppVersionDto(string Version, string Sha);
 
     public async ValueTask DisposeAsync() {
         _applyCts?.Cancel();

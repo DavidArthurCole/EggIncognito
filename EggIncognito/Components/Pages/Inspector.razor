@@ -5,6 +5,7 @@
 @using System.Text.Json
 @using System.Text.Json.Nodes
 @using EggIncognito.Components.Inspector
+@using EggIncognito.Models.Inspector
 @using EggIncognito.Services.Inspector
 @inherits SelfCallComponentBase
 @inject IRouteCatalog Catalog
@@ -400,7 +401,7 @@
         _statusLoading = true;
         _statusOut = "Loading...";
         try {
-            var r = await Client().GetFromJsonAsync<StatusResult>("/api/tools/endpoint-status", JsonOpts);
+            var r = await Client().GetFromJsonAsync<EndpointStatusResult>("/api/tools/endpoint-status", JsonOpts);
             if (r is not null) {
                 _statusSummary = $"ok {r.Ok.Count} / empty {r.Empty.Count} / missing {r.Missing.Count}";
                 var lines = new List<string>();
@@ -879,12 +880,6 @@
             Logger.LogDebug(ex, "the inspector hash could not be updated");
         }
     }
-
-    record StatusResult(List<string> Ok, List<string> Empty, List<string> Missing);
-
-    record RouteAdminRow(string Path, RouteOverrideDto? Override);
-
-    record RouteOverrideDto(string? Request, string? Response, bool? RequestWrapped, bool? ResponseWrapped, bool? PathParam);
 
     public async ValueTask DisposeAsync() {
         await _hashListener.DisposeModuleAsync("dispose", Logger);

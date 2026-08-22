@@ -1,6 +1,7 @@
 using EggIdentity.Contract;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
+using EggIncognito.Models.Endpoints;
 using EggIncognito.Services;
 using EggIncognito.Services.Auth;
 using Microsoft.AspNetCore.Mvc;
@@ -100,16 +101,4 @@ public sealed class StoredEndpointController(ICurrentUser currentUser, IServiceP
             .Select(r => new { r.Id, r.Path, r.RequestType, r.ResponseType }).ToListAsync();
         return Ok(rows);
     }
-
-    public sealed record UpsertEndpoint(string Path, string? Eid, string ResponseJson, string ResponseType);
-
-    public sealed record AddRoute(
-        string Path,
-        string? RequestType,
-        string? ResponseType,
-        bool? RequestWrapped,
-        bool? ResponseWrapped,
-        string? RawResponse,
-        bool? PathParam,
-        bool? PathParamOnly);
 }

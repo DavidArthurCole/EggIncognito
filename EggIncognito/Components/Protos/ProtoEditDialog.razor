@@ -1,3 +1,4 @@
+@using EggIncognito.Models.Registry
 @* Inline metadata editor for one registry release (contributor+). A release is one or more platform rows;
    the dialog shows an editable section per platform member and PATCHes each. *@
 
@@ -67,7 +68,7 @@
 
 @code {
 
-    [Parameter] public IReadOnlyList<Row>? Targets { get; set; }
+    [Parameter] public IReadOnlyList<ReleaseEditRow>? Targets { get; set; }
     [Parameter] public string? ProtoSha { get; set; }
     [Parameter] public int ShaOrder { get; set; }
     [Parameter] public bool CanOrder { get; set; }
@@ -83,23 +84,8 @@
     int _order;
     List<MemberField> _fields = [];
 
-    public sealed record Row(string Platform, string Build, string AppVersion, string? ClientVersion, string Source);
-
     static string Short(string? sha) {
         return string.IsNullOrEmpty(sha) ? "" : sha.Length <= 12 ? sha : sha[..12];
-    }
-
-
-    sealed class MemberField {
-        public string Platform = "";
-        public string OriginalBuild = "";
-        public string Build = "";
-        public string ClientVersion = "";
-        public string Source = "";
-        public bool ProtoOpen;
-        public bool ProtoBusy;
-        public string Proto = "";
-        public string ProtoMsg = "";
     }
 
     protected override void OnParametersSet() {

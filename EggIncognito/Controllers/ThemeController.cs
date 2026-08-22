@@ -1,5 +1,6 @@
 using EggIdentity.Contract;
 using EggIncognito.Data.Services;
+using EggIncognito.Models.Theme;
 using EggIncognito.Services;
 using EggIncognito.Services.Auth;
 using EggIncognito.Services.Theme;
@@ -243,8 +244,4 @@ public sealed class ThemeController(ICurrentUser currentUser, IServiceProvider s
         var (model, _) = ThemeModel.Parse(modelJson);
         return model?.Css ?? "";
     }
-
-    public sealed record CssBody(string? Slug, string? Css);
-
-    public sealed record PolicyBody(bool CustomCssEnabled, string? DefaultThemeSlug);
 }

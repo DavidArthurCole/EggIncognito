@@ -2,6 +2,7 @@
 @rendermode @(RenderMode.InteractiveServer)
 @using EggIdentity.Bot.AdminUi
 @using EggIncognito.Components.Protos
+@using EggIncognito.Models.AdminUi
 @inherits BrowserApiComponentBase
 @inject ICurrentUser User
 
@@ -146,9 +147,5 @@
         };
         return $"<svg viewBox=\"0 0 24 24\" fill=\"currentColor\" width=\"14\" height=\"14\" aria-hidden=\"true\" style=\"display:block\">{path}</svg>";
     }
-
-    record UserRow(string DiscordId, string Username, string Role, List<string>? Providers, DateTimeOffset LastLoginAt);
-
-    record SetRoleResult(string DiscordId, string Role);
 
 }

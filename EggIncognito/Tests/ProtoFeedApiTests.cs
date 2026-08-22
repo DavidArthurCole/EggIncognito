@@ -3,6 +3,7 @@ using EggIdentity.Contract;
 using EggIncognito.Controllers;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
+using EggIncognito.Models.Protos;
 using EggIncognito.Services;
 using EggIncognito.Services.Feed;
 using Microsoft.AspNetCore.Mvc;
@@ -27,7 +28,7 @@ public class ProtoFeedApiTests {
     [Fact]
     public async Task Create_NoStore_Returns503() {
         var c = Controller(new MapServices([]), _ => new HttpResponseMessage(HttpStatusCode.OK));
-        var r = await c.Create(new ProtoFeedController.CreateReq(
+        var r = await c.Create(new FeedCreateReq(
             "https://discord.com/api/webhooks/1/abc", null, null, null, null), CancellationToken.None);
         Assert.Equal(503, Status(r));
     }
@@ -36,7 +37,7 @@ public class ProtoFeedApiTests {
     public async Task Create_BadUrl_Returns400() {
         var services = new MapServices(new Dictionary<Type, object?> { [typeof(FeedSubscriptionStore)] = UnconnectedStore() });
         var c = Controller(services, _ => new HttpResponseMessage(HttpStatusCode.OK));
-        var r = await c.Create(new ProtoFeedController.CreateReq(
+        var r = await c.Create(new FeedCreateReq(
             "https://evil.example.com/hook", null, null, null, null), CancellationToken.None);
         Assert.IsType<BadRequestObjectResult>(r);
         Assert.Equal(400, Status(r));
@@ -46,7 +47,7 @@ public class ProtoFeedApiTests {
     public async Task Create_EmptyUrl_Returns400() {
         var services = new MapServices(new Dictionary<Type, object?> { [typeof(FeedSubscriptionStore)] = UnconnectedStore() });
         var c = Controller(services, _ => new HttpResponseMessage(HttpStatusCode.OK));
-        var r = await c.Create(new ProtoFeedController.CreateReq("", null, null, null, null), CancellationToken.None);
+        var r = await c.Create(new FeedCreateReq("", null, null, null, null), CancellationToken.None);
         Assert.IsType<BadRequestObjectResult>(r);
     }
 
@@ -87,7 +88,7 @@ public class ProtoFeedApiTests {
     [Fact]
     public async Task Update_Anon_Returns401() {
         var c = Controller(new MapServices([]), _ => new HttpResponseMessage(HttpStatusCode.OK));
-        var r = await c.Update(1, new ProtoFeedController.UpdateReq(["android"], "new_version", true, null),
+        var r = await c.Update(1, new FeedUpdateReq(["android"], "new_version", true, null),
             CancellationToken.None);
         Assert.Equal(401, Status(r));
     }
@@ -98,7 +99,7 @@ public class ProtoFeedApiTests {
             [typeof(ICurrentUser)] = new StubUser("42")
         });
         var c = Controller(services, _ => new HttpResponseMessage(HttpStatusCode.OK));
-        var r = await c.Update(1, new ProtoFeedController.UpdateReq(null, null, null, null), CancellationToken.None);
+        var r = await c.Update(1, new FeedUpdateReq(null, null, null, null), CancellationToken.None);
         Assert.Equal(503, Status(r));
     }
 

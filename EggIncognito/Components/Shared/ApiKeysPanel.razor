@@ -1,5 +1,6 @@
 @using System.Net
 @using System.Text.Json
+@using EggIncognito.Models.ApiKeys
 @inherits SelfCallComponentBase
 @inject ILogger<ApiKeysPanel> Logger
 
@@ -42,7 +43,7 @@
                 @if (AtCap) {
                     <p class="text-muted text-sm mt-2 mb-0">Key limit reached - revoke a key to mint a new one.</p>
                 } else if (_error is not null) {
-                    <StatusNote Severity="StatusNote.Kind.Error">@_error</StatusNote>
+                    <StatusNote Severity="StatusNoteKind.Error">@_error</StatusNote>
                 }
             </div>
         }
@@ -92,7 +93,7 @@
     string _origin = "https://eggincognito.davidarthurcole.me";
 
     bool _noDb;
-    List<KeyRow>? _keys;
+    List<ApiKeysPanelRow>? _keys;
     int? _cap;
     string _name = "";
     bool _busy;
@@ -147,7 +148,7 @@
             } else if (res.StatusCode == HttpStatusCode.Conflict) {
                 string? msg = null;
                 try {
-                    msg = (await res.Content.ReadFromJsonAsync<ErrorBody>(JsonOpts))?.Error;
+                    msg = (await res.Content.ReadFromJsonAsync<ApiKeyErrorBody>(JsonOpts))?.Error;
                 }
                 catch (Exception ex) {
                     Logger.LogDebug(ex, "key conflict body unreadable");
@@ -182,13 +183,5 @@
         _minted = null;
         _copied = false;
     }
-
-    record KeysResponse(List<KeyRow> Keys, int? Cap);
-
-    record KeyRow(long Id, string Name, string Prefix, DateTimeOffset CreatedAt, DateTimeOffset? LastUsedAt, long RequestCount, bool Revoked);
-
-    record Minted(long Id, string Name, string Prefix, string Key);
-
-    record ErrorBody(string? Error);
 
 }

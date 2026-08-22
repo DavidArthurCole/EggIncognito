@@ -21,7 +21,7 @@
     <ModalShell Title="Account" TitleId="accountModalTitle" CardClass="account-modal" CloseOnEscape="true" OnClose="Close">
         <div class="modal-body">
             @if (_linkMessage is not null) {
-                <StatusNote Severity="@(_linkOk ? StatusNote.Kind.Ok : StatusNote.Kind.Error)">@_linkMessage</StatusNote>
+                <StatusNote Severity="@(_linkOk ? StatusNoteKind.Ok : StatusNoteKind.Error)">@_linkMessage</StatusNote>
             }
             @if (Auth.WidgetEnabled && !string.IsNullOrEmpty(_sessionToken)) {
                 <ProfilePanel SessionToken="@_sessionToken" ReturnUrl="@_returnUrl">

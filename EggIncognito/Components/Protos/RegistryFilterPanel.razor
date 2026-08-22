@@ -1,3 +1,4 @@
+@using EggIncognito.Models.Registry
 @using EggIncognito.Services.Protos
 <div class="pwb-fil">
     @for (var g = 0; g < _groups.Count; g++) {
@@ -89,17 +90,6 @@
 </div>
 
 @code {
-
-    sealed class DraftRow {
-        public string Field { get; set; } = "";
-        public FilterOp Op { get; set; }
-        public bool OpSet { get; set; }
-        public string Value { get; set; } = "";
-    }
-
-    sealed class DraftGroup {
-        public List<DraftRow> Rows { get; } = [];
-    }
 
     [Parameter] public RegistryQuery Query { get; set; } = RegistryQuery.Empty;
 

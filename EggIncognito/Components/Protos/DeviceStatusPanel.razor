@@ -3,6 +3,7 @@
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env
 @using System.Globalization
+@using EggIncognito.Models.Registry
 @implements IDisposable
 
 <div class="panel">
@@ -47,20 +48,6 @@
 </div>
 
 @code {
-
-    sealed record DeviceStatus(
-        string Id,
-        string Platform,
-        string Label,
-        bool Reachable,
-        string? InstalledAppVersion,
-        string? InstalledBuild,
-        string? StoreLatest,
-        bool StoreAhead,
-        string Result,
-        string? Note,
-        DateTimeOffset ProbedAt,
-        int? ClientVersion);
 
     [Parameter] public EventCallback<string?> OnManage { get; set; }
 

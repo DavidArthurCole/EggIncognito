@@ -9,6 +9,7 @@ using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using EggIncognito.GameData;
+using EggIncognito.Models.Admin;
 using EggIncognito.Services;
 using EggIncognito.Services.Auth;
 using EggIncognito.Services.DataApi;
@@ -443,8 +444,4 @@ public sealed partial class AdminController(ICurrentUser currentUser, IServicePr
         await db.SaveChangesAsync();
         return Ok(new { deleted = id });
     }
-
-    public sealed record SetRole(string Role);
-
-    public sealed record AddTag(string Slug, string Label, string? Color);
 }

@@ -1,5 +1,6 @@
 using EggIdentity.Contract;
 using EggIncognito.Data.Services;
+using EggIncognito.Models.ApiKeys;
 using EggIncognito.Services;
 using EggIncognito.Services.Auth;
 using EggIncognito.Services.DataApi;
@@ -62,6 +63,4 @@ public sealed class ApiKeysController(ICurrentUser currentUser, IConfiguration c
         if (!ok) return NotFound(new { error = "key not found" });
         return Ok(new { revoked = true });
     }
-
-    public sealed record MintReq(string? Name);
 }

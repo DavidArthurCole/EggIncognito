@@ -24,7 +24,7 @@
     </div>
     <div class="insp-disc-body">
         @if (!string.IsNullOrEmpty(SaveStatus)) {
-            <StatusNote Severity="@(SaveFailed ? StatusNote.Kind.Error : StatusNote.Kind.Ok)">@SaveStatus</StatusNote>
+            <StatusNote Severity="@(SaveFailed ? StatusNoteKind.Error : StatusNoteKind.Ok)">@SaveStatus</StatusNote>
         }
         <ResponsePanel Response="Response" IsAdmin="IsAdmin" FixBusy="FixBusy" OnFixWrapped="OnFixWrapped"/>
     </div>

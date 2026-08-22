@@ -1,10 +1,10 @@
 using System.Data.Common;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using EggIdentity.Contract;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
+using EggIncognito.Models.EnvDesign;
 using EggIncognito.Services;
 using EggIncognito.Services.Auth;
 using Microsoft.AspNetCore.Mvc;
@@ -186,8 +186,4 @@ public sealed class EnvDesignController(ICurrentUser currentUser, IServiceProvid
         await db.SaveChangesAsync(HttpContext.RequestAborted);
         return Ok(new { deleted = name });
     }
-
-    public sealed record SaveDesign(string Payload, string? Note);
-
-    public sealed record RollbackBody([property: JsonRequired] int VersionNo);
 }

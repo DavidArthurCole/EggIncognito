@@ -8,6 +8,7 @@
 @using System.Text.Json
 @using EggIncognito.Components.Shared.Editor
 @using EggIncognito.Components.Shared.Workbench
+@using EggIncognito.Models.Notifications
 @using EggIncognito.Services.Feed
 @using EggIncognito.Services.Notifications
 @using EggIncognito.Services.Workbench
@@ -302,7 +303,7 @@
     }
 
     void Note(string text, bool ok) {
-        _notice = new WorkbenchNotice(text, ok ? StatusNote.Kind.Ok : StatusNote.Kind.Error);
+        _notice = new WorkbenchNotice(text, ok ? StatusNoteKind.Ok : StatusNoteKind.Error);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender) {
@@ -498,7 +499,7 @@
                 await LoadRows();
                 if (_rows is { Count: > 0 }) await Select(_rows[0]);
             } else {
-                var err = await res.Content.ReadFromJsonAsync<ErrorBody>(SelfCallJson.Web);
+                var err = await res.Content.ReadFromJsonAsync<FeedErrorBody>(SelfCallJson.Web);
                 Note(err?.Error ?? $"Create failed ({(int)res.StatusCode}).", false);
             }
         }
@@ -585,36 +586,5 @@
 
         _selfRef?.Dispose();
     }
-
-    record ErrorBody(string? Error);
-
-    record TriggerOpt(string Value, string Label);
-
-    record FilterOpt(string Key, string Label, bool DefaultOn);
-
-    record KindInfo(
-        string Key,
-        string Label,
-        List<TriggerOpt> Triggers,
-        List<FeedVarInfo> Vars,
-        string DefaultTrigger,
-        bool PlatformScoped,
-        List<FilterOpt> Filters);
-
-    record NotificationRow(
-        int Id,
-        string? Label,
-        string EventKind,
-        string[] Platforms,
-        string Trigger,
-        string[] Filters,
-        bool Active,
-        DateTimeOffset CreatedAt,
-        DateTimeOffset? LastDeliveryAt,
-        int FailCount,
-        string? MessageTemplate,
-        string UrlMasked);
-
-    record PreviewRow(string Key, string? Body);
 
 }

@@ -1,6 +1,7 @@
 @* Admin oversight of active capture sessions: list + a kill button per row, polling /api/admin/sessions. *@
 @rendermode @(RenderMode.InteractiveServer)
 @inherits BrowserApiComponentBase
+@using EggIncognito.Models.AdminUi
 @implements IDisposable
 
 <section class="panel mb-4">
@@ -52,7 +53,7 @@
 </section>
 
 @code {
-    List<Row> _rows = [];
+    List<SessionRow> _rows = [];
     bool _busy;
     string? _msg;
     Timer? _timer;
@@ -73,7 +74,7 @@
     async Task Load() {
         if (Api is null) return;
         var res = await Api.GetAsync("/api/admin/sessions");
-        if (res.Ok) _rows = res.Json<List<Row>>() ?? [];
+        if (res.Ok) _rows = res.Json<List<SessionRow>>() ?? [];
     }
 
     async Task Kill(string key) {
@@ -106,7 +107,5 @@
         _timer?.Dispose();
         _ = _vis?.DisposeAsync();
     }
-
-    record Row(string Key, string Kind, bool Killable, bool Running, int Port, long Flows, long Connections, int Devices, long DecryptOk, int DecryptErr);
 
 }

@@ -1,6 +1,6 @@
 @if (Open) {
     <ModalShell Title="Inspector settings" TitleId="inspectorSettingsTitle"
-                Width="ModalShell.ModalWidth.Small" OnClose="OnClose">
+                Width="ModalWidth.Small" OnClose="OnClose">
         <div class="modal-body">
             <label class="settings-check">
                 <input type="checkbox" checked="@HistoryEnabled" @onchange="OnToggle"/>

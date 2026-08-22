@@ -1,4 +1,5 @@
 @rendermode @(RenderMode.InteractiveServer)
+@using EggIncognito.Models.AdminUi
 @inherits BrowserApiComponentBase
 
 <section class="panel mb-4">
@@ -146,7 +147,7 @@
 @code {
     List<RouteRow> _rows = [];
     List<string> _messages = [];
-    BinaryStatus? _binary;
+    RouteBinaryStatus? _binary;
     bool _binaryUnavailable;
     bool _loading = true;
     bool _busy;
@@ -192,7 +193,7 @@
         return _rows.Where(r => r.Path.Contains(_filter, StringComparison.OrdinalIgnoreCase)).ToList();
     }
 
-    List<DriftRow> DriftFor(string path) {
+    List<RouteDriftRow> DriftFor(string path) {
         if (_binary is null) return [];
         return _binary.Drift.Where(d => d.Path == path && d.Field != "new").ToList();
     }
@@ -259,7 +260,7 @@
             return;
         }
 
-        _binary = res.Ok ? res.Json<BinaryStatus>() : null;
+        _binary = res.Ok ? res.Json<RouteBinaryStatus>() : null;
     }
 
     async Task RefreshBinary() {
@@ -271,7 +272,7 @@
         if (res.Status == 503) {
             _msg = "refresh unavailable (no database)";
         } else if (res.Ok) {
-            var d = res.Json<RefreshResult>();
+            var d = res.Json<RouteBinaryRefreshResult>();
             _msg = d is null
                 ? "refresh complete"
                 : $"refresh complete: {d.Discovered} discovered, {d.New} new, {d.DriftCount} drift" +
@@ -287,7 +288,7 @@
 
     async Task Save(RouteRow row) {
         if (Api is null) return;
-        var body = new UpsertBody(
+        var body = new RouteUpsertBody(
             string.IsNullOrWhiteSpace(_draftRequest) ? null : _draftRequest,
             string.IsNullOrWhiteSpace(_draftResponse) ? null : _draftResponse,
             ParseTriState(_draftRequestWrapped),
@@ -322,14 +323,14 @@
         _busy = false;
     }
 
-    async Task ApplyDrift(DriftRow d) {
+    async Task ApplyDrift(RouteDriftRow d) {
         if (Api is null || d.BinaryValue is null || !bool.TryParse(d.BinaryValue, out var value)) return;
         _busy = true;
         _msg = null;
         var row = _rows.FirstOrDefault(r => r.Path == d.Path);
         var current = row?.Override;
         var eff = row?.Effective;
-        var body = new UpsertBody(
+        var body = new RouteUpsertBody(
             current?.Request ?? eff?.Request,
             current?.Response ?? eff?.Response,
             d.Field == "requestWrapped" ? value : current?.RequestWrapped ?? eff?.RequestWrapped,
@@ -345,43 +346,5 @@
 
         _busy = false;
     }
-
-    record RouteRow(string Path, string Source, EffectiveInfo? Effective, OverrideInfo? Override);
-
-    record EffectiveInfo(string? Request, string? Response, bool RequestWrapped, bool ResponseWrapped, bool PathParam);
-
-    record OverrideInfo(
-        string? Request,
-        string? Response,
-        bool? RequestWrapped,
-        bool? ResponseWrapped,
-        bool? PathParam,
-        DateTimeOffset UpdatedAt,
-        Guid? UpdatedBy);
-
-    record BinaryStatus(
-        DateTimeOffset? LastRefresh,
-        string? BinaryVersion,
-        int Discovered,
-        int NewCount,
-        int DriftCount,
-        List<BinaryRow> Rows,
-        List<DriftRow> Drift);
-
-    record BinaryRow(
-        string Path,
-        string? Method,
-        string? Request,
-        string? Response,
-        bool RequestWrapped,
-        bool ResponseWrapped,
-        string? BinaryVersion,
-        DateTimeOffset RefreshedAt);
-
-    record DriftRow(string Path, string Field, string? EffectiveValue, string? BinaryValue, bool Reliable);
-
-    record RefreshResult(int Discovered, int New, int DriftCount, string? BinaryVersion, string? Note);
-
-    record UpsertBody(string? Request, string? Response, bool? RequestWrapped, bool? ResponseWrapped, bool? PathParam);
 
 }

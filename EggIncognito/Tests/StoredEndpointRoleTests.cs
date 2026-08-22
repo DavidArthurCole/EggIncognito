@@ -1,5 +1,6 @@
 using EggIdentity.Contract;
 using EggIncognito.Controllers;
+using EggIncognito.Models.Endpoints;
 using EggIncognito.Services;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 
@@ -12,14 +13,14 @@ public class StoredEndpointRoleTests {
     [Fact]
     public async Task Viewer_Upsert_Is403() {
         var r = await Controller(UserRole.Viewer).UpsertEndpointAsync(
-            new StoredEndpointController.UpsertEndpoint("ei/x", null, "{}", "PeriodicalsResponse"), new FakeRoutes());
+            new UpsertEndpoint("ei/x", null, "{}", "PeriodicalsResponse"), new FakeRoutes());
         Assert.Equal(403, ((IStatusCodeActionResult)r).StatusCode);
     }
 
     [Fact]
     public async Task Contributor_PassesGate_Then503NoDb() {
         var r = await Controller(UserRole.Contributor).UpsertEndpointAsync(
-            new StoredEndpointController.UpsertEndpoint("ei/x", null, "{}", "PeriodicalsResponse"), new FakeRoutes());
+            new UpsertEndpoint("ei/x", null, "{}", "PeriodicalsResponse"), new FakeRoutes());
         Assert.Equal(503, ((IStatusCodeActionResult)r).StatusCode);
     }
 

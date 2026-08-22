@@ -1,3 +1,4 @@
+@using EggIncognito.Models.Registry
 @* Admin bulk-action bar, shown when >=1 registry row is selected. Soft-delete the selection, or merge
    it into one grouped release; the canonical is picked automatically since members are the same version
    and all platforms stay visible on the grouped row. Server ACL is the real gate. *@
@@ -23,8 +24,6 @@
 
     bool _busy;
     string _msg = "";
-
-    public sealed record SelectionKey(string Platform, string Build);
 
     async Task DeleteSelected() {
         _busy = true;

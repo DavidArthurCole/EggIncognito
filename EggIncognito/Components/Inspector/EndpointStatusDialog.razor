@@ -1,6 +1,6 @@
 @if (Open) {
     <ModalShell Title="Endpoint status" TitleId="endpointStatusTitle"
-                Width="ModalShell.ModalWidth.Large" OnClose="OnClose">
+                Width="ModalWidth.Large" OnClose="OnClose">
         <div class="modal-body">
             @if (!string.IsNullOrEmpty(Summary)) {
                 <div class="muted text-sm mb-2">@Summary</div>

@@ -1,6 +1,7 @@
 using System.Text;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
+using EggIncognito.Models.Protos;
 using EggIncognito.Services;
 using EggIncognito.Services.Auth;
 using EggIncognito.Services.Feed;
@@ -34,7 +35,7 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
 
     [HttpPost]
     [EnableRateLimiting("write")]
-    public async Task<IActionResult> Create([FromBody] CreateReq req, CancellationToken ct) {
+    public async Task<IActionResult> Create([FromBody] FeedCreateReq req, CancellationToken ct) {
         if (Store is null) return StatusCode(503, new { error = "no database configured" });
         if (string.IsNullOrWhiteSpace(req.WebhookUrl) ||
             !Uri.TryCreate(req.WebhookUrl, UriKind.Absolute, out var webhook) ||
@@ -131,7 +132,7 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
 
     [HttpPost("preview")]
     [EnableRateLimiting("read")]
-    public IActionResult Preview([FromBody] PreviewReq req) {
+    public IActionResult Preview([FromBody] FeedPreviewReq req) {
         string kind = FeedEventKinds.Normalize(req.EventKind);
         var probe = new FeedSubscription {
             EventKind = kind,
@@ -144,7 +145,7 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
         return Ok(FeedSamples.For(kind).Select(s => {
             bool matches = s.Event.Matches(probe);
             var blocked = matches ? s.Event.BlockedBy(probe) : [];
-            return new PreviewRow(
+            return new FeedPreviewRow(
                 s.Key, s.Label, s.Event.Summary, matches, blocked,
                 matches && blocked.Count == 0 ? s.Event.BuildBody(probe.MessageTemplate) : null);
         }));
@@ -153,7 +154,7 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
 
     [HttpPatch("{id:int}")]
     [EnableRateLimiting("write")]
-    public async Task<IActionResult> Update(int id, [FromBody] UpdateReq req, CancellationToken ct) {
+    public async Task<IActionResult> Update(int id, [FromBody] FeedUpdateReq req, CancellationToken ct) {
         var owner = OwnerUserId;
         if (owner is null) return Unauthorized(new { error = "log in to manage subscriptions" });
         if (Store is null) return StatusCode(503, new { error = "no database configured" });
@@ -188,9 +189,9 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
         var suppressions = await store.SuppressionsAsync(id, ActivityTake, ct);
 
         var rows = deliveries
-            .Select(d => new ActivityRow(d.AttemptedAt, d.Status,
+            .Select(d => new FeedActivityRow(d.AttemptedAt, d.Status,
                 string.IsNullOrEmpty(d.Summary) ? d.DedupKey : d.Summary, d.ResponseCode, null))
-            .Concat(suppressions.Select(s => new ActivityRow(s.CreatedAt, "blocked",
+            .Concat(suppressions.Select(s => new FeedActivityRow(s.CreatedAt, "blocked",
                 string.IsNullOrEmpty(s.Summary) ? s.DedupKey : s.Summary, null, s.Reason)))
             .OrderByDescending(r => r.At)
             .Take(ActivityTake);
@@ -198,16 +199,6 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
     }
 
     private const int ActivityTake = 25;
-
-    public sealed record ActivityRow(
-        DateTimeOffset At, string Status, string Event, int? ResponseCode, string? Reason);
-
-    public sealed record PreviewRow(
-        string Key, string Label, string Event, bool Matches, IReadOnlyList<string> BlockedBy, string? Body);
-
-    public sealed record PreviewReq(
-        string? EventKind, string? Trigger, string[]? Platforms, string[]? Filters, string? MessageTemplate);
-
 
     public static string[] ResolveFilters(FeedSubscription sub, string[]? requested) =>
         FeedEventKinds.NormalizeFilters(FeedEventKinds.Normalize(sub.EventKind), requested ?? sub.Filters);
@@ -225,16 +216,4 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
         string tail = url.Length <= 6 ? url : url[^6..];
         return $"...{tail}";
     }
-
-    public sealed record CreateReq(
-        string WebhookUrl,
-        string[]? Platforms,
-        string? Trigger,
-        string? Label,
-        string? MessageTemplate,
-        string? EventKind = null,
-        string[]? Filters = null);
-
-    public sealed record UpdateReq(
-        string[]? Platforms, string? Trigger, bool? Active, string? MessageTemplate, string[]? Filters = null);
 }

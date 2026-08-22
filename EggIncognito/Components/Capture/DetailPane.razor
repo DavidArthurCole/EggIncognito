@@ -1,6 +1,7 @@
 @using System.Text.Json
 @using EggIncognito.Capture
 @using EggIncognito.Core
+@using EggIncognito.Models.Capture
 @* The detail pane: header (path + status), the known-endpoint card or save-as-endpoint bar + type
    lines, then the Request and Response panes carrying the body (CodeFormats), URL params, and optional headers. *@
 
@@ -383,7 +384,5 @@
                    }
                </div>;
     }
-
-    sealed record SaveResult(string? Saved, string? Error);
 
 }

@@ -12,9 +12,9 @@
 @using System.Globalization
 @using System.Text.Json
 @using EggIncognito.Components.Protos
+@using EggIncognito.Models.Registry
 @using EggIncognito.Services.ProtoExtract
 @using EggIncognito.Services.Protos
-@using static Components.Protos.ProtoEditDialog
 @implements IAsyncDisposable
 
 <PageTitle>EggIncognito - Protos & Data</PageTitle>
@@ -378,7 +378,7 @@
     string _addSource = "";
     string _addProto = "";
 
-    readonly List<ProtoSelectionBar.SelectionKey> _selected = [];
+    readonly List<SelectionKey> _selected = [];
     long? _editingKey;
     List<MergeSuggestion> _suggestions = [];
     StagedReviewPanel? _stagedPanel;
@@ -744,11 +744,6 @@
         if (ok) await OnMutated();
     }
 
-    public sealed record MergeSuggestion(string AppVersion, string ProtoSha, List<MergeMember> Members);
-
-    public sealed record MergeMember(string Platform, string Build);
-
-
     async Task<bool> PostJson(string url, object body) {
         try {
             return (await Client().PostAsJsonAsync(url, body, JsonOpts)).IsSuccessStatusCode;
@@ -829,7 +824,7 @@
         _selected.Clear();
         if (e.Value is true)
             foreach (var r in Sorted)
-                _selected.Add(new ProtoSelectionBar.SelectionKey(r.Platform, r.Build));
+                _selected.Add(new SelectionKey(r.Platform, r.Build));
     }
 
 
@@ -839,7 +834,7 @@
             var existing = _selected.FirstOrDefault(k => k.Platform == m.Platform && k.Build == m.Build);
             if (allSelected) {
                 if (existing is not null) _selected.Remove(existing);
-            } else if (existing is null) _selected.Add(new ProtoSelectionBar.SelectionKey(m.Platform, m.Build));
+            } else if (existing is null) _selected.Add(new SelectionKey(m.Platform, m.Build));
         }
     }
 
@@ -852,8 +847,9 @@
         _editingKey = _editingKey == rel.Key ? null : rel.Key;
     }
 
-    List<Row> EditTargets(Release rel) {
-        return rel.Members.Select(m => new Row(m.Platform, m.Build, m.AppVersion ?? "", m.ClientVersion, m.Source ?? ""))
+    List<ReleaseEditRow> EditTargets(Release rel) {
+        return rel.Members
+            .Select(m => new ReleaseEditRow(m.Platform, m.Build, m.AppVersion ?? "", m.ClientVersion, m.Source ?? ""))
             .ToList();
     }
 
@@ -875,14 +871,6 @@
         await _hashListener.DisposeModuleAsync("dispose", Logger);
         await _hashnav.DisposeModuleAsync(logger: Logger);
         _selfRef?.Dispose();
-    }
-
-    sealed record Release(long Key, IReadOnlyList<ProtoRegistryRow> Members) {
-        public ProtoRegistryRow Primary => Members[0];
-        public bool IsGrouped => Members.Count > 1;
-
-        public IEnumerable<ProtoRegistryRow> Platforms =>
-            Members.DistinctBy(m => m.Platform, StringComparer.OrdinalIgnoreCase);
     }
 
     static long ReleaseKey(ProtoRegistryRow r) {

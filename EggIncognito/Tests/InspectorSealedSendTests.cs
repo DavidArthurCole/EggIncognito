@@ -1,5 +1,6 @@
 using EggIdentity.Contract;
 using EggIncognito.Controllers;
+using EggIncognito.Models.Inspector;
 using EggIncognito.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -18,7 +19,7 @@ public class InspectorSealedSendTests {
         return c;
     }
 
-    private static InspectorApiController.SendRequest SealedSend() =>
+    private static SendRequest SealedSend() =>
         new("https://www.auxbrain.com/ei/first_contact", "data=x", "EggIncFirstContactResponse", true);
 
     [Fact]

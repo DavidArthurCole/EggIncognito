@@ -2,6 +2,7 @@ using EggIdentity.Contract;
 using EggIncognito.Core;
 using EggIncognito.Core.Services.Protos;
 using EggIncognito.Data.Services;
+using EggIncognito.Models.Protos;
 using EggIncognito.Services;
 using EggIncognito.Services.Auth;
 using EggIncognito.Services.ProtoExtract;
@@ -285,50 +286,4 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
         (int staged, int skipped) = await s.ImportCrawlAsync(records, ct);
         return Ok(new { staged, skipped });
     }
-
-    public sealed record SaveRequest(
-        string Platform,
-        string AppVersion,
-        string Build,
-        string? ClientVersion,
-        string? Package,
-        string? Proto,
-        string? Source);
-
-    public sealed record SetProtoRequest(string Proto);
-
-    public sealed record EditRequest(string? AppVersion, string? ClientVersion, string? Source, string? Build);
-
-    public sealed record VersionKey(string Platform, string Build);
-
-    public sealed record BulkDeleteRequest(IReadOnlyList<VersionKey> Versions);
-
-    public sealed record MergeRequest(VersionKey Canonical, IReadOnlyList<VersionKey> Aliases);
-
-    public sealed record ShaOrderRequest(string ProtoSha, int Order);
-
-    public sealed record OfferRequest(
-        string Platform,
-        string? AppVersion,
-        string? Build,
-        string? ClientVersion,
-        string? Package,
-        string ProtoSha,
-        string ProtoText,
-        string? MessageIndex);
-
-    public sealed record ApproveRequest(string? Platform, string? AppVersion, string? Build, string? ClientVersion);
-
-    public sealed record RejectRequest(string? Note);
-
-    public sealed record BulkApproveItem(
-        int Id,
-        string? Platform,
-        string? AppVersion,
-        string? Build,
-        string? ClientVersion);
-
-    public sealed record BulkApproveRequest(IReadOnlyList<BulkApproveItem> Items);
-
-    public sealed record BulkRejectRequest(IReadOnlyList<int> Ids, string? Note);
 }

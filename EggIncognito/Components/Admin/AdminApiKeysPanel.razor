@@ -1,4 +1,5 @@
 @rendermode @(RenderMode.InteractiveServer)
+@using EggIncognito.Models.AdminUi
 @inherits BrowserApiComponentBase
 
 <section class="panel mb-4">
@@ -47,7 +48,7 @@
 </section>
 
 @code {
-    List<Row> _rows = [];
+    List<ApiKeyRow> _rows = [];
     bool _busy;
     string? _msg;
 
@@ -58,7 +59,7 @@
     async Task Load() {
         if (Api is null) return;
         var res = await Api.GetAsync("/api/admin/api-keys");
-        if (res.Ok) _rows = res.Json<List<Row>>() ?? [];
+        if (res.Ok) _rows = res.Json<List<ApiKeyRow>>() ?? [];
     }
 
     async Task Revoke(long id) {
@@ -80,16 +81,5 @@
         await Load();
         _busy = false;
     }
-
-    record Row(
-        long Id,
-        string Name,
-        string Prefix,
-        string OwnerUserId,
-        DateTimeOffset CreatedAt,
-        DateTimeOffset? LastUsedAt,
-        long RequestCount,
-        bool Revoked,
-        DateTimeOffset? RevokedAt);
 
 }

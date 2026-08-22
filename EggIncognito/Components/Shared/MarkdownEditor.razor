@@ -4,6 +4,7 @@
    token to the value instead of wrapping the selection. *@
 @using System.Net.Http.Headers
 @using System.Text.Json
+@using EggIncognito.Models.Docs
 @inherits SelfCallComponentBase
 @inject ICurrentUser User
 
@@ -140,7 +141,5 @@
             _busy = false;
         }
     }
-
-    record ImageResult(long Id, string Url);
 
 }

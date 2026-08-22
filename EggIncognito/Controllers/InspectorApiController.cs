@@ -2,11 +2,11 @@ using System.Data.Common;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using EggIncognito.Capture;
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
+using EggIncognito.Models.Inspector;
 using EggIncognito.Services;
 using EggIncognito.Services.Auth;
 using EggIncognito.Services.ProtoExtract;
@@ -276,33 +276,4 @@ public sealed class InspectorApiController(
         host is "localhost" or "127.0.0.1"
         || (!string.IsNullOrEmpty(selfHost) && string.Equals(host, selfHost, StringComparison.OrdinalIgnoreCase))
         || AuxbrainHosts.IsAuxbrain(host);
-
-    public sealed record BuildRequest(
-        string Path,
-        string RequestType,
-        [property: JsonRequired] bool Wrap,
-        JsonElement? Fields,
-        JsonElement? Env,
-        string? Salt);
-
-    public sealed record SendRequest(
-        string? Url,
-        string FormBody,
-        string? ResponseType,
-        bool Sealed = false,
-        bool? ResponseWrapped = null,
-        string? Path = null,
-        string? PathParam = null);
-
-    public sealed record DecodeResponseRequest(string RawBase64, string? ResponseType, bool? ResponseWrapped = null);
-
-    public sealed record RinfoSeedResponse(
-        string EiUserId,
-        string ClientVersion,
-        string Version,
-        string Build,
-        string Platform,
-        string Country,
-        string Language,
-        bool Debug);
 }

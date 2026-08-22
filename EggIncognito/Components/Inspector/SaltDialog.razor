@@ -1,7 +1,7 @@
 @inject ILogger<SaltDialog> Logger
 
 @if (Open) {
-    <ModalShell Title="Signing salt" TitleId="saltModalTitle" Width="ModalShell.ModalWidth.Small" OnClose="OnClose">
+    <ModalShell Title="Signing salt" TitleId="saltModalTitle" Width="ModalWidth.Small" OnClose="OnClose">
         <div class="modal-body">
             <p class="text-muted text-sm mt-0">
                 Signs requests. Stored in this browser only; never sent to the server beyond the build request.

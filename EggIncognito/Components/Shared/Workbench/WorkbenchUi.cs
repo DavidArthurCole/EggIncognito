@@ -1,3 +1,5 @@
+using EggIncognito.Models.Shared;
+
 namespace EggIncognito.Components.Shared.Workbench;
 
 public enum WorkbenchSize {
@@ -12,4 +14,4 @@ public enum WorkbenchTone {
     Bad
 }
 
-public sealed record WorkbenchNotice(string Text, StatusNote.Kind Severity = StatusNote.Kind.Info);
+public sealed record WorkbenchNotice(string Text, StatusNoteKind Severity = StatusNoteKind.Info);

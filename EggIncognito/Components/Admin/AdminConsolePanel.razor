@@ -1,5 +1,6 @@
 @rendermode @(RenderMode.InteractiveServer)
 @using System.Text.Json
+@using EggIncognito.Models.AdminUi
 @inherits BrowserApiComponentBase
 
 <section class="panel mb-4">
@@ -51,7 +52,7 @@
             <button class="btn-primary mt-2" @onclick="Send" disabled="@_busy">@(_busy ? "Sending…" : "Send")</button>
 
             @if (_status is not null) {
-                <StatusNote Severity="@(_ok ? StatusNote.Kind.Info : StatusNote.Kind.Error)">@_statusLine</StatusNote>
+                <StatusNote Severity="@(_ok ? StatusNoteKind.Info : StatusNoteKind.Error)">@_statusLine</StatusNote>
                 @if (_isBinary) {
                     <div class="text-xs text-muted mt-1">Binary response (@_respBytes bytes). <a class="underline" href="@_blobUrl" download="@_downloadName">Download</a></div>
                 } else {
@@ -63,8 +64,8 @@
 </section>
 
 @code {
-    List<Endpoint> _endpoints = [];
-    Endpoint? _selected;
+    List<ConsoleEndpoint> _endpoints = [];
+    ConsoleEndpoint? _selected;
 
     readonly Dictionary<string, string?> _paramValues = new(StringComparer.Ordinal);
     string _body = "";
@@ -82,14 +83,14 @@
     protected override async Task OnApiReadyAsync() {
         if (Api is null) return;
         var res = await Api.GetAsync("/api/console/endpoints");
-        _endpoints = res.Ok ? res.Json<EndpointList>()?.Endpoints?.ToList() ?? [] : [];
+        _endpoints = res.Ok ? res.Json<ConsoleEndpointList>()?.Endpoints?.ToList() ?? [] : [];
     }
 
-    IEnumerable<IGrouping<string, Endpoint>> Grouped() {
+    IEnumerable<IGrouping<string, ConsoleEndpoint>> Grouped() {
         return _endpoints.GroupBy(Namespace).OrderBy(g => g.Key, StringComparer.Ordinal);
     }
 
-    static string Namespace(Endpoint e) {
+    static string Namespace(ConsoleEndpoint e) {
         var parts = e.Route.TrimStart('/').Split('/');
         return parts.Length >= 2 && parts[0] == "api" ? parts[1] : parts.ElementAtOrDefault(0) ?? "api";
     }
@@ -99,7 +100,7 @@
         return parts.Length > 2 && parts[0] == "api" ? "/" + string.Join('/', parts.Skip(2)) : route;
     }
 
-    static string Key(Endpoint e) {
+    static string Key(ConsoleEndpoint e) {
         return $"{e.Method} {e.Route}";
     }
 
@@ -108,7 +109,7 @@
         Select(_endpoints.FirstOrDefault(x => Key(x) == key));
     }
 
-    void Select(Endpoint? e) {
+    void Select(ConsoleEndpoint? e) {
         _selected = e;
         _paramValues.Clear();
         if (e is not null)
@@ -178,11 +179,5 @@
             return json;
         }
     }
-
-    record Endpoint(string Method, string Route, List<ParamRow> Query, bool HasBody, string? BodyType, bool HasFile);
-
-    record ParamRow(string Name, string Source, string Type, bool Required);
-
-    record EndpointList(int Count, Endpoint[]? Endpoints);
 
 }

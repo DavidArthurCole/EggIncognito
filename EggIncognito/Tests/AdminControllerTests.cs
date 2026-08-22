@@ -1,5 +1,6 @@
 using EggIdentity.Contract;
 using EggIncognito.Controllers;
+using EggIncognito.Models.Admin;
 using EggIncognito.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
@@ -24,7 +25,7 @@ public class AdminControllerTests {
 
     [Fact]
     public async Task Admin_SelfDemote_Is400() {
-        var r = await Controller(UserRole.Admin).SetUserRole("me", new AdminController.SetRole("viewer"));
+        var r = await Controller(UserRole.Admin).SetUserRole("me", new SetRole("viewer"));
         Assert.Equal(400, ((IStatusCodeActionResult)r).StatusCode);
     }
 
@@ -34,14 +35,14 @@ public class AdminControllerTests {
     [InlineData("")]
     [InlineData(null)]
     public async Task Admin_SetUnknownRole_Is400(string? role) {
-        var r = await Controller(UserRole.Admin).SetUserRole("other", new AdminController.SetRole(role!));
+        var r = await Controller(UserRole.Admin).SetUserRole("other", new SetRole(role!));
         var bad = Assert.IsType<BadRequestObjectResult>(r);
         Assert.Contains("unknown role", bad.Value!.ToString());
     }
 
     [Fact]
     public async Task Admin_SelfWithMalformedRole_Is400_NotDemoted() {
-        var r = await Controller(UserRole.Admin).SetUserRole("me", new AdminController.SetRole("admln"));
+        var r = await Controller(UserRole.Admin).SetUserRole("me", new SetRole("admln"));
         Assert.Equal(400, ((IStatusCodeActionResult)r).StatusCode);
     }
 

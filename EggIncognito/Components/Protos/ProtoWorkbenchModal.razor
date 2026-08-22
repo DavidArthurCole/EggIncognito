@@ -11,6 +11,7 @@
 @using System.Text.Json
 @using EggIncognito.Components.Shared.Workbench
 @using EggIncognito.Core
+@using EggIncognito.Models.Registry
 @using EggIncognito.Services.ProtoExtract
 @using EggIncognito.Services.Protos
 @using EggIncognito.Services.Workbench
@@ -749,21 +750,6 @@
         await CheckGroups();
     }
 
-    sealed class OfferGroup {
-        public string Key { get; init; } = "";
-        public string Platform { get; init; } = "";
-        public string AppVersion { get; init; } = "";
-        public string Build { get; init; } = "";
-        public string ClientVersionText { get; init; } = "";
-        public List<StagedEntry> Members { get; } = [];
-        public bool MultiSha { get; set; }
-        public StagedEntry? Winner { get; set; }
-        public GroupStatus? Status { get; set; }
-        public bool Conflict => MultiSha && Winner is null;
-        public string? Sha => Winner?.Result?.ProtoSha;
-        public string? StatusKey => Sha is { Length: > 0 } s ? Key + "|" + s : null;
-    }
-
     static string KeyOf(StagedEntry e) {
         return $"{e.Platform}|{e.AppVersion}|{e.Build}|{e.ClientVersionText}";
     }
@@ -788,7 +774,7 @@
             var shas = g.Members.Select(m => m.Result?.ProtoSha ?? "").Where(s => s.Length > 0).Distinct().ToList();
             g.MultiSha = shas.Count > 1;
             g.Winner = g.MultiSha
-                ? (State.GroupWinners.TryGetValue(g.Key, out var wid) ? g.Members.FirstOrDefault(m => m.Id == wid) : null)
+                ? State.GroupWinners.TryGetValue(g.Key, out var wid) ? g.Members.FirstOrDefault(m => m.Id == wid) : null
                 : g.Members.FirstOrDefault(m => m.Result?.ProtoSha is { Length: > 0 });
             g.Status = g.StatusKey is { } sk && State.GroupStatuses.TryGetValue(sk, out var st) ? st : null;
         }
@@ -921,12 +907,6 @@
             _ => new GroupStatus(false, true, true)
         };
     }
-
-    sealed record CheckResp(bool InRegistry, bool Pending, bool KnownCombination);
-
-    sealed record OfferResp(string? Result);
-
-    sealed record ConditionLine(int Group, int Index, string Text);
 
     List<ProtoRegistryRow> _regItems = [];
     IReadOnlyList<ProtoRegistryRow>? _regSource;
@@ -1062,12 +1042,12 @@
         return value is not null && !HasTextFor(value) ? "pwb-slot pwb-dim" : "pwb-slot";
     }
 
-    IReadOnlyList<VersionCombo.VersionComboItem> ComboItems(ProtoRef? exclude) {
-        var items = new List<VersionCombo.VersionComboItem>();
+    IReadOnlyList<VersionComboItem> ComboItems(ProtoRef? exclude) {
+        var items = new List<VersionComboItem>();
         foreach (var e in State.Entries.Where(x => x.IsAnalyzed)) {
             if (SessionRef(e) is not { } sref) continue;
             if (exclude is not null && SameRef(exclude, sref)) continue;
-            items.Add(new VersionCombo.VersionComboItem(sref.Format(), e.Platform, e.AppVersion, e.Build,
+            items.Add(new VersionComboItem(sref.Format(), e.Platform, e.AppVersion, e.Build,
                 e.ClientVersionText, Sha12(e.Result?.ProtoSha), false, "session upload"));
         }
 
@@ -1075,7 +1055,7 @@
             var value = RegistryRef(row);
             if (exclude is not null && SameRef(exclude, value)) continue;
             var hasText = HasText(row);
-            items.Add(new VersionCombo.VersionComboItem(value.Format(), row.Platform, row.AppVersion, row.Build,
+            items.Add(new VersionComboItem(value.Format(), row.Platform, row.AppVersion, row.Build,
                 row.ClientVersion, Sha12(row.ProtoSha), !hasText, hasText ? null : "no stored proto text"));
         }
 
@@ -1349,7 +1329,7 @@
     async Task StepHunk(int delta) {
         var count = HunkCount();
         if (count == 0) return;
-        _hunk = (((_hunk + delta) % count) + count) % count;
+        _hunk = ((_hunk + delta) % count + count) % count;
         await ScrollToHunk();
     }
 
@@ -1501,20 +1481,6 @@
         return parts;
     }
 
-    sealed record RefMeta(
-        string Platform,
-        string? AppVersion,
-        string? Build,
-        string? ClientVersion,
-        string? Source,
-        string? Package,
-        string? Detected,
-        string? Sha);
-
-    sealed record MetaRow(string Key, string A, string B) {
-        public bool Same => string.Equals(A, B, StringComparison.OrdinalIgnoreCase);
-    }
-
     RefMeta MetaOf(ProtoRef? value) {
         if (value is null) return new RefMeta("", null, null, null, null, null, null, null);
         if (value.Source == ProtoRefSource.Session) {
@@ -1530,18 +1496,18 @@
             row?.ProtoSha);
     }
 
-    IReadOnlyList<MetaRow> MetaRows() {
+    IReadOnlyList<ProtoMetaRow> MetaRows() {
         var a = MetaOf(State.A);
         var b = MetaOf(State.B);
         return [
-            new MetaRow("Platform", Dash(a.Platform), Dash(b.Platform)),
-            new MetaRow("App version", Dash(a.AppVersion), Dash(b.AppVersion)),
-            new MetaRow("Build", Dash(a.Build), Dash(b.Build)),
-            new MetaRow("Client version", Dash(a.ClientVersion), Dash(b.ClientVersion)),
-            new MetaRow("Source", Dash(a.Source), Dash(b.Source)),
-            new MetaRow("Package", Dash(a.Package), Dash(b.Package)),
-            new MetaRow("Detected", Dash(a.Detected), Dash(b.Detected)),
-            new MetaRow("Proto SHA", Dash(a.Sha), Dash(b.Sha))
+            new ProtoMetaRow("Platform", Dash(a.Platform), Dash(b.Platform)),
+            new ProtoMetaRow("App version", Dash(a.AppVersion), Dash(b.AppVersion)),
+            new ProtoMetaRow("Build", Dash(a.Build), Dash(b.Build)),
+            new ProtoMetaRow("Client version", Dash(a.ClientVersion), Dash(b.ClientVersion)),
+            new ProtoMetaRow("Source", Dash(a.Source), Dash(b.Source)),
+            new ProtoMetaRow("Package", Dash(a.Package), Dash(b.Package)),
+            new ProtoMetaRow("Detected", Dash(a.Detected), Dash(b.Detected)),
+            new ProtoMetaRow("Proto SHA", Dash(a.Sha), Dash(b.Sha))
         ];
     }
 
@@ -1680,12 +1646,6 @@
         if (r.UploadedSize is { } us) parts.Add(ByteFormat.KbOrMb(us, culture: CultureInfo.InvariantCulture));
         return parts;
     }
-
-    sealed record LiveVersionDto(bool Found, string? Platform, string? Version, string? Build, int? ClientVersion);
-
-    sealed record RegRowDto(string Platform, string AppVersion, string Build, string? ClientVersion);
-
-    sealed record StashedFile(int Token, string Name, long Size);
 
     public async ValueTask DisposeAsync() {
         await _strip.DisposeModuleAsync(logger: Logger);

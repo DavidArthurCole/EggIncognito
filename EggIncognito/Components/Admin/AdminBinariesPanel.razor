@@ -1,5 +1,6 @@
 @rendermode @(RenderMode.InteractiveServer)
 @using EggIncognito.Core
+@using EggIncognito.Models.Devices
 @inherits BrowserApiComponentBase
 
 <section class="panel mb-4">
@@ -57,7 +58,7 @@
 </section>
 
 @code {
-    List<Row> _rows = [];
+    List<StoredBinaryRow> _rows = [];
     bool _busy;
     string? _msg;
 
@@ -73,7 +74,7 @@
             return;
         }
 
-        _rows = res.Json<ListResult>()?.Binaries ?? [];
+        _rows = res.Json<StoredBinaryList>()?.Binaries ?? [];
     }
 
     async Task PokeHarvest() {
@@ -104,21 +105,8 @@
         return sha.Length >= 12 ? sha[..12] : sha;
     }
 
-    static int EffectiveSymbols(Row b) {
+    static int EffectiveSymbols(StoredBinaryRow b) {
         return b.EffectiveSymbols > 0 ? b.EffectiveSymbols : b.NativeSymbols;
     }
-
-    record Row(
-        string Platform,
-        string Version,
-        string Sha256,
-        long ByteSize,
-        int NativeSymbols,
-        int EffectiveSymbols,
-        string Source,
-        DateTimeOffset PulledAt);
-
-    record ListResult(bool Ok, int Count, List<Row> Binaries);
-
 
 }

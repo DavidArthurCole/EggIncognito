@@ -4,6 +4,7 @@
 @inject IWebHostEnvironment HostEnv
 @using System.Text
 @using System.Text.Json
+@using EggIncognito.Models.Theme
 @using EggIncognito.Services.Theme
 @implements IAsyncDisposable
 
@@ -45,8 +46,6 @@
 
 @code {
 
-    sealed record ThemeRow(string Slug, string Name, bool IsActive);
-
     readonly List<ThemeRow> _themes = [];
     string _activeSlug = "";
     bool _wbOpen;
@@ -78,7 +77,7 @@
         if (!User.IsAuthenticated) return;
         try {
             using var client = Client();
-            var resp = await client.GetFromJsonAsync<ListResponse>("/api/theme");
+            var resp = await client.GetFromJsonAsync<ThemeListResponse>("/api/theme");
             foreach (var row in resp?.Themes ?? []) {
                 _themes.Add(new ThemeRow(row.Slug ?? "", row.Name ?? "", row.IsActive));
                 if (row.IsActive) _activeSlug = row.Slug ?? "";
@@ -160,16 +159,6 @@
     void SetStatus(string message, bool ok) {
         _status = message;
         _statusOk = ok;
-    }
-
-    sealed class ListResponse {
-        public List<ListRow>? Themes { get; set; }
-    }
-
-    sealed class ListRow {
-        public string? Slug { get; set; }
-        public string? Name { get; set; }
-        public bool IsActive { get; set; }
     }
 
     public async ValueTask DisposeAsync() {

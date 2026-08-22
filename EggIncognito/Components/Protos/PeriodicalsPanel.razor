@@ -4,6 +4,7 @@
 @using System.Text.Json
 @using EggIncognito.Components.Data
 @using EggIncognito.Core
+@using EggIncognito.Models.Periodicals
 @using EggIncognito.Services.Assets
 @inherits SelfCallComponentBase
 @inject IJSRuntime JS
@@ -254,7 +255,7 @@
     static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
     bool _loaded;
-    Summary? _summary;
+    PeriodicalsSummary? _summary;
     List<Season>? _seasons;
     int _seasonIx;
     List<EventRow>? _events;
@@ -266,17 +267,17 @@
         return _dataWorkbench?.Open() ?? Task.CompletedTask;
     }
 
-    static string? ExtractVersion(Summary s) {
+    static string? ExtractVersion(PeriodicalsSummary s) {
         return s.Extracted.Select(x => x.BinaryVersion).FirstOrDefault(v => !string.IsNullOrEmpty(v));
     }
 
-    static DateTimeOffset? NewestFeed(Summary s) {
+    static DateTimeOffset? NewestFeed(PeriodicalsSummary s) {
         return s.Feeds.Where(f => f.UpdatedAt is not null).Max(f => f.UpdatedAt);
     }
 
     protected override async Task OnInitializedAsync() {
         try {
-            var fetched = await Client().GetFromJsonAsync<Summary>("/api/periodicals/summary", JsonOpts);
+            var fetched = await Client().GetFromJsonAsync<PeriodicalsSummary>("/api/periodicals/summary", JsonOpts);
             if (fetched is not null) {
                 _summary = fetched;
             }
@@ -384,8 +385,6 @@
             _ => Pretty(rewardType)
         };
     }
-
-    sealed record BoostMeta(string DisplayName, string? Duration, string? Effect);
 
     readonly Dictionary<string, BoostMeta> _boosts = new(StringComparer.Ordinal);
 
@@ -535,42 +534,5 @@
         await _countdown.DisposeModuleAsync("stop", Logger);
         await _images.DisposeModuleAsync("unwire", Logger);
     }
-
-    record Summary(List<ExtractedRow> Extracted, ColleggtiblesInfo? Colleggtibles, ConfigInfo Config, List<FeedInfo> Feeds);
-
-    record ExtractedRow(string Key, int Count, string Provenance, string? BinaryVersion);
-
-    record ColleggtiblesInfo(int Count, string Provenance, List<EggRow> Eggs);
-
-    record EggRow(string Identifier, string? Name, string Dimension, List<double> TierValues, string? Icon);
-
-    record ConfigInfo(bool Enabled, List<PlatformRow> Platforms);
-
-    record PlatformRow(string Platform, DateTimeOffset SavedAt, long Bytes);
-
-    record FeedInfo(string Name, string Path, bool Present, long Bytes, DateTimeOffset? UpdatedAt);
-
-    record SeasonsResponse(List<Season> Seasons);
-
-    record Season(string Id, string Name, double StartTime, double NextStartTime, bool StartDerived, List<GradeGoalsRow> GradeGoals, List<SeasonEgg>? Colleggtibles);
-
-    record SeasonEgg(string Id, string? Icon, List<string>? Contracts);
-
-    record GradeGoalsRow(string Grade, List<GoalRow> Goals, string? GradeIcon);
-
-    record GoalRow(double Cxp, string RewardType, string RewardSubType, double RewardAmount, string? Icon);
-
-    record EventsResponse(DateTimeOffset? CapturedAt, double? ServerTime, List<EventRow> Events);
-
-    record EventRow(
-        string Identifier,
-        string Type,
-        string Subtitle,
-        double Multiplier,
-        double StartTime,
-        double Duration,
-        double? EndTime,
-        bool CcOnly,
-        string? Icon);
 
 }

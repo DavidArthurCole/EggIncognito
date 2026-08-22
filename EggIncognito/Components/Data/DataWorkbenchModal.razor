@@ -6,6 +6,7 @@
 @inject ILogger<DataWorkbenchModal> Logger
 @using EggIncognito.Components.Shared.Workbench
 @using EggIncognito.Core
+@using EggIncognito.Models.Data
 @using EggIncognito.Services.Data
 @implements IAsyncDisposable
 
@@ -13,7 +14,7 @@
                 Notice="_notice" OnClose="CloseAsync">
     <Rail>
         <WorkbenchRail>
-            <WorkbenchLoad T="SourceRow" Items="@_sources" EmptyText="No data sources on this instance."
+            <WorkbenchLoad T="DataSourceRow" Items="@_sources" EmptyText="No data sources on this instance."
                            Context="sources">
                 @foreach (var group in Groups(sources)) {
                     <WorkbenchSection Label="@GroupLabel(group)">
@@ -102,7 +103,7 @@
                             <LoginButton Label="Log in" Placement="LoginMenuPlacement.Right"/>
                         </div>
                     } else if (entry.Status is < 200 or > 299) {
-                        <StatusNote Severity="StatusNote.Kind.Error">
+                        <StatusNote Severity="StatusNoteKind.Error">
                             @(entry.Status == 0 ? "The request failed." : $"HTTP {entry.Status}")
                         </StatusNote>
                     } else {
@@ -128,10 +129,10 @@
     IJSObjectReference? _navHandle;
     DotNetObjectReference<DataWorkbenchModal>? _selfRef;
 
-    List<SourceRow>? _sources;
+    List<DataSourceRow>? _sources;
     string _origin = "";
 
-    SourceRow? Current {
+    DataSourceRow? Current {
         get {
             var root = _sources?.FirstOrDefault(s => s.Group == State.Group && s.Id == State.Id);
             if (root is null) return null;
@@ -140,15 +141,15 @@
         }
     }
 
-    static IEnumerable<string> Groups(IReadOnlyCollection<SourceRow> sources) {
+    static IEnumerable<string> Groups(IReadOnlyCollection<DataSourceRow> sources) {
         return sources.Select(s => s.Group).Distinct(StringComparer.Ordinal);
     }
 
-    static List<SourceRow> RootsOf(IReadOnlyCollection<SourceRow> sources, string group) {
+    static List<DataSourceRow> RootsOf(IReadOnlyCollection<DataSourceRow> sources, string group) {
         return [.. sources.Where(s => string.Equals(s.Group, group, StringComparison.Ordinal))];
     }
 
-    static IReadOnlyList<SourceRow> ChildrenOf(SourceRow root) {
+    static IReadOnlyList<DataSourceRow> ChildrenOf(DataSourceRow root) {
         return root.Children ?? [];
     }
 
@@ -182,15 +183,15 @@
         return string.Equals(raw, "Authenticated", StringComparison.Ordinal) ? "account or API key" : "public";
     }
 
-    string CurlLine(SourceRow s) {
+    string CurlLine(DataSourceRow s) {
         return $"curl -H \"X-Api-Key: <your-key>\" {_origin}{s.Url}";
     }
 
-    static string DownloadName(SourceRow s) {
+    static string DownloadName(DataSourceRow s) {
         return $"{s.Id}.json";
     }
 
-    static string AssetUrl(SourceRow s, string name) {
+    static string AssetUrl(DataSourceRow s, string name) {
         return $"{s.Url}?name={Uri.EscapeDataString(name)}";
     }
 
@@ -263,7 +264,7 @@
         if (_sources is not null) return;
         var index = await Client().OneAsync<DataIndex>("/api/v1/data", Logger);
         _sources = index?.Sources ?? [];
-        if (_sources.Count == 0) _notice = new WorkbenchNotice("The source catalog could not be read.", StatusNote.Kind.Error);
+        if (_sources.Count == 0) _notice = new WorkbenchNotice("The source catalog could not be read.", StatusNoteKind.Error);
     }
 
     void EnsureSelection() {
@@ -273,7 +274,7 @@
         State.Select(first.Group, first.Id, null);
     }
 
-    async Task Select(SourceRow root, SourceRow? child) {
+    async Task Select(DataSourceRow root, DataSourceRow? child) {
         State.Select(root.Group, root.Id, child?.Id);
         _notice = null;
         await EnsureLoaded();
@@ -318,23 +319,5 @@
 
         _selfRef?.Dispose();
     }
-
-    public sealed record DataIndex(int Count, List<SourceRow> Sources);
-
-    public sealed record SourceRow(
-        string Id,
-        string Group,
-        string Url,
-        string DisplayName,
-        string? Description,
-        string Provenance,
-        string Access,
-        string? Feed,
-        bool AcceptsName,
-        long? Bytes,
-        MetaRow? Meta,
-        List<SourceRow>? Children);
-
-    public sealed record MetaRow(string? BinaryVersion);
 
 }

@@ -1,4 +1,5 @@
 @rendermode @(RenderMode.InteractiveServer)
+@using EggIncognito.Models.AdminUi
 @inherits BrowserApiComponentBase
 
 <section class="panel mb-4">
@@ -45,7 +46,7 @@
             return;
         }
 
-        var policy = res.Json<PolicyView>();
+        var policy = res.Json<ThemePolicyView>();
         if (policy is null) return;
         _customCssEnabled = policy.CustomCssEnabled;
         _configFloor = policy.ConfigFloor;
@@ -77,7 +78,5 @@
         await Load();
         _busy = false;
     }
-
-    record PolicyView(bool CustomCssEnabled, bool ConfigFloor, string? DefaultThemeSlug);
 
 }

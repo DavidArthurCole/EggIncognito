@@ -1,4 +1,5 @@
 @using EggIncognito.Components.Shared.Workbench
+@using EggIncognito.Models.Inspector
 @using EggIncognito.Services.Inspector
 @using EggIncognito.Services.Workbench
 @using Microsoft.AspNetCore.Components.Web.Virtualization
@@ -34,7 +35,7 @@
         </button>
 
         @if (!string.IsNullOrEmpty(State.Notice)) {
-            <StatusNote Severity="StatusNote.Kind.Error">@State.Notice</StatusNote>
+            <StatusNote Severity="StatusNoteKind.Error">@State.Notice</StatusNote>
         }
 
         <FilterInput Class="insp-filter" AriaLabel="@FilterLabel"
@@ -165,7 +166,5 @@
             ? _messages
             : _messages.Where(n => n.Contains(needle, StringComparison.OrdinalIgnoreCase)).ToList();
     }
-
-    sealed record RailRow(string Ns, RouteInfo? Route, string Label);
 
 }

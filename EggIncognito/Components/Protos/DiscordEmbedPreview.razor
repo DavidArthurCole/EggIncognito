@@ -1,5 +1,6 @@
 @using System.Globalization
 @using System.Text.Json
+@using EggIncognito.Models.Notifications
 <div class="dsc-msg">
     @if (_content is { Length: > 0 }) {
         <div class="dsc-content">@_content</div>
@@ -55,7 +56,7 @@
 
     string? _parsed;
     string? _content;
-    List<Embed> _embeds = [];
+    List<DiscordEmbed> _embeds = [];
 
     protected override void OnParametersSet() {
         if (_parsed == Payload) return;
@@ -78,19 +79,19 @@
         }
     }
 
-    static Embed Read(JsonElement source) {
-        var fields = new List<Field>();
+    static DiscordEmbed Read(JsonElement source) {
+        var fields = new List<DiscordEmbedField>();
         if (source.TryGetProperty("fields", out var list) && list.ValueKind == JsonValueKind.Array) {
             foreach (var field in list.EnumerateArray()) {
                 if (field.ValueKind != JsonValueKind.Object) continue;
-                fields.Add(new Field(
+                fields.Add(new DiscordEmbedField(
                     Str(field, "name") ?? "",
                     Str(field, "value") ?? "",
                     field.TryGetProperty("inline", out var inline) && inline.ValueKind == JsonValueKind.True));
             }
         }
 
-        return new Embed(
+        return new DiscordEmbed(
             Str(source, "title"),
             Str(source, "url"),
             Str(source, "description"),
@@ -127,22 +128,10 @@
             : raw;
     }
 
-    static string? Bar(Embed embed) {
+    static string? Bar(DiscordEmbed embed) {
         return embed.Color is { } color
             ? $"background-color: #{(color & 0xFFFFFF).ToString("x6", CultureInfo.InvariantCulture)}"
             : null;
     }
-
-    sealed record Field(string Name, string Value, bool Inline);
-
-    sealed record Embed(
-        string? Title,
-        string? Url,
-        string? Description,
-        string? Author,
-        string? Footer,
-        string? Stamp,
-        int? Color,
-        List<Field> Fields);
 
 }

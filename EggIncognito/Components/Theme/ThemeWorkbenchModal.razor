@@ -8,6 +8,7 @@
 @using System.Text
 @using System.Text.Json
 @using EggIncognito.Components.Shared.Workbench
+@using EggIncognito.Models.Theme
 @using EggIncognito.Services.Theme
 @implements IAsyncDisposable
 
@@ -208,8 +209,6 @@
     [Parameter] public bool Open { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
 
-    public sealed record ThemeRow(string Slug, string Name, bool IsActive);
-
     readonly List<ThemeRow> _themes = [];
     ContrastResult? _contrast;
     IReadOnlyList<CssError> _cssErrors = [];
@@ -222,7 +221,7 @@
     IJSObjectReference? _prefs;
     IJSObjectReference? _download;
 
-    bool StatusOk => _notice is { Severity: StatusNote.Kind.Ok };
+    bool StatusOk => _notice is { Severity: StatusNoteKind.Ok };
 
     protected override void OnInitialized() {
         base.OnInitialized();
@@ -505,7 +504,7 @@
     }
 
     void SetStatus(string message, bool ok) {
-        _notice = new WorkbenchNotice(message, ok ? StatusNote.Kind.Ok : StatusNote.Kind.Error);
+        _notice = new WorkbenchNotice(message, ok ? StatusNoteKind.Ok : StatusNoteKind.Error);
     }
 
     static async Task<string> Describe(HttpResponseMessage resp) {
@@ -530,16 +529,6 @@
         }
 
         await OnClose.InvokeAsync();
-    }
-
-    sealed class ThemeListResponse {
-        public List<ThemeListRow>? Themes { get; set; }
-    }
-
-    sealed class ThemeListRow {
-        public string? Slug { get; set; }
-        public string? Name { get; set; }
-        public bool IsActive { get; set; }
     }
 
     public async ValueTask DisposeAsync() {

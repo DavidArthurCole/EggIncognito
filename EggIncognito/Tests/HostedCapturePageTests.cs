@@ -3,6 +3,7 @@ using Bunit;
 using EggIdentity.Contract;
 using EggIncognito.Capture;
 using EggIncognito.Controllers;
+using EggIncognito.Models.Capture;
 using EggIncognito.Services;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -222,7 +223,7 @@ public class HostedCapturePageTests {
         public async Task Save_Hosted_ViewerNonSupporter_Is403() {
             var (controller, session) = WithFlowSession(new FakeUser(true, false));
             long id = PublishFlow(session);
-            var r = await controller.SaveEndpoint(new CaptureController.SaveEndpointRequest(id), new FakeRoutes());
+            var r = await controller.SaveEndpoint(new SaveFlowRequest(id), new FakeRoutes());
             Assert.Equal(403, ((IStatusCodeActionResult)r).StatusCode);
         }
 
@@ -230,7 +231,7 @@ public class HostedCapturePageTests {
         public async Task Save_Hosted_Supporter_PassesGate_Then503NoDb() {
             var (controller, session) = WithFlowSession(new FakeUser(true, true));
             long id = PublishFlow(session);
-            var r = await controller.SaveEndpoint(new CaptureController.SaveEndpointRequest(id), new FakeRoutes());
+            var r = await controller.SaveEndpoint(new SaveFlowRequest(id), new FakeRoutes());
             Assert.Equal(503, ((IStatusCodeActionResult)r).StatusCode);
         }
 
@@ -238,7 +239,7 @@ public class HostedCapturePageTests {
         public async Task Save_Hosted_Contributor_PassesGate_Then503NoDb() {
             var (controller, session) = WithFlowSession(new FakeUser(true, false, UserRole.Contributor));
             long id = PublishFlow(session);
-            var r = await controller.SaveEndpoint(new CaptureController.SaveEndpointRequest(id), new FakeRoutes());
+            var r = await controller.SaveEndpoint(new SaveFlowRequest(id), new FakeRoutes());
             Assert.Equal(503, ((IStatusCodeActionResult)r).StatusCode);
         }
     }
