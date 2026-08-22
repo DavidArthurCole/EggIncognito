@@ -206,6 +206,7 @@ if (dbEnabled) {
     builder.Services.AddScoped<GameBinaryStore>();
     builder.Services.AddScoped<DeviceAssetStore>();
     builder.Services.AddScoped<DeviceStateStore>();
+    builder.Services.AddScoped<DeviceRegistryPublisher>();
     builder.Services.AddScoped<DeviceJobStore>();
     builder.Services.AddSingleton<DeviceTimelineCache>();
     builder.Services.AddSingleton<IDeviceJobSink>(sp => sp.GetRequiredService<DeviceTimelineCache>());

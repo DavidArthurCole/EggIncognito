@@ -6,7 +6,6 @@ using EggIncognito.Data.Services;
 using EggIncognito.Services;
 using EggIncognito.Services.Auth;
 using EggIncognito.Services.Devices;
-using EggIncognito.Services.ProtoExtract;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -21,8 +20,6 @@ public sealed class DevicesController(
     ICurrentUser currentUser,
     IServiceProvider services,
     IServiceScopeFactory scopeFactory) : ControllerBase {
-    private const string PlatformAndroid = "android";
-    private const string PlatformIos = "ios";
     private IDeviceStatusStore? Store => services.GetService(typeof(IDeviceStatusStore)) as IDeviceStatusStore;
     private DeviceJobStore? Jobs => services.GetService(typeof(DeviceJobStore)) as DeviceJobStore;
     private DeviceTimelineCache? Timeline => services.GetService(typeof(DeviceTimelineCache)) as DeviceTimelineCache;
@@ -395,135 +392,21 @@ public sealed class DevicesController(
     [EnableRateLimiting("write")]
     public async Task<IActionResult> Save(string id) {
         if (RequireAdmin() is { } no) return no;
-        var store = Store;
-        if (store is null || Db is null ||
-            services.GetService(typeof(ProtoRegistryStore)) is not ProtoRegistryStore registry) {
+        if (services.GetService(typeof(DeviceRegistryPublisher)) is not DeviceRegistryPublisher publisher)
             return StatusCode(503, new { error = "no database configured" });
-        }
 
-        var logger = (ILogger<DevicesController>)services.GetRequiredService(typeof(ILogger<DevicesController>));
         string who = currentUser.DiscordId ?? "?";
-
-        var device = await store.GetAsync(id);
-        if (device is null) return NotFound(new { error = "unknown device" });
-        if (device.Platform is not (PlatformAndroid or PlatformIos))
-            return StatusCode(501, new { error = $"no extractor for platform {device.Platform}" });
-
-        logger.LogInformation("device save: {Id} start (by {Who})", id, who);
-
-        if (services.GetService(typeof(DeviceStateStore)) is not DeviceStateStore states)
-            return StatusCode(503, new { error = "no database configured" });
-
-        var state = await states.GetAsync(id, HttpContext.RequestAborted);
-        if (state is null || string.IsNullOrEmpty(state.AppVersion)) {
-            return StatusCode(409, new {
-                error = "device has not been harvested yet; poke the device agent and retry"
-            });
-        }
-
-        if (await StaleHarvestErrorAsync(id, state, logger) is { } stale) return stale;
-
-        var (carve, err) = await CarveFromHarvestAsync(device, state, logger);
-        if (err is not null) return err;
-
-        string appVersion = state.AppVersion;
-        string build = carve!.Build;
-        string sha = carve.ProtoSha ?? Hashes.Sha256Hex(carve.Proto);
-
-        string? clientVersion = carve.ClientVersion?.ToString() ?? state.ClientVersion?.ToString();
-        logger.LogInformation("device save: {Id} clientVersion={Cv}", id, clientVersion ?? "(none)");
-
-        try {
-            var upsert = await registry.UpsertAsync(
-                device.Platform, appVersion, build, clientVersion, device.Package,
-                sha, $"device:{device.Id}", DateTimeOffset.UtcNow,
-                $"device-save:{who}", carve.Proto, "device",
-                true, HttpContext.RequestAborted);
-            logger.LogInformation("device save: {Id} -> registry {Plat} build {Build} ({State}, sha {Sha})",
-                id, device.Platform, build, upsert.Created ? "created" : "updated", sha[..12]);
-        } catch (Exception ex) {
-            logger.LogError(ex, "device save: {Id} registry upsert failed for build {Build}", id, build);
-            return StatusCode(500, new { error = $"registry write failed: {ex.Message}" });
-        }
-
-        return Ok(new { saved = true, appVersion, build });
-    }
-
-
-    private async Task<IActionResult?> StaleHarvestErrorAsync(string id, DeviceState state, ILogger logger) {
-        if (Timeline is not { } timeline) return null;
-        var probe = await timeline.LatestAsync(id, DeviceJobKinds.Probe, HttpContext.RequestAborted);
-        if (probe is not { Reachable: true } || string.IsNullOrEmpty(probe.Build)) return null;
-        if (string.Equals(probe.Build, state.Build, StringComparison.Ordinal)) return null;
-
-        bool poked = false;
-        if (services.GetService(typeof(IDeviceAgentClient)) is IDeviceAgentClient { Enabled: true } agent)
-            poked = await agent.PokeAsync(id, true, HttpContext.RequestAborted);
-
-        logger.LogWarning(
-            "device save: {Id} refused, harvest is {Harvested} but device runs {Installed} (poked={Poked})",
-            id, state.Build ?? "?", probe.Build, poked);
-        return StatusCode(409, new {
-            error = $"harvest is stale: harvested build {state.Build ?? "none"}, device runs " +
-                    $"{probe.Build} ({probe.AppVersion ?? "?"})" +
-                    (poked ? "; poked the device agent, retry once the harvest lands" : "; poke the device agent and retry")
-        });
-    }
-
-    private async Task<(CarveResult? carve, IActionResult? err)> CarveFromHarvestAsync(
-        Device device, DeviceState state, ILogger logger) {
-        var ct = HttpContext.RequestAborted;
-        if (services.GetService(typeof(DeviceAssetStore)) is not DeviceAssetStore assets)
-            return (null, StatusCode(503, new { error = "no database configured" }));
-
-        if (device.Platform == PlatformAndroid) {
-            var row = await assets.GetAsync(DeviceAssetKinds.Package, HarvestEntries.AndroidArmSplit, device.Platform,
-                ct);
-            if (row is null) {
-                return (null, StatusCode(409, new {
-                    error = "no harvested arm split for this device; poke the device agent and retry"
-                }));
-            }
-
-            var carved = ArchiveProtoExtractor.Extract(row.Bytes);
-            if (!carved.Ok || string.IsNullOrEmpty(carved.Proto)) {
-                logger.LogWarning("device save: {Id} carve failed ({Diag})", device.Id, carved.Diagnostics);
-                return (null, StatusCode(500, new { error = $"proto carve failed: {carved.Diagnostics}" }));
-            }
-
-            if (string.IsNullOrEmpty(state.Build))
-                return (null, StatusCode(409, new { error = "harvested state has no android build number" }));
-
-            return (new CarveResult(carved.Proto, state.Build, carved.ClientVersion, carved.ProtoSha), null);
-        }
-
-        var binaries = (GameBinaryProvider)services.GetRequiredService(typeof(GameBinaryProvider));
-        var bin = await binaries.GetExtractionBinaryAsync(device.Platform, ct);
-        if (!bin.Ok || bin.Bytes is null) {
-            return (null, StatusCode(409, new {
-                error = $"no harvested {device.Platform} binary: {bin.Diagnostics}"
-            }));
-        }
-
-        if (!string.IsNullOrEmpty(state.AppVersion) &&
-            !string.Equals(bin.Version, state.AppVersion, StringComparison.Ordinal)) {
-            logger.LogWarning("device save: {Id} refused, binary is {BinVersion} but harvest state is {State}",
-                device.Id, bin.Version, state.AppVersion);
-            return (null, StatusCode(409, new {
-                error = $"harvested {device.Platform} binary is {bin.Version}, device reports {state.AppVersion}; " +
-                        $"poke the device agent and retry once the {state.AppVersion} binary lands ({bin.Diagnostics})"
-            }));
-        }
-
-        var iosCarve = MachoProtoExtractor.Extract(bin.Bytes);
-        if (!iosCarve.Ok || string.IsNullOrEmpty(iosCarve.Proto)) {
-            logger.LogWarning("device save: {Id} carve failed ({Diag})", device.Id, iosCarve.Diagnostics);
-            return (null, StatusCode(500, new { error = $"proto carve failed: {iosCarve.Diagnostics}" }));
-        }
-
-        string iosBuild = !string.IsNullOrEmpty(state.Build) ? state.Build : Hashes.Sha256HexShort(bin.Bytes, 16);
-        return (new CarveResult(iosCarve.Proto, iosBuild, LibegincClientVersion.ReadFromBinary(bin.Bytes),
-            iosCarve.ProtoSha), null);
+        var res = await publisher.PublishAsync(id, $"device-save:{who}", true, HttpContext.RequestAborted);
+        return res.Outcome switch {
+            PublishOutcome.Published =>
+                Ok(new { saved = true, appVersion = res.AppVersion, build = res.Build }),
+            PublishOutcome.UnknownDevice => NotFound(new { error = res.Error }),
+            PublishOutcome.UnsupportedPlatform => StatusCode(501, new { error = res.Error }),
+            PublishOutcome.NotConfigured => StatusCode(503, new { error = res.Error }),
+            PublishOutcome.NotHarvested or PublishOutcome.StaleHarvest or PublishOutcome.MissingAsset =>
+                StatusCode(409, new { error = res.Error }),
+            _ => StatusCode(500, new { error = res.Error })
+        };
     }
 
 
@@ -593,10 +476,15 @@ public sealed class DevicesController(
         IReadOnlyList<DeviceJobLineRow> entries = harvestJob is null || cache is null
             ? []
             : await cache.LinesAsync(id, harvestJob.Id, ct);
+        bool inRegistry = !string.IsNullOrEmpty(row.Build)
+                          && services.GetService(typeof(ProtoRegistryStore)) is ProtoRegistryStore registry
+                          && await registry.GetAsync(row.Platform, row.Build, ct) is not null;
         return Ok(new {
             device = row.DeviceId,
             platform = row.Platform,
             appVersion = row.AppVersion,
+            build = row.Build,
+            inRegistry,
             revision = row.Revision,
             harvestedRevision = row.HarvestedRevision,
             stale = !string.Equals(row.Revision, row.HarvestedRevision, StringComparison.Ordinal),
@@ -674,5 +562,4 @@ public sealed class DevicesController(
             : Ok(new { found = true, v.Platform, v.Version, v.Build, v.ClientVersion, capture });
     }
 
-    private sealed record CarveResult(string Proto, string Build, int? ClientVersion = null, string? ProtoSha = null);
 }

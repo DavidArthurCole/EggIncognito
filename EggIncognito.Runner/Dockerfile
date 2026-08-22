@@ -9,7 +9,6 @@ COPY EggIncognito.Data/EggIncognito.Data.csproj EggIncognito.Data/
 COPY EggIncognito.Runner/EggIncognito.Runner.csproj EggIncognito.Runner/
 ARG GITHUB_PACKAGES_USER
 RUN --mount=type=secret,id=github_token \
-    --mount=type=cache,id=nuget-packages,target=/root/.nuget/packages \
     dotnet nuget update source github \
       --username "$GITHUB_PACKAGES_USER" \
       --password "$(cat /run/secrets/github_token)" \
@@ -23,8 +22,7 @@ COPY EggIncognito.Runner/ EggIncognito.Runner/
 
 ARG GIT_SHA
 ARG APP_VERSION
-RUN --mount=type=cache,id=nuget-packages,target=/root/.nuget/packages \
-    set -eux; \
+RUN set -eux; \
     STAMP=""; \
     [ -n "$GIT_SHA" ] && STAMP="$STAMP -p:SourceRevisionId=$GIT_SHA"; \
     [ -n "$APP_VERSION" ] && STAMP="$STAMP -p:MinVerVersionOverride=$APP_VERSION"; \

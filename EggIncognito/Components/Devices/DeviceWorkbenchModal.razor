@@ -85,13 +85,16 @@
                     <button type="button" class="btn-mini" disabled="@Busy" @onclick="ProbeNow">Probe now</button>
                     <button type="button" class="btn-mini" disabled="@Busy" @onclick="CheckStore">Check store</button>
                     <button type="button" class="btn-mini" disabled="@Busy" @onclick="RestartApp">Restart app</button>
-                    <button type="button" class="btn-mini" disabled="@Busy" @onclick="SaveToRegistry">Save to registry</button>
+                    @if (_harvest is { InRegistry: false }) {
+                        <button type="button" class="btn-mini" disabled="@Busy" @onclick="SaveToRegistry">Save to registry</button>
+                    }
                     <button type="button" class="btn-mini" disabled="@Busy" @onclick="Poke">Poke harvest</button>
                 </div>
             </div>
             @if (!string.IsNullOrEmpty(dev.Note)) {
                 <div class="font-mono text-xs text-muted mt-1">@dev.Note</div>
             }
+
             @if (RunningFor(dev.Id) is { } run) {
                 <div class="wb-st-run text-xs mt-2">@run.Kind: @run.Message</div>
             }
@@ -102,7 +105,7 @@
                     <WorkbenchLoad T="JobRow" Items="_jobs" EmptyText="No jobs yet." Context="jobs">
                         <div class="dwb-jobs">
                             @foreach (var j in jobs) {
-                                bool open = State.Expanded.Contains(j.Id);
+                                var open = State.Expanded.Contains(j.Id);
                                 <div class="dwb-job @(open ? "dwb-job-open" : "")" @key="j.Id">
                                     <button type="button" class="dwb-job-head" @onclick="@(() => ToggleJob(j.Id))">
                                         <span class="dwb-job-at">@j.StartedAt.ToLocalTime().ToString("MM-dd HH:mm:ss")</span>
@@ -601,6 +604,8 @@
         string Device,
         string Platform,
         string? AppVersion,
+        string? Build,
+        bool InRegistry,
         string Revision,
         string? HarvestedRevision,
         bool Stale,

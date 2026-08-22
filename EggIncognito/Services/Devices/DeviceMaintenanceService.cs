@@ -18,7 +18,9 @@ public sealed class DeviceMaintenanceService(
     KnownVersionRecorder knownVersions,
     ILogger<DeviceMaintenanceService> logger) : BackgroundService {
     private static readonly TimeSpan ClimbHarvestBackoff = TimeSpan.FromMinutes(30);
+    private static readonly TimeSpan PublishRetryBackoff = TimeSpan.FromMinutes(10);
     private readonly bool _syncEnabled = appConfig.GetValue("DeviceSync:Enabled", false);
+    private readonly bool _autoPublish = appConfig.GetValue("DeviceSync:AutoPublish", true);
     private readonly TimeSpan _refreshInterval = TimeSpan.FromMinutes(config.HarvestIntervalMinutes);
     private readonly TimeSpan _refreshSettle = TimeSpan.FromSeconds(config.HarvestSettleSeconds);
     private readonly TimeSpan _noOpRetryBackoff =
@@ -35,6 +37,9 @@ public sealed class DeviceMaintenanceService(
     private readonly Dictionary<string, DateTimeOffset> _lastStoreProbe =
         new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, DateTimeOffset> _lastRefreshHarvest =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    private readonly Dictionary<string, (string Build, DateTimeOffset At)> _lastPublishTry =
         new(StringComparer.OrdinalIgnoreCase);
 #pragma warning restore IDE0028
 
@@ -138,6 +143,44 @@ public sealed class DeviceMaintenanceService(
 
         await HarvestClimbedDevicesAsync(latest, sp, ct);
         await EnsureBinaryStoredAsync(sp, ct);
+        await AutoPublishAsync(sp, ct);
+    }
+
+    private async Task AutoPublishAsync(IServiceProvider sp, CancellationToken ct) {
+        if (!_autoPublish) return;
+        if (sp.GetService(typeof(DeviceRegistryPublisher)) is not DeviceRegistryPublisher publisher) return;
+        if (sp.GetService(typeof(DeviceStateStore)) is not DeviceStateStore states) return;
+
+        foreach (var d in config.Devices) {
+            try {
+                var state = await states.GetAsync(d.Id, ct);
+                if (state?.Build is not { Length: > 0 } build) continue;
+                if (await publisher.InRegistryAsync(d.Platform, build, ct)) continue;
+
+                if (_lastPublishTry.TryGetValue(d.Id, out var last)
+                    && string.Equals(last.Build, build, StringComparison.Ordinal)
+                    && time.GetUtcNow() - last.At < PublishRetryBackoff) {
+                    continue;
+                }
+
+                _lastPublishTry[d.Id] = (build, time.GetUtcNow());
+                var res = await publisher.PublishAsync(d.Id, "device-auto", true, ct);
+                if (res.Outcome == PublishOutcome.Published) {
+                    _lastPublishTry.Remove(d.Id);
+                    logger.LogInformation(
+                        "device auto-publish: {Id} {Plat} {Version} build {Build} published to the registry",
+                        d.Id, d.Platform, res.AppVersion, res.Build);
+                } else {
+                    logger.LogInformation(
+                        "device auto-publish: {Id} build {Build} not ready yet ({Outcome}): {Note}",
+                        d.Id, build, res.Outcome, res.Error);
+                }
+            } catch (OperationCanceledException) {
+                throw;
+            } catch (Exception ex) {
+                logger.LogWarning(ex, "device auto-publish: {Id} threw", d.Id);
+            }
+        }
     }
 
     private async Task RefreshStoreCatalogAsync(CancellationToken ct) {
