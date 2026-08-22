@@ -44,34 +44,54 @@
         }
 
         @if (Current is { } dev) {
-            <div class="dwb-meta">
-                <span class="@(dev.Reachable ? "text-ok" : "text-err")">@(dev.Reachable ? "reachable" : "unreachable")</span>
-                <span class="dwb-sep">|</span>
-                <TimeAgo Value="@dev.ProbedAt"/>
-                <span class="dwb-sep">|</span>
-                <span class="@(dev.StoreAhead ? "dwb-warn" : "")">
-                    store @(dev.StoreLatest is { Length: > 0 } ? dev.StoreLatest : "unknown")
-                </span>
-                <span class="dwb-sep">|</span>
-                <span class="font-mono">@HarvestLine()</span>
-                <span class="dwb-sep">|</span>
-                <span class="font-mono">@(dev.Target ?? "?")</span>
-                <span class="dwb-sep">|</span>
-                <span class="font-mono">@(dev.Package ?? "?")</span>
-                <span class="dwb-sep">|</span>
-                <span class="font-mono">@(_hub is null ? "no capture" : $"capture :{_port}")</span>
+            <div class="dwb-head">
+                <div class="dwb-facts">
+                    <div class="dwb-fact">
+                        <span class="dwb-fact-k">Status</span>
+                        <span class="dwb-fact-v @(dev.Reachable ? "text-ok" : "text-err")">
+                            @(dev.Reachable ? "reachable" : "unreachable")
+                        </span>
+                    </div>
+                    <div class="dwb-fact">
+                        <span class="dwb-fact-k">Probed</span>
+                        <span class="dwb-fact-v">
+                            <TimeAgo Value="@dev.ProbedAt"/>
+                        </span>
+                    </div>
+                    <div class="dwb-fact">
+                        <span class="dwb-fact-k">Store</span>
+                        <span class="dwb-fact-v @(dev.StoreAhead ? "dwb-warn" : "")">
+                            @(dev.StoreLatest is { Length: > 0 } ? dev.StoreLatest : "unknown")
+                        </span>
+                    </div>
+                    <div class="dwb-fact">
+                        <span class="dwb-fact-k">Harvest</span>
+                        <span class="dwb-fact-v">@HarvestLine()</span>
+                    </div>
+                    <div class="dwb-fact">
+                        <span class="dwb-fact-k">Capture</span>
+                        <span class="dwb-fact-v">@(_hub is null ? "not configured" : $"running :{_port}")</span>
+                    </div>
+                    <div class="dwb-fact dwb-fact-wide">
+                        <span class="dwb-fact-k">Package</span>
+                        <span class="dwb-fact-v font-mono truncate">@(dev.Package ?? "?")</span>
+                    </div>
+                    <div class="dwb-fact dwb-fact-wide">
+                        <span class="dwb-fact-k">Target</span>
+                        <span class="dwb-fact-v font-mono truncate">@(dev.Target ?? "?")</span>
+                    </div>
+                </div>
+                <div class="dwb-actions">
+                    <button type="button" class="btn-mini" disabled="@Busy" @onclick="ProbeNow">Probe now</button>
+                    <button type="button" class="btn-mini" disabled="@Busy" @onclick="CheckStore">Check store</button>
+                    <button type="button" class="btn-mini" disabled="@Busy" @onclick="RestartApp">Restart app</button>
+                    <button type="button" class="btn-mini" disabled="@Busy" @onclick="SaveToRegistry">Save to registry</button>
+                    <button type="button" class="btn-mini" disabled="@Busy" @onclick="Poke">Poke harvest</button>
+                </div>
             </div>
             @if (!string.IsNullOrEmpty(dev.Note)) {
                 <div class="font-mono text-xs text-muted mt-1">@dev.Note</div>
             }
-
-            <div class="dwb-actions">
-                <button type="button" class="btn-mini" disabled="@Busy" @onclick="ProbeNow">Probe now</button>
-                <button type="button" class="btn-mini" disabled="@Busy" @onclick="CheckStore">Check store</button>
-                <button type="button" class="btn-mini" disabled="@Busy" @onclick="RestartApp">Restart app</button>
-                <button type="button" class="btn-mini" disabled="@Busy" @onclick="SaveToRegistry">Save to registry</button>
-                <button type="button" class="btn-mini" disabled="@Busy" @onclick="Poke">Poke harvest</button>
-            </div>
             @if (RunningFor(dev.Id) is { } run) {
                 <div class="wb-st-run text-xs mt-2">@run.Kind: @run.Message</div>
             }
@@ -80,19 +100,22 @@
                 @SectionHead(DeviceWorkbenchState.SectionJobs, "Jobs", _jobs?.Count)
                 @if (IsOpen(DeviceWorkbenchState.SectionJobs)) {
                     <WorkbenchLoad T="JobRow" Items="_jobs" EmptyText="No jobs yet." Context="jobs">
-                        <div class="flex flex-col">
+                        <div class="dwb-jobs">
                             @foreach (var j in jobs) {
-                                <div class="dwb-job">
+                                bool open = State.Expanded.Contains(j.Id);
+                                <div class="dwb-job @(open ? "dwb-job-open" : "")" @key="j.Id">
                                     <button type="button" class="dwb-job-head" @onclick="@(() => ToggleJob(j.Id))">
-                                        <span class="font-mono text-muted">@j.StartedAt.ToLocalTime().ToString("MM-dd HH:mm:ss")</span>
-                                        <span class="font-medium">@j.Kind</span>
+                                        <span class="dwb-job-at">@j.StartedAt.ToLocalTime().ToString("MM-dd HH:mm:ss")</span>
+                                        <span class="dwb-job-kind">@j.Kind</span>
                                         <span class="@StateClass(j.State)">@(j.Outcome ?? j.State)</span>
-                                        <span class="text-muted truncate">@j.Message</span>
-                                        <span class="text-muted font-mono">@Duration(j)</span>
-                                        <span class="text-muted">@j.Trigger</span>
+                                        <span class="dwb-job-dur">@Duration(j)</span>
+                                        <span class="dwb-job-trigger">@j.Trigger</span>
                                     </button>
-                                    @if (State.Expanded.Contains(j.Id) && j.Lines.Count > 0) {
+                                    @if (open) {
                                         <div class="dwb-job-lines">
+                                            @if (!string.IsNullOrEmpty(j.Message)) {
+                                                <div class="dwb-job-line text-muted">@j.Message</div>
+                                            }
                                             @foreach (var l in j.Lines) {
                                                 <div class="dwb-job-line">
                                                     <span class="font-mono text-muted">@l.At.ToLocalTime().ToString("HH:mm:ss")</span>
@@ -115,20 +138,21 @@
             </section>
 
             <section class="dwb-sec">
-                @SectionHead(DeviceWorkbenchState.SectionCapture, "Capture", _flows.Count)
+                @SectionHead(DeviceWorkbenchState.SectionCapture, "Capture", CaptureCount())
                 @if (IsOpen(DeviceWorkbenchState.SectionCapture)) {
                     @if (_hub is null) {
                         <div class="wb-note">Capture is not configured for this device on this host.</div>
                     } else {
                         <div class="dwb-capture">
-                            <StatsPanel Stats="_stats" FlowCount="_flows.Count" Running="_capturing" Port="_port"/>
-                            <div class="flex gap-2 items-center my-2">
-                                <button type="button" class="btn-mini" disabled="@Busy" @onclick="RestartApp">Restart app</button>
+                            <div class="dwb-capture-bar">
+                                <StatsPanel Stats="_stats" FlowCount="_flows.Count" Running="_capturing" Port="_port"/>
                                 <a class="btn-mini no-underline" href="/capture/device/@Current!.Id">Open full capture</a>
                             </div>
-                            <FlowList Flows="_flows" SelectedId="_selectedFlowId" Connected="true"
-                                      View="State.Capture" OnSelect="SelectFlow"/>
-                            <DetailPane Flow="_selectedFlow" View="State.Capture" ClientFactory="Client"/>
+                            <div class="dwb-capture-body">
+                                <FlowList Flows="_flows" SelectedId="_selectedFlowId" Connected="true"
+                                          View="State.Capture" OnSelect="SelectFlow"/>
+                                <DetailPane Flow="_selectedFlow" View="State.Capture" ClientFactory="Client"/>
+                            </div>
                         </div>
                     }
                 }
@@ -145,7 +169,7 @@
                             </tr>
                             </thead>
                             <tbody>
-                            @foreach (var b in _binaries.Where(x => x.Platform == Current!.Platform)) {
+                            @foreach (var b in (_binaries ?? []).Where(x => x.Platform == Current!.Platform)) {
                                 <tr>
                                     <td>
                                         <VersionLine App="@b.Version"/>
@@ -203,7 +227,7 @@
     List<DeviceRow> _devices = [];
     List<LiveJob> _live = [];
     List<JobRow>? _jobs;
-    List<BinaryRow> _binaries = [];
+    List<BinaryRow>? _binaries;
     HarvestInfo? _harvest;
 
     CaptureHub? _hub;
@@ -229,8 +253,13 @@
         return State.Sections.Contains(section);
     }
 
-    int BinaryCount() {
-        return Current is null ? 0 : _binaries.Count(x => x.Platform == Current.Platform);
+    int? BinaryCount() {
+        if (Current is null || _binaries is null) return null;
+        return _binaries.Count(x => x.Platform == Current.Platform);
+    }
+
+    int? CaptureCount() {
+        return _stats is null ? null : _flows.Count;
     }
 
     RenderFragment SectionHead(string section, string label, int? count) => @<button type="button" class="dwb-sec-head"

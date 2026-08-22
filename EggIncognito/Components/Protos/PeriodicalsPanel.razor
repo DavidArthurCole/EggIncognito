@@ -17,233 +17,233 @@
 } else {
     <div class="pd-widgets">
         <div class="pd-wcol">
-        <section class="panel pd-w-data">
-            <div class="flex items-stretch gap-2">
-                <div class="flex-1 min-w-0">
-                    <h3 class="text-sm font-semibold mt-0 mb-2">Data</h3>
-                    @if (_summary is { } s) {
-                        <div class="pd-data">
-                            @if (s.Extracted.Count > 0) {
-                                <span class="ds-state-k">Game data</span>
-                                <span class="pd-data-v">
-                                    @if (ExtractVersion(s) is { Length: > 0 } bin) {
-                                        <VersionLine App="@bin"/>
-                                        <span class="dwb-sep">|</span>
-                                    }
-                                    <span>@s.Extracted.Count sets</span>
-                                </span>
-                            }
-                            @if (s.Feeds.Count > 0) {
-                                <span class="ds-state-k">Fixtures</span>
-                                <span class="pd-data-v">
-                                    <span>@(s.Feeds.Count(f => f.Present))/@s.Feeds.Count</span>
-                                    <span class="dwb-sep">|</span>
-                                    <span>@ByteFormat.Compact(s.Feeds.Sum(f => f.Bytes))</span>
-                                    @if (NewestFeed(s) is { } captured) {
-                                        <span class="dwb-sep">|</span>
-                                        <TimeAgo Value="@captured"/>
-                                    }
-                                </span>
-                            }
-                            @if (s.Config.Platforms.Count > 0) {
-                                <span class="ds-state-k">Config</span>
-                                <span class="pd-data-v">
-                                    @foreach (var p in s.Config.Platforms) {
-                                        <PlatformIcon Platform="@p.Platform"/>
-                                        <TimeAgo Value="@p.SavedAt"/>
-                                    }
-                                </span>
-                            }
-                        </div>
-                    }
-                </div>
-                <button type="button" class="dropzone-open"
-                        aria-label="Open the data workbench" @onclick="OpenDataWorkbench">
-                    <Icon Name="chevronRight" Class="icon-sm"/>
-                </button>
-            </div>
-        </section>
-
-        @if (_summary?.Colleggtibles is { } c) {
-            <section class="panel pd-w-cegg">
-                <div class="flex items-center justify-between mb-3">
-                    <h3 class="text-sm font-semibold m-0">Colleggtibles</h3>
-                    <a class="reg-edit-btn" href="/api/v1/data/periodical/get_periodicals/colleggtibles" download="colleggtibles.json" aria-label="Download JSON">
-                        <Icon Name="download"/>
-                    </a>
-                </div>
-                <table class="data-table cegg-table">
-                    <thead>
-                    <tr>
-                        <th class="w-8"></th><th>Name</th><th>Dimension</th><th>Tier values</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    @foreach (var e in c.Eggs) {
-                        <tr>
-                            <td>
-                                @if (!string.IsNullOrEmpty(e.Icon)) {
-                                    <img class="w-[1.875rem] h-[1.875rem] object-contain" src="@e.Icon" alt="@e.Identifier"
-                                         loading="lazy" data-fallback/>
-                                    <span class="text-muted text-xs" data-fallback-for style="display:none">-</span>
-                                } else {
-                                    <span class="text-muted text-xs">-</span>
-                                }
-                            </td>
-                            <td class="text-accent">@EggName(e)</td>
-                            <td class="text-muted text-xs">@TitleCase(e.Dimension)</td>
-                            <td class="mono text-xs cegg-tier">@string.Join(", ", e.TierValues.Select(TierLabel))</td>
-                        </tr>
-                    }
-                    </tbody>
-                </table>
-            </section>
-        }
-        </div>
-
-        <div class="pd-wcol">
-        @if (_events is { Count: > 0 }) {
-            <section class="panel pd-w-events">
-                <h3 class="text-sm font-semibold mt-0 mb-3">Current events</h3>
-                <div class="evt-list">
-                    @foreach (var e in _events) {
-                        <div class="evt-row @(RemainingSeconds(e) <= 0 ? "ended" : "")">
-                            @if (!string.IsNullOrEmpty(e.Icon)) {
-                                <span class="evt-icon" style="@IconStyle(e)">
-                                    <img src="@e.Icon" alt="" loading="lazy"/>
-                                </span>
-                            }
-                            <span class="evt-name">@(string.IsNullOrEmpty(e.Subtitle) ? Pretty(e.Type) : e.Subtitle)</span>
-                            <span class="evt-timer" data-countdown="@FormattableString.Invariant($"{e.EndTime ?? 0:0}")">@RemainingLabel(e)</span>
-                        </div>
-                    }
-                </div>
-            </section>
-        }
-
-        @if (_seasons is { Count: > 0 } seasonList) {
-            var season = seasonList[Math.Clamp(_seasonIx, 0, seasonList.Count - 1)];
-            var grades = season.GradeGoals.Where(g => g.Goals.Count > 0).ToList();
-            <section class="panel pd-w-season">
-                <div class="flex items-center justify-between mb-3">
-                    <h3 class="text-sm font-semibold m-0">Seasons</h3>
-                    <div class="flex items-center gap-1">
-                        <button type="button" class="reg-edit-btn disabled:opacity-40 disabled:cursor-default disabled:hover:border-border"
-                                disabled="@(_seasonIx >= seasonList.Count - 1)"
-                                aria-label="Older season" @onclick="() => MoveSeason(1)">
-                            <Icon Name="chevronLeft"/>
-                        </button>
-                        <button type="button" class="reg-edit-btn disabled:opacity-40 disabled:cursor-default disabled:hover:border-border"
-                                disabled="@(_seasonIx <= 0)"
-                                aria-label="Newer season" @onclick="() => MoveSeason(-1)">
-                            <Icon Name="chevronRight"/>
-                        </button>
-                    </div>
-                </div>
-                <div class="season-head">
-                    <div class="flex items-center gap-3 min-w-0">
-                        <div class="bg-bg border border-border rounded overflow-hidden text-center w-14 shrink-0">
-                            <div class="bg-accent text-bg text-[0.625rem] font-semibold uppercase py-0.5">@StartDate(season).ToString("MMM")</div>
-                            <div class="text-lg font-semibold py-1">@StartDate(season).Day</div>
-                        </div>
-                        <div class="min-w-0">
-                            <div class="text-sm font-semibold">@season.Name</div>
-                            @if (IsActive(season)) {
-                                <div class="text-muted text-xs">Next season ~@NextStartLabel(season)</div>
-                                <div class="text-muted text-xs">@ContractsLeftLabel(season)</div>
-                            } else {
-                                <div class="text-muted text-xs">@StartLabel(season)</div>
-                            }
-                        </div>
-                    </div>
-                    @if (season.Colleggtibles is { Count: > 0 } ceggs) {
-                        <div class="min-w-0">
-                            <div class="text-xs font-semibold mb-1">@(ceggs.Count == 1 ? "Season Colleggtible" : "Season Colleggtibles")</div>
-                            <div class="flex flex-col gap-1.5">
-                                @foreach (var egg in ceggs) {
-                                    <div class="flex items-center gap-2">
-                                        @if (egg.Icon is not null) {
-                                            <img class="season-cegg-icon" src="@egg.Icon" alt="@egg.Id" loading="lazy" data-fallback/>
+            <section class="panel pd-w-data">
+                <div class="flex items-stretch gap-2">
+                    <div class="flex-1 min-w-0">
+                        <h3 class="text-sm font-semibold mt-0 mb-2">Data</h3>
+                        @if (_summary is { } s) {
+                            <div class="pd-data">
+                                @if (s.Extracted.Count > 0) {
+                                    <span class="ds-state-k">Game data</span>
+                                    <span class="pd-data-v">
+                                        @if (ExtractVersion(s) is { Length: > 0 } bin) {
+                                            <VersionLine App="@bin"/>
+                                            <span class="dwb-sep">|</span>
                                         }
-                                        <div class="min-w-0">
-                                            <div class="text-xs font-medium">@TitleCase(egg.Id)</div>
-                                            @if (egg.Contracts is { Count: > 0 } cnames) {
-                                                <div class="text-muted text-[0.6875rem]">@string.Join(", ", cnames)</div>
-                                            }
-                                        </div>
-                                    </div>
+                                        <span>@s.Extracted.Count sets</span>
+                                    </span>
+                                }
+                                @if (s.Feeds.Count > 0) {
+                                    <span class="ds-state-k">Fixtures</span>
+                                    <span class="pd-data-v">
+                                        <span>@(s.Feeds.Count(f => f.Present))/@s.Feeds.Count</span>
+                                        <span class="dwb-sep">|</span>
+                                        <span>@ByteFormat.Compact(s.Feeds.Sum(f => f.Bytes))</span>
+                                        @if (NewestFeed(s) is { } captured) {
+                                            <span class="dwb-sep">|</span>
+                                            <TimeAgo Value="@captured"/>
+                                        }
+                                    </span>
+                                }
+                                @if (s.Config.Platforms.Count > 0) {
+                                    <span class="ds-state-k">Config</span>
+                                    <span class="pd-data-v">
+                                        @foreach (var p in s.Config.Platforms) {
+                                            <PlatformIcon Platform="@p.Platform"/>
+                                            <TimeAgo Value="@p.SavedAt"/>
+                                        }
+                                    </span>
                                 }
                             </div>
-                        </div>
-                    }
+                        }
+                    </div>
+                    <button type="button" class="dropzone-open"
+                            aria-label="Open the data workbench" @onclick="OpenDataWorkbench">
+                        <Icon Name="chevronRight" Class="icon-sm"/>
+                    </button>
                 </div>
-                @if (grades.Count > 0) {
-                    var goalCount = grades.Max(g => g.Goals.Count);
-                    <table class="data-table season-table" @key="season.Id">
+            </section>
+
+            @if (_summary?.Colleggtibles is { } c) {
+                <section class="panel pd-w-cegg">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-sm font-semibold m-0">Colleggtibles</h3>
+                        <a class="reg-edit-btn" href="/api/v1/data/periodical/get_periodicals/colleggtibles" download="colleggtibles.json" aria-label="Download JSON">
+                            <Icon Name="download"/>
+                        </a>
+                    </div>
+                    <table class="data-table cegg-table">
                         <thead>
                         <tr>
-                            <th class="w-12">Goal</th>
-                            @foreach (var g in grades) {
-                                <th>
-                                    @if (!string.IsNullOrEmpty(g.GradeIcon)) {
-                                        <img class="season-grade-icon" src="@g.GradeIcon" alt="@GradeLabel(g.Grade)" loading="lazy" data-fallback/>
-                                        <span data-fallback-for style="display:none">@GradeLabel(g.Grade)</span>
-                                    } else {
-                                        @GradeLabel(g.Grade)
-                                    }
-                                </th>
-                            }
+                            <th class="w-8"></th><th>Name</th><th>Dimension</th><th>Tier values</th>
                         </tr>
                         </thead>
                         <tbody>
-                        @for (var ix = 0; ix < goalCount; ix++) {
-                            var goalIx = ix;
+                        @foreach (var e in c.Eggs) {
                             <tr>
-                                <td class="mono text-xs text-muted">@(goalIx + 1)</td>
-                                @foreach (var g in grades) {
-                                    <td class="text-xs">
-                                        @if (goalIx < g.Goals.Count) {
-                                            var goal = g.Goals[goalIx];
-                                            <Tooltip>
-                                                <ChildContent>
-                                                    <span class="season-goal">
-                                                        @if (!string.IsNullOrEmpty(goal.Icon)) {
-                                                            <span class="season-goal-icon">
-                                                                <img src="@goal.Icon" alt="" loading="lazy" data-fallback/>
-                                                            </span>
-                                                        }
-                                                        <span class="season-goal-text">
-                                                            <span class="season-goal-cs">@FormatAmount(goal.Cxp) CS</span>
-                                                            <span>@RewardLabel(goal)</span>
-                                                        </span>
-                                                    </span>
-                                                </ChildContent>
-                                                <Tip>
-                                                    <span class="tt-title">@RewardFullName(goal)</span>
-                                                    <span class="tt-line">@goal.RewardAmount.ToString("N0") @RewardFullNoun(goal)</span>
-                                                    @if (BoostInfo(goal) is { } bi) {
-                                                        @if (bi.Duration is { } bd) {
-                                                            <span class="tt-line">Lasts @bd</span>
-                                                        }
-
-                                                        @if (bi.Effect is { } be) {
-                                                            <span class="tt-line">@be</span>
-                                                        }
-                                                    }
-                                                </Tip>
-                                            </Tooltip>
-                                        }
-                                    </td>
-                                }
+                                <td>
+                                    @if (!string.IsNullOrEmpty(e.Icon)) {
+                                        <img class="w-[1.875rem] h-[1.875rem] object-contain" src="@e.Icon" alt="@e.Identifier"
+                                             loading="lazy" data-fallback/>
+                                        <span class="text-muted text-xs" data-fallback-for style="display:none">-</span>
+                                    } else {
+                                        <span class="text-muted text-xs">-</span>
+                                    }
+                                </td>
+                                <td class="text-accent">@EggName(e)</td>
+                                <td class="text-muted text-xs">@TitleCase(e.Dimension)</td>
+                                <td class="mono text-xs cegg-tier">@string.Join(", ", e.TierValues.Select(TierLabel))</td>
                             </tr>
                         }
                         </tbody>
                     </table>
-                } else {
-                    <div class="text-muted text-sm">No reward data captured for this season.</div>
-                }
-            </section>
-        }
+                </section>
+            }
+        </div>
+
+        <div class="pd-wcol">
+            @if (_events is { Count: > 0 }) {
+                <section class="panel pd-w-events">
+                    <h3 class="text-sm font-semibold mt-0 mb-3">Current events</h3>
+                    <div class="evt-list">
+                        @foreach (var e in _events) {
+                            <div class="evt-row @(RemainingSeconds(e) <= 0 ? "ended" : "")">
+                                @if (!string.IsNullOrEmpty(e.Icon)) {
+                                    <span class="evt-icon" style="@IconStyle(e)">
+                                        <img src="@e.Icon" alt="" loading="lazy"/>
+                                    </span>
+                                }
+                                <span class="evt-name">@(string.IsNullOrEmpty(e.Subtitle) ? Pretty(e.Type) : e.Subtitle)</span>
+                                <span class="evt-timer" data-countdown="@FormattableString.Invariant($"{e.EndTime ?? 0:0}")">@RemainingLabel(e)</span>
+                            </div>
+                        }
+                    </div>
+                </section>
+            }
+
+            @if (_seasons is { Count: > 0 } seasonList) {
+                var season = seasonList[Math.Clamp(_seasonIx, 0, seasonList.Count - 1)];
+                var grades = season.GradeGoals.Where(g => g.Goals.Count > 0).ToList();
+                <section class="panel pd-w-season">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-sm font-semibold m-0">Seasons</h3>
+                        <div class="flex items-center gap-1">
+                            <button type="button" class="reg-edit-btn disabled:opacity-40 disabled:cursor-default disabled:hover:border-border"
+                                    disabled="@(_seasonIx >= seasonList.Count - 1)"
+                                    aria-label="Older season" @onclick="() => MoveSeason(1)">
+                                <Icon Name="chevronLeft"/>
+                            </button>
+                            <button type="button" class="reg-edit-btn disabled:opacity-40 disabled:cursor-default disabled:hover:border-border"
+                                    disabled="@(_seasonIx <= 0)"
+                                    aria-label="Newer season" @onclick="() => MoveSeason(-1)">
+                                <Icon Name="chevronRight"/>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="season-head">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <div class="bg-bg border border-border rounded overflow-hidden text-center w-14 shrink-0">
+                                <div class="bg-accent text-bg text-[0.625rem] font-semibold uppercase py-0.5">@StartDate(season).ToString("MMM")</div>
+                                <div class="text-lg font-semibold py-1">@StartDate(season).Day</div>
+                            </div>
+                            <div class="min-w-0">
+                                <div class="text-sm font-semibold">@season.Name</div>
+                                @if (IsActive(season)) {
+                                    <div class="text-muted text-xs">Next season ~@NextStartLabel(season)</div>
+                                    <div class="text-muted text-xs">@ContractsLeftLabel(season)</div>
+                                } else {
+                                    <div class="text-muted text-xs">@StartLabel(season)</div>
+                                }
+                            </div>
+                        </div>
+                        @if (season.Colleggtibles is { Count: > 0 } ceggs) {
+                            <div class="min-w-0">
+                                <div class="text-xs font-semibold mb-1">@(ceggs.Count == 1 ? "Season Colleggtible" : "Season Colleggtibles")</div>
+                                <div class="flex flex-col gap-1.5">
+                                    @foreach (var egg in ceggs) {
+                                        <div class="flex items-center gap-2">
+                                            @if (egg.Icon is not null) {
+                                                <img class="season-cegg-icon" src="@egg.Icon" alt="@egg.Id" loading="lazy" data-fallback/>
+                                            }
+                                            <div class="min-w-0">
+                                                <div class="text-xs font-medium">@TitleCase(egg.Id)</div>
+                                                @if (egg.Contracts is { Count: > 0 } cnames) {
+                                                    <div class="text-muted text-[0.6875rem]">@string.Join(", ", cnames)</div>
+                                                }
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                    @if (grades.Count > 0) {
+                        var goalCount = grades.Max(g => g.Goals.Count);
+                        <table class="data-table season-table" @key="season.Id">
+                            <thead>
+                            <tr>
+                                <th class="w-12">Goal</th>
+                                @foreach (var g in grades) {
+                                    <th>
+                                        @if (!string.IsNullOrEmpty(g.GradeIcon)) {
+                                            <img class="season-grade-icon" src="@g.GradeIcon" alt="@GradeLabel(g.Grade)" loading="lazy" data-fallback/>
+                                            <span data-fallback-for style="display:none">@GradeLabel(g.Grade)</span>
+                                        } else {
+                                            @GradeLabel(g.Grade)
+                                        }
+                                    </th>
+                                }
+                            </tr>
+                            </thead>
+                            <tbody>
+                            @for (var ix = 0; ix < goalCount; ix++) {
+                                var goalIx = ix;
+                                <tr>
+                                    <td class="mono text-xs text-muted">@(goalIx + 1)</td>
+                                    @foreach (var g in grades) {
+                                        <td class="text-xs">
+                                            @if (goalIx < g.Goals.Count) {
+                                                var goal = g.Goals[goalIx];
+                                                <Tooltip>
+                                                    <ChildContent>
+                                                        <span class="season-goal">
+                                                            @if (!string.IsNullOrEmpty(goal.Icon)) {
+                                                                <span class="season-goal-icon">
+                                                                    <img src="@goal.Icon" alt="" loading="lazy" data-fallback/>
+                                                                </span>
+                                                            }
+                                                            <span class="season-goal-text">
+                                                                <span class="season-goal-cs">@FormatAmount(goal.Cxp) CS</span>
+                                                                <span>@RewardLabel(goal)</span>
+                                                            </span>
+                                                        </span>
+                                                    </ChildContent>
+                                                    <Tip>
+                                                        <span class="tt-title">@RewardFullName(goal)</span>
+                                                        <span class="tt-line">@goal.RewardAmount.ToString("N0") @RewardFullNoun(goal)</span>
+                                                        @if (BoostInfo(goal) is { } bi) {
+                                                            @if (bi.Duration is { } bd) {
+                                                                <span class="tt-line">Lasts @bd</span>
+                                                            }
+
+                                                            @if (bi.Effect is { } be) {
+                                                                <span class="tt-line">@be</span>
+                                                            }
+                                                        }
+                                                    </Tip>
+                                                </Tooltip>
+                                            }
+                                        </td>
+                                    }
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    } else {
+                        <div class="text-muted text-sm">No reward data captured for this season.</div>
+                    }
+                </section>
+            }
 
         </div>
     </div>
@@ -480,8 +480,8 @@
     }
 
     static string TierLabel(double value) {
-        double magnitude = Math.Abs(value - 1) * 100;
-        string digits = magnitude >= 10 ? "0.#" : "0.##";
+        var magnitude = Math.Abs(value - 1) * 100;
+        var digits = magnitude >= 10 ? "0.#" : "0.##";
         return $"{(value < 1 ? "-" : "+")}{magnitude.ToString(digits, CultureInfo.InvariantCulture)}%";
     }
 
