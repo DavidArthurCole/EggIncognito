@@ -7,7 +7,7 @@ public sealed class RouteDriftTests {
         new(path, "X", "Y", requestWrapped, responseWrapped, null, false, false);
 
     private static BinaryRouteInfo Binary(string path, bool requestWrapped = false, bool responseWrapped = false) =>
-        new(path, "getX", "X", "Y", requestWrapped, responseWrapped, "1.37", DateTimeOffset.UnixEpoch);
+        new(path, "getX", "X", "Y", requestWrapped, responseWrapped, "1.37", null, DateTimeOffset.UnixEpoch);
 
     [Fact]
     public void RequestWrappedMismatch_IsReliableDrift() {

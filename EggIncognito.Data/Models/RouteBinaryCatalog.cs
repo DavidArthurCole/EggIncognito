@@ -19,5 +19,7 @@ public class RouteBinaryCatalog {
 
     [Column("binary_version")] public string? BinaryVersion { get; set; }
 
+    [Column("platform")] public string? Platform { get; set; }
+
     [Column("refreshed_at")] public DateTimeOffset RefreshedAt { get; set; }
 }

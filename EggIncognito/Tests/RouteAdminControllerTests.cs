@@ -141,7 +141,7 @@ public sealed class RouteAdminControllerTests : IDisposable {
     [Fact]
     public void ListBinary_ReturnsDiscoveredRowsAndReliableDrift() {
         var routes = new FakeCatalog();
-        var binaryRoute = new BinaryRouteInfo("ei/known", "getKnown", "X", "Y", true, false, "1.37",
+        var binaryRoute = new BinaryRouteInfo("ei/known", "getKnown", "X", "Y", true, false, "1.37", null,
             DateTimeOffset.UnixEpoch);
         var services = new ServiceCollection()
             .AddSingleton<IBinaryRouteProvider>(new FakeBinary(binaryRoute))
@@ -159,7 +159,7 @@ public sealed class RouteAdminControllerTests : IDisposable {
     [Fact]
     public void ListBinary_BinaryOnlyRoute_FlaggedAsNew() {
         var routes = new FakeCatalog();
-        var binaryRoute = new BinaryRouteInfo("ei/discovered", "getDiscovered", "X", "Y", false, false, "1.37",
+        var binaryRoute = new BinaryRouteInfo("ei/discovered", "getDiscovered", "X", "Y", false, false, "1.37", null,
             DateTimeOffset.UnixEpoch);
         var services = new ServiceCollection()
             .AddSingleton<IBinaryRouteProvider>(new FakeBinary(binaryRoute))
@@ -173,9 +173,46 @@ public sealed class RouteAdminControllerTests : IDisposable {
     }
 
     [Fact]
+    public void ListBinary_MultiPlatformRows_JoinsProvenanceVersionDescThenPlatform() {
+        var routes = new FakeCatalog();
+        var services = new ServiceCollection()
+            .AddSingleton<IBinaryRouteProvider>(new FakeBinary(
+                new BinaryRouteInfo("ei/a", "getA", "X", "Y", false, false, "1.37.1", "ios",
+                    DateTimeOffset.UnixEpoch),
+                new BinaryRouteInfo("ei/b", "getB", "X", "Y", false, false, "1.37.2", "android",
+                    DateTimeOffset.UnixEpoch),
+                new BinaryRouteInfo("ei/c", "getC", "X", "Y", false, false, "1.37.2", "android",
+                    DateTimeOffset.UnixEpoch)))
+            .BuildServiceProvider();
+
+        var result = Assert.IsType<OkObjectResult>(Controller(routes, YamlWith(), services).ListBinary());
+        string json = Json(result.Value);
+
+        using var doc = JsonDocument.Parse(json);
+        Assert.Equal("android 1.37.2 + ios 1.37.1", doc.RootElement.GetProperty("binaryVersion").GetString());
+        Assert.Contains("\"platform\":\"android\"", json);
+        Assert.Contains("\"platform\":\"ios\"", json);
+    }
+
+    [Fact]
+    public void ListBinary_RowsWithoutPlatform_ProvenanceIsVersionOnly() {
+        var routes = new FakeCatalog();
+        var services = new ServiceCollection()
+            .AddSingleton<IBinaryRouteProvider>(new FakeBinary(
+                new BinaryRouteInfo("ei/a", "getA", "X", "Y", false, false, "1.37", null, DateTimeOffset.UnixEpoch)))
+            .BuildServiceProvider();
+
+        var result = Assert.IsType<OkObjectResult>(Controller(routes, YamlWith(), services).ListBinary());
+        string json = Json(result.Value);
+
+        Assert.Contains("\"binaryVersion\":\"1.37\"", json);
+        Assert.Contains("\"platform\":null", json);
+    }
+
+    [Fact]
     public void ListBinary_EditedRoute_DriftSuppressed() {
         var routes = new FakeCatalog();
-        var binaryRoute = new BinaryRouteInfo("ei/known", "getKnown", "X", "Y", true, false, "1.37",
+        var binaryRoute = new BinaryRouteInfo("ei/known", "getKnown", "X", "Y", true, false, "1.37", null,
             DateTimeOffset.UnixEpoch);
         var services = new ServiceCollection()
             .AddSingleton<IBinaryRouteProvider>(new FakeBinary(binaryRoute))

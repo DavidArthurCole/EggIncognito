@@ -31,5 +31,5 @@ public sealed class BinaryRouteProvider(EggIncognitoDbContext db, ILogger<Binary
 
     private static BinaryRouteInfo ToInfo(RouteBinaryCatalog r) => new(
         r.Path, r.Method, r.RequestType, r.ResponseType, r.RequestWrapped, r.ResponseWrapped,
-        r.BinaryVersion, r.RefreshedAt);
+        r.BinaryVersion, r.Platform, r.RefreshedAt);
 }

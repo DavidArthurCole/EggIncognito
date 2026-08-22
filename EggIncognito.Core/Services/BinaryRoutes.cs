@@ -8,6 +8,7 @@ public sealed record BinaryRouteInfo(
     bool RequestWrapped,
     bool ResponseWrapped,
     string? BinaryVersion,
+    string? Platform,
     DateTimeOffset RefreshedAt);
 
 public interface IBinaryRouteProvider {

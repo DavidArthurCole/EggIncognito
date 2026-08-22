@@ -26,3 +26,4 @@ EggIncognito.DiscordMcp/
 *.trx
 EggIncognito/wwwroot/styles.css
 .sonarqube/
+scratch/

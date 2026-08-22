@@ -27,6 +27,8 @@ public sealed class GameBinaryProvider(
     private IDeviceStatusStore? Store => services.GetService(typeof(IDeviceStatusStore)) as IDeviceStatusStore;
     private DeviceJobStore? Jobs => services.GetService(typeof(DeviceJobStore)) as DeviceJobStore;
     private GameBinaryStore? BinaryStore => services.GetService(typeof(GameBinaryStore)) as GameBinaryStore;
+    private SymbolizedReferenceStore? RefStore =>
+        services.GetService(typeof(SymbolizedReferenceStore)) as SymbolizedReferenceStore;
     private IDeviceAgentClient? Agent => services.GetService(typeof(IDeviceAgentClient)) as IDeviceAgentClient;
     private IDeviceResolver? Resolver => services.GetService(typeof(IDeviceResolver)) as IDeviceResolver;
 
@@ -270,7 +272,7 @@ public sealed class GameBinaryProvider(
             }
 
             if (row is not null) {
-                var resolved = ResolveSymbols(row.Bytes);
+                var resolved = await ResolveSymbolsAsync(row.Bytes, ct);
                 string shaShort = row.Sha256.Length >= 12 ? row.Sha256[..12] : row.Sha256;
                 return (true, row.Bytes, resolved.Syms, version,
                     $"stored binary {platform} {version} (sha {shaShort}); {resolved.Note}");
@@ -287,8 +289,8 @@ public sealed class GameBinaryProvider(
     private static bool IsElf(byte[] b) =>
         b.Length >= 4 && b[0] == 0x7f && b[1] == 0x45 && b[2] == 0x4c && b[3] == 0x46;
 
-    private (IReadOnlyList<MachoSymbols.Symbol> Syms, bool Grafted, int NativeCount, string Note) ResolveSymbols(
-        byte[] bytes) {
+    private async Task<(IReadOnlyList<MachoSymbols.Symbol> Syms, bool Grafted, int NativeCount, string Note)>
+        ResolveSymbolsAsync(byte[] bytes, CancellationToken ct) {
         var img = BinaryImage.Load(bytes);
         var syms = img?.Symbols ?? MachoSymbols.Read(bytes);
         int nativeCount = syms.Count;
@@ -297,6 +299,24 @@ public sealed class GameBinaryProvider(
         if (IsElf(bytes)) {
             return (syms, false, nativeCount,
                 $"{nativeCount} native ELF symbols (Mach-O stash graft not applicable)");
+        }
+
+        var refStore = RefStore;
+        if (refStore is not null) {
+            SymbolizedBinary? dbRow = null;
+            try {
+                dbRow = await refStore.GetLatestAsync(Platforms.Ios, ct);
+            } catch (Exception ex) {
+                logger.LogWarning(ex, "symbolized reference lookup failed");
+            }
+
+            if (dbRow is not null) {
+                var dbReport = SymbolRecovery.Recover(dbRow.Bytes, bytes, []);
+                if (dbReport.Symbols.Count > nativeCount) {
+                    return (dbReport.Symbols, true, nativeCount,
+                        $"stripped; grafted {dbReport.Recovered} symbols from db reference {dbRow.AppVersion} ({dbReport.Tier})");
+                }
+            }
         }
 
         var refr = SymbolizedStore().Get(null);

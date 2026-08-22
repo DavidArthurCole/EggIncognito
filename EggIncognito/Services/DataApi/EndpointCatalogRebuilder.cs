@@ -29,16 +29,18 @@ public sealed class EndpointCatalogRebuilder(
                 $"{c.Platform} {c.Version}: {(extracted.Ok ? $"{filtered.Count} endpoints from {syms.Count} symbols" : extracted.Diagnostics)}"));
         }
 
-        var best = attempts.OrderByDescending(a => a.Endpoints.Count).FirstOrDefault();
-        if (best is null || best.Endpoints.Count == 0) {
+        var contributors = attempts.Where(a => a.Endpoints.Count > 0).ToList();
+        if (contributors.Count == 0) {
             return new EndpointRebuildResult(0, 0, 0, null,
                 string.Join("; ", found.Rejected.Concat(attempts.Select(a => a.Note))));
         }
 
-        var cand = best.Candidate;
-        var descriptors = best.Endpoints;
-        var failures = found.Rejected
-            .Concat(attempts.Where(a => !ReferenceEquals(a, best)).Select(a => a.Note)).ToList();
+        var notUsed = found.Rejected
+            .Concat(attempts.Where(a => a.Endpoints.Count == 0).Select(a => a.Note)).ToList();
+        var inputs = contributors
+            .Select(a => new MergeContributor(a.Candidate.Platform, a.Candidate.Version, a.Endpoints))
+            .ToList();
+        var merged = Merge(inputs);
 
         var db = services.GetService(typeof(EggIncognitoDbContext)) as EggIncognitoDbContext
                  ?? throw new InvalidOperationException("no database configured");
@@ -48,7 +50,8 @@ public sealed class EndpointCatalogRebuilder(
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var binaryRows = new List<BinaryRouteInfo>();
 
-        foreach (var e in descriptors) {
+        foreach (var m in merged) {
+            var e = m.Descriptor;
             string path = e.Path!;
             if (!seen.Add(path)) continue;
 
@@ -58,7 +61,8 @@ public sealed class EndpointCatalogRebuilder(
                 row.ResponseType = e.ResponseType;
                 row.RequestWrapped = e.RequestWrapped;
                 row.ResponseWrapped = e.ResponseWrapped;
-                row.BinaryVersion = cand.Version;
+                row.BinaryVersion = m.Version;
+                row.Platform = m.Platform;
                 row.RefreshedAt = now;
             } else {
                 db.RouteBinaryCatalogs.Add(new RouteBinaryCatalog {
@@ -68,13 +72,14 @@ public sealed class EndpointCatalogRebuilder(
                     ResponseType = e.ResponseType,
                     RequestWrapped = e.RequestWrapped,
                     ResponseWrapped = e.ResponseWrapped,
-                    BinaryVersion = cand.Version,
+                    BinaryVersion = m.Version,
+                    Platform = m.Platform,
                     RefreshedAt = now
                 });
             }
 
             binaryRows.Add(new BinaryRouteInfo(path, e.Method, e.RequestType, e.ResponseType, e.RequestWrapped,
-                e.ResponseWrapped, cand.Version, now));
+                e.ResponseWrapped, m.Version, m.Platform, now));
         }
 
         var stale = existing.Values.Where(r => !seen.Contains(r.Path)).ToList();
@@ -88,11 +93,56 @@ public sealed class EndpointCatalogRebuilder(
         var overrides = services.GetService(typeof(IRouteOverrideProvider)) as IRouteOverrideProvider;
         var nonBinaryEffective = new OverlayRouteCatalog(new MergedRouteCatalog(yaml, dbRoutes), overrides).All();
         var drift = RouteDrift.Compute(nonBinaryEffective, binaryRows);
-        string note = failures.Count == 0
-            ? $"{cand.Platform} {cand.Version}"
-            : $"{cand.Platform} {cand.Version}; not used: {string.Join("; ", failures)}";
-        return new EndpointRebuildResult(seen.Count, newCount, drift.Count, cand.Version, note);
+        string note = BuildNote(inputs, merged.Count, notUsed);
+        return new EndpointRebuildResult(seen.Count, newCount, drift.Count, contributors[0].Candidate.Version, note);
     }
+
+    internal static IReadOnlyList<MergedRoute> Merge(IReadOnlyList<MergeContributor> contributors) {
+        var order = new List<string>();
+        var owned = new Dictionary<string, MergedRoute>(StringComparer.Ordinal);
+
+        foreach (var c in contributors) {
+            foreach (var e in c.Endpoints) {
+                if (e.Path is null) continue;
+                if (!owned.TryGetValue(e.Path, out var current)) {
+                    order.Add(e.Path);
+                    owned[e.Path] = new MergedRoute(e, c.Platform, c.Version);
+                    continue;
+                }
+
+                var d = current.Descriptor;
+                if (d.RequestType is null && e.RequestType is not null) {
+                    d = d with { RequestType = e.RequestType, RequestWrapped = e.RequestWrapped };
+                }
+
+                if (d.ResponseType is null && e.ResponseType is not null) {
+                    d = d with { ResponseType = e.ResponseType, ResponseWrapped = e.ResponseWrapped };
+                }
+
+                owned[e.Path] = current with { Descriptor = d };
+            }
+        }
+
+        return order.Select(p => owned[p]).ToList();
+    }
+
+    internal static string BuildNote(IReadOnlyList<MergeContributor> contributors, int mergedCount,
+        IReadOnlyList<string> notUsed) {
+        string head = string.Join(" + ",
+            contributors.Select(c => $"{c.Platform} {c.Version} ({c.Endpoints.Count})"));
+        string body = $"{head}, merged {mergedCount}";
+        return notUsed.Count == 0 ? body : $"{body}; not used: {string.Join("; ", notUsed)}";
+    }
+
+    public sealed record MergeContributor(
+        string Platform,
+        string Version,
+        IReadOnlyList<EndpointCatalogExtractor.EndpointDescriptor> Endpoints);
+
+    public sealed record MergedRoute(
+        EndpointCatalogExtractor.EndpointDescriptor Descriptor,
+        string Platform,
+        string Version);
 
     private sealed record Attempt(
         GameBinaryProvider.ExtractionCandidate Candidate,

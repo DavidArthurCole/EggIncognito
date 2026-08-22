@@ -1,5 +1,6 @@
 @rendermode @(RenderMode.InteractiveServer)
 @using EggIncognito.Core
+@using EggIncognito.Models.AdminUi
 @using EggIncognito.Models.Devices
 @inherits BrowserApiComponentBase
 
@@ -55,15 +56,76 @@
     @if (_msg is not null) {
         <StatusNote>@_msg</StatusNote>
     }
+
+    <div class="admin-panel-head mt-4">
+        <div class="sub-section-head">Symbolized reference</div>
+        <div class="flex gap-1 items-center">
+            <span class="text-muted text-xs">@_refs.Count total</span>
+            <button type="button" class="btn-mini" disabled="@_refBusy" @onclick="LoadRefs">Refresh</button>
+        </div>
+    </div>
+    @if (_refs.Count == 0) {
+        <p class="text-muted text-sm m-0">No symbolized reference stored. Upload a symbolized .ipa, or its Mach-O executable with a version, to graft names onto stripped builds.</p>
+    } else {
+        <div class="reg-wrap">
+            <table class="data-table">
+                <thead>
+                <tr>
+                    <th>Version</th><th>SHA-256</th><th>Size</th><th>Symbols</th><th>Uploaded</th><th></th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var r in _refs) {
+                    <tr>
+                        <td>
+                            <VersionLine App="@r.Version"/>
+                        </td>
+                        <td class="mono text-xs">@ShaShort(r.Sha256)</td>
+                        <td class="mono text-xs">@ByteFormat.Mb(r.ByteSize, "F1")</td>
+                        <td class="mono text-xs">@r.SymbolCount.ToString("N0")</td>
+                        <td class="text-muted text-xs">@r.UploadedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
+                        <td>
+                            <div class="flex gap-1 justify-end">
+                                <button type="button" class="btn-mini btn-danger" disabled="@_refBusy" @onclick="() => DeleteRef(r.Version)">Delete</button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+    <div class="flex gap-1 items-center flex-wrap mt-2">
+        <InputFile id="@RefInputId" class="text-xs"/>
+        <input class="reg-filter-input w-auto" placeholder="version (raw Mach-O only)" value="@_refVersion" @oninput="OnRefVersion"/>
+        <button type="button" class="btn-mini" disabled="@_refBusy" @onclick="UploadRef">@(_refBusy ? "Working..." : "Upload")</button>
+    </div>
+    @if (_refMsg is not null) {
+        <StatusNote>@_refMsg</StatusNote>
+    }
 </section>
 
 @code {
+    const string RefInputId = "symRefFile";
+
     List<StoredBinaryRow> _rows = [];
     bool _busy;
     string? _msg;
 
+    List<SymbolizedReferenceRow> _refs = [];
+    bool _refBusy;
+    string? _refMsg;
+    string _refVersion = "";
+    IJSObjectReference? _upload;
+
     protected override async Task OnApiReadyAsync() {
         await Load();
+        await LoadRefs();
+    }
+
+    public override async ValueTask DisposeAsync() {
+        await _upload.DisposeModuleQuietAsync();
+        await base.DisposeAsync();
     }
 
     async Task Load() {
@@ -99,6 +161,66 @@
         _msg = res.Ok ? $"deleted {platform} {version}" : $"delete failed: {res.Describe()}";
         await Load();
         _busy = false;
+    }
+
+    void OnRefVersion(ChangeEventArgs e) {
+        _refVersion = e.Value?.ToString() ?? "";
+    }
+
+    async Task LoadRefs() {
+        if (Api is null) return;
+        var res = await Api.GetAsync("/api/decomp/symbolized");
+        if (!res.Ok) {
+            _refMsg = $"load failed: {res.Describe()}";
+            return;
+        }
+
+        _refs = res.Json<List<SymbolizedReferenceRow>>() ?? [];
+    }
+
+    async Task UploadRef() {
+        _refBusy = true;
+        _refMsg = "uploading...";
+        StateHasChanged();
+        try {
+            _upload ??= await Js.InvokeAsync<IJSObjectReference>(
+                "import", InteropAsset.Url(Env, "./interop/fileUpload.js"));
+            var url = string.IsNullOrWhiteSpace(_refVersion)
+                ? "/api/decomp/symbolized"
+                : $"/api/decomp/symbolized?version={Uri.EscapeDataString(_refVersion.Trim())}";
+            var res = await _upload.InvokeAsync<InteropUploadResult?>(
+                "upload", TimeSpan.FromMinutes(30), RefInputId, url);
+            if (res is { Status: 200 }) {
+                _refMsg = "stored symbolized reference";
+                _refVersion = "";
+            } else {
+                _refMsg = res is null
+                    ? "upload failed: no response from the browser"
+                    : $"upload failed ({res.Status}): {Snippet(res.Body)}";
+            }
+        }
+        catch (Exception ex) {
+            _refMsg = $"upload failed: {ex.Message}";
+        }
+        finally {
+            await LoadRefs();
+            _refBusy = false;
+        }
+    }
+
+    async Task DeleteRef(string version) {
+        if (Api is null) return;
+        _refBusy = true;
+        _refMsg = null;
+        var res = await Api.DeleteAsync($"/api/decomp/symbolized/{Uri.EscapeDataString(version)}");
+        _refMsg = res.Ok ? $"deleted {version}" : $"delete failed: {res.Describe()}";
+        await LoadRefs();
+        _refBusy = false;
+    }
+
+    static string Snippet(string body) {
+        var text = body.Trim();
+        return text.Length > 300 ? text[..300] : text;
     }
 
     static string ShaShort(string sha) {

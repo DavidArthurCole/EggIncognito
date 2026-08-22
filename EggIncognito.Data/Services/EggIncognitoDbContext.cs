@@ -37,6 +37,7 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
     public DbSet<PeriodicalsSnapshot> PeriodicalsSnapshots => Set<PeriodicalsSnapshot>();
     public DbSet<GameDataDocument> GameDataDocuments => Set<GameDataDocument>();
     public DbSet<StoredBinary> StoredBinaries => Set<StoredBinary>();
+    public DbSet<SymbolizedBinary> SymbolizedBinaries => Set<SymbolizedBinary>();
     public DbSet<AnalyzedFile> AnalyzedFiles => Set<AnalyzedFile>();
     public DbSet<UserTheme> UserThemes => Set<UserTheme>();
     public DbSet<SiteThemePolicy> SiteThemePolicies => Set<SiteThemePolicy>();
@@ -188,6 +189,12 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
             e.HasIndex(x => new { x.Platform, x.AppVersion }).IsUnique();
             e.HasIndex(x => x.Sha256);
             e.Property(x => x.PulledAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
+        });
+        modelBuilder.Entity<SymbolizedBinary>(e => {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.Platform, x.AppVersion }).IsUnique();
+            e.HasIndex(x => x.Sha256);
+            e.Property(x => x.UploadedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
         });
         modelBuilder.Entity<AnalyzedFile>(e => {
             e.HasKey(x => x.FileSha);

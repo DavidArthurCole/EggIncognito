@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json.Nodes;
 using EggIdentity.Contract;
+using EggIncognito.Core;
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Services;
 using EggIncognito.DeviceTools;
@@ -21,7 +22,12 @@ public sealed class DecompController(
     GameBinaryProvider binaries,
     IServiceProvider services,
     ICurrentUser currentUser) : ControllerBase {
+    private const int SymbolizedSymbolFloor = 50_000;
+
     private GameBinaryStore? Store => services.GetService(typeof(GameBinaryStore)) as GameBinaryStore;
+
+    private SymbolizedReferenceStore? RefStore =>
+        services.GetService(typeof(SymbolizedReferenceStore)) as SymbolizedReferenceStore;
 
     [HttpGet("symbols")]
     [EnableRateLimiting("read")]
@@ -471,6 +477,96 @@ public sealed class DecompController(
             ? Ok(new { ok = true, platform, version })
             : NotFound(new { ok = false, error = $"no stored binary {platform} {version}" });
     }
+
+    [HttpGet("symbolized")]
+    [EnableRateLimiting("read")]
+    public async Task<IActionResult> SymbolizedReferences(CancellationToken ct) {
+        if (!currentUser.IsAtLeast(UserRole.Admin))
+            return StatusCode(403, new { error = "admin role required" });
+        if (RefStore is not { } store) return StatusCode(503, new { error = "no database configured" });
+        var rows = await store.ListAsync(ct);
+        return Ok(rows.Select(ShapeSymbolized).ToList());
+    }
+
+    [HttpPost("symbolized")]
+    [EnableRateLimiting("read")]
+    [RequestSizeLimit(800_000_000)]
+    [RequestFormLimits(MultipartBodyLengthLimit = 800_000_000)]
+    public async Task<IActionResult> UploadSymbolizedReference(
+        IFormFile file, [FromQuery] string? version, CancellationToken ct) {
+        if (!currentUser.IsAtLeast(UserRole.Admin))
+            return StatusCode(403, new { error = "admin role required" });
+        if (RefStore is not { } store) return StatusCode(503, new { error = "no database configured" });
+        if (file is null || file.Length == 0) return BadRequest(new { error = "no file uploaded" });
+
+        (string? ipaVersion, byte[] exec) = await ReadSymbolizedUploadAsync(file, ct);
+        string resolved;
+        if (ipaVersion is { Length: > 0 }) {
+            resolved = ipaVersion;
+        } else if (string.IsNullOrWhiteSpace(version)) {
+            return BadRequest(new {
+                error =
+                    "no .ipa payload found, so this is treated as a raw Mach-O executable; supply the version query parameter"
+            });
+        } else {
+            resolved = version.Trim();
+        }
+
+        int symbolCount;
+        try {
+            symbolCount = MachoSymbols.Read(exec).Count;
+        } catch (Exception ex) {
+            return BadRequest(new { error = "could not read the Mach-O symbol table: " + ex.Message });
+        }
+
+        if (symbolCount < SymbolizedSymbolFloor) {
+            return BadRequest(new {
+                error =
+                    $"{symbolCount} symbols is below the {SymbolizedSymbolFloor} floor; this is not a symbolized build"
+            });
+        }
+
+        string sha = Hashes.Sha256Hex(exec);
+        await store.PutAsync(Platforms.Ios, resolved, sha, exec, symbolCount, ct);
+
+        var stored = (await store.ListAsync(ct))
+            .FirstOrDefault(r => r.Platform == Platforms.Ios && r.AppVersion == resolved);
+        return stored is null
+            ? StatusCode(500, new { error = $"stored {resolved} but could not read it back" })
+            : Ok(ShapeSymbolized(stored));
+    }
+
+    [HttpDelete("symbolized/{version}")]
+    [EnableRateLimiting("read")]
+    public async Task<IActionResult> DeleteSymbolizedReference(string version, CancellationToken ct) {
+        if (!currentUser.IsAtLeast(UserRole.Admin))
+            return StatusCode(403, new { error = "admin role required" });
+        if (RefStore is not { } store) return StatusCode(503, new { error = "no database configured" });
+        bool removed = await store.DeleteAsync(Platforms.Ios, version, ct);
+        return removed
+            ? Ok(new { ok = true, platform = Platforms.Ios, version })
+            : NotFound(new { ok = false, error = $"no symbolized reference {version}" });
+    }
+
+    private static async Task<(string? Version, byte[] Exec)> ReadSymbolizedUploadAsync(
+        IFormFile file, CancellationToken ct) {
+        byte[] bytes = new byte[file.Length];
+        using (var dest = new MemoryStream(bytes)) {
+            await file.CopyToAsync(dest, ct);
+        }
+
+        (string? ipaVersion, byte[]? ipaExec) = SymbolizedIpa.Read(bytes);
+        return ipaVersion is { Length: > 0 } && ipaExec is { Length: > 0 } ? (ipaVersion, ipaExec) : (null, bytes);
+    }
+
+    private static object ShapeSymbolized(SymbolizedBinaryInfo b) => new {
+        b.Platform,
+        version = b.AppVersion,
+        sha256 = b.Sha256,
+        byteSize = b.ByteSize,
+        symbolCount = b.SymbolCount,
+        uploadedAt = b.UploadedAt
+    };
 
     [HttpGet("harvested")]
     [EnableRateLimiting("read")]

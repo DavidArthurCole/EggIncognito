@@ -50,7 +50,7 @@ public sealed class MergedRouteCatalogTests : IDisposable {
 
     [Fact]
     public void YamlRoute_WinsOverBinary() {
-        var binaryRoute = new BinaryRouteInfo("ei/known", "getKnown", "X", "Y", false, false, "1.0",
+        var binaryRoute = new BinaryRouteInfo("ei/known", "getKnown", "X", "Y", false, false, "1.0", null,
             DateTimeOffset.UnixEpoch);
         var merged = new MergedRouteCatalog(Yaml(YamlText), null, new FakeBinary(binaryRoute));
         Assert.Equal("PeriodicalsResponse", merged.Resolve("ei/known")!.Response);
@@ -59,7 +59,7 @@ public sealed class MergedRouteCatalogTests : IDisposable {
     [Fact]
     public void DbRoute_WinsOverBinary() {
         var dbRoute = new RouteInfo("ei/shared", "X", "FromDb", false, false, null, false, false);
-        var binaryRoute = new BinaryRouteInfo("ei/shared", "getShared", "X", "FromBinary", false, false, "1.0",
+        var binaryRoute = new BinaryRouteInfo("ei/shared", "getShared", "X", "FromBinary", false, false, "1.0", null,
             DateTimeOffset.UnixEpoch);
         var merged = new MergedRouteCatalog(Yaml(YamlText), new FakeDb(dbRoute), new FakeBinary(binaryRoute));
         Assert.Equal("FromDb", merged.Resolve("ei/shared")!.Response);
@@ -67,7 +67,7 @@ public sealed class MergedRouteCatalogTests : IDisposable {
 
     [Fact]
     public void BinaryOnlyRoute_AppearsInAll() {
-        var binaryRoute = new BinaryRouteInfo("ei/binaryonly", "getBinaryOnly", "X", "Y", false, false, "1.0",
+        var binaryRoute = new BinaryRouteInfo("ei/binaryonly", "getBinaryOnly", "X", "Y", false, false, "1.0", null,
             DateTimeOffset.UnixEpoch);
         var merged = new MergedRouteCatalog(Yaml(YamlText), null, new FakeBinary(binaryRoute));
         Assert.Equal(2, merged.All().Count);

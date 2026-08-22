@@ -1,3 +1,4 @@
+using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using EggIncognito.Models.Routes;
@@ -76,7 +77,7 @@ public sealed class RouteAdminController(
             .Where(d => d.Field == "new" || !edited.Contains(d.Path))
             .ToList();
         DateTimeOffset? lastRefresh = rows.Count == 0 ? null : rows.Max(r => r.RefreshedAt);
-        string? binaryVersion = rows.Count == 0 ? null : rows[0].BinaryVersion;
+        string? binaryVersion = ProvenanceOf(rows);
 
         return Ok(new {
             lastRefresh,
@@ -176,8 +177,25 @@ public sealed class RouteAdminController(
         requestWrapped = b.RequestWrapped,
         responseWrapped = b.ResponseWrapped,
         binaryVersion = b.BinaryVersion,
+        platform = b.Platform,
         refreshedAt = b.RefreshedAt
     };
+
+    private static string? ProvenanceOf(IReadOnlyList<BinaryRouteInfo> rows) {
+        var pairs = rows
+            .Where(r => !string.IsNullOrWhiteSpace(r.BinaryVersion))
+            .Select(r => (Platform: r.Platform ?? "", Version: r.BinaryVersion!))
+            .Distinct()
+            .ToList();
+        if (pairs.Count == 0) return null;
+
+        pairs.Sort((a, b) => {
+            int cmp = DeviceParsing.CompareVersions(b.Version, a.Version);
+            return cmp != 0 ? cmp : string.CompareOrdinal(a.Platform, b.Platform);
+        });
+        return string.Join(" + ",
+            pairs.Select(p => p.Platform.Length == 0 ? p.Version : $"{p.Platform} {p.Version}"));
+    }
 
     private static object DriftRowOf(RouteDriftRow d) => new {
         path = d.Path,

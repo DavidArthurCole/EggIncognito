@@ -204,6 +204,7 @@ if (dbEnabled) {
         .PersistKeysToDbContext<EggIncognitoDbContext>();
 
     builder.Services.AddScoped<GameBinaryStore>();
+    builder.Services.AddScoped<SymbolizedReferenceStore>();
     builder.Services.AddScoped<DeviceAssetStore>();
     builder.Services.AddScoped<DeviceStateStore>();
     builder.Services.AddScoped<DeviceRegistryPublisher>();

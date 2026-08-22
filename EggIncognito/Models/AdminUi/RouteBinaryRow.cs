@@ -8,4 +8,5 @@ public record RouteBinaryRow(
     bool RequestWrapped,
     bool ResponseWrapped,
     string? BinaryVersion,
+    string? Platform,
     DateTimeOffset RefreshedAt);

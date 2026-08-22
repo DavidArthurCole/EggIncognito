@@ -6,7 +6,7 @@ public sealed class RouteProviderCacheTests {
     private static RouteInfo Route(string path) => new(path, "ReqType", "RespType", true, false, null, false, false);
 
     private static BinaryRouteInfo BinaryRoute(string path) =>
-        new(path, "POST", "ReqType", "RespType", true, false, "1.0", DateTimeOffset.UnixEpoch);
+        new(path, "POST", "ReqType", "RespType", true, false, "1.0", null, DateTimeOffset.UnixEpoch);
 
     [Fact]
     public void Db_GetDbRoute_BeforeTtlElapses_DoesNotRefetch() {

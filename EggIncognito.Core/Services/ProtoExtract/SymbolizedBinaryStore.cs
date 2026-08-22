@@ -32,7 +32,7 @@ public sealed class SymbolizedBinaryStore(string ipaDir, Func<byte[], bool>? isS
         foreach (string path in Directory.EnumerateFiles(ipaDir, "*.ipa")) {
             try {
                 using var zip = ZipFile.OpenRead(path);
-                (string? version, byte[]? exec) = ReadIpa(zip);
+                (string? version, byte[]? exec) = SymbolizedIpa.Read(zip);
                 if (version is null || exec is null) continue;
                 if (!_isSymbolized(exec)) continue;
                 map.TryAdd(version, exec);
@@ -42,46 +42,6 @@ public sealed class SymbolizedBinaryStore(string ipaDir, Func<byte[], bool>? isS
         }
 
         return map;
-    }
-
-
-    private static (string? Version, byte[]? Exec) ReadIpa(ZipArchive zip) {
-        var plist = zip.Entries.FirstOrDefault(e =>
-            e.FullName.StartsWith("Payload/", StringComparison.OrdinalIgnoreCase)
-            && e.FullName.EndsWith(".app/Info.plist", StringComparison.OrdinalIgnoreCase));
-        if (plist is null) return (null, null);
-
-        string plistText;
-        using (var r = new StreamReader(plist.Open())) plistText = r.ReadToEnd();
-        string? version = PlistString(plistText, "CFBundleShortVersionString");
-        if (version is null) return (null, null);
-
-        var execEntry = zip.Entries.FirstOrDefault(IsIosAppExecutable);
-        if (execEntry is null) return (version, null);
-        using var es = execEntry.Open();
-        using var ms = new MemoryStream();
-        es.CopyTo(ms);
-        return (version, ms.ToArray());
-    }
-
-    private static bool IsIosAppExecutable(ZipArchiveEntry e) {
-        string f = e.FullName;
-        if (!f.StartsWith("Payload/", StringComparison.OrdinalIgnoreCase)) return false;
-        int appIdx = f.IndexOf(".app/", StringComparison.OrdinalIgnoreCase);
-        if (appIdx < 0) return false;
-        string rest = f[(appIdx + 5)..];
-        return rest.Length > 0 && !rest.Contains('/') && !rest.Contains('.');
-    }
-
-
-    private static string? PlistString(string plist, string key) {
-        int k = plist.IndexOf($"<key>{key}</key>", StringComparison.Ordinal);
-        if (k < 0) return null;
-        int s = plist.IndexOf("<string>", k, StringComparison.Ordinal);
-        if (s < 0) return null;
-        s += "<string>".Length;
-        int e = plist.IndexOf("</string>", s, StringComparison.Ordinal);
-        return e < 0 ? null : plist[s..e].Trim();
     }
 
 
