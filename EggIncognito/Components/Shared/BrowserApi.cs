@@ -47,16 +47,16 @@ public sealed class BrowserApi(IJSObjectReference module) {
         return SendAsync("GET", url);
     }
 
-    public Task<BrowserResponse> PostAsync(string url) {
-        return SendAsync("POST", url);
+    public Task<BrowserResponse> PostAsync(string url, TimeSpan? timeout = null) {
+        return SendAsync("POST", url, timeout: timeout);
     }
 
     public Task<BrowserResponse> DeleteAsync(string url) {
         return SendAsync("DELETE", url);
     }
 
-    public Task<BrowserResponse> PostJsonAsync<T>(string url, T body) {
-        return SendAsync("POST", url, JsonSerializer.Serialize(body, Options));
+    public Task<BrowserResponse> PostJsonAsync<T>(string url, T body, TimeSpan? timeout = null) {
+        return SendAsync("POST", url, JsonSerializer.Serialize(body, Options), timeout: timeout);
     }
 
     public Task<BrowserResponse> PutJsonAsync<T>(string url, T body) {
@@ -64,8 +64,8 @@ public sealed class BrowserApi(IJSObjectReference module) {
     }
 
     public Task<BrowserResponse> SendAsync(string method, string url, string? body = null,
-        string contentType = "application/json") {
-        return InvokeAsync("send", [method, url, body, contentType]);
+        string contentType = "application/json", TimeSpan? timeout = null) {
+        return InvokeAsync("send", [method, url, body, contentType], timeout);
     }
 
     public Task<BrowserResponse> SendFileAsync(string method, string url, string field, string fileName,
@@ -73,10 +73,12 @@ public sealed class BrowserApi(IJSObjectReference module) {
         return InvokeAsync("sendFile", [method, url, field, fileName, Convert.ToBase64String(bytes)]);
     }
 
-    private async Task<BrowserResponse> InvokeAsync(string function, object?[] args) {
+    private async Task<BrowserResponse> InvokeAsync(string function, object?[] args, TimeSpan? timeout = null) {
         try {
-            return await module.InvokeAsync<BrowserResponse?>(function, args)
-                   ?? BrowserResponse.Failed("no response from the browser");
+            var result = timeout is { } t
+                ? await module.InvokeAsync<BrowserResponse?>(function, t, args)
+                : await module.InvokeAsync<BrowserResponse?>(function, args);
+            return result ?? BrowserResponse.Failed("no response from the browser");
         } catch (JSDisconnectedException) {
             return BrowserResponse.Failed("browser disconnected");
         } catch (ObjectDisposedException) {

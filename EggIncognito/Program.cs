@@ -29,6 +29,7 @@ using EggIncognito.Services.Auth;
 using EggIncognito.Services.DataApi;
 using EggIncognito.Services.Devices;
 using EggIncognito.Services.Devices.Fake;
+using EggIncognito.Services.Events;
 using EggIncognito.Services.Feed;
 using EggIncognito.Services.Metrics;
 using EggIncognito.Services.RateLimiting;
@@ -506,6 +507,8 @@ if (dbEnabled) {
     builder.Services.AddScoped<FeedSubscriptionStore>();
     builder.Services.AddScoped<IFeedSubscriptionStore>(sp => sp.GetRequiredService<FeedSubscriptionStore>());
     builder.Services.AddScoped<FeedDispatcher>();
+    builder.Services.AddScoped<GameEventIngestor>();
+    builder.Services.AddScoped<GameEventBackfill>();
     builder.Services.AddScoped<IProtoUpsertObserver, ProtoUpsertNotifier>();
     builder.Services.AddScoped<ApiKeyStore>();
     builder.Services.AddScoped<UserThemeStore>();
@@ -627,6 +630,10 @@ builder.Services.AddHttpClient("play", c => {
     c.DefaultRequestHeaders.UserAgent.ParseAdd(
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36");
     c.DefaultRequestHeaders.AcceptLanguage.ParseAdd("en-US,en;q=0.9");
+});
+builder.Services.AddHttpClient("carpet", c => {
+    c.Timeout = TimeSpan.FromSeconds(30);
+    c.MaxResponseContentBufferSize = 32 * 1024 * 1024;
 });
 builder.Services.AddSingleton<KnownVersionRecorder>();
 builder.Services.AddSingleton<IosStoreCatalog>();

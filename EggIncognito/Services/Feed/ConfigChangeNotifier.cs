@@ -2,7 +2,9 @@ using EggIncognito.Core;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using EggIncognito.Services.DataApi;
+using EggIncognito.Services.Events;
 using Ei;
+using Google.Protobuf;
 using Microsoft.EntityFrameworkCore;
 
 namespace EggIncognito.Services.Feed;
@@ -103,6 +105,7 @@ public sealed class ConfigChangeNotifier(
                 return;
             }
             if (sp.GetService<EggIncognitoDbContext>() is not { } db) return;
+            await IngestEventsAsync(sp, json);
             if (await db.PeriodicalsSnapshots.AnyAsync(s => s.Sha == sha)) return;
             db.PeriodicalsSnapshots.Add(new PeriodicalsSnapshot {
                 CapturedAt = DateTimeOffset.UtcNow,
@@ -112,6 +115,17 @@ public sealed class ConfigChangeNotifier(
             await db.SaveChangesAsync();
         } catch (Exception ex) {
             logger.LogWarning(ex, "periodicals snapshot insert for {Route} failed", route);
+        }
+    }
+
+    private async Task IngestEventsAsync(IServiceProvider sp, string json) {
+        try {
+            if (sp.GetService<GameEventIngestor>() is not { } ingestor) return;
+            var response = (PeriodicalsResponse)JsonParser.Default.Parse(json, PeriodicalsResponse.Descriptor);
+            var observations = GameEventMapper.FromPeriodicals(response, DateTimeOffset.UtcNow);
+            if (observations.Count > 0) await ingestor.IngestAsync(observations);
+        } catch (Exception ex) {
+            logger.LogWarning(ex, "game event ingest from periodicals snapshot failed");
         }
     }
 }

@@ -56,7 +56,7 @@ public class AdminPageTests {
             var cut = Render<Admin>();
             Assert.Empty(cut.FindAll("#denied"));
             Assert.Contains("Users", cut.Markup);
-            Assert.NotNull(cut.WaitForElement("#log"));
+            Assert.NotNull(cut.WaitForElement(".admin-cards"));
         }
     }
 

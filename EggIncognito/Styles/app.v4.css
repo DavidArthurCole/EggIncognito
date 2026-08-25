@@ -1135,18 +1135,6 @@ input[type="search"]::placeholder { @apply text-muted; }
 }
 #adminMain select:hover, #adminMain button:hover { border-color: var(--color-accent); }
 #adminMain #denied { color: var(--color-err-soft); }
-#adminMain #log {
-  background-color: var(--color-panel2);
-  border-width: 1px;
-  border-color: var(--color-border);
-  border-radius: 0.375rem;
-  padding: 0.5rem;
-  white-space: pre-wrap;
-  font-size: 0.75rem;
-  line-height: 1rem;
-  color: var(--color-muted);
-  margin-top: 0.5rem;
-}
 
 .dochelp { @apply relative inline-flex align-middle; }
 .dochelp-btn {
