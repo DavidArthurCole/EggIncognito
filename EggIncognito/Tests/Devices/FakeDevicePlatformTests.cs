@@ -170,13 +170,13 @@ internal sealed record FakeStack(FakeDevicePlatform Platform, FakeDevice Device,
         Make(Platforms.Android, scenario, appVersion);
 
     public static AndroidPlatform RealAndroid() =>
-        new(new DeadRunner(), new ConfigurationBuilder().Build(), [], [], [],
+        new(new DeadRunner(), new ConfigurationBuilder().Build(), [], [], [], [],
             NullLogger<AndroidPlatform>.Instance);
 
     public static IosPlatform RealIos() {
         var runner = new DeadRunner();
         var config = new DeviceCaptureConfig();
-        return new IosPlatform(new DeviceConnectionFactory(runner, config), config, runner, [], [], [],
+        return new IosPlatform(new DeviceConnectionFactory(runner, config), config, runner, [], [], [], [],
             NullLogger<IosPlatform>.Instance);
     }
 
@@ -192,7 +192,8 @@ internal sealed record FakeStack(FakeDevicePlatform Platform, FakeDevice Device,
                 new KnownVersionRecorder(new EmptyScopes(), NullLogger<KnownVersionRecorder>.Instance),
                 NullLogger<FakeStoreChecker>.Instance)],
             [new FakeProxyConfigurator(platform)],
-            [new FakeCaInstaller(platform)]);
+            [new FakeCaInstaller(platform)],
+            []);
         return new FakeStack(plat, device,
             new DeviceTarget(device.Id, device.Platform, device.Target, device.Package));
     }

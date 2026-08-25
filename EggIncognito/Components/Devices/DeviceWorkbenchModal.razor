@@ -86,6 +86,9 @@
                     <button type="button" class="btn-mini" disabled="@Busy" @onclick="ProbeNow">Probe now</button>
                     <button type="button" class="btn-mini" disabled="@Busy" @onclick="CheckStore">Check store</button>
                     <button type="button" class="btn-mini" disabled="@Busy" @onclick="RestartApp">Restart app</button>
+                    @if (dev.Platform == "android") {
+                        <button type="button" class="btn-mini" disabled="@Busy" @onclick="Recert">Recert</button>
+                    }
                     @if (_harvest is { InRegistry: false }) {
                         <button type="button" class="btn-mini" disabled="@Busy" @onclick="SaveToRegistry">Save to registry</button>
                     }
@@ -98,6 +101,20 @@
 
             @if (RunningFor(dev.Id) is { } run) {
                 <div class="wb-st-run text-xs mt-2">@run.Kind: @run.Message</div>
+            }
+
+            @if (_recert is { } rc) {
+                <div class="dwb-job-lines mt-2">
+                    <div class="dwb-job-line @(rc.Ok ? "text-ok" : "text-err")">
+                        @(rc.Ok ? "recert ok" : $"recert failed at {rc.FailedStep ?? "?"}")
+                    </div>
+                    @if (rc.Fields.TryGetValue("expiry", out var expiry)) {
+                        <div class="dwb-job-line text-muted">expiry @expiry</div>
+                    }
+                    @foreach (var line in rc.Log) {
+                        <div class="dwb-job-line font-mono text-xs text-muted">@line</div>
+                    }
+                </div>
             }
 
             <div class="dwb-tabs">
@@ -230,6 +247,7 @@
     List<JobRow>? _jobs;
     List<StoredBinaryRow>? _binaries;
     HarvestInfo? _harvest;
+    RecertResultDto? _recert;
 
     CaptureHub? _hub;
     IDisposable? _subscription;
@@ -306,6 +324,7 @@
         if (State.SelectedId == id) return;
         State.SelectedId = id;
         _notice = null;
+        _recert = null;
         DetachCapture();
         await LoadForDeviceAsync();
     }
@@ -436,6 +455,23 @@
         }
 
         Note("no clientVersion captured (timed out)", false);
+    }
+
+    async Task Recert() {
+        if (Current is null) return;
+        var id = Current.Id;
+        _notice = null;
+        _recert = null;
+        var res = await Client().PostAsync($"/api/devices/{id}/recert", null);
+        if (!res.IsSuccessStatusCode) {
+            Note(await ReadError(res), false);
+            return;
+        }
+
+        _recert = await res.Content.ReadFromJsonAsync<RecertResultDto>(SelfCallJson.Web);
+        Note(_recert is { Ok: true } ? "recert ok" : $"recert failed at {_recert?.FailedStep ?? "?"}",
+            _recert is { Ok: true });
+        await LoadJobsAsync();
     }
 
     async Task<int?> LiveClientVersion(string id) {

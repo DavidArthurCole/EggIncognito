@@ -2,10 +2,10 @@ using System.Text;
 
 namespace EggIncognito.Core.Services.Devices;
 
-public sealed class AndroidParticleCapturer(AdbDeviceConnection conn, string scriptBody, string? addrOffset = null) {
+public sealed class AndroidParticleCapturer(
+    AdbDeviceConnection conn, string package, string scriptBody, string? addrOffset = null) {
     private const string RemoteScript = "/data/local/tmp/particle-capture.js";
     private const string RemoteLog = "/data/local/tmp/particle-capture.ndjson";
-    private const string PackageName = "com.auxbrain.egginc";
 
     public async Task<ParticleCaptureModel.Model?> CaptureAsync(CancellationToken ct) {
         try {
@@ -19,7 +19,7 @@ public sealed class AndroidParticleCapturer(AdbDeviceConnection conn, string scr
 
             var run = await conn.ShellAsync(
                 $"rm -f {RemoteLog}; command -v frida >/dev/null 2>&1 || {{ echo __frida_missing__; exit 0; }}; " +
-                $"frida -U -f {PackageName} -l {RemoteScript} -q > {RemoteLog} 2>&1; echo __frida_exit_$?", ct);
+                $"frida -U -f {package} -l {RemoteScript} -q > {RemoteLog} 2>&1; echo __frida_exit_$?", ct);
             if (run.Stdout.Contains("__frida_missing__", StringComparison.Ordinal)) return null;
 
             byte[]? ndjson = await conn.PullBytesAsync(RemoteLog, ct);

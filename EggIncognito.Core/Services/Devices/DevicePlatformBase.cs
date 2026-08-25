@@ -6,23 +6,27 @@ public abstract class DevicePlatformBase : IDevicePlatform {
         string platform,
         IEnumerable<IDeviceStoreChecker> storeCheckers,
         IEnumerable<IDeviceProxyConfigurator> proxyConfigurators,
-        IEnumerable<IDeviceCaInstaller> caInstallers) {
+        IEnumerable<IDeviceCaInstaller> caInstallers,
+        IEnumerable<IDeviceUiDriver> uiDrivers) {
         Platform = platform;
         Store = storeCheckers.FirstOrDefault(c => Platforms.Matches(c.Platform, platform));
         Proxy = proxyConfigurators.FirstOrDefault(c => Platforms.Matches(c.Platform, platform));
         Ca = caInstallers.FirstOrDefault(c => Platforms.Matches(c.Platform, platform));
+        Ui = uiDrivers.FirstOrDefault(c => Platforms.Matches(c.Platform, platform));
     }
 
     protected IDeviceStoreChecker? Store { get; }
     protected IDeviceProxyConfigurator? Proxy { get; }
     protected IDeviceCaInstaller? Ca { get; }
+    protected IDeviceUiDriver? Ui { get; }
 
     public string Platform { get; }
 
     public virtual DeviceCapabilities Capabilities =>
         DeviceCapabilities.BinaryPull | DeviceCapabilities.AssetRead | DeviceCapabilities.Probe |
         DeviceCapabilities.StoreUpdate | DeviceCapabilities.Proxy | DeviceCapabilities.CaInstall |
-        DeviceCapabilities.AppLifecycle | DeviceCapabilities.ParticleCapture;
+        DeviceCapabilities.AppLifecycle | DeviceCapabilities.ParticleCapture |
+        (Ui is not null ? DeviceCapabilities.UiNavigation : DeviceCapabilities.None);
 
     public Task<StoreCheckResult> DriveStoreUpdateAsync(DeviceTarget target, CancellationToken ct,
         Action<string>? progress = null) =>
@@ -45,6 +49,41 @@ public abstract class DevicePlatformBase : IDevicePlatform {
         Ca is null
             ? DeviceResult.Unsupported($"no {Platform} ca installer")
             : DeviceResult.From(await Ca.InstallAsync(target, caPath, ct));
+
+    public virtual async Task<DeviceResult<UiTree>> DumpUiAsync(DeviceTarget target, CancellationToken ct) =>
+        Ui is null
+            ? DeviceResult<UiTree>.Unsupported($"no {Platform} ui driver")
+            : await Ui.DumpAsync(target, ct);
+
+    public virtual async Task<DeviceResult<byte[]>> ScreenshotAsync(DeviceTarget target, CancellationToken ct) =>
+        Ui is null
+            ? DeviceResult<byte[]>.Unsupported($"no {Platform} ui driver")
+            : await Ui.ScreenshotAsync(target, ct);
+
+    public virtual async Task<DeviceResult> TapUiAsync(DeviceTarget target, UiSelector selector, CancellationToken ct) =>
+        Ui is null
+            ? DeviceResult.Unsupported($"no {Platform} ui driver")
+            : await Ui.TapAsync(target, selector, ct);
+
+    public virtual async Task<DeviceResult> TapPointAsync(DeviceTarget target, int x, int y, CancellationToken ct) =>
+        Ui is null
+            ? DeviceResult.Unsupported($"no {Platform} ui driver")
+            : await Ui.TapPointAsync(target, x, y, ct);
+
+    public virtual async Task<DeviceResult> InputTextAsync(DeviceTarget target, string text, CancellationToken ct) =>
+        Ui is null
+            ? DeviceResult.Unsupported($"no {Platform} ui driver")
+            : await Ui.InputTextAsync(target, text, ct);
+
+    public virtual async Task<DeviceResult> KeyAsync(DeviceTarget target, DeviceKey key, CancellationToken ct) =>
+        Ui is null
+            ? DeviceResult.Unsupported($"no {Platform} ui driver")
+            : await Ui.KeyAsync(target, key, ct);
+
+    public virtual async Task<DeviceResult> LaunchAppAsync(DeviceTarget target, string appRef, CancellationToken ct) =>
+        Ui is null
+            ? DeviceResult.Unsupported($"no {Platform} ui driver")
+            : await Ui.LaunchAppAsync(target, appRef, ct);
 
     public abstract Task<DeviceResult<byte[]>> PullAppBinaryAsync(DeviceTarget target, CancellationToken ct);
 

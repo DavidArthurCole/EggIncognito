@@ -3,12 +3,14 @@ using EggIncognito.Capture;
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
+using EggIncognito.Models.Devices;
 
 namespace EggIncognito.Services.Devices;
 
 public sealed class DeviceMaintenanceService(
     IServiceScopeFactory scopeFactory,
     DeviceConfig config,
+    DeviceRecertConfig recertConfig,
     TimeProvider time,
     DeviceProxyPusher proxyPusher,
     IEnumerable<IDeviceStoreChecker> storeCheckers,
@@ -16,6 +18,7 @@ public sealed class DeviceMaintenanceService(
     IosStoreCatalog catalog,
     AndroidStoreCatalog androidCatalog,
     KnownVersionRecorder knownVersions,
+    DeviceClaimRegistry claims,
     ILogger<DeviceMaintenanceService> logger) : BackgroundService {
     private static readonly TimeSpan ClimbHarvestBackoff = TimeSpan.FromMinutes(30);
     private static readonly TimeSpan PublishRetryBackoff = TimeSpan.FromMinutes(10);
@@ -38,6 +41,8 @@ public sealed class DeviceMaintenanceService(
         new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, DateTimeOffset> _lastRefreshHarvest =
         new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, DateTimeOffset> _lastRecertProbe =
+        new(StringComparer.OrdinalIgnoreCase);
 
     private readonly Dictionary<string, (string Build, DateTimeOffset At)> _lastPublishTry =
         new(StringComparer.OrdinalIgnoreCase);
@@ -53,9 +58,11 @@ public sealed class DeviceMaintenanceService(
         try {
             await StartupHarvestAsync(stoppingToken);
             await StoreSyncAllAsync(stoppingToken);
+            await RecertSyncAsync(stoppingToken);
             while (await timer.WaitForNextTickAsync(stoppingToken)) {
                 await RefreshCapturesAsync(stoppingToken);
                 await StoreSyncAllAsync(stoppingToken);
+                await RecertSyncAsync(stoppingToken);
             }
         } catch (OperationCanceledException) {
             /* shutdown */
@@ -64,6 +71,11 @@ public sealed class DeviceMaintenanceService(
 
     private async Task StartupHarvestAsync(CancellationToken ct) {
         foreach (var d in config.Devices) {
+            if (claims.IsHeld(d.Id)) {
+                logger.LogDebug("device {Id} held by remote bridge, skipping maintenance", d.Id);
+                continue;
+            }
+
             try {
                 var rinfo = await HarvestAsync(d, TimeSpan.FromSeconds(25), ct);
                 logger.LogInformation("device capture: {Id} startup harvest -> {Cv}",
@@ -79,6 +91,11 @@ public sealed class DeviceMaintenanceService(
     internal async Task RefreshCapturesAsync(CancellationToken ct) {
         if (_refreshInterval <= TimeSpan.Zero) return;
         foreach (var d in config.Devices) {
+            if (claims.IsHeld(d.Id)) {
+                logger.LogDebug("device {Id} held by remote bridge, skipping maintenance", d.Id);
+                continue;
+            }
+
             if (_lastRefreshHarvest.TryGetValue(d.Id, out var last) && time.GetUtcNow() - last < _refreshInterval)
                 continue;
 
@@ -127,6 +144,11 @@ public sealed class DeviceMaintenanceService(
         if (_syncEnabled) await RefreshStoreCatalogAsync(ct);
 
         foreach (var d in await store.EnabledDevicesAsync(ct)) {
+            if (claims.IsHeld(d.Id)) {
+                logger.LogDebug("device {Id} held by remote bridge, skipping maintenance", d.Id);
+                continue;
+            }
+
             if (!latest.TryGetValue(d.Id, out var probe)) continue;
             try {
                 await StoreSyncAsync(d, probe, jobs, db, ct);
@@ -211,6 +233,11 @@ public sealed class DeviceMaintenanceService(
     private async Task HarvestClimbedDevicesAsync(
         Dictionary<string, DeviceJobRow> latest, IServiceProvider sp, CancellationToken ct) {
         foreach (var d in config.Devices) {
+            if (claims.IsHeld(d.Id)) {
+                logger.LogDebug("device {Id} held by remote bridge, skipping maintenance", d.Id);
+                continue;
+            }
+
             if (!latest.TryGetValue(d.Id, out var probe)) continue;
             if (probe.Reachable != true || string.IsNullOrEmpty(probe.Build)) continue;
             var harvested = proxyPusher.LastRinfo(d.Id);
@@ -337,5 +364,57 @@ public sealed class DeviceMaintenanceService(
         } else if (result.Action is "up_to_date" or "manual_needed" && storeLatest is not null) {
             _lastNoOpCheck[d.Id] = (storeLatest, time.GetUtcNow());
         }
+    }
+
+    internal async Task RecertSyncAsync(CancellationToken ct) {
+        if (!recertConfig.Enabled) return;
+
+        using var scope = scopeFactory.CreateScope();
+        if (scope.ServiceProvider.GetService(typeof(DeviceRecertService)) is not DeviceRecertService recert) return;
+
+        foreach (var d in config.Devices) {
+            if (claims.IsHeld(d.Id)) {
+                logger.LogDebug("device {Id} held by remote bridge, skipping maintenance", d.Id);
+                continue;
+            }
+
+            if (!Platforms.Matches(d.Platform, Platforms.Android)) continue;
+            if (_lastRecertProbe.TryGetValue(d.Id, out var last) && time.GetUtcNow() - last < _storeProbeInterval)
+                continue;
+            _lastRecertProbe[d.Id] = time.GetUtcNow();
+
+            try {
+                string? expiry = await recert.ReadExpiryAsync(d.Id, ct);
+                if (expiry is null || !TryParseExpiryDays(expiry, time.GetUtcNow(), out int daysLeft)) continue;
+                if (daysLeft > recertConfig.ExpiryWarnDays) continue;
+
+                logger.LogInformation(
+                    "device recert: {Id} expiry {Expiry} ({Days}d) within warn threshold {Warn}d; auto-recertifying",
+                    d.Id, expiry, daysLeft, recertConfig.ExpiryWarnDays);
+                var result = await recert.RecertAsync(d.Id, "auto", ct);
+                logger.LogInformation("device recert: {Id} auto recert {Outcome}",
+                    d.Id, result.Ok ? "ok" : $"failed ({result.FailedStep})");
+            } catch (OperationCanceledException) {
+                throw;
+            } catch (Exception ex) {
+                logger.LogWarning(ex, "device recert: {Id} auto path threw", d.Id);
+            }
+        }
+    }
+
+    private static bool TryParseExpiryDays(string value, DateTimeOffset now, out int days) {
+        string trimmed = value.Trim();
+        if (int.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out int n)) {
+            days = n;
+            return true;
+        }
+
+        if (DateTimeOffset.TryParse(trimmed, CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)) {
+            days = (int)Math.Floor((date - now).TotalDays);
+            return true;
+        }
+
+        days = 0;
+        return false;
     }
 }

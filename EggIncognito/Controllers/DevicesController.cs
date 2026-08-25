@@ -1,8 +1,10 @@
+using System.Net;
 using EggIdentity.Contract;
 using EggIncognito.Core;
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
+using EggIncognito.Models.Devices;
 using EggIncognito.Services;
 using EggIncognito.Services.Auth;
 using EggIncognito.Services.Devices;
@@ -534,6 +536,162 @@ public sealed class DevicesController(
 
         (bool ok, string? note) = await pusher.RestartAppAsync(entry, HttpContext.RequestAborted);
         return ok ? Ok(new { restarted = true, note }) : StatusCode(502, new { error = note ?? "restart failed" });
+    }
+
+
+    [HttpPost("{id}/recert")]
+    [ApiAccess(ApiAccessLevel.Admin)]
+    [EnableRateLimiting("write")]
+    public async Task<IActionResult> Recert(string id, [FromQuery] int shots = 0, CancellationToken ct = default) {
+        if (RequireAdmin() is { } no) return no;
+        if (services.GetService(typeof(DeviceRecertService)) is not DeviceRecertService recert)
+            return StatusCode(503, new { error = "recert is not configured (no database or android ui driver)" });
+
+        string who = currentUser.DiscordId ?? "?";
+        var result = await recert.RecertAsync(id, $"admin:{who}", ct);
+
+        var dto = new RecertResultDto(
+            result.Ok, result.Log, result.Fields, result.FailedStep, result.Shots.Count,
+            shots == 1 ? [.. result.Shots.Select(s => new RecertShotDto(s.Label, Convert.ToBase64String(s.Png)))] : null);
+        return Ok(dto);
+    }
+
+
+    private IActionResult? BridgeGate() {
+        if (services.GetService(typeof(DeviceTransportConfig)) is not DeviceTransportConfig cfg || !cfg.BridgeEnabled)
+            return NotFound();
+        if (cfg.AllowedCidrs.Length == 0) return null;
+
+        var ip = HttpContext.Connection.RemoteIpAddress;
+        if (ip is null) return StatusCode(403, new { error = "forbidden" });
+        if (ip.IsIPv4MappedToIPv6) {
+            ip = ip.MapToIPv4();
+        }
+
+        foreach (string cidr in cfg.AllowedCidrs) {
+            try {
+                if (IPNetwork.Parse(cidr).Contains(ip)) return null;
+            } catch (FormatException) {
+                continue;
+            }
+        }
+
+        return StatusCode(403, new { error = "forbidden" });
+    }
+
+
+    private IActionResult? ResolveTransport(string id, out IDeviceConnection connection) {
+        connection = null!;
+        if (services.GetService(typeof(DeviceConfig)) is not DeviceConfig devCfg)
+            return StatusCode(503, new { error = "device config not available" });
+        var entry = devCfg.Devices.FirstOrDefault(d => d.Id == id);
+        if (entry is null) return NotFound(new { error = "unknown device" });
+        var target = new DeviceTarget(entry.Id, entry.Platform, entry.Target, entry.Package);
+
+        if (services.GetService(typeof(IDeviceConnectionFactory)) is not IDeviceConnectionFactory factory)
+            return StatusCode(503, new { error = "device transport not configured" });
+        var conn = factory.For(target);
+        if (conn is null) return StatusCode(502, new { error = "no connection for device" });
+
+        connection = conn;
+        return null;
+    }
+
+
+    [HttpPost("{id}/transport/shell")]
+    [ApiAccess(ApiAccessLevel.Admin)]
+    [EnableRateLimiting("write")]
+    public async Task<IActionResult> TransportShell(string id, [FromBody] TransportShellRequest req) {
+        if (RequireAdmin() is { } no) return no;
+        if (BridgeGate() is { } gate) return gate;
+        if (string.IsNullOrEmpty(req.Cmd)) return BadRequest(new { error = "cmd required" });
+        if (ResolveTransport(id, out var conn) is { } err) return err;
+
+        var r = await conn.ShellAsync(req.Cmd, HttpContext.RequestAborted);
+        return Ok(new TransportShellResult(r.ExitCode, r.Stdout, r.Stderr));
+    }
+
+
+    [HttpPost("{id}/transport/pull")]
+    [ApiAccess(ApiAccessLevel.Admin)]
+    [EnableRateLimiting("write")]
+    public async Task<IActionResult> TransportPull(string id, [FromBody] TransportPullRequest req) {
+        if (RequireAdmin() is { } no) return no;
+        if (BridgeGate() is { } gate) return gate;
+        if (string.IsNullOrEmpty(req.Path)) return BadRequest(new { error = "path required" });
+        if (ResolveTransport(id, out var conn) is { } err) return err;
+
+        byte[]? bytes = await conn.PullBytesAsync(req.Path, HttpContext.RequestAborted);
+        return bytes is null ? NotFound() : File(bytes, "application/octet-stream");
+    }
+
+
+    [HttpPost("{id}/transport/push")]
+    [ApiAccess(ApiAccessLevel.Admin)]
+    [EnableRateLimiting("write")]
+    public async Task<IActionResult> TransportPush(string id, [FromBody] TransportPushRequest req) {
+        if (RequireAdmin() is { } no) return no;
+        if (BridgeGate() is { } gate) return gate;
+        if (string.IsNullOrEmpty(req.Path) || string.IsNullOrEmpty(req.Base64))
+            return BadRequest(new { error = "path and base64 required" });
+
+        byte[] bytes;
+        try {
+            bytes = Convert.FromBase64String(req.Base64);
+        } catch (FormatException) {
+            return BadRequest(new { error = "malformed base64" });
+        }
+
+        if (ResolveTransport(id, out var conn) is { } err) return err;
+
+        string tempPath = DeviceShell.NewTempPath(".bin");
+        try {
+            await System.IO.File.WriteAllBytesAsync(tempPath, bytes, HttpContext.RequestAborted);
+            bool ok = await conn.PushFileAsync(tempPath, req.Path, HttpContext.RequestAborted);
+            return ok ? Ok(new { ok = true }) : StatusCode(502, new { error = "push failed" });
+        } finally {
+            DeviceShell.TryDelete(tempPath);
+        }
+    }
+
+
+    [HttpPost("{id}/transport/claim")]
+    [ApiAccess(ApiAccessLevel.Admin)]
+    [EnableRateLimiting("write")]
+    public IActionResult TransportClaim(string id, [FromBody] TransportClaimRequest? req) {
+        if (RequireAdmin() is { } no) return no;
+        if (BridgeGate() is { } gate) return gate;
+        if (services.GetService(typeof(DeviceConfig)) is not DeviceConfig devCfg
+            || services.GetService(typeof(DeviceTransportConfig)) is not DeviceTransportConfig cfg
+            || services.GetService(typeof(DeviceClaimRegistry)) is not DeviceClaimRegistry claims) {
+            return StatusCode(503, new { error = "device transport not configured" });
+        }
+
+        var entry = devCfg.Devices.FirstOrDefault(d => d.Id == id);
+        if (entry is null) return NotFound(new { error = "unknown device" });
+
+        var ttl = TimeSpan.FromSeconds(req?.TtlSeconds ?? cfg.ClaimTtlSeconds);
+        var expires = claims.Claim(id, ttl);
+        return Ok(new TransportClaimResult(true, expires));
+    }
+
+
+    [HttpPost("{id}/transport/release")]
+    [ApiAccess(ApiAccessLevel.Admin)]
+    [EnableRateLimiting("write")]
+    public IActionResult TransportRelease(string id) {
+        if (RequireAdmin() is { } no) return no;
+        if (BridgeGate() is { } gate) return gate;
+        if (services.GetService(typeof(DeviceConfig)) is not DeviceConfig devCfg
+            || services.GetService(typeof(DeviceClaimRegistry)) is not DeviceClaimRegistry claims) {
+            return StatusCode(503, new { error = "device transport not configured" });
+        }
+
+        var entry = devCfg.Devices.FirstOrDefault(d => d.Id == id);
+        if (entry is null) return NotFound(new { error = "unknown device" });
+
+        claims.Release(id);
+        return Ok(new { ok = true });
     }
 
 

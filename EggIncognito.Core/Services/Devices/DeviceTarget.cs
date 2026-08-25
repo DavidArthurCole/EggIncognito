@@ -43,5 +43,6 @@ public enum DeviceCapabilities {
     Proxy = 1 << 4,
     CaInstall = 1 << 5,
     AppLifecycle = 1 << 6,
-    ParticleCapture = 1 << 7
+    ParticleCapture = 1 << 7,
+    UiNavigation = 1 << 8
 }

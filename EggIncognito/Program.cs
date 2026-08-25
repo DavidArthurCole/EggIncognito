@@ -22,6 +22,7 @@ using EggIncognito.Core.Services.Assets;
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Services;
 using EggIncognito.Logging;
+using EggIncognito.Models.Devices;
 using EggIncognito.Services;
 using EggIncognito.Services.Assets;
 using EggIncognito.Services.Auth;
@@ -522,6 +523,9 @@ var fakeDeviceSettings = fakeDevices ? FakeDeviceOptions.Bind(builder.Configurat
 var deviceConfig = DeviceConfig.Bind(builder.Configuration);
 if (fakeDevices) deviceConfig = deviceConfig with { Devices = FakeDeviceOptions.Entries(fakeDeviceSettings) };
 builder.Services.AddSingleton(deviceConfig);
+var deviceRecertConfig = builder.Configuration.GetSection("DeviceRecert").Get<DeviceRecertConfig>() ?? new();
+builder.Services.AddSingleton(deviceRecertConfig);
+if (dbEnabled) builder.Services.AddScoped<DeviceRecertService>();
 var probeTimeoutSeconds = builder.Configuration.GetValue("DeviceProbe:TimeoutSeconds", 0);
 if (probeTimeoutSeconds > 0)
     DeviceProbeTimeout.Value = TimeSpan.FromSeconds(probeTimeoutSeconds);
@@ -557,6 +561,10 @@ if (dbEnabled)
 
 var deviceCaptureConfig = DeviceCaptureConfig.Bind(builder.Configuration);
 builder.Services.AddSingleton(deviceCaptureConfig);
+var deviceTransportConfig = builder.Configuration.GetSection("DeviceTransport").Get<DeviceTransportConfig>() ?? new();
+builder.Services.AddSingleton(deviceTransportConfig);
+builder.Services.AddSingleton<DeviceClaimRegistry>();
+builder.Services.AddHttpClient();
 builder.Services.AddSingleton<IDeviceConnectionFactory,
     DeviceConnectionFactory>();
 if (fakeDevices) {
@@ -637,12 +645,12 @@ if (fakeDevices) {
         Platforms.Ios, fakeDeviceSettings, sp.GetRequiredService<FakeDeviceVersions>(),
         sp.GetRequiredService<FakeFixtureSource>(), sp.GetRequiredService<ILogger<FakeDevicePlatform>>(),
         sp.GetServices<IDeviceStoreChecker>(), sp.GetServices<IDeviceProxyConfigurator>(),
-        sp.GetServices<IDeviceCaInstaller>()));
+        sp.GetServices<IDeviceCaInstaller>(), sp.GetServices<IDeviceUiDriver>()));
     builder.Services.AddSingleton<IDevicePlatform>(sp => new FakeDevicePlatform(
         Platforms.Android, fakeDeviceSettings, sp.GetRequiredService<FakeDeviceVersions>(),
         sp.GetRequiredService<FakeFixtureSource>(), sp.GetRequiredService<ILogger<FakeDevicePlatform>>(),
         sp.GetServices<IDeviceStoreChecker>(), sp.GetServices<IDeviceProxyConfigurator>(),
-        sp.GetServices<IDeviceCaInstaller>()));
+        sp.GetServices<IDeviceCaInstaller>(), sp.GetServices<IDeviceUiDriver>()));
 } else {
     string androidDrive = builder.Configuration["DeviceUpdate:Android:DriveCommand"]
                           ?? builder.Configuration["DeviceCheck:Android:DriveCommand"]
@@ -659,14 +667,18 @@ if (fakeDevices) {
         new StoreUpdateOrchestrator(
             new AndroidStoreUpdateDriver(
                 sp.GetRequiredService<IProcessRunner>(),
+                sp.GetRequiredService<IDeviceConnectionFactory>(),
                 new AndroidStoreUpdateDriver.Options(androidDrive, androidUiFirstWait, androidUiRetryWait,
                     androidLookupCountry, androidLookupLocale),
                 sp.GetRequiredService<AndroidStoreCatalog>(),
                 sp.GetRequiredService<KnownVersionRecorder>(),
+                sp.GetServices<IDeviceUiDriver>(),
                 sp.GetRequiredService<ILogger<AndroidStoreUpdateDriver>>()),
             new StoreUpdateOrchestrator.Options(androidPollSeconds, androidPollAttempts),
             sp.GetRequiredService<KnownVersionRecorder>(),
             sp.GetRequiredService<ILoggerFactory>().CreateLogger("device.storeupdate.android")));
+
+    builder.Services.AddSingleton<IDeviceUiDriver, AndroidUiDriver>();
 
     var iosUpdateConfig = builder.Configuration.GetSection("DeviceUpdate").GetSection("Ios");
     string? iosSshHost = iosUpdateConfig["SshHost"];
@@ -691,6 +703,11 @@ if (fakeDevices) {
             new StoreUpdateOrchestrator.Options(iosPollSeconds, iosPollAttempts),
             sp.GetRequiredService<KnownVersionRecorder>(),
             sp.GetRequiredService<ILoggerFactory>().CreateLogger("device.storeupdate.ios")));
+
+    string iosUiNavTweakPath = builder.Configuration["DeviceCapture:Ios:UiNavTweakPath"]
+                               ?? "/Library/MobileSubstrate/DynamicLibraries/egiuinav.dylib";
+    builder.Services.AddSingleton<IDeviceUiDriver>(sp => new IosUiDriver(
+        sp.GetRequiredService<IDeviceConnectionFactory>(), new IosUiDriver.Options(iosUiNavTweakPath)));
 
     builder.Services.AddSingleton<IDevicePlatform, IosPlatform>();
     builder.Services.AddSingleton<IDevicePlatform, AndroidPlatform>();

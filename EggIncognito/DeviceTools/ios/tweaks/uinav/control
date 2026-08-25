@@ -1,0 +1,9 @@
+Package: me.eggincognito.uinav
+Name: EgiUINav
+Version: 0.1.0
+Architecture: iphoneos-arm
+Description: Headless UI-navigation bridge for EggIncognito (dump the frontmost app view/accessibility tree to JSON, synthesize taps, type text, screenshot; file-command channel).
+Maintainer: David Cole
+Author: David Cole
+Section: Tweaks
+Depends: ellekit

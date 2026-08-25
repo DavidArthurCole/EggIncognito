@@ -11,8 +11,9 @@ public sealed class AndroidPlatform(
     IEnumerable<IDeviceStoreChecker> storeCheckers,
     IEnumerable<IDeviceProxyConfigurator> proxyConfigurators,
     IEnumerable<IDeviceCaInstaller> caInstallers,
+    IEnumerable<IDeviceUiDriver> uiDrivers,
     ILogger<AndroidPlatform> logger)
-    : DevicePlatformBase(Platforms.Android, storeCheckers, proxyConfigurators, caInstallers) {
+    : DevicePlatformBase(Platforms.Android, storeCheckers, proxyConfigurators, caInstallers, uiDrivers) {
     private readonly bool _particleCaptureEnabled =
         !bool.TryParse(appConfig["DeviceCapture:AndroidParticleCapture"], out bool enabled) || enabled;
 
@@ -140,17 +141,18 @@ public sealed class AndroidPlatform(
 
     public override async Task<DeviceResult> RestartAppAsync(DeviceTarget target, CancellationToken ct) {
         try {
-            await Adb(target.Target, ["shell", "input", "keyevent", "KEYCODE_WAKEUP"], ct);
-            await Adb(target.Target, ["shell", "wm", "dismiss-keyguard"], ct);
-            await Adb(target.Target, ["shell", "svc", "power", "stayon", "true"], ct);
-            var stop = await Adb(target.Target, ["shell", "am", "force-stop", target.Package], ct);
+            var conn = new AdbDeviceConnection(runner, target.Target);
+            await conn.ShellAsync("input keyevent KEYCODE_WAKEUP", ct);
+            await conn.ShellAsync("wm dismiss-keyguard", ct);
+            await conn.ShellAsync("svc power stayon true", ct);
+            var stop = await conn.ShellAsync($"am force-stop {target.Package}", ct);
             if (stop.ExitCode != 0) {
                 logger.LogWarning("android: {Id} force-stop failed: {Note}",
                     target.Id, DeviceParsing.TrimNote(stop.Stderr + stop.Stdout));
             }
 
-            var launch = await Adb(target.Target,
-                ["shell", "monkey", "-p", target.Package, "-c", "android.intent.category.LAUNCHER", "1"], ct);
+            var launch = await conn.ShellAsync(
+                $"monkey -p {target.Package} -c android.intent.category.LAUNCHER 1", ct);
             return launch.ExitCode == 0 ? DeviceResult.Success("restarted") : DeviceResult.Error("launch failed");
         } catch (Exception ex) {
             logger.LogDebug(ex, "android: {Id} restart failed (non-fatal)", target.Id);
@@ -159,19 +161,22 @@ public sealed class AndroidPlatform(
     }
 
     public override async Task<DeviceResult> LockAsync(DeviceTarget target, CancellationToken ct) {
-        await Adb(target.Target, ["shell", "svc", "power", "stayon", "false"], ct);
-        var r = await Adb(target.Target, ["shell", "input", "keyevent", "KEYCODE_SLEEP"], ct);
+        var conn = new AdbDeviceConnection(runner, target.Target);
+        await conn.ShellAsync("svc power stayon false", ct);
+        var r = await conn.ShellAsync("input keyevent KEYCODE_SLEEP", ct);
         return r.ExitCode == 0 ? DeviceResult.Success("locked") : DeviceResult.Error("lock failed");
     }
 
     public override async Task<DeviceResult> UnlockAsync(DeviceTarget target, CancellationToken ct) {
-        await Adb(target.Target, ["shell", "input", "keyevent", "KEYCODE_WAKEUP"], ct);
-        var r = await Adb(target.Target, ["shell", "wm", "dismiss-keyguard"], ct);
+        var conn = new AdbDeviceConnection(runner, target.Target);
+        await conn.ShellAsync("input keyevent KEYCODE_WAKEUP", ct);
+        var r = await conn.ShellAsync("wm dismiss-keyguard", ct);
         return r.ExitCode == 0 ? DeviceResult.Success("unlocked") : DeviceResult.Error("unlock failed");
     }
 
     public override async Task<DeviceResult> KillAppAsync(DeviceTarget target, CancellationToken ct) {
-        var r = await Adb(target.Target, ["shell", "am", "force-stop", target.Package], ct);
+        var conn = new AdbDeviceConnection(runner, target.Target);
+        var r = await conn.ShellAsync($"am force-stop {target.Package}", ct);
         return r.ExitCode == 0 ? DeviceResult.Success("killed") : DeviceResult.Error("force-stop failed");
     }
 
@@ -181,14 +186,11 @@ public sealed class AndroidPlatform(
             return DeviceResult<ParticleCaptureModel.Model>.Unsupported("android particle capture disabled by config");
 
         var conn = new AdbDeviceConnection(runner, target.Target);
-        var model = await new AndroidParticleCapturer(conn, scriptBody, addrOffset).CaptureAsync(ct);
+        var model = await new AndroidParticleCapturer(conn, target.Package, scriptBody, addrOffset).CaptureAsync(ct);
         return model is { } m
             ? DeviceResult<ParticleCaptureModel.Model>.Success(m)
             : DeviceResult<ParticleCaptureModel.Model>.Error("frida capture failed or frida-server absent");
     }
-
-    private Task<ProcessResult> Adb(string serial, string[] rest, CancellationToken ct) =>
-        runner.RunAsync("adb", ["-s", serial, .. rest], ct);
 
     private static byte[]? ExtractLibFromApk(byte[] apk) {
         if (apk.Length == 0) return null;

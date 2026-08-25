@@ -87,6 +87,12 @@ public sealed class ElfImage : IBinaryImage {
 
     public bool TryResolveRelative(ulong va, out ulong target) => _relocs.Value.TryGetValue(va, out target);
 
+    public IEnumerable<ulong> RelocSlotsTargeting(ulong target) {
+        foreach (var kv in _relocs.Value) {
+            if (kv.Value == target) yield return kv.Key;
+        }
+    }
+
     public bool TryVaToFileOffset(ulong va, out int fileOff, out MachoSections.Section owner) {
         if (MachoSections.TryVaToFileOffset(Sections, va, out fileOff, out owner)) return true;
         owner = default;

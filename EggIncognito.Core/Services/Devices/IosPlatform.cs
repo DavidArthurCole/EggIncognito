@@ -9,8 +9,9 @@ public sealed class IosPlatform(
     IEnumerable<IDeviceStoreChecker> storeCheckers,
     IEnumerable<IDeviceProxyConfigurator> proxyConfigurators,
     IEnumerable<IDeviceCaInstaller> caInstallers,
+    IEnumerable<IDeviceUiDriver> uiDrivers,
     ILogger<IosPlatform> logger)
-    : DevicePlatformBase(Platforms.Ios, storeCheckers, proxyConfigurators, caInstallers) {
+    : DevicePlatformBase(Platforms.Ios, storeCheckers, proxyConfigurators, caInstallers, uiDrivers) {
     private const string NoSshNote = "ios ssh not configured";
     private int _noSshWarned;
 

@@ -24,6 +24,14 @@ public interface IDevicePlatform {
     Task<DeviceResult> ClearProxyAsync(DeviceTarget target, CancellationToken ct);
     Task<DeviceResult> InstallCaAsync(DeviceTarget target, string caPath, CancellationToken ct);
 
+    Task<DeviceResult<UiTree>> DumpUiAsync(DeviceTarget target, CancellationToken ct);
+    Task<DeviceResult<byte[]>> ScreenshotAsync(DeviceTarget target, CancellationToken ct);
+    Task<DeviceResult> TapUiAsync(DeviceTarget target, UiSelector selector, CancellationToken ct);
+    Task<DeviceResult> TapPointAsync(DeviceTarget target, int x, int y, CancellationToken ct);
+    Task<DeviceResult> InputTextAsync(DeviceTarget target, string text, CancellationToken ct);
+    Task<DeviceResult> KeyAsync(DeviceTarget target, DeviceKey key, CancellationToken ct);
+    Task<DeviceResult> LaunchAppAsync(DeviceTarget target, string appRef, CancellationToken ct);
+
     Task<DeviceResult> RestartAppAsync(DeviceTarget target, CancellationToken ct);
     Task<DeviceResult> LockAsync(DeviceTarget target, CancellationToken ct);
     Task<DeviceResult> UnlockAsync(DeviceTarget target, CancellationToken ct);
@@ -87,6 +95,27 @@ public sealed class NullDevicePlatform : IDevicePlatform {
         Task.FromResult(DeviceResult.Unsupported(Note(target)));
 
     public Task<DeviceResult> InstallCaAsync(DeviceTarget target, string caPath, CancellationToken ct) =>
+        Task.FromResult(DeviceResult.Unsupported(Note(target)));
+
+    public Task<DeviceResult<UiTree>> DumpUiAsync(DeviceTarget target, CancellationToken ct) =>
+        Task.FromResult(DeviceResult<UiTree>.Unsupported(Note(target)));
+
+    public Task<DeviceResult<byte[]>> ScreenshotAsync(DeviceTarget target, CancellationToken ct) =>
+        Task.FromResult(DeviceResult<byte[]>.Unsupported(Note(target)));
+
+    public Task<DeviceResult> TapUiAsync(DeviceTarget target, UiSelector selector, CancellationToken ct) =>
+        Task.FromResult(DeviceResult.Unsupported(Note(target)));
+
+    public Task<DeviceResult> TapPointAsync(DeviceTarget target, int x, int y, CancellationToken ct) =>
+        Task.FromResult(DeviceResult.Unsupported(Note(target)));
+
+    public Task<DeviceResult> InputTextAsync(DeviceTarget target, string text, CancellationToken ct) =>
+        Task.FromResult(DeviceResult.Unsupported(Note(target)));
+
+    public Task<DeviceResult> KeyAsync(DeviceTarget target, DeviceKey key, CancellationToken ct) =>
+        Task.FromResult(DeviceResult.Unsupported(Note(target)));
+
+    public Task<DeviceResult> LaunchAppAsync(DeviceTarget target, string appRef, CancellationToken ct) =>
         Task.FromResult(DeviceResult.Unsupported(Note(target)));
 
     public Task<DeviceResult> RestartAppAsync(DeviceTarget target, CancellationToken ct) =>

@@ -4,10 +4,14 @@ namespace EggIncognito.Services.Devices;
 
 public sealed class AndroidStoreUpdateDriver(
     IProcessRunner runner,
+    IDeviceConnectionFactory connections,
     AndroidStoreUpdateDriver.Options opts,
     AndroidStoreCatalog catalog,
     KnownVersionRecorder knownVersions,
+    IEnumerable<IDeviceUiDriver> uiDrivers,
     ILogger<AndroidStoreUpdateDriver> logger) : IStoreUpdateDriver {
+    private readonly IDeviceUiDriver? _ui = uiDrivers.FirstOrDefault(u => Platforms.Matches(u.Platform, Platforms.Android));
+
     public string Platform => Platforms.Android;
     public string StoreName => "Play";
 
@@ -18,8 +22,9 @@ public sealed class AndroidStoreUpdateDriver(
 
     public async Task PrepareAsync(DeviceTarget target, CancellationToken ct) {
         try {
-            await Shell(target, "input keyevent KEYCODE_WAKEUP", ct);
-            await Shell(target, "wm dismiss-keyguard", ct);
+            var conn = connections.For(target)!;
+            await conn.ShellAsync("input keyevent KEYCODE_WAKEUP", ct);
+            await conn.ShellAsync("wm dismiss-keyguard", ct);
         } catch (Exception ex) {
             logger.LogDebug(ex, "device {Id} wake best-effort failed", target.Id);
         }
@@ -43,7 +48,8 @@ public sealed class AndroidStoreUpdateDriver(
     private async Task<StoreProbeOutcome> ProbeViaUiAsync(
         DeviceTarget target, string? latest, bool storeAhead, Action<string>? progress, CancellationToken ct) {
         string deepLink = opts.DriveTemplate.Replace("{package}", target.Package);
-        var open = await Shell(target, deepLink, ct);
+        var conn = connections.For(target)!;
+        var open = await conn.ShellAsync(deepLink, ct);
         if (open.ExitCode != 0) {
             return new StoreProbeOutcome(StoreAvailability.Unknown, latest,
                 $"open page: {DeviceParsing.TrimNote(open.Stderr + open.Stdout)}");
@@ -58,14 +64,14 @@ public sealed class AndroidStoreUpdateDriver(
                 break;
             }
 
-            string? xml = await DumpUiAsync(target, ct);
-            if (xml is null) continue;
+            var tree = await DumpAsync(target, ct);
+            if (tree is null) continue;
 
-            if (FindUpdateButtonCenter(xml) is not null)
+            if (FindUpdateNode(tree) is not null)
                 return new StoreProbeOutcome(StoreAvailability.UpdateOffered, latest, null);
 
-            if (HasButton(xml, "Open") || HasButton(xml, "Uninstall")) {
-                if (AdvertisesUpdate(xml)) {
+            if (HasButton(tree, "Open") || HasButton(tree, "Uninstall")) {
+                if (AdvertisesUpdate(tree)) {
                     return new StoreProbeOutcome(StoreAvailability.ManualNeeded, latest,
                         "Play advertises an update but no auto-tappable Update button (major update?); needs manual update");
                 }
@@ -84,81 +90,52 @@ public sealed class AndroidStoreUpdateDriver(
 
     public async Task<TriggerOutcome> TriggerInstallAsync(
         DeviceTarget target, Action<string>? progress, CancellationToken ct) {
-        string? xml = await DumpUiAsync(target, ct);
-        if (xml is null) return new TriggerOutcome(false, "could not dump Play UI");
+        var tree = await DumpAsync(target, ct);
+        if (tree is null) return new TriggerOutcome(false, "could not dump Play UI");
 
-        if (FindUpdateButtonCenter(xml) is not { } c)
+        if (FindUpdateNode(tree) is not { } node)
             return new TriggerOutcome(false, "no Update button on the Play page");
 
+        int x = node.Bounds.CenterX, y = node.Bounds.CenterY;
         progress?.Invoke("tapping Update…");
-        var tap = await Shell(target, $"input tap {c.X} {c.Y}", ct);
-        if (tap.ExitCode != 0)
-            return new TriggerOutcome(false, $"tap: {DeviceParsing.TrimNote(tap.Stderr + tap.Stdout)}");
-        logger.LogInformation("device check-update: {Id} android tapped Update at {X},{Y}", target.Id, c.X, c.Y);
+        var tap = await _ui!.TapPointAsync(target, x, y, ct);
+        if (!tap.Ok)
+            return new TriggerOutcome(false, tap.Note);
+        logger.LogInformation("device check-update: {Id} android tapped Update at {X},{Y}", target.Id, x, y);
         return new TriggerOutcome(true, null);
     }
 
     public async Task<bool> ProbeInstallCompleteAsync(DeviceTarget target, CancellationToken ct) {
-        string? xml = await DumpUiAsync(target, ct);
-        if (xml is null) return false;
-        return (HasButton(xml, "Play") || HasButton(xml, "Open"))
-               && HasButton(xml, "Uninstall")
-               && FindUpdateButtonCenter(xml) is null;
+        var tree = await DumpAsync(target, ct);
+        if (tree is null) return false;
+        return (HasButton(tree, "Play") || HasButton(tree, "Open"))
+               && HasButton(tree, "Uninstall")
+               && FindUpdateNode(tree) is null;
     }
 
     public async Task CleanupAsync(DeviceTarget target, CancellationToken ct) {
         try {
-            await Shell(target, "input keyevent KEYCODE_HOME", ct);
-            await Shell(target, "input keyevent KEYCODE_SLEEP", ct);
+            var conn = connections.For(target)!;
+            await conn.ShellAsync("input keyevent KEYCODE_HOME", ct);
+            await conn.ShellAsync("input keyevent KEYCODE_SLEEP", ct);
         } catch (Exception ex) {
             logger.LogDebug(ex, "device {Id} screen-sleep best-effort failed", target.Id);
         }
     }
 
-    private async Task<string?> DumpUiAsync(DeviceTarget target, CancellationToken ct) {
-        var dump = await Shell(target, "uiautomator dump /sdcard/egi-ui.xml", ct);
-        if (dump.ExitCode != 0) return null;
-        var cat = await Shell(target, "cat /sdcard/egi-ui.xml", ct);
-        return cat.ExitCode == 0 && !string.IsNullOrWhiteSpace(cat.Stdout) ? cat.Stdout : null;
+    private async Task<UiTree?> DumpAsync(DeviceTarget target, CancellationToken ct) {
+        if (_ui is null) return null;
+        var dump = await _ui.DumpAsync(target, ct);
+        return dump.Ok ? dump.Value : null;
     }
 
+    private static UiNode? FindUpdateNode(UiTree t) => UiSelector.Resolve(t, UiSelector.Text("Update"));
 
-    internal static (int X, int Y)? FindUpdateButtonCenter(string xml) {
-        int idx = xml.IndexOf("text=\"Update\"", StringComparison.Ordinal);
-        while (idx >= 0) {
-            int b = xml.IndexOf("bounds=\"", idx, StringComparison.Ordinal);
-            if (b >= 0) {
-                int end = xml.IndexOf('"', b + 8);
-                if (end > b) {
-                    string raw = xml[(b + 8)..end];
-                    if (TryParseBounds(raw, out int l, out int t, out int r, out int bot))
-                        return ((l + r) / 2, (t + bot) / 2);
-                }
-            }
+    private static bool HasButton(UiTree t, string label) =>
+        t.Nodes().Any(n => string.Equals(n.Text, label, StringComparison.Ordinal));
 
-            idx = xml.IndexOf("text=\"Update\"", idx + 1, StringComparison.Ordinal);
-        }
-
-        return null;
-    }
-
-    private static bool HasButton(string xml, string label) =>
-        xml.Contains($"text=\"{label}\"", StringComparison.Ordinal);
-
-    private static bool AdvertisesUpdate(string xml) =>
-        xml.Contains("Update available", StringComparison.OrdinalIgnoreCase);
-
-    private static bool TryParseBounds(string s, out int l, out int t, out int r, out int b) {
-        l = t = r = b = 0;
-        string[] nums = s.Replace('[', ' ').Replace(']', ' ').Replace(',', ' ')
-            .Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        return nums.Length == 4 && int.TryParse(nums[0], out l) && int.TryParse(nums[1], out t)
-               && int.TryParse(nums[2], out r) && int.TryParse(nums[3], out b);
-    }
-
-    private Task<ProcessResult> Shell(DeviceTarget target, string cmd, CancellationToken ct) =>
-        runner.RunAsync("adb", ["-s", target.Target, "shell", cmd], ct);
-
+    private static bool AdvertisesUpdate(UiTree t) =>
+        t.Nodes().Any(n => n.Text is not null && n.Text.Contains("Update available", StringComparison.OrdinalIgnoreCase));
 
     public sealed record Options(
         string DriveTemplate,

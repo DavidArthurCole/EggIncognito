@@ -2,6 +2,7 @@ using System.Net;
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Services.Devices;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace EggIncognito.Tests.Devices;
@@ -36,9 +37,19 @@ public class StoreUpdateTests {
     private static AndroidStoreCatalog NoPlayCatalog() =>
         PlayCatalog(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError));
 
-    private static AndroidStoreUpdateDriver AndroidDriver(FakeRunner runner, AndroidStoreCatalog catalog) =>
-        new(runner, new AndroidStoreUpdateDriver.Options("am start {package}", 0, 0),
-            catalog, Recorder(), NullLogger<AndroidStoreUpdateDriver>.Instance);
+    private static AndroidStoreUpdateDriver AndroidDriver(FakeRunner runner, AndroidStoreCatalog catalog) {
+        var connections = new FakeConnections(runner);
+        return new AndroidStoreUpdateDriver(runner, connections,
+            new AndroidStoreUpdateDriver.Options("am start {package}", 0, 0),
+            catalog, Recorder(), [new AndroidUiDriver(connections)], NullLogger<AndroidStoreUpdateDriver>.Instance);
+    }
+
+    private static async Task<UiTree> ParseTreeAsync(string xml) {
+        var runner = new FakeRunner(args =>
+            args.Any(a => a.Contains("cat")) ? new ProcessResult(0, xml, "") : new ProcessResult(0, "", ""));
+        var dump = await new AndroidUiDriver(new FakeConnections(runner)).DumpAsync(AndroidTarget, default);
+        return dump.Value!;
+    }
 
     private static StoreUpdateOrchestrator AndroidOrchestrator(FakeRunner runner, int attempts = 3) =>
         Orchestrator(AndroidDriver(runner, NoPlayCatalog()), attempts);
@@ -240,15 +251,55 @@ public class StoreUpdateTests {
     }
 
     [Fact]
-    public void FindUpdateButtonCenter_ParsesBoundsCenter() {
-        var c = AndroidStoreUpdateDriver.FindUpdateButtonCenter(UiWithUpdate);
-        Assert.NotNull(c);
-        Assert.Equal((784, 579), c.Value);
+    public async Task TriggerInstallAsync_TapsUpdateNodeCenter_ViaTapPointAsync() {
+        var tree = await ParseTreeAsync(UiWithUpdate);
+        var ui = new FakeUiDriver { DumpResult = DeviceResult<UiTree>.Success(tree) };
+        var logger = new CollectingLogger();
+        var runner = new FakeRunner(_ => new ProcessResult(0, "", ""));
+        var driver = new AndroidStoreUpdateDriver(
+            runner, new FakeConnections(runner),
+            new AndroidStoreUpdateDriver.Options("am start {package}", 0, 0),
+            NoPlayCatalog(), Recorder(), [ui], logger);
+
+        var trig = await driver.TriggerInstallAsync(AndroidTarget, null, default);
+
+        Assert.True(trig.Ok);
+        Assert.True(ui.TapPointCalled);
+        Assert.False(ui.TapCalled);
+        Assert.Equal((784, 579), ui.LastTapPoint);
+        Assert.Contains(logger.Messages, m => m == "device check-update: a android tapped Update at 784,579");
     }
 
     [Fact]
-    public void FindUpdateButtonCenter_NoUpdate_ReturnsNull() =>
-        Assert.Null(AndroidStoreUpdateDriver.FindUpdateButtonCenter(UiNoUpdate));
+    public async Task TriggerInstallAsync_NoUpdateNode_FailsWithoutTapping() {
+        var tree = await ParseTreeAsync(UiNoUpdate);
+        var ui = new FakeUiDriver { DumpResult = DeviceResult<UiTree>.Success(tree) };
+        var runner = new FakeRunner(_ => new ProcessResult(0, "", ""));
+        var driver = new AndroidStoreUpdateDriver(
+            runner, new FakeConnections(runner),
+            new AndroidStoreUpdateDriver.Options("am start {package}", 0, 0),
+            NoPlayCatalog(), Recorder(), [ui], NullLogger<AndroidStoreUpdateDriver>.Instance);
+
+        var trig = await driver.TriggerInstallAsync(AndroidTarget, null, default);
+
+        Assert.False(trig.Ok);
+        Assert.Equal("no Update button on the Play page", trig.Note);
+        Assert.False(ui.TapPointCalled);
+    }
+
+    [Fact]
+    public async Task TriggerInstallAsync_NoUiDriverRegistered_ReportsCouldNotDump() {
+        var runner = new FakeRunner(_ => new ProcessResult(0, "", ""));
+        var driver = new AndroidStoreUpdateDriver(
+            runner, new FakeConnections(runner),
+            new AndroidStoreUpdateDriver.Options("am start {package}", 0, 0),
+            NoPlayCatalog(), Recorder(), [], NullLogger<AndroidStoreUpdateDriver>.Instance);
+
+        var trig = await driver.TriggerInstallAsync(AndroidTarget, null, default);
+
+        Assert.False(trig.Ok);
+        Assert.Equal("could not dump Play UI", trig.Note);
+    }
 
     [Fact]
     public void PlayCatalog_ParsesVersionToken() =>
@@ -472,6 +523,56 @@ public class StoreUpdateTests {
     private sealed class FakeRunner(Func<string[], ProcessResult> fn) : IProcessRunner {
         public Task<ProcessResult> RunAsync(string exe, string[] args, CancellationToken ct) =>
             Task.FromResult(fn(args));
+    }
+
+    private sealed class FakeConnections(IProcessRunner runner) : IDeviceConnectionFactory {
+        public IDeviceConnection? For(DeviceTarget target) => new AdbDeviceConnection(runner, target.Target);
+        public SshDeviceConnection? Ios(string? hostFallback = null) => null;
+    }
+
+    private sealed class FakeUiDriver : IDeviceUiDriver {
+        public DeviceResult<UiTree> DumpResult = DeviceResult<UiTree>.Error("not set");
+        public DeviceResult TapPointResult = DeviceResult.Success();
+        public bool TapPointCalled;
+        public bool TapCalled;
+        public (int X, int Y)? LastTapPoint;
+
+        public string Platform => Platforms.Android;
+
+        public Task<DeviceResult<UiTree>> DumpAsync(DeviceTarget target, CancellationToken ct) =>
+            Task.FromResult(DumpResult);
+
+        public Task<DeviceResult<byte[]>> ScreenshotAsync(DeviceTarget target, CancellationToken ct) =>
+            Task.FromResult(DeviceResult<byte[]>.Unsupported());
+
+        public Task<DeviceResult> TapAsync(DeviceTarget target, UiSelector selector, CancellationToken ct) {
+            TapCalled = true;
+            return Task.FromResult(DeviceResult.Success());
+        }
+
+        public Task<DeviceResult> TapPointAsync(DeviceTarget target, int x, int y, CancellationToken ct) {
+            TapPointCalled = true;
+            LastTapPoint = (x, y);
+            return Task.FromResult(TapPointResult);
+        }
+
+        public Task<DeviceResult> InputTextAsync(DeviceTarget target, string text, CancellationToken ct) =>
+            Task.FromResult(DeviceResult.Unsupported());
+
+        public Task<DeviceResult> KeyAsync(DeviceTarget target, DeviceKey key, CancellationToken ct) =>
+            Task.FromResult(DeviceResult.Unsupported());
+
+        public Task<DeviceResult> LaunchAppAsync(DeviceTarget target, string appRef, CancellationToken ct) =>
+            Task.FromResult(DeviceResult.Unsupported());
+    }
+
+    private sealed class CollectingLogger : ILogger<AndroidStoreUpdateDriver> {
+        public List<string> Messages { get; } = [];
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter) => Messages.Add(formatter(state, exception));
     }
 
     private sealed class NullScopeFactory : IServiceScopeFactory {

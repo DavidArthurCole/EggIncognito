@@ -9,6 +9,7 @@ public static class DeviceJobKinds {
     public const string RegistrySave = "registry_save";
     public const string RestartApp = "restart_app";
     public const string Poke = "poke";
+    public const string Recert = "recert";
 }
 
 public static class DeviceJobStates {

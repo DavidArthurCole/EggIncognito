@@ -11,8 +11,9 @@ public sealed class FakeDevicePlatform(
     ILogger<FakeDevicePlatform> logger,
     IEnumerable<IDeviceStoreChecker> storeCheckers,
     IEnumerable<IDeviceProxyConfigurator> proxyConfigurators,
-    IEnumerable<IDeviceCaInstaller> caInstallers)
-    : DevicePlatformBase(platform, storeCheckers, proxyConfigurators, caInstallers) {
+    IEnumerable<IDeviceCaInstaller> caInstallers,
+    IEnumerable<IDeviceUiDriver> uiDrivers)
+    : DevicePlatformBase(platform, storeCheckers, proxyConfigurators, caInstallers, uiDrivers) {
     private const string PackageUnsupported = "ios ships the app binary, not an installable package";
     private const string ManifestUnsupported = "probe owns android package metadata";
     private const string UnknownDevice = "not a declared fake device";
@@ -155,6 +156,30 @@ public sealed class FakeDevicePlatform(
     public override Task<DeviceResult<ParticleCaptureModel.Model>> CaptureParticlesAsync(DeviceTarget target,
         string scriptBody, string? addrOffset, CancellationToken ct) =>
         Task.FromResult(DeviceResult<ParticleCaptureModel.Model>.Unsupported(ParticleNote));
+
+    public override Task<DeviceResult<UiTree>> DumpUiAsync(DeviceTarget target, CancellationToken ct) =>
+        Task.FromResult(DeviceResult<UiTree>.Success(new UiTree(
+            new UiNode(null, "fake", null, "android.widget.TextView", target.Package,
+                new UiBounds(0, 0, 100, 100), true, true, []),
+            "<hierarchy/>")));
+
+    public override Task<DeviceResult<byte[]>> ScreenshotAsync(DeviceTarget target, CancellationToken ct) =>
+        Task.FromResult(DeviceResult<byte[]>.Success([]));
+
+    public override Task<DeviceResult> TapUiAsync(DeviceTarget target, UiSelector selector, CancellationToken ct) =>
+        Task.FromResult(DeviceResult.Success("fake ui tap"));
+
+    public override Task<DeviceResult> TapPointAsync(DeviceTarget target, int x, int y, CancellationToken ct) =>
+        Task.FromResult(DeviceResult.Success("fake ui tap point"));
+
+    public override Task<DeviceResult> InputTextAsync(DeviceTarget target, string text, CancellationToken ct) =>
+        Task.FromResult(DeviceResult.Success("fake ui input text"));
+
+    public override Task<DeviceResult> KeyAsync(DeviceTarget target, DeviceKey key, CancellationToken ct) =>
+        Task.FromResult(DeviceResult.Success($"fake ui key {key}"));
+
+    public override Task<DeviceResult> LaunchAppAsync(DeviceTarget target, string appRef, CancellationToken ct) =>
+        Task.FromResult(DeviceResult.Success($"fake ui launch {appRef}"));
 
     private async Task<DeviceResult> ActAsync(DeviceTarget target, string verb, CancellationToken ct) {
         if (Resolve(target) is not { } device) return DeviceResult.Unreachable(UnknownDevice);
