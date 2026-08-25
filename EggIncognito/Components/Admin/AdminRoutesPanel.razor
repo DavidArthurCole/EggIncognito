@@ -2,147 +2,164 @@
 @using EggIncognito.Models.AdminUi
 @inherits BrowserApiComponentBase
 
-<section class="panel mb-4">
-    <div class="admin-panel-head">
-        <h2 class="admin-panel-title">Routes</h2>
-        <span class="text-muted text-xs">@FilteredRows().Count of @_rows.Count</span>
-    </div>
-
-    @if (_binaryUnavailable) {
-        <p class="text-muted text-xs m-0 mb-2">Binary route status unavailable (no database).</p>
-    } else if (_binary is not null) {
-        <div class="routes-binary-status">
-            <span class="text-muted">
-                last refresh @(_binary.LastRefresh is { } lr ? lr.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") : "never")
-                &middot;
-                @if (!string.IsNullOrWhiteSpace(_binary.BinaryVersion)) {
-                    <text>binary </text>
-                    <VersionLine App="@_binary.BinaryVersion"/>
-                } else {
-                    <text>binary unknown</text>
-                }
-                &middot; @_binary.Discovered discovered / @_binary.NewCount new / @_binary.DriftCount drift
-            </span>
-            <button type="button" class="btn-mini" disabled="@_refreshing" @onclick="RefreshBinary">@(_refreshing ? "Refreshing..." : "Refresh now")</button>
-        </div>
-    }
-
-    <FilterInput Class="reg-filter-input mb-2" AriaLabel="Filter routes by path" @bind-Value="_filter"/>
-
-    <datalist id="routeMessageTypes">
-        @foreach (var m in _messages) {
-            <option value="@m"/>
+<AdminCard Title="Routes" Stat="@RouteStat()">
+    <Summary>
+        @if (_binaryUnavailable) {
+            <p class="text-muted text-xs m-0">Binary route status unavailable (no database).</p>
+        } else if (_binary is not null) {
+            <div class="routes-binary-status">
+                <span class="text-muted">
+                    last refresh @(_binary.LastRefresh is { } lr ? lr.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") : "never")
+                    &middot;
+                    @if (!string.IsNullOrWhiteSpace(_binary.BinaryVersion)) {
+                        <text>binary </text>
+                        <VersionLine App="@_binary.BinaryVersion"/>
+                    } else {
+                        <text>binary unknown</text>
+                    }
+                    &middot; @_binary.Discovered discovered / @_binary.NewCount new / @_binary.DriftCount drift
+                </span>
+            </div>
         }
-    </datalist>
+        <p class="text-muted text-xs m-0">@(_rows.Count(r => r.Override is not null)) edited &middot; @(_rows.Count(r => r.Source == "db")) db-only &middot; @(_rows.Count(r => r.Source == "orphan")) orphans</p>
+    </Summary>
+    <Detail>
+        @if (_binaryUnavailable) {
+            <p class="text-muted text-xs m-0 mb-2">Binary route status unavailable (no database).</p>
+        } else if (_binary is not null) {
+            <div class="routes-binary-status">
+                <span class="text-muted">
+                    last refresh @(_binary.LastRefresh is { } lr ? lr.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") : "never")
+                    &middot;
+                    @if (!string.IsNullOrWhiteSpace(_binary.BinaryVersion)) {
+                        <text>binary </text>
+                        <VersionLine App="@_binary.BinaryVersion"/>
+                    } else {
+                        <text>binary unknown</text>
+                    }
+                    &middot; @_binary.Discovered discovered / @_binary.NewCount new / @_binary.DriftCount drift
+                </span>
+                <button type="button" class="btn-mini" disabled="@_refreshing" @onclick="RefreshBinary">@(_refreshing ? "Refreshing..." : "Refresh now")</button>
+            </div>
+        }
 
-    @if (_loading) {
-        <p class="text-muted text-sm m-0">Loading routes...</p>
-    } else if (FilteredRows().Count == 0) {
-        <p class="text-muted text-sm m-0">No routes match this filter.</p>
-    } else {
-        <div class="reg-wrap admin-routes-scroll">
-            <table class="data-table">
-                <thead>
-                <tr>
-                    <th>Path</th><th></th><th></th>
-                </tr>
-                </thead>
-                <tbody>
-                @foreach (var row in FilteredRows()) {
-                    var drift = DriftFor(row.Path);
-                    <tr class="reg-row cursor-pointer @(drift.Count > 0 ? "route-drift-row" : "")" @onclick="() => ToggleExpand(row)">
-                        <td class="mono text-xs">@row.Path</td>
-                        <td>
-                            <div class="flex gap-1">
-                                @if (row.Override is not null) {
-                                    <span class="route-flag text-accent">edited</span>
-                                }
-                                @if (row.Source == "db") {
-                                    <span class="route-flag text-info">db</span>
-                                }
-                                @if (BinaryPopulated && !IsInBinary(row.Path)) {
-                                    <span class="route-flag text-ok">no binary</span>
-                                }
-                                @if (row.Source == "orphan") {
-                                    <span class="route-flag text-err">orphan</span>
-                                }
-                            </div>
-                        </td>
-                        <td class="text-muted text-xs">@(drift.Count > 0 ? "drift" : "")</td>
+        <FilterInput Class="reg-filter-input mb-2" AriaLabel="Filter routes by path" @bind-Value="_filter"/>
+
+        <datalist id="routeMessageTypes">
+            @foreach (var m in _messages) {
+                <option value="@m"/>
+            }
+        </datalist>
+
+        @if (_loading) {
+            <p class="text-muted text-sm m-0">Loading routes...</p>
+        } else if (FilteredRows().Count == 0) {
+            <p class="text-muted text-sm m-0">No routes match this filter.</p>
+        } else {
+            <div class="reg-wrap admin-routes-scroll">
+                <table class="data-table">
+                    <thead>
+                    <tr>
+                        <th>Path</th><th></th><th></th>
                     </tr>
-                    @if (_expandedPath == row.Path) {
-                        <tr class="reg-edit-row">
-                            <td colspan="3">
-                                <div class="routes-editor">
-                                    @if (row.Source != "orphan") {
-                                        <p class="text-muted text-xs m-0">Saving persists this route definition to the database. It drives Inspector, capture decode, and docs.</p>
-                                    } else {
-                                        <p class="text-muted text-xs m-0">No matching route in yaml or the db catalog. Only Reset is available.</p>
+                    </thead>
+                    <tbody>
+                    @foreach (var row in FilteredRows()) {
+                        var drift = DriftFor(row.Path);
+                        <tr class="reg-row cursor-pointer @(drift.Count > 0 ? "route-drift-row" : "")" @onclick="() => ToggleExpand(row)">
+                            <td class="mono text-xs">@row.Path</td>
+                            <td>
+                                <div class="flex gap-1">
+                                    @if (row.Override is not null) {
+                                        <span class="route-flag text-accent">edited</span>
                                     }
-                                    <div class="routes-editor-fields">
-                                        <label class="routes-editor-field">
-                                            Request type
-                                            <input class="reg-filter-input w-auto" list="routeMessageTypes" value="@_draftRequest" @oninput="OnDraftRequest"/>
-                                        </label>
-                                        <label class="routes-editor-field">
-                                            Response type
-                                            <input class="reg-filter-input w-auto" list="routeMessageTypes" value="@_draftResponse" @oninput="OnDraftResponse"/>
-                                        </label>
-                                        <label class="routes-editor-field">
-                                            Request wrapped
-                                            <select class="reg-filter-input w-auto" value="@_draftRequestWrapped" @onchange="OnDraftRequestWrapped">
-                                                <option value="true">true</option>
-                                                <option value="false">false</option>
-                                            </select>
-                                        </label>
-                                        <label class="routes-editor-field">
-                                            Response wrapped
-                                            <select class="reg-filter-input w-auto" value="@_draftResponseWrapped" @onchange="OnDraftResponseWrapped">
-                                                <option value="true">true</option>
-                                                <option value="false">false</option>
-                                            </select>
-                                        </label>
-                                        <label class="routes-editor-field">
-                                            Path param
-                                            <select class="reg-filter-input w-auto" value="@_draftPathParam" @onchange="OnDraftPathParam">
-                                                <option value="true">true</option>
-                                                <option value="false">false</option>
-                                            </select>
-                                        </label>
-                                    </div>
-                                    @if (drift.Count > 0) {
-                                        <div class="flex flex-col gap-1">
-                                            @foreach (var d in drift) {
-                                                <div class="routes-drift-row">
-                                                    <span class="route-flag @(d.Reliable ? "text-accent" : "text-info")">@(d.Reliable ? "drift" : "advisory")</span>
-                                                    <span class="text-muted">@d.Field: effective @(d.EffectiveValue ?? "-") vs binary @(d.BinaryValue ?? "-")</span>
-                                                    <button type="button" class="btn-mini" disabled="@_busy" @onclick="() => ApplyDrift(d)">Apply</button>
-                                                </div>
-                                            }
-                                        </div>
+                                    @if (row.Source == "db") {
+                                        <span class="route-flag text-info">db</span>
                                     }
-                                    <div class="flex gap-1">
-                                        @if (row.Source != "orphan") {
-                                            <button type="button" class="btn-mini" disabled="@_busy" @onclick="() => Save(row)">Save</button>
-                                        }
-                                        @if (row.Override is not null) {
-                                            <button type="button" class="btn-mini btn-danger" disabled="@_busy" @onclick="() => Clear(row.Path)">Reset</button>
-                                        }
-                                    </div>
+                                    @if (BinaryPopulated && !IsInBinary(row.Path)) {
+                                        <span class="route-flag text-ok">no binary</span>
+                                    }
+                                    @if (row.Source == "orphan") {
+                                        <span class="route-flag text-err">orphan</span>
+                                    }
                                 </div>
                             </td>
+                            <td class="text-muted text-xs">@(drift.Count > 0 ? "drift" : "")</td>
                         </tr>
+                        @if (_expandedPath == row.Path) {
+                            <tr class="reg-edit-row">
+                                <td colspan="3">
+                                    <div class="routes-editor">
+                                        @if (row.Source != "orphan") {
+                                            <p class="text-muted text-xs m-0">Saving persists this route definition to the database. It drives Inspector, capture decode, and docs.</p>
+                                        } else {
+                                            <p class="text-muted text-xs m-0">No matching route in yaml or the db catalog. Only Reset is available.</p>
+                                        }
+                                        <div class="routes-editor-fields">
+                                            <label class="routes-editor-field">
+                                                Request type
+                                                <input class="reg-filter-input w-auto" list="routeMessageTypes" value="@_draftRequest" @oninput="OnDraftRequest"/>
+                                            </label>
+                                            <label class="routes-editor-field">
+                                                Response type
+                                                <input class="reg-filter-input w-auto" list="routeMessageTypes" value="@_draftResponse" @oninput="OnDraftResponse"/>
+                                            </label>
+                                            <label class="routes-editor-field">
+                                                Request wrapped
+                                                <select class="reg-filter-input w-auto" value="@_draftRequestWrapped" @onchange="OnDraftRequestWrapped">
+                                                    <option value="true">true</option>
+                                                    <option value="false">false</option>
+                                                </select>
+                                            </label>
+                                            <label class="routes-editor-field">
+                                                Response wrapped
+                                                <select class="reg-filter-input w-auto" value="@_draftResponseWrapped" @onchange="OnDraftResponseWrapped">
+                                                    <option value="true">true</option>
+                                                    <option value="false">false</option>
+                                                </select>
+                                            </label>
+                                            <label class="routes-editor-field">
+                                                Path param
+                                                <select class="reg-filter-input w-auto" value="@_draftPathParam" @onchange="OnDraftPathParam">
+                                                    <option value="true">true</option>
+                                                    <option value="false">false</option>
+                                                </select>
+                                            </label>
+                                        </div>
+                                        @if (drift.Count > 0) {
+                                            <div class="flex flex-col gap-1">
+                                                @foreach (var d in drift) {
+                                                    <div class="routes-drift-row">
+                                                        <span class="route-flag @(d.Reliable ? "text-accent" : "text-info")">@(d.Reliable ? "drift" : "advisory")</span>
+                                                        <span class="text-muted">@d.Field: effective @(d.EffectiveValue ?? "-") vs binary @(d.BinaryValue ?? "-")</span>
+                                                        <button type="button" class="btn-mini" disabled="@_busy" @onclick="() => ApplyDrift(d)">Apply</button>
+                                                    </div>
+                                                }
+                                            </div>
+                                        }
+                                        <div class="flex gap-1">
+                                            @if (row.Source != "orphan") {
+                                                <button type="button" class="btn-mini" disabled="@_busy" @onclick="() => Save(row)">Save</button>
+                                            }
+                                            @if (row.Override is not null) {
+                                                <button type="button" class="btn-mini btn-danger" disabled="@_busy" @onclick="() => Clear(row.Path)">Reset</button>
+                                            }
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
                     }
-                }
-                </tbody>
-            </table>
-        </div>
-    }
+                    </tbody>
+                </table>
+            </div>
+        }
 
-    @if (_msg is not null) {
-        <StatusNote>@_msg</StatusNote>
-    }
-</section>
+        @if (_msg is not null) {
+            <StatusNote>@_msg</StatusNote>
+        }
+    </Detail>
+</AdminCard>
 
 @code {
     List<RouteRow> _rows = [];
@@ -166,6 +183,10 @@
         await LoadMessages();
         await LoadRoutes();
         await LoadBinary();
+    }
+
+    string RouteStat() {
+        return _loading ? "loading..." : $"{_rows.Count} routes";
     }
 
     void OnDraftRequest(ChangeEventArgs e) {

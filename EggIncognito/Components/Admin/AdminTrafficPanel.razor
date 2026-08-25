@@ -1,0 +1,119 @@
+@inject IServiceProvider Services
+@inject IJSRuntime Js
+@inject IWebHostEnvironment Env
+@using System.Globalization
+@using System.Text
+@implements IAsyncDisposable
+
+<AdminCard Title="API activity" Stat="@StatText()">
+    <Summary>
+        @if (_source is null) {
+            <p class="text-muted text-sm m-0">Metrics source not configured.</p>
+        } else if (_snap is null) {
+            <p class="text-muted text-sm m-0">Loading...</p>
+        } else {
+            <div class="traffic-kpis">
+                <div class="stat-tile">
+                    <div class="stat-tile-value">@RequestsHour.ToString("N0")</div>
+                    <div class="stat-tile-label">Requests (1h)</div>
+                </div>
+                <div class="stat-tile">
+                    <div class="stat-tile-value">@_snap.Paths.Count.ToString("N0")</div>
+                    <div class="stat-tile-label">Distinct paths</div>
+                </div>
+                <div class="stat-tile">
+                    <div class="stat-tile-value">@Limited.ToString("N0")</div>
+                    <div class="stat-tile-label">Limited (429)</div>
+                </div>
+                <div class="stat-tile">
+                    <div class="stat-tile-value">@_snap.Buckets.External.ToString("N0")</div>
+                    <div class="stat-tile-label">External</div>
+                </div>
+            </div>
+            <svg class="traffic-spark" viewBox="0 0 240 40" preserveAspectRatio="none" role="img" aria-label="Requests per minute">
+                <polyline points="@Spark()" fill="none" stroke="currentColor" stroke-width="1.5"/>
+            </svg>
+        }
+    </Summary>
+    <Detail>
+        <TrafficPanel RefreshIntervalSeconds="5"/>
+    </Detail>
+</AdminCard>
+
+@code {
+    [Parameter] public int RefreshIntervalSeconds { get; set; } = 5;
+
+    ITrafficSource? _source;
+    TrafficSnapshot? _snap;
+    CancellationTokenSource? _loopCts;
+    PageVisibility? _vis;
+
+    PageVisibility Vis => _vis ??= new PageVisibility(Js, Env);
+
+    int RequestsHour => _snap?.Minutes.Sum(m => m.Total) ?? 0;
+
+    int Limited => _snap?.Minutes.Sum(m => m.Limited) ?? 0;
+
+    protected override async Task OnInitializedAsync() {
+        _source = Services.GetService<ITrafficSource>();
+        await LoadAsync();
+        if (_source is not null) {
+            _loopCts = new CancellationTokenSource();
+            _ = RunLoopAsync(_loopCts.Token);
+        }
+    }
+
+    string? StatText() {
+        return _snap is null ? null : $"{_snap.Buckets.Internal:N0} internal / {_snap.Buckets.Cross:N0} cross / {_snap.Buckets.External:N0} external";
+    }
+
+    async Task LoadAsync() {
+        if (_source is null) return;
+        try {
+            _snap = await _source.GetSnapshotAsync(CancellationToken.None);
+        }
+        catch {
+            _snap = null;
+        }
+    }
+
+    async Task RunLoopAsync(CancellationToken ct) {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(Math.Max(2, RefreshIntervalSeconds)));
+        try {
+            while (await timer.WaitForNextTickAsync(ct)) {
+                if (!await Vis.IsVisibleAsync()) continue;
+                await LoadAsync();
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException) {
+        }
+    }
+
+    string Spark() {
+        var mins = _snap?.Minutes ?? [];
+        if (mins.Count == 0) return "";
+        var max = Math.Max(1, mins.Max(m => m.Total));
+        const double w = 240, h = 40;
+        var step = mins.Count > 1 ? w / (mins.Count - 1) : 0;
+        var sb = new StringBuilder();
+        for (var i = 0; i < mins.Count; i++) {
+            var x = i * step;
+            var y = h - mins[i].Total / (double)max * h;
+            if (i > 0) sb.Append(' ');
+            sb.Append(x.ToString("0.##", CultureInfo.InvariantCulture)).Append(',').Append(y.ToString("0.##", CultureInfo.InvariantCulture));
+        }
+
+        return sb.ToString();
+    }
+
+    public async ValueTask DisposeAsync() {
+        if (_loopCts is not null) {
+            await _loopCts.CancelAsync();
+            _loopCts.Dispose();
+        }
+
+        if (_vis is not null) await _vis.DisposeAsync();
+    }
+
+}

@@ -4,106 +4,112 @@
 @using EggIncognito.Models.Devices
 @inherits BrowserApiComponentBase
 
-<section class="panel mb-4">
-    <div class="admin-panel-head">
-        <h2 class="admin-panel-title">Stored binaries</h2>
+<AdminCard Title="Stored binaries" Stat="@($"{_rows.Count} binaries / {_refs.Count} symbolized")">
+    <Summary>
+        @if (_rows.Count == 0) {
+            <div class="text-muted text-xs">No stored binaries. Pulled automatically on the device maintenance schedule when a new version is installed.</div>
+        } else {
+            <div class="text-muted text-xs">newest @(_rows[0].Version) (@(_rows[0].Platform))</div>
+        }
+    </Summary>
+    <Detail>
         <div class="flex gap-1 items-center">
             <span class="text-muted text-xs">@_rows.Count total</span>
             <button type="button" class="btn-mini" disabled="@_busy" @onclick="PokeHarvest">Poke harvest</button>
             <button type="button" class="btn-mini" disabled="@_busy" @onclick="Load">Refresh</button>
         </div>
-    </div>
-    @if (_rows.Count == 0) {
-        <p class="text-muted text-sm m-0">No stored binaries. Pulled automatically on the device maintenance schedule when a new version is installed.</p>
-    } else {
-        <div class="reg-wrap">
-            <table class="data-table">
-                <thead>
-                <tr>
-                    <th>Version</th><th>Platform</th><th>SHA-256</th><th>Size</th><th>Symbols</th><th>Source</th><th>Pulled</th><th></th>
-                </tr>
-                </thead>
-                <tbody>
-                @foreach (var b in _rows) {
+        @if (_rows.Count == 0) {
+            <p class="text-muted text-sm m-0">No stored binaries. Pulled automatically on the device maintenance schedule when a new version is installed.</p>
+        } else {
+            <div class="reg-wrap">
+                <table class="data-table">
+                    <thead>
                     <tr>
-                        <td>
-                            <VersionLine App="@b.Version"/>
-                        </td>
-                        <td>
-                            <PlatformIcon Platform="@b.Platform"/>
-                        </td>
-                        <td class="mono text-xs">@ShaShort(b.Sha256)</td>
-                        <td class="mono text-xs">@ByteFormat.Mb(b.ByteSize, "F1")</td>
-                        <td class="mono text-xs">
-                            @EffectiveSymbols(b).ToString("N0")
-                            @if (b.EffectiveSymbols > b.NativeSymbols) {
-                                <span class="text-muted"> (@b.NativeSymbols.ToString("N0") native + graft)</span>
-                            }
-                        </td>
-                        <td class="text-xs">@b.Source</td>
-                        <td class="text-muted text-xs">@b.PulledAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
-                        <td>
-                            <div class="flex gap-1 justify-end">
-                                <button type="button" class="btn-mini btn-danger" disabled="@_busy" @onclick="() => Delete(b.Platform, b.Version)">Delete</button>
-                            </div>
-                        </td>
+                        <th>Version</th><th>Platform</th><th>SHA-256</th><th>Size</th><th>Symbols</th><th>Source</th><th>Pulled</th><th></th>
                     </tr>
-                }
-                </tbody>
-            </table>
-        </div>
-    }
-    @if (_msg is not null) {
-        <StatusNote>@_msg</StatusNote>
-    }
+                    </thead>
+                    <tbody>
+                    @foreach (var b in _rows) {
+                        <tr>
+                            <td>
+                                <VersionLine App="@b.Version"/>
+                            </td>
+                            <td>
+                                <PlatformIcon Platform="@b.Platform"/>
+                            </td>
+                            <td class="mono text-xs">@ShaShort(b.Sha256)</td>
+                            <td class="mono text-xs">@ByteFormat.Mb(b.ByteSize, "F1")</td>
+                            <td class="mono text-xs">
+                                @EffectiveSymbols(b).ToString("N0")
+                                @if (b.EffectiveSymbols > b.NativeSymbols) {
+                                    <span class="text-muted"> (@b.NativeSymbols.ToString("N0") native + graft)</span>
+                                }
+                            </td>
+                            <td class="text-xs">@b.Source</td>
+                            <td class="text-muted text-xs">@b.PulledAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
+                            <td>
+                                <div class="flex gap-1 justify-end">
+                                    <button type="button" class="btn-mini btn-danger" disabled="@_busy" @onclick="() => Delete(b.Platform, b.Version)">Delete</button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+        @if (_msg is not null) {
+            <StatusNote>@_msg</StatusNote>
+        }
 
-    <div class="admin-panel-head mt-4">
-        <div class="sub-section-head">Symbolized reference</div>
-        <div class="flex gap-1 items-center">
-            <span class="text-muted text-xs">@_refs.Count total</span>
-            <button type="button" class="btn-mini" disabled="@_refBusy" @onclick="LoadRefs">Refresh</button>
+        <div class="admin-panel-head mt-4">
+            <div class="sub-section-head">Symbolized reference</div>
+            <div class="flex gap-1 items-center">
+                <span class="text-muted text-xs">@_refs.Count total</span>
+                <button type="button" class="btn-mini" disabled="@_refBusy" @onclick="LoadRefs">Refresh</button>
+            </div>
         </div>
-    </div>
-    @if (_refs.Count == 0) {
-        <p class="text-muted text-sm m-0">No symbolized reference stored. Upload a symbolized .ipa, or its Mach-O executable with a version, to graft names onto stripped builds.</p>
-    } else {
-        <div class="reg-wrap">
-            <table class="data-table">
-                <thead>
-                <tr>
-                    <th>Version</th><th>SHA-256</th><th>Size</th><th>Symbols</th><th>Uploaded</th><th></th>
-                </tr>
-                </thead>
-                <tbody>
-                @foreach (var r in _refs) {
+        @if (_refs.Count == 0) {
+            <p class="text-muted text-sm m-0">No symbolized reference stored. Upload a symbolized .ipa, or its Mach-O executable with a version, to graft names onto stripped builds.</p>
+        } else {
+            <div class="reg-wrap">
+                <table class="data-table">
+                    <thead>
                     <tr>
-                        <td>
-                            <VersionLine App="@r.Version"/>
-                        </td>
-                        <td class="mono text-xs">@ShaShort(r.Sha256)</td>
-                        <td class="mono text-xs">@ByteFormat.Mb(r.ByteSize, "F1")</td>
-                        <td class="mono text-xs">@r.SymbolCount.ToString("N0")</td>
-                        <td class="text-muted text-xs">@r.UploadedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
-                        <td>
-                            <div class="flex gap-1 justify-end">
-                                <button type="button" class="btn-mini btn-danger" disabled="@_refBusy" @onclick="() => DeleteRef(r.Version)">Delete</button>
-                            </div>
-                        </td>
+                        <th>Version</th><th>SHA-256</th><th>Size</th><th>Symbols</th><th>Uploaded</th><th></th>
                     </tr>
-                }
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                    @foreach (var r in _refs) {
+                        <tr>
+                            <td>
+                                <VersionLine App="@r.Version"/>
+                            </td>
+                            <td class="mono text-xs">@ShaShort(r.Sha256)</td>
+                            <td class="mono text-xs">@ByteFormat.Mb(r.ByteSize, "F1")</td>
+                            <td class="mono text-xs">@r.SymbolCount.ToString("N0")</td>
+                            <td class="text-muted text-xs">@r.UploadedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
+                            <td>
+                                <div class="flex gap-1 justify-end">
+                                    <button type="button" class="btn-mini btn-danger" disabled="@_refBusy" @onclick="() => DeleteRef(r.Version)">Delete</button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+        <div class="flex gap-1 items-center flex-wrap mt-2">
+            <InputFile id="@RefInputId" class="text-xs"/>
+            <input class="reg-filter-input w-auto" placeholder="version (raw Mach-O only)" value="@_refVersion" @oninput="OnRefVersion"/>
+            <button type="button" class="btn-mini" disabled="@_refBusy" @onclick="UploadRef">@(_refBusy ? "Working..." : "Upload")</button>
         </div>
-    }
-    <div class="flex gap-1 items-center flex-wrap mt-2">
-        <InputFile id="@RefInputId" class="text-xs"/>
-        <input class="reg-filter-input w-auto" placeholder="version (raw Mach-O only)" value="@_refVersion" @oninput="OnRefVersion"/>
-        <button type="button" class="btn-mini" disabled="@_refBusy" @onclick="UploadRef">@(_refBusy ? "Working..." : "Upload")</button>
-    </div>
-    @if (_refMsg is not null) {
-        <StatusNote>@_refMsg</StatusNote>
-    }
-</section>
+        @if (_refMsg is not null) {
+            <StatusNote>@_refMsg</StatusNote>
+        }
+    </Detail>
+</AdminCard>
 
 @code {
     const string RefInputId = "symRefFile";

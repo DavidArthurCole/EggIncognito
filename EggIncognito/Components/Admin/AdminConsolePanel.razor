@@ -3,65 +3,65 @@
 @using EggIncognito.Models.AdminUi
 @inherits BrowserApiComponentBase
 
-<section class="panel mb-4">
-    <div class="admin-panel-head">
-        <h2 class="admin-panel-title">API console</h2>
-        <span class="text-muted text-xs">@_endpoints.Count endpoints</span>
-    </div>
-
-    @if (_endpoints.Count == 0) {
-        <p class="text-muted text-sm m-0">No endpoints available.</p>
-    } else {
-        <select class="reg-filter-input w-full" @onchange="OnSelect">
-            <option value="">Pick an endpoint…</option>
-            @foreach (var group in Grouped()) {
-                <optgroup label="@group.Key">
-                    @foreach (var e in group) {
-                        <option value="@Key(e)" selected="@(_selected == e)">@e.Method @ShortRoute(e.Route)</option>
-                    }
-                </optgroup>
-            }
-        </select>
-
-        @if (_selected is not null) {
-            <div class="mt-2 mb-2">
-                <span class="console-method console-@(_selected.Method.ToLower())">@_selected.Method</span>
-                <span class="font-mono text-xs console-route">@_selected.Route</span>
-            </div>
-
-            @foreach (var p in _selected.Query) {
-                <label class="block text-xs text-muted mt-1">
-                    @p.Name <span class="opacity-60">(@p.Source, @p.Type)</span>
-                    <input class="reg-filter-input w-full" @bind="_paramValues[p.Name]"/>
-                </label>
-            }
-
-            @if (_selected.HasFile) {
-                <div class="settings-title mt-2">File</div>
-                <InputFile OnChange="OnFile" class="text-xs"/>
-                @if (_fileName is not null) {
-                    <div class="text-xs text-muted">@_fileName (@(_fileBytes?.Length ?? 0) bytes)</div>
+<AdminCard Title="API console" Stat="@($"{_endpoints.Count} endpoints")">
+    <Summary>
+        <p class="text-muted text-xs m-0">Send requests to any registered API endpoint from the browser session.</p>
+    </Summary>
+    <Detail>
+        @if (_endpoints.Count == 0) {
+            <p class="text-muted text-sm m-0">No endpoints available.</p>
+        } else {
+            <select class="reg-filter-input w-full" @onchange="OnSelect">
+                <option value="">Pick an endpoint…</option>
+                @foreach (var group in Grouped()) {
+                    <optgroup label="@group.Key">
+                        @foreach (var e in group) {
+                            <option value="@Key(e)" selected="@(_selected == e)">@e.Method @ShortRoute(e.Route)</option>
+                        }
+                    </optgroup>
                 }
-            }
+            </select>
 
-            @if (_selected.HasBody) {
-                <div class="settings-title mt-2">JSON body @(_selected.BodyType is not null ? $"({_selected.BodyType})" : "")</div>
-                <textarea class="reg-filter-input w-full font-mono text-xs" rows="4" @bind="_body" placeholder="{ }"></textarea>
-            }
+            @if (_selected is not null) {
+                <div class="mt-2 mb-2">
+                    <span class="console-method console-@(_selected.Method.ToLower())">@_selected.Method</span>
+                    <span class="font-mono text-xs console-route">@_selected.Route</span>
+                </div>
 
-            <button class="btn-primary mt-2" @onclick="Send" disabled="@_busy">@(_busy ? "Sending…" : "Send")</button>
+                @foreach (var p in _selected.Query) {
+                    <label class="block text-xs text-muted mt-1">
+                        @p.Name <span class="opacity-60">(@p.Source, @p.Type)</span>
+                        <input class="reg-filter-input w-full" @bind="_paramValues[p.Name]"/>
+                    </label>
+                }
 
-            @if (_status is not null) {
-                <StatusNote Severity="@(_ok ? StatusNoteKind.Info : StatusNoteKind.Error)">@_statusLine</StatusNote>
-                @if (_isBinary) {
-                    <div class="text-xs text-muted mt-1">Binary response (@_respBytes bytes). <a class="underline" href="@_blobUrl" download="@_downloadName">Download</a></div>
-                } else {
-                    <pre class="result-pre mt-1" style="max-height:40vh;overflow:auto;">@_response</pre>
+                @if (_selected.HasFile) {
+                    <div class="settings-title mt-2">File</div>
+                    <InputFile OnChange="OnFile" class="text-xs"/>
+                    @if (_fileName is not null) {
+                        <div class="text-xs text-muted">@_fileName (@(_fileBytes?.Length ?? 0) bytes)</div>
+                    }
+                }
+
+                @if (_selected.HasBody) {
+                    <div class="settings-title mt-2">JSON body @(_selected.BodyType is not null ? $"({_selected.BodyType})" : "")</div>
+                    <textarea class="reg-filter-input w-full font-mono text-xs" rows="4" @bind="_body" placeholder="{ }"></textarea>
+                }
+
+                <button class="btn-primary mt-2" @onclick="Send" disabled="@_busy">@(_busy ? "Sending…" : "Send")</button>
+
+                @if (_status is not null) {
+                    <StatusNote Severity="@(_ok ? StatusNoteKind.Info : StatusNoteKind.Error)">@_statusLine</StatusNote>
+                    @if (_isBinary) {
+                        <div class="text-xs text-muted mt-1">Binary response (@_respBytes bytes). <a class="underline" href="@_blobUrl" download="@_downloadName">Download</a></div>
+                    } else {
+                        <pre class="result-pre mt-1" style="max-height:40vh;overflow:auto;">@_response</pre>
+                    }
                 }
             }
         }
-    }
-</section>
+    </Detail>
+</AdminCard>
 
 @code {
     List<ConsoleEndpoint> _endpoints = [];

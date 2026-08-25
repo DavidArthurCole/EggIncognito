@@ -1,0 +1,46 @@
+<section class="panel admin-card" @onclick="Open">
+    <div class="admin-panel-head">
+        <h2 class="admin-panel-title">@Title</h2>
+        <div class="flex items-center gap-2">
+            @if (!string.IsNullOrEmpty(Stat)) {
+                <span class="text-muted text-xs">@Stat</span>
+            }
+            <button type="button" class="dropzone-open" aria-label="@($"Open {Title}")"
+                    @onclick="Open" @onclick:stopPropagation="true">
+                <Icon Name="chevronRight" Class="icon-sm"/>
+            </button>
+        </div>
+    </div>
+    @if (Summary is not null) {
+        <div class="admin-card-summary">@Summary</div>
+    }
+</section>
+
+@if (_open) {
+    <ModalShell Title="@Title" Width="Width" OnClose="CloseModal" HeadTools="DetailTools">
+        <div class="modal-body">@Detail</div>
+    </ModalShell>
+}
+
+@code {
+    [Parameter] [EditorRequired] public string Title { get; set; } = "";
+    [Parameter] public string? Stat { get; set; }
+    [Parameter] public RenderFragment? Summary { get; set; }
+    [Parameter] public RenderFragment? Detail { get; set; }
+    [Parameter] public RenderFragment? DetailTools { get; set; }
+    [Parameter] public ModalWidth Width { get; set; } = ModalWidth.Large;
+    [Parameter] public EventCallback OnOpened { get; set; }
+
+    bool _open;
+
+    Task Open() {
+        if (_open) return Task.CompletedTask;
+        _open = true;
+        return OnOpened.InvokeAsync();
+    }
+
+    void CloseModal() {
+        _open = false;
+    }
+
+}

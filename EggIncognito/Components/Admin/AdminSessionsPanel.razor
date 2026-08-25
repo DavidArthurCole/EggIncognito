@@ -4,14 +4,15 @@
 @using EggIncognito.Models.AdminUi
 @implements IDisposable
 
-<section class="panel mb-4">
-    <div class="admin-panel-head">
-        <h2 class="admin-panel-title">Capture sessions</h2>
-        <span class="text-muted text-xs">@_rows.Count active</span>
-    </div>
-    @if (_rows.Count == 0) {
-        <p class="text-muted text-sm m-0">No active capture sessions.</p>
-    } else {
+<AdminCard Title="Capture sessions" Stat="@($"{_rows.Count} active")">
+    <Summary>
+        @if (_rows.Count == 0) {
+            <p class="text-muted text-sm m-0">No active capture sessions.</p>
+        } else {
+            <p class="text-muted text-xs m-0">@((MarkupString)KindBreakdown())</p>
+        }
+    </Summary>
+    <Detail>
         <div class="reg-wrap">
             <table class="data-table">
                 <thead>
@@ -46,11 +47,11 @@
                 </tbody>
             </table>
         </div>
-    }
-    @if (_msg is not null) {
-        <StatusNote>@_msg</StatusNote>
-    }
-</section>
+        @if (_msg is not null) {
+            <StatusNote>@_msg</StatusNote>
+        }
+    </Detail>
+</AdminCard>
 
 @code {
     List<SessionRow> _rows = [];
@@ -70,6 +71,17 @@
     PageVisibility? _vis;
 
     PageVisibility Vis => _vis ??= new PageVisibility(Js, Env);
+
+    string KindBreakdown() {
+        var user = _rows.Count(r => r.Kind == "user");
+        var device = _rows.Count(r => r.Kind == "device");
+        var local = _rows.Count - user - device;
+        var parts = new List<string>();
+        if (user > 0) parts.Add($"{user} user");
+        if (device > 0) parts.Add($"{device} device");
+        if (local > 0) parts.Add($"{local} local");
+        return string.Join(" &middot; ", parts);
+    }
 
     async Task Load() {
         if (Api is null) return;

@@ -2,50 +2,55 @@
 @using EggIncognito.Models.AdminUi
 @inherits BrowserApiComponentBase
 
-<section class="panel mb-4">
-    <div class="admin-panel-head">
-        <h2 class="admin-panel-title">API keys</h2>
-        <span class="text-muted text-xs">@_rows.Count total</span>
-    </div>
-    @if (_rows.Count == 0) {
-        <p class="text-muted text-sm m-0">No API keys.</p>
-    } else {
-        <div class="reg-wrap">
-            <table class="data-table">
-                <thead>
-                <tr>
-                    <th>Owner</th><th>Name</th><th>Prefix</th><th>Last used</th><th>Requests</th><th>Status</th><th></th>
-                </tr>
-                </thead>
-                <tbody>
-                @foreach (var k in _rows) {
+<AdminCard Title="API keys" Stat="@($"{_rows.Count} total")">
+    <Summary>
+        @if (_rows.Count == 0) {
+            <p class="text-muted text-sm m-0">No API keys.</p>
+        } else {
+            <p class="text-muted text-xs m-0">@_rows.Count(k => !k.Revoked) active &middot; @_rows.Count(k => k.Revoked) revoked</p>
+        }
+    </Summary>
+    <Detail>
+        @if (_rows.Count == 0) {
+            <p class="text-muted text-sm m-0">No API keys.</p>
+        } else {
+            <div class="reg-wrap">
+                <table class="data-table">
+                    <thead>
                     <tr>
-                        <td class="mono text-xs">@k.OwnerUserId</td>
-                        <td class="font-medium">@k.Name</td>
-                        <td class="mono text-xs">@k.Prefix</td>
-                        <td class="text-muted text-xs">@(k.LastUsedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "never")</td>
-                        <td class="mono text-xs">@k.RequestCount</td>
-                        <td>
-                            <span class="@(k.Revoked ? "text-muted" : "text-green-400")">@(k.Revoked ? "revoked" : "active")</span>
-                        </td>
-                        <td>
-                            <div class="flex gap-1 justify-end">
-                                @if (!k.Revoked) {
-                                    <button type="button" class="btn-mini" disabled="@_busy" @onclick="() => Revoke(k.Id)">Revoke</button>
-                                }
-                                <button type="button" class="btn-mini btn-danger" disabled="@_busy" @onclick="() => Delete(k.Id)">Delete</button>
-                            </div>
-                        </td>
+                        <th>Owner</th><th>Name</th><th>Prefix</th><th>Last used</th><th>Requests</th><th>Status</th><th></th>
                     </tr>
-                }
-                </tbody>
-            </table>
-        </div>
-    }
-    @if (_msg is not null) {
-        <StatusNote>@_msg</StatusNote>
-    }
-</section>
+                    </thead>
+                    <tbody>
+                    @foreach (var k in _rows) {
+                        <tr>
+                            <td class="mono text-xs">@k.OwnerUserId</td>
+                            <td class="font-medium">@k.Name</td>
+                            <td class="mono text-xs">@k.Prefix</td>
+                            <td class="text-muted text-xs">@(k.LastUsedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "never")</td>
+                            <td class="mono text-xs">@k.RequestCount</td>
+                            <td>
+                                <span class="@(k.Revoked ? "text-muted" : "text-green-400")">@(k.Revoked ? "revoked" : "active")</span>
+                            </td>
+                            <td>
+                                <div class="flex gap-1 justify-end">
+                                    @if (!k.Revoked) {
+                                        <button type="button" class="btn-mini" disabled="@_busy" @onclick="() => Revoke(k.Id)">Revoke</button>
+                                    }
+                                    <button type="button" class="btn-mini btn-danger" disabled="@_busy" @onclick="() => Delete(k.Id)">Delete</button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+        @if (_msg is not null) {
+            <StatusNote>@_msg</StatusNote>
+        }
+    </Detail>
+</AdminCard>
 
 @code {
     List<ApiKeyRow> _rows = [];

@@ -1510,10 +1510,20 @@ input[type="search"]::placeholder { @apply text-muted; }
 
 .admin-users-table select { @apply w-auto; }
 
-.admin-grid { @apply grid gap-4 items-start lg:grid-cols-2; }
-.admin-col-left, .admin-col-right { @apply min-w-0; }
-.admin-users-scroll { @apply max-h-[36rem] overflow-y-auto; }
-.admin-routes-scroll { @apply max-h-[34rem] overflow-y-auto; }
+.admin-top { @apply grid gap-4 items-stretch; }
+@media (min-width: 64rem) {
+  .admin-top { grid-template-columns: 2fr 1fr; }
+}
+.admin-cards { @apply grid gap-4; grid-template-columns: repeat(auto-fill, minmax(24rem, 1fr)); }
+.admin-card { @apply cursor-pointer min-w-0; }
+.admin-card:hover { border-color: var(--color-control-border); }
+.admin-card .admin-panel-head { @apply mb-0; }
+.admin-card .admin-panel-head:has(+ .admin-card-summary) { @apply mb-3; }
+.admin-card-summary { @apply flex flex-col gap-1 text-sm text-fg-soft; }
+.traffic-kpis { @apply grid gap-2 mb-3; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); }
+.traffic-spark { @apply block w-full; height: 2.75rem; color: var(--color-accent); }
+.admin-users-scroll { max-height: 36rem; overflow-y: auto; }
+.admin-routes-scroll { max-height: 34rem; overflow-y: auto; }
 .oidc-sources { @apply flex items-center gap-1.5; }
 .oidc-icon { @apply inline-flex items-center text-muted; }
 .oidc-icon:hover { @apply text-fg; }
@@ -1537,6 +1547,18 @@ input[type="search"]::placeholder { @apply text-muted; }
 .modal-head { @apply flex items-center gap-3 px-5 py-3 border-b border-border; }
 .modal-title { @apply text-base font-semibold m-0 mr-auto text-fg; }
 .modal-body { @apply px-5 py-4 overflow-x-auto; }
+
+body .modal-body .skm { color: var(--color-fg); }
+.modal-body .skm .skm-muted { color: var(--color-muted); }
+.modal-body .skm .skm-warn { color: var(--color-warn); }
+.modal-body .skm .skm-tile { background: var(--color-panel2); border-color: var(--color-border); }
+.modal-body .skm .skm-tile-n { color: var(--color-fg); }
+.modal-body .skm .skm-tile-l { color: var(--color-muted); }
+.modal-body .skm .skm-spark { color: var(--color-accent); }
+.modal-body .skm .skm-tab, .modal-body .skm .skm-refresh { background: var(--color-panel2); color: var(--color-fg-soft); border-color: var(--color-border-input); }
+.modal-body .skm .skm-tab-on { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-fg-max); }
+.modal-body .skm .skm-table th { color: var(--color-muted); }
+.modal-body .skm .skm-table th, .modal-body .skm .skm-table td { border-bottom-color: var(--color-border); }
 
 .wb-body { @apply flex flex-1 min-h-0; }
 .wb-body.dragging { @apply [outline:2px_dashed_var(--color-accent)] outline-offset-[-6px]; }
