@@ -16,18 +16,17 @@ public class CapturePageTests {
         private readonly WebApplicationFactory<Program> _f = f;
 
         [Fact]
-        public async Task Capture_RendersShell() {
+        public async Task Capture_BareRoute_IsWorkbenchStub() {
             var c = _f.CreateClient();
             var r = await c.GetAsync("/capture");
             Assert.Equal(HttpStatusCode.OK, r.StatusCode);
             string html = await r.Content.ReadAsStringAsync();
-            Assert.Contains(">Capture</a>", html);
-            Assert.Contains("id=\"statsPanel\"", html);
-            Assert.Contains("id=\"flowsPanel\"", html);
-            Assert.Contains("id=\"detailPanel\"", html);
-            Assert.Matches("cap-stat-k\">Proxy</span>\\s*<span class=\"cap-stat-v\">\\s*<span[^>]*>\\s*stopped\\s*</span>", html);
-            Assert.Contains("No device connected yet.", html);
-            Assert.Contains("settings-seg", html);
+            Assert.DoesNotContain(">Capture</a>", html);
+            Assert.DoesNotContain("id=\"statsPanel\"", html);
+            Assert.DoesNotContain("id=\"flowsPanel\"", html);
+            Assert.DoesNotContain("id=\"detailPanel\"", html);
+            Assert.DoesNotContain("href=\"capture\"", html);
+            Assert.Contains("href=\"protos\"", html);
         }
     }
 

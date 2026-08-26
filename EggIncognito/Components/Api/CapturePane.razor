@@ -1,39 +1,39 @@
-@page "/capture"
-@page "/capture/device/{DeviceId}"
-@rendermode @(RenderMode.InteractiveServer)
 @implements IAsyncDisposable
 @using System.Threading.Channels
 @using EggIncognito.Capture
 @using EggIncognito.Components.Capture
 @using EggIncognito.Models.Capture
-@using EggIncognito.Services.Devices
 @inherits SelfCallComponentBase
-@inject IServiceProvider Services
+@inject CaptureSessionManager Manager
+@inject IAppMode AppMode
 @inject ICurrentUser User
-@inject NavigationManager Nav
+@inject HostedCaptureOptions HostedOptions
+@inject IConfiguration Config
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env
-@inject ILogger<Capture> Logger
+@inject ILogger<CapturePane> Logger
 
-<PageTitle>EggIncognito - Device capture</PageTitle>
+@if (_hub is not null) {
+    <div class="awb-pane h-full">
+        @if (_session is not null && _hosted && (!_connected || !_running)) {
+            <div class="setup-collapsible @(_connected ? "setup-hidden" : "")">
+                <HostedSetupCard Port="HostedOptions.FrontDoorPort"
+                                 ClientFactory="Client" InviteUrl="@Config["Discord:InviteUrl"]"
+                                 HostOverride="@_rotatedHost"/>
+            </div>
+        }
 
-@if (string.IsNullOrEmpty(DeviceId)) {
-    <main class="page page-doc pt-6 pb-8">
-        <p class="text-muted text-sm my-0">Opening the capture workbench...</p>
-    </main>
-} else if (_hub is not null) {
-    <main class="capture-main flex flex-col gap-3 p-3 min-h-0">
         <section class="panel capture-topbar">
             <div class="capture-topbar-btns">
-                <CaptureControlsPanel View="_view" OnViewChanged="OnViewChanged" ReadOnly="true"/>
+                <CaptureControlsPanel Running="_running" ToggleBusy="_toggleBusy" View="_view"
+                                      OnToggleCapture="ToggleCapture" OnClear="Clear" OnViewChanged="OnViewChanged"
+                                      Hosted="_hosted" ClientFactory="Client"
+                                      OnAddressRotated="@(h => {
+                                                            _rotatedHost = h;
+                                                            StateHasChanged();
+                                                        })"/>
                 <CaptureNoticesPanel Notices="_notices" Unread="_unread"
                                      OnDismissNotice="DismissNotice" OnClearNotices="ClearNotices" OnNoticesRead="MarkNoticesRead"/>
-            </div>
-            <div class="capture-device">
-                <span class="capture-device-note">read only</span>
-                @if (!string.IsNullOrEmpty(_deviceLabel)) {
-                    <span class="capture-device-name">@_deviceLabel</span>
-                }
             </div>
             <div class="capture-topbar-spacer"></div>
             <StatsPanel Stats="_stats" FlowCount="_flows.Count" Running="_running" Port="_port"/>
@@ -47,7 +47,7 @@
                 <DetailPane Flow="_selectedFlow" View="_view" ClientFactory="Client"/>
             </section>
         </div>
-    </main>
+    </div>
 
     <div class="toast-container">
         @foreach (var t in _toasts) {
@@ -59,17 +59,35 @@
             </div>
         }
     </div>
+} else if (AppMode.HostedCaptureEnabled) {
+    <div class="awb-pane">
+        <h4 class="awb-pane-title">Live capture</h4>
+        @if (!_isAuthenticated) {
+            <div class="panel" id="hostedLogin">
+                <p class="text-muted text-sm mt-0 mb-3">Log in to start a hosted capture session.</p>
+                <LoginButton Label="Log in"/>
+            </div>
+        } else if (!_isSupporter) {
+            <div class="panel" id="hostedPitch">
+                <p class="text-muted text-sm mt-0 mb-3">Hosted capture is a supporter perk.</p>
+                <a class="btn-primary inline-block w-fit no-underline" href="/support">Become a supporter</a>
+            </div>
+            <LocalCaptureGuide/>
+        } else {
+            <div class="panel" id="hostedCapacity">
+                <p class="text-muted text-sm my-0">
+                    All capture slots are in use right now. Try again in a few
+                    minutes.
+                </p>
+            </div>
+        }
+    </div>
 } else {
-    <main class="page page-doc pt-6 pb-8">
-        <h1 class="text-[1.3rem] mt-0 mb-2">Device capture</h1>
-        <div class="panel">
-            <p class="text-muted text-sm my-0">
-                This device live-view is admin-only, and only available for a declared device whose capture is
-                running on this host. No live session for <code class="code-chip">@DeviceId</code>.
-            </p>
-            <a class="btn-secondary text-xs mt-3 w-fit no-underline" href="/admin">Back to Admin</a>
-        </div>
-    </main>
+    <div class="awb-pane">
+        <h4 class="awb-pane-title">Live capture</h4>
+        <p class="text-muted text-sm mt-0 mb-3">Capture runs a local proxy + CA and writes to disk, so it cannot run on this hosted instance.</p>
+        <LocalCaptureGuide/>
+    </div>
 }
 
 @code {
@@ -82,6 +100,7 @@
     bool _running;
     int _port;
     bool _connected;
+    bool _toggleBusy;
 
     readonly CaptureViewState _view = new();
 
@@ -97,17 +116,22 @@
 
     IJSObjectReference? _store;
 
+    CaptureSession? _session;
     CaptureHub? _hub;
-    string? _deviceLabel;
-
-    [Parameter] public string? DeviceId { get; set; }
+    bool _hosted;
+    string? _rotatedHost;
+    bool _isAuthenticated;
+    bool _isSupporter;
+    string? _userId;
 
     protected override void OnInitialized() {
         base.OnInitialized();
 
-        if (string.IsNullOrEmpty(DeviceId)) return;
+        _isAuthenticated = User.IsAuthenticated;
+        _isSupporter = User.IsSupporter;
+        _userId = User.DiscordId;
 
-        ResolveDeviceSession();
+        ResolveSession();
         if (_hub is null) return;
 
         foreach (var f in _hub.Snapshot()) AddOrUpdateFlow(f);
@@ -116,14 +140,23 @@
         foreach (var k in CaptureController_SensitiveKeys()) _view.SensitiveKeys.Add(k);
     }
 
-    void ResolveDeviceSession() {
-        if (!User.IsAtLeast(UserRole.Admin)) return;
-        var dcm = Services.GetService(typeof(DeviceCaptureManager)) as DeviceCaptureManager;
-        var hub = dcm?.HubFor(DeviceId!);
-        if (hub is null) return;
-        _hub = hub;
-        var cfg = Services.GetService(typeof(DeviceConfig)) as DeviceConfig;
-        _deviceLabel = cfg?.Devices.FirstOrDefault(d => d.Id == DeviceId)?.Label ?? DeviceId;
+    void ResolveSession() {
+        if (AppMode.CanCapture) {
+            _session = Manager.GetOrCreate(CaptureSessionManager.LocalKey);
+            _hub = _session.Hub;
+            return;
+        }
+
+        if (!AppMode.HostedCaptureEnabled || !_isAuthenticated || !_isSupporter || string.IsNullOrEmpty(_userId))
+            return;
+        _hosted = true;
+        try {
+            _session = Manager.GetOrCreate(_userId);
+            _hub = _session.Hub;
+        }
+        catch (CaptureCapacityException) {
+            _session = null;
+        }
     }
 
     static IEnumerable<string> CaptureController_SensitiveKeys() {
@@ -131,14 +164,7 @@
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender) {
-        if (!firstRender) return;
-
-        if (string.IsNullOrEmpty(DeviceId)) {
-            Nav.NavigateTo("/protos#api/capture", replace: true);
-            return;
-        }
-
-        if (_hub is null) return;
+        if (!firstRender || _hub is null) return;
 
         try {
             _store = await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/captureStore.js"));
@@ -172,10 +198,10 @@
                 }
             }
             catch (OperationCanceledException) {
-                Logger.LogTrace("device capture subscription cancelled");
+                Logger.LogTrace("capture subscription cancelled");
             }
             catch (ChannelClosedException) {
-                Logger.LogTrace("device capture hub unsubscribed");
+                Logger.LogTrace("capture hub unsubscribed");
             }
         }, ct);
     }
@@ -217,6 +243,36 @@
     void SelectFlow(long id) {
         _selectedId = id;
         _selectedFlow = _flowIndex.TryGetValue(id, out var idx) ? _flows[idx] : null;
+    }
+
+    async Task ToggleCapture() {
+        _toggleBusy = true;
+        try {
+            var url = _running ? "/api/capture/stop" : "/api/capture/start";
+            await Client().PostAsync(url, null);
+        }
+        catch (Exception ex) {
+            Logger.LogDebug(ex, "toggling capture failed; the next stats broadcast reconciles it");
+        }
+        finally {
+            _toggleBusy = false;
+            StateHasChanged();
+        }
+    }
+
+    async Task Clear() {
+        try {
+            var res = await Client().PostAsync("/api/capture/clear", null);
+            if (res.IsSuccessStatusCode) {
+                _flows.Clear();
+                _flowIndex.Clear();
+                _selectedId = null;
+                _selectedFlow = null;
+            }
+        }
+        catch (Exception ex) {
+            Logger.LogWarning(ex, "clearing the capture buffer failed");
+        }
     }
 
     async Task OnViewChanged() {

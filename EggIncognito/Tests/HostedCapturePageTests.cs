@@ -2,6 +2,7 @@ using System.Net;
 using Bunit;
 using EggIdentity.Contract;
 using EggIncognito.Capture;
+using EggIncognito.Components.Api;
 using EggIncognito.Controllers;
 using EggIncognito.Models.Capture;
 using EggIncognito.Services;
@@ -11,7 +12,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using CapturePage = EggIncognito.Components.Pages.Capture;
 
 namespace EggIncognito.Tests;
 
@@ -72,12 +72,14 @@ public class HostedCapturePageTests {
         }
 
         [Fact]
-        public async Task CapturePage_HostedEnabled_Anonymous_ShowsLoginPrompt() {
-            string html = await f.CreateClient().GetStringAsync("/capture");
-            Assert.Contains("id=\"hostedLogin\"", html);
-
-            Assert.Contains("Login is not configured.", html);
+        public async Task CaptureRoute_HostedEnabled_Anonymous_IsWorkbenchStub() {
+            var r = await f.CreateClient().GetAsync("/capture");
+            Assert.Equal(HttpStatusCode.OK, r.StatusCode);
+            string html = await r.Content.ReadAsStringAsync();
+            Assert.DoesNotContain("id=\"hostedLogin\"", html);
             Assert.DoesNotContain("id=\"statsPanel\"", html);
+            Assert.DoesNotContain("href=\"capture\"", html);
+            Assert.Contains("href=\"protos\"", html);
         }
 
         [Fact]
@@ -89,9 +91,9 @@ public class HostedCapturePageTests {
 
 
     public class Component : BunitContext {
-        private void Wire(TempDir tmp, bool authed, bool supporter) {
+        private void Wire(TempDir tmp, bool authed, bool supporter, bool canCapture = false) {
             JSInterop.Mode = JSRuntimeMode.Loose;
-            Services.AddSingleton<IAppMode>(new FakeAppMode(false, true));
+            Services.AddSingleton<IAppMode>(new FakeAppMode(canCapture, true));
             Services.AddSingleton<ICurrentUser>(new FakeUser(authed, supporter));
             Services.AddSingleton(HostedCaptureOptions.Defaults());
             Services.AddSingleton(NewManager(tmp));
@@ -106,7 +108,7 @@ public class HostedCapturePageTests {
         public void Anonymous_ShowsLoginPrompt() {
             using var tmp = new TempDir();
             Wire(tmp, false, false);
-            var cut = Render<CapturePage>();
+            var cut = Render<CapturePane>();
             Assert.NotNull(cut.Find("#hostedLogin"));
             Assert.Empty(cut.FindAll("#hostedSetupCard"));
         }
@@ -115,7 +117,7 @@ public class HostedCapturePageTests {
         public void NonSupporter_ShowsPitchWithSupportLink() {
             using var tmp = new TempDir();
             Wire(tmp, true, false);
-            var cut = Render<CapturePage>();
+            var cut = Render<CapturePane>();
             Assert.NotNull(cut.Find("#hostedPitch"));
             Assert.Contains("href=\"/support\"", cut.Markup);
             Assert.Empty(cut.FindAll("#hostedSetupCard"));
@@ -125,16 +127,27 @@ public class HostedCapturePageTests {
         public void Supporter_ShowsSetupCard_AndDashboard() {
             using var tmp = new TempDir();
             Wire(tmp, true, true);
-            var cut = Render<CapturePage>();
+            var cut = Render<CapturePane>();
             Assert.NotNull(cut.Find("#hostedSetupCard"));
             Assert.NotNull(cut.Find("#statsPanel"));
+        }
+
+        [Fact]
+        public void LocalCapture_ShowsDashboardWithoutSetupCard() {
+            using var tmp = new TempDir();
+            Wire(tmp, false, false, canCapture: true);
+            var cut = Render<CapturePane>();
+            Assert.NotNull(cut.Find("#statsPanel"));
+            Assert.NotNull(cut.Find("#flowsPanel"));
+            Assert.NotNull(cut.Find("#detailPanel"));
+            Assert.Empty(cut.FindAll("#hostedSetupCard"));
         }
 
         [Fact]
         public void Supporter_SetupCard_ShowsProxyAddress_NoAuthCredentials() {
             using var tmp = new TempDir();
             Wire(tmp, true, true);
-            var cut = Render<CapturePage>();
+            var cut = Render<CapturePane>();
             string markup = cut.Markup;
 
             Assert.NotNull(cut.Find("#proxyHost"));

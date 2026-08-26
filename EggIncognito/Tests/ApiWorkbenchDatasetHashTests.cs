@@ -80,6 +80,17 @@ public class ApiWorkbenchDatasetHashTests {
     }
 
     [Fact]
+    public void Hash_RoundTripsTheCapturePane() {
+        var state = new ApiWorkbenchState { Kind = ApiSelectionKind.Capture };
+
+        Assert.Equal("api/capture", state.Hash());
+
+        var fresh = new ApiWorkbenchState();
+        Assert.True(fresh.ApplyHash(state.Hash()));
+        Assert.Equal(ApiSelectionKind.Capture, fresh.Kind);
+    }
+
+    [Fact]
     public void ApplyHash_LeavesTheStateAloneWhenItDoesNotMatch() {
         var state = new ApiWorkbenchState();
         state.SelectDataset("gamedata", "mission", null);

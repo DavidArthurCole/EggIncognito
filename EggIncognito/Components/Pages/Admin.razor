@@ -1,7 +1,9 @@
 @page "/admin"
+@using EggIncognito.Components.Playground
 @using EggIncognito.Components.Protos
 @rendermode @(RenderMode.InteractiveServer)
 @inject ICurrentUser User
+@inject NavigationManager Nav
 
 <PageTitle>EggIncognito - Admin</PageTitle>
 <main id="adminMain" class="page page-wide pt-6 pb-8">
@@ -30,22 +32,35 @@
             <AdminConsolePanel/>
             <AdminBotConfigPanel/>
             <AdminMaintenancePanel/>
+            <AdminPlaygroundPanel OnOpen="OpenPlayground"/>
         </AdminSection>
     }
 </main>
 
 <DeviceWorkbenchModal @ref="_deviceWorkbench"/>
+<PlaygroundWorkbenchModal @ref="_playground"/>
 
 @code {
     bool _isAdmin;
     DeviceWorkbenchModal? _deviceWorkbench;
+    PlaygroundWorkbenchModal? _playground;
 
     Task OpenDeviceWorkbench(string? deviceId) {
         return _deviceWorkbench?.Open(deviceId) ?? Task.CompletedTask;
     }
 
+    Task OpenPlayground() {
+        return _playground?.Open() ?? Task.CompletedTask;
+    }
+
     protected override void OnInitialized() {
         _isAdmin = User.IsAtLeast(UserRole.Admin);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender) {
+        if (!firstRender || !_isAdmin) return;
+        var fragment = new Uri(Nav.Uri).Fragment.TrimStart('#');
+        if (string.Equals(fragment, "playground", StringComparison.Ordinal)) await OpenPlayground();
     }
 
 }

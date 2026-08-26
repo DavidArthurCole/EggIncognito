@@ -21,14 +21,16 @@ public class PlaygroundTests(SharedAppFactory f) {
             + $"{(int)r.StatusCode}");
 
     [Fact]
-    public async Task Playground_Page_Renders_ContributorGated() {
+    public async Task Playground_Route_IsARedirectStub() {
         var c = _factory.CreateClient();
         var r = await c.GetAsync("/playground");
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
         string html = await r.Content.ReadAsStringAsync();
-        Assert.Contains("Farm Playground", html);
-        Assert.Contains("Contributor access required", html);
         Assert.DoesNotContain("playgroundCanvas", html);
+        Assert.DoesNotContain("Contributor access required", html);
+        Assert.DoesNotContain("href=\"playground\"", html);
+        Assert.Contains("href=\"protos\"", html);
+        Assert.Contains("Protos &amp; Data", html);
     }
 
     [Fact]

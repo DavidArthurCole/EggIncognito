@@ -5,5 +5,6 @@ public enum ApiSelectionKind {
     Dataset,
     Keys,
     AllKeys,
-    Routes
+    Routes,
+    Capture
 }

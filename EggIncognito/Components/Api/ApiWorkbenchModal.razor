@@ -52,6 +52,12 @@
                     </WorkbenchSection>
                 }
             </WorkbenchLoad>
+            <WorkbenchSection Label="Capture">
+                <WorkbenchEntry Selected="@(State.Kind == ApiSelectionKind.Capture)"
+                                OnClick="@(_ => SelectSection(ApiSelectionKind.Capture))">
+                    <Name>Live capture</Name>
+                </WorkbenchEntry>
+            </WorkbenchSection>
             @if (User.IsAuthenticated) {
                 <WorkbenchSection Label="Keys">
                     <WorkbenchEntry Selected="@(State.Kind == ApiSelectionKind.Keys)"
@@ -89,6 +95,9 @@
                 break;
             case ApiSelectionKind.Routes:
                 <RouteCatalogPane/>
+                break;
+            case ApiSelectionKind.Capture:
+                <CapturePane/>
                 break;
             default:
                 <div class="awb-try">

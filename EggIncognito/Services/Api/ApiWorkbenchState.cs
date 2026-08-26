@@ -187,6 +187,7 @@ public sealed class ApiWorkbenchState : WorkbenchStateBase {
             ApiSelectionKind.Keys => "api/keys",
             ApiSelectionKind.AllKeys => "api/keys/all",
             ApiSelectionKind.Routes => "api/routes",
+            ApiSelectionKind.Capture => "api/capture",
             _ => MockHash()
         };
     }
@@ -219,6 +220,9 @@ public sealed class ApiWorkbenchState : WorkbenchStateBase {
                 return true;
             case "routes":
                 Kind = ApiSelectionKind.Routes;
+                return true;
+            case "capture":
+                Kind = ApiSelectionKind.Capture;
                 return true;
         }
 

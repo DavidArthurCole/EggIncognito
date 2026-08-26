@@ -939,7 +939,7 @@ if (servesOverKestrel &&
             }
         }
 
-        string url = addr.TrimEnd('/') + (captureMode ? "/capture" : "/protos#api");
+        string url = addr.TrimEnd('/') + (captureMode ? "/protos#api/capture" : "/protos#api");
         try {
             Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
         } catch (Exception ex) {
