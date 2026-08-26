@@ -33,6 +33,7 @@ jobs:
       contents: read
       packages: write
     with:
+      packages-auth: true
       pack-targets: |
         EggIncognito.Core/EggIncognito.Core.csproj
         EggIncognito.GameData/EggIncognito.GameData.csproj
