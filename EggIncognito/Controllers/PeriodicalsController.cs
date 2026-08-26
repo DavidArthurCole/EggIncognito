@@ -115,6 +115,7 @@ public sealed class PeriodicalsController(
                 var per = PeriodicalsResponse.Parser.ParseJson(perJson);
                 foreach (var contract in per.Contracts?.Contracts ?? []) {
                     if (string.IsNullOrEmpty(contract.SeasonId) || string.IsNullOrEmpty(contract.CustomEggId)) continue;
+                    if (contract.Leggacy) continue;
                     if (!seasonEggs.TryGetValue(contract.SeasonId, out var eggs)) {
                         eggs = [];
                         seasonEggs[contract.SeasonId] = eggs;
