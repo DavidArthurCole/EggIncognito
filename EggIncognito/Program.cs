@@ -536,7 +536,6 @@ if (probeTimeoutSeconds > 0)
     DeviceProbeTimeout.Value = TimeSpan.FromSeconds(probeTimeoutSeconds);
 builder.Services.AddWorkbenchStates();
 builder.Services.AddScoped<EggIncognito.Services.Theme.ThemeWorkbenchState>();
-builder.Services.AddScoped<EggIncognito.Services.Inspector.InspectorState>();
 builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<EggIncognito.Services.Theme.ThemeCssSerializer>();
 builder.Services.AddScoped<EggIncognito.Services.Theme.ThemeResolver>();
@@ -940,7 +939,7 @@ if (servesOverKestrel &&
             }
         }
 
-        string url = addr.TrimEnd('/') + (captureMode ? "/capture" : "/inspector");
+        string url = addr.TrimEnd('/') + (captureMode ? "/capture" : "/protos#api");
         try {
             Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
         } catch (Exception ex) {

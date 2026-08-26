@@ -3,7 +3,7 @@ using Bunit;
 using EggIdentity.Contract;
 using EggIncognito.Components.Pages;
 using EggIncognito.Services;
-using EggIncognito.Services.Data;
+using EggIncognito.Services.Api;
 using EggIncognito.Services.Devices;
 using EggIncognito.Services.Notifications;
 using EggIncognito.Services.Protos;
@@ -46,10 +46,14 @@ public class ProtosPageTests {
             Services.AddSingleton<ICurrentUser>(new FakeUser(role));
             Services.AddSingleton<IHttpContextAccessor>(new HttpContextAccessor());
             Services.AddSingleton<IWebHostEnvironment>(new FakeWebHostEnvironment());
+            Services.AddSingleton<IRouteCatalog>(new RouteCatalog("__no_routes_yaml__"));
+            Services.AddSingleton<IProtoReflection, ProtoReflection>();
+            Services.AddSingleton<IAppMode>(new FakeAppMode());
+            Services.AddSingleton<ISealedProxy>(new FakeSealedProxy());
             Services.AddScoped<ProtoWorkbenchState>();
             Services.AddScoped<DeviceWorkbenchState>();
             Services.AddScoped<NotificationsWorkbenchState>();
-            Services.AddScoped<DataWorkbenchState>();
+            Services.AddScoped<ApiWorkbenchState>();
             Services.AddHttpClient();
 
             JSInterop.Mode = JSRuntimeMode.Loose;
@@ -74,5 +78,18 @@ public class ProtosPageTests {
         public UserRole Role => role;
         public bool IsSupporter => false;
         public bool IsAtLeast(UserRole need) => role >= need;
+    }
+
+    private sealed class FakeAppMode : IAppMode {
+        public AppMode Mode => AppMode.Local;
+        public bool CanCapture => false;
+        public bool CanWrite => false;
+        public bool HostedCaptureEnabled => false;
+    }
+
+    private sealed class FakeSealedProxy : ISealedProxy {
+        public bool IsConfigured => false;
+        public Task<bool> CanUseAsync(ICurrentUser user, CancellationToken ct = default) => Task.FromResult(false);
+        public HttpClient CreateEgressClient() => new();
     }
 }

@@ -4,7 +4,6 @@
     <a href="/" class="app-nav-brand">
         <img src="/brand/logo.png" alt="EggIncognito"/>
     </a>
-    <NavLink href="inspector" Match="NavLinkMatch.Prefix" ActiveClass="active">Inspector</NavLink>
     <NavLink href="protos" Match="NavLinkMatch.Prefix" ActiveClass="active">Protos & Data</NavLink>
     @if (User.IsAtLeast(UserRole.Contributor)) {
         <NavLink href="playground" ActiveClass="active">Playground</NavLink>

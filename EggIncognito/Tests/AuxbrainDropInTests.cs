@@ -139,7 +139,7 @@ public class AuxbrainDropInTests(EggIncApiFactory factory) {
         Assert.Contains("data=", body);
         Assert.Contains("AuthenticatedMessage", body);
         Assert.Contains("/api/catalog", body);
-        Assert.Contains("/inspector", body);
+        Assert.Contains("/protos#api", body);
     }
 
     [Fact]

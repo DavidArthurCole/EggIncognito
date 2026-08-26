@@ -7,6 +7,7 @@ namespace EggIncognito.Tests;
 public sealed class EggIncApiFactory : EgiTestFactory {
     protected override void Configure(IWebHostBuilder builder) {
         builder.UseEnvironment("Testing");
+        builder.UseSetting("RateLimiting:Enabled", "true");
         builder.UseSetting("EndpointsPath", FindEndpointsPath());
     }
 

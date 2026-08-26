@@ -38,7 +38,7 @@ public sealed class ApiSurfaceController(AuxbrainSurface surface) : ControllerBa
                                        <li><a href="/api/openapi.json">/api/openapi.json</a> OpenAPI 3.0 document</li>
                                        <li><a href="/api/reference">/api/reference</a> browsable reference (Redoc)</li>
                                        <li><a href="/api/catalog">/api/catalog</a> machine-readable route catalog</li>
-                                       <li><a href="/inspector">/inspector</a> build, sign, send, and decode requests</li>
+                                       <li><a href="/protos#api">/protos#api</a> build, sign, send, and decode requests</li>
                                        <li><a href="/docs">/docs</a> message and endpoint documentation</li>
                                        </ul>
                                        <p>Namespace indexes: NAMESPACE_LINKS</p>

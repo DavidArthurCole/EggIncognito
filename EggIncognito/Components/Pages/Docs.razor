@@ -1,13 +1,13 @@
 @page "/docs"
 @inject NavigationManager Nav
 
-@* Docs folded into the Inspector (proto docs now live on the endpoint Docs tab + the Objects view). This
+@* Docs live in the API workbench at /protos#api (endpoint Docs tab + the Objects view). This
    legacy route redirects so old links keep working. *@
 
 @code {
 
     protected override void OnInitialized() {
-        Nav.NavigateTo("/inspector", replace: true);
+        Nav.NavigateTo("/protos#api", replace: true);
     }
 
 }

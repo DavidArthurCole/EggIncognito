@@ -1,12 +1,13 @@
 using Bunit;
 using EggIncognito.Components.Inspector;
+using EggIncognito.Services.Api;
 using EggIncognito.Services.Inspector;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace EggIncognito.Tests;
 
 public class EnvironmentPanelTests : BunitContext {
-    private readonly InspectorState _state = new();
+    private readonly ApiWorkbenchState _state = new();
 
     private IRenderedComponent<EnvironmentPanel> RenderPanel() {
         Services.AddSingleton(_state);

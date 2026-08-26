@@ -11,6 +11,7 @@
 @inject ProtoWorkbenchState State
 @using System.Globalization
 @using System.Text.Json
+@using EggIncognito.Components.Api
 @using EggIncognito.Components.Protos
 @using EggIncognito.Models.Registry
 @using EggIncognito.Services.ProtoExtract
@@ -45,10 +46,11 @@
     </section>
     <section class="panel pd-note">
         <div class="min-w-0">
-            <h3 class="text-sm font-semibold m-0">Notifications</h3>
-            <p class="text-muted text-xs m-0 mt-1">Discord webhooks that fire on new proto builds and periodicals updates.</p>
+            <h3 class="text-sm font-semibold m-0">Workbenches</h3>
+            <p class="text-muted text-xs m-0 mt-1">Discord webhook notifications, and the API workbench: build and send requests, browse data sources, manage keys.</p>
         </div>
         <button type="button" class="btn-primary" @onclick="OpenNotifications">Manage notifications</button>
+        <button type="button" class="btn-primary" @onclick="OpenApiWorkbench">API workbench</button>
     </section>
 </div>
 <div class="pd-mod pd-main pd-stack">
@@ -340,7 +342,7 @@
 </section>
 </div>
 <div class="pd-mod pd-side">
-    <PeriodicalsPanel/>
+    <PeriodicalsPanel OnOpenData="OpenDataWorkbench"/>
 </div>
 </div>
 </main>
@@ -348,13 +350,23 @@
 <NotificationsWorkbenchModal @ref="_notificationsModal"/>
 <ProtoWorkbenchModal @ref="_workbench" OnChanged="OnMutated" OnRefChanged="OnWorkbenchRef" OnClosed="OnWorkbenchClosed"/>
 <DeviceWorkbenchModal @ref="_deviceWorkbench" OnChanged="OnMutated"/>
+<ApiWorkbenchModal @ref="_apiWorkbench"/>
 
 @code {
     ProtoWorkbenchModal? _workbench;
     DeviceWorkbenchModal? _deviceWorkbench;
+    ApiWorkbenchModal? _apiWorkbench;
 
     Task OpenDeviceWorkbench(string? deviceId) {
         return _deviceWorkbench?.Open(deviceId) ?? Task.CompletedTask;
+    }
+
+    Task OpenApiWorkbench() {
+        return _apiWorkbench?.Open() ?? Task.CompletedTask;
+    }
+
+    Task OpenDataWorkbench() {
+        return _apiWorkbench?.OpenData() ?? Task.CompletedTask;
     }
 
     static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);

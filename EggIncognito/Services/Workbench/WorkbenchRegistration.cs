@@ -1,4 +1,4 @@
-using EggIncognito.Services.Data;
+using EggIncognito.Services.Api;
 using EggIncognito.Services.Devices;
 using EggIncognito.Services.Notifications;
 using EggIncognito.Services.Protos;
@@ -10,7 +10,7 @@ public static class WorkbenchRegistration {
         services.AddScoped<ProtoWorkbenchState>();
         services.AddScoped<DeviceWorkbenchState>();
         services.AddScoped<NotificationsWorkbenchState>();
-        services.AddScoped<DataWorkbenchState>();
+        services.AddScoped<ApiWorkbenchState>();
         return services;
     }
 }

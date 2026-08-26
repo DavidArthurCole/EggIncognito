@@ -12,7 +12,7 @@ The ASP.NET Core app. Serves the mock Egg, Inc. API, the Blazor Server UI, and t
 
 Blazor Server, InteractiveServer over a SignalR circuit.
 
-- `/inspector` - build, sign, send, and decode any API request.
+- `/protos#api` - the API workbench: build, sign, send, and decode any API request.
 - `/capture` - live capture dashboard.
 - `/protos` - proto registry, game-data repository, public data API + key management.
 - `/admin` - roles, contribution review, API activity, themes, device status.

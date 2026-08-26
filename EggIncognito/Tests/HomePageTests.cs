@@ -12,7 +12,7 @@ public class HomePageTests(SharedAppFactory f) {
         var res = await client.GetAsync("/");
         res.EnsureSuccessStatusCode();
         string html = await res.Content.ReadAsStringAsync();
-        Assert.Contains("Inspector", html);
+        Assert.Contains("API workbench", html);
         Assert.Contains("/support", html);
     }
 }

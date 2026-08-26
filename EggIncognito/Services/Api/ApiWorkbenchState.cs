@@ -1,39 +1,14 @@
 using System.Reflection;
+using EggIncognito.Components.Capture;
 using EggIncognito.Components.Inspector;
+using EggIncognito.Models.Data;
+using EggIncognito.Services.Inspector;
 using EggIncognito.Services.Workbench;
 using Google.Protobuf.Reflection;
 
-namespace EggIncognito.Services.Inspector;
+namespace EggIncognito.Services.Api;
 
-public sealed class RinfoSeed {
-    public string EiUserId { get; set; } = "";
-    public string ClientVersion { get; set; } = "";
-    public string Version { get; set; } = "";
-    public string Build { get; set; } = "";
-    public string Platform { get; set; } = "";
-    public string Country { get; set; } = "";
-    public string Language { get; set; } = "";
-    public bool Debug { get; set; }
-
-    public RinfoSeed OverlaidWith(RinfoSeed? over) {
-        if (over is null) return this;
-        return new RinfoSeed {
-            EiUserId = Pick(EiUserId, over.EiUserId),
-            ClientVersion = Pick(ClientVersion, over.ClientVersion),
-            Version = Pick(Version, over.Version),
-            Build = Pick(Build, over.Build),
-            Platform = Pick(Platform, over.Platform),
-            Country = Pick(Country, over.Country),
-            Language = Pick(Language, over.Language),
-            Debug = over.Debug || Debug
-        };
-    }
-
-    private static string Pick(string under, string over) =>
-        string.IsNullOrWhiteSpace(over) ? under : over;
-}
-
-public sealed class InspectorState : WorkbenchStateBase {
+public sealed class ApiWorkbenchState : WorkbenchStateBase {
     public static readonly string[] PlatformOptions = [
         .. typeof(Ei.Platform).GetFields()
             .Where(f => f.IsLiteral)
@@ -173,4 +148,84 @@ public sealed class InspectorState : WorkbenchStateBase {
 
     public bool NoFillableFields =>
         FieldNodes is { Count: > 0 } && FieldNodes.All(n => n.Locked);
+
+    public ApiSelectionKind Kind { get; set; } = ApiSelectionKind.Endpoint;
+
+    public string Group { get; set; } = "";
+    public string Id { get; set; } = "";
+    public string? Sub { get; set; }
+    public List<DataSourceRow>? Sources { get; set; }
+#pragma warning disable IDE0028
+    public Dictionary<string, string> Names { get; } = new(StringComparer.Ordinal);
+    public Dictionary<string, string> Formats { get; } = new(StringComparer.Ordinal);
+    public Dictionary<string, DataPayloadEntry> Payloads { get; } = new(StringComparer.Ordinal);
+#pragma warning restore IDE0028
+    public CaptureViewState View { get; } = new();
+
+    public string? PendingEndpointPath { get; set; }
+    public string? PendingObjectName { get; set; }
+
+    public bool HasDataset => Kind == ApiSelectionKind.Dataset && Group.Length > 0 && Id.Length > 0;
+
+    public string DatasetKey => Sub is { Length: > 0 } sub ? $"{Group}/{Id}/{sub}" : $"{Group}/{Id}";
+
+    public string NameFor(string key) => Names.GetValueOrDefault(key, "");
+
+    public void SelectDataset(string group, string id, string? sub) {
+        Kind = ApiSelectionKind.Dataset;
+        Group = group;
+        Id = id;
+        Sub = string.IsNullOrEmpty(sub) ? null : sub;
+    }
+
+    public override string HashPrefix => "api";
+
+    public override string? Hash() {
+        return Kind switch {
+            ApiSelectionKind.Dataset when Group.Length > 0 && Id.Length > 0 =>
+                Sub is { Length: > 0 } sub ? $"api/data/{Group}/{Id}/{sub}" : $"api/data/{Group}/{Id}",
+            ApiSelectionKind.Keys => "api/keys",
+            ApiSelectionKind.AllKeys => "api/keys/all",
+            ApiSelectionKind.Routes => "api/routes",
+            _ => MockHash()
+        };
+    }
+
+    private string MockHash() {
+        var formatted = InspectorRefParser.Format(Ref());
+        return formatted.Length > 0 ? $"api/{formatted}" : "api";
+    }
+
+    public override bool ApplyHash(string? hash) {
+        string body = (hash ?? "").TrimStart('#');
+        if (body.StartsWith("data/", StringComparison.Ordinal)) body = "api/" + body;
+        if (!body.StartsWith("api", StringComparison.Ordinal)) return false;
+        string rest = body.Length > 3 && body[3] == '/' ? body[4..] : body == "api" ? "" : null!;
+        if (rest is null) return false;
+
+        if (rest.StartsWith("data/", StringComparison.Ordinal)) {
+            string[] parts = rest["data/".Length..].Split('/');
+            if (parts.Length is < 2 or > 3 || parts.Any(p => p.Length == 0 || p.Contains('.', StringComparison.Ordinal))) return false;
+            SelectDataset(parts[0], parts[1], parts.Length == 3 ? parts[2] : null);
+            return true;
+        }
+
+        switch (rest) {
+            case "keys":
+                Kind = ApiSelectionKind.Keys;
+                return true;
+            case "keys/all":
+                Kind = ApiSelectionKind.AllKeys;
+                return true;
+            case "routes":
+                Kind = ApiSelectionKind.Routes;
+                return true;
+        }
+
+        Kind = ApiSelectionKind.Endpoint;
+        var mock = InspectorRefParser.Parse(rest);
+        PendingEndpointPath = mock.EndpointPath;
+        PendingObjectName = mock.ObjectName;
+        return true;
+    }
 }

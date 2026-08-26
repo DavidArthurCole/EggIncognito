@@ -10,9 +10,12 @@ public static class RateLimiterSetup {
     public static IServiceCollection AddAppRateLimiter(this IServiceCollection services, IConfiguration config) {
         var opts = RateLimitOptions.Bind(config);
         if (!opts.Enabled) {
-            services.AddRateLimiter(o => o.GlobalLimiter =
-                PartitionedRateLimiter.Create<HttpContext, string>(_ =>
-                    RateLimitPartition.GetNoLimiter("disabled")));
+            services.AddRateLimiter(o => {
+                o.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(_ =>
+                    RateLimitPartition.GetNoLimiter("disabled"));
+                foreach (string policy in (string[])["egress", "write", "read", "fetch", "data"])
+                    o.AddPolicy(policy, _ => RateLimitPartition.GetNoLimiter("disabled"));
+            });
             return services;
         }
 

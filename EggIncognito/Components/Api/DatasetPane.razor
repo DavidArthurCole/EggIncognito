@@ -1,0 +1,156 @@
+@using EggIncognito.Core
+@using EggIncognito.Models.Data
+@using EggIncognito.Services.Api
+@inherits SelfCallComponentBase
+@inject ApiWorkbenchState State
+@inject ILogger<DatasetPane> Logger
+
+@if (Current is { } s) {
+    <div class="ds-pane">
+        <header class="ds-head">
+            <div class="ds-head-row">
+                <h4 class="ds-title">@s.DisplayName</h4>
+                @if (!s.AcceptsName) {
+                    <a class="btn-mini no-underline" href="@s.Url" download="@DownloadName(s)"
+                       target="_blank" rel="noopener">
+                        Download
+                    </a>
+                }
+            </div>
+            @if (!string.IsNullOrWhiteSpace(s.Description)) {
+                <p class="ds-desc">@s.Description</p>
+            }
+            <div class="ds-meta">
+                <span>@ProvenanceLabel(s.Provenance)</span>
+                <span class="ds-meta-sep">|</span>
+                <span>@AccessLabel(s.Access)</span>
+                @if (s.Bytes is { } bytes) {
+                    <span class="ds-meta-sep">|</span>
+                    <span class="font-mono">@ByteFormat.Compact(bytes)</span>
+                }
+                @if (!string.IsNullOrEmpty(s.Feed)) {
+                    <span class="ds-meta-sep">|</span>
+                    <span class="font-mono">@s.Feed</span>
+                }
+                @if (s.Meta?.BinaryVersion is { Length: > 0 } binaryVersion) {
+                    <span class="ds-meta-sep">|</span>
+                    <VersionLine App="@binaryVersion"/>
+                }
+            </div>
+            <a class="ds-route font-mono" href="@s.Url" target="_blank" rel="noopener">@s.Url</a>
+            <div class="ds-curl">
+                <code class="ds-curl-text">@CurlLine(s)</code>
+                <CopyButton GetText="@(() => CurlLine(s))" ButtonClass="btn-mini" IconClass="icon-sm"
+                            Label="Copy" CopiedLabel="Copied"/>
+            </div>
+        </header>
+        <div class="ds-body">
+            @if (s.AcceptsName) {
+                var name = State.NameFor(State.DatasetKey);
+                <label class="sub-field ds-field">
+                    <span class="sub-field-label">Asset name</span>
+                    <input class="field-input font-mono" placeholder="afx_ornate_gusset_2" value="@name"
+                           @oninput="OnNameInput"/>
+                </label>
+                @if (name.Length > 0) {
+                    <img class="ds-asset" src="@AssetUrl(s, name)" alt="@name"/>
+                    <div>
+                        <a class="btn-mini no-underline" href="@AssetUrl(s, name)"
+                           download="@($"{name}.png")" target="_blank" rel="noopener">
+                            Download
+                        </a>
+                    </div>
+                }
+            } else if (State.Payloads.GetValueOrDefault(s.Url) is not { } entry) {
+                <p class="ds-note">Loading...</p>
+            } else if (entry.Status == 401) {
+                <div class="ds-gate">
+                    <LoginButton Label="Log in" Placement="LoginMenuPlacement.Right"/>
+                </div>
+            } else if (entry.Status is < 200 or > 299) {
+                <StatusNote Severity="StatusNoteKind.Error">
+                    @(entry.Status == 0 ? "The request failed." : $"HTTP {entry.Status}")
+                </StatusNote>
+            } else {
+                <CodeFormats Key="@s.Url" ShowLabel="false" Json="@entry.Text" View="State.View"
+                             Choice="State.Formats" MaxHeight="52vh"/>
+            }
+        </div>
+    </div>
+} else {
+    <div class="ds-body">
+        <p class="ds-note">Select a dataset.</p>
+    </div>
+}
+
+@code {
+    string _origin = "https://eggincognito.davidarthurcole.me";
+
+    DataSourceRow? Current {
+        get {
+            var root = State.Sources?.FirstOrDefault(s => s.Group == State.Group && s.Id == State.Id);
+            if (root is null) return null;
+            if (State.Sub is not { Length: > 0 } sub) return root;
+            return root.Children?.FirstOrDefault(c => c.Id == sub);
+        }
+    }
+
+    static string ProvenanceLabel(string raw) {
+        return raw switch {
+            "WireFixture" => "wire fixture",
+            "DerivedExtract" => "derived extract",
+            "Database" => "database document",
+            "Asset" => "game asset",
+            _ => raw
+        };
+    }
+
+    static string AccessLabel(string raw) {
+        return string.Equals(raw, "Authenticated", StringComparison.Ordinal) ? "account or API key" : "public";
+    }
+
+    string CurlLine(DataSourceRow s) {
+        return $"curl -H \"X-Api-Key: <your-key>\" {_origin}{s.Url}";
+    }
+
+    static string DownloadName(DataSourceRow s) {
+        return $"{s.Id}.json";
+    }
+
+    static string AssetUrl(DataSourceRow s, string name) {
+        return $"{s.Url}?name={Uri.EscapeDataString(name)}";
+    }
+
+    protected override void OnInitialized() {
+        base.OnInitialized();
+        if (!string.IsNullOrEmpty(SelfBaseAddress)) _origin = SelfBaseAddress;
+    }
+
+    protected override async Task OnParametersSetAsync() {
+        await EnsureLoaded();
+    }
+
+    public async Task EnsureLoaded() {
+        if (Current is not { } s || s.AcceptsName) return;
+        if (State.Payloads.ContainsKey(s.Url)) return;
+        State.Payloads[s.Url] = await FetchAsync(s.Url);
+        StateHasChanged();
+    }
+
+    async Task<DataPayloadEntry> FetchAsync(string url) {
+        try {
+            var res = await Client().GetAsync(url);
+            var body = await res.Content.ReadAsStringAsync();
+            return new DataPayloadEntry((int)res.StatusCode, body);
+        }
+        catch (Exception ex) {
+            Logger.LogDebug(ex, "data source {Url} could not be read", url);
+            return new DataPayloadEntry(0, "");
+        }
+    }
+
+    void OnNameInput(ChangeEventArgs e) {
+        State.Names[State.DatasetKey] = e.Value?.ToString() ?? "";
+    }
+
+}

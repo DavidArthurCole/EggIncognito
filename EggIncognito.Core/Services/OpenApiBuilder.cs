@@ -10,7 +10,7 @@ public static class OpenApiBuilder {
         "application/x-www-form-urlencoded body where data is a base64-encoded protobuf message. " +
         "Signing is permissive: the mock accepts unsigned requests. The real API requires the " +
         "request to be wrapped in a signed AuthenticatedMessage on routes marked " +
-        "x-eggincognito-request-wrapped. Build, sign, and decode requests interactively at /inspector.";
+        "x-eggincognito-request-wrapped. Build, sign, and decode requests interactively at /protos#api.";
 
     private static readonly JsonSerializerOptions IndentedJson = new() { WriteIndented = true };
 

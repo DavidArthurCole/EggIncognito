@@ -1,94 +1,86 @@
 @using EggIncognito.Components.Shared.Workbench
 @using EggIncognito.Models.Inspector
+@using EggIncognito.Services.Api
 @using EggIncognito.Services.Inspector
 @using EggIncognito.Services.Workbench
 @using Microsoft.AspNetCore.Components.Web.Virtualization
 @inject IRouteCatalog Catalog
 @inject IProtoReflection Reflection
 
-@if (Overlay) {
-    <button type="button" class="insp-rail-scrim" aria-label="Close the picker" @onclick="OnDismiss"></button>
-}
-<div class="insp-rail">
-    <WorkbenchRail Width="100%">
-        <div class="insp-rail-top">
-            <WorkbenchModes Modes="ListModes" Current="@ListKey" CurrentChanged="OnListChanged" Label="Left list"/>
-            <a class="icon-btn icon-btn-sm ml-auto" href="/api/tools/postman-collection" download
-               aria-label="Download Postman collection">
-                <Icon Name="postman"/>
-            </a>
-            @if (State.RailList == InspectorRailList.Endpoints) {
-                <button type="button" class="icon-btn icon-btn-sm @(StatusLoading ? "spinning" : "")"
-                        aria-label="Endpoint status" @onclick="OnOpenStatus">
-                    <Icon Name="refresh"/>
-                </button>
-            }
-            <button type="button" class="icon-btn icon-btn-sm"
-                    aria-label="Inspector settings" @onclick="OnOpenSettings">
-                <Icon Name="gear"/>
-            </button>
-        </div>
-
-        <button type="button" class="insp-salt @(State.HasSalt ? "on" : "")"
-                @onclick="OnOpenSalt">
-            @(State.HasSalt ? "salt set" : "salt unset")
+<div class="insp-rail-top">
+    <WorkbenchModes Modes="ListModes" Current="@ListKey" CurrentChanged="OnListChanged" Label="Left list"/>
+    <a class="icon-btn icon-btn-sm ml-auto" href="/api/tools/postman-collection" download
+       aria-label="Download Postman collection">
+        <Icon Name="postman"/>
+    </a>
+    @if (State.RailList == InspectorRailList.Endpoints) {
+        <button type="button" class="icon-btn icon-btn-sm @(StatusLoading ? "spinning" : "")"
+                aria-label="Endpoint status" @onclick="OnOpenStatus">
+            <Icon Name="refresh"/>
         </button>
-
-        @if (!string.IsNullOrEmpty(State.Notice)) {
-            <StatusNote Severity="StatusNoteKind.Error">@State.Notice</StatusNote>
-        }
-
-        <FilterInput Class="insp-filter" AriaLabel="@FilterLabel"
-                     Value="@State.RailFilter" ValueChanged="OnFilterChanged"/>
-
-        @if (State.RailList == InspectorRailList.Endpoints) {
-            <WorkbenchSection Label="Endpoints" Scroll="true" MaxHeight="@ListMaxHeight">
-                <div class="insp-list">
-                    <Virtualize Items="EndpointRows()" Context="row" ItemSize="24" OverscanCount="12">
-                        @if (row.Route is null) {
-                            <div class="ep-ns" @onclick="@(() => ToggleGroup(row.Ns))">
-                                <span class="ep-caret @(_collapsed.Contains(row.Ns) ? "" : "ep-caret-open")"></span>@(row.Ns)/
-                            </div>
-                        } else {
-                            <div class="ep @(State.Selected?.Path == row.Route.Path ? "active" : "")"
-                                 @onclick="@(() => OnSelectEndpoint.InvokeAsync(row.Route))">
-                                <span class="ep-name">@row.Label</span>
-                                @if (row.Route.RequestWrapped) {
-                                    <span class="ep-signed">
-                                        <Icon Name="lock" Class="icon-sm"/>
-                                    </span>
-                                }
-                            </div>
-                        }
-                    </Virtualize>
-                </div>
-            </WorkbenchSection>
-        } else {
-            <WorkbenchSection Label="Objects" Scroll="true" MaxHeight="@ListMaxHeight">
-                <div class="insp-list">
-                    <Virtualize Items="ObjectRows()" Context="name" ItemSize="24" OverscanCount="12">
-                        <div class="ep obj-row @(State.SelectedObject == name ? "active" : "")"
-                             @onclick="@(() => OnSelectObject.InvokeAsync(name))">
-                            <span class="obj-name">@name</span>
-                        </div>
-                    </Virtualize>
-                </div>
-            </WorkbenchSection>
-        }
-
-        <WorkbenchSection Label="History">
-            <HistoryPanel HistoryEnabled="State.HistoryEnabled" History="State.History"
-                          OnRestoreHistory="OnRestoreHistory" OnDeleteHistory="OnDeleteHistory"
-                          OnClearHistory="OnClearHistory"/>
-        </WorkbenchSection>
-    </WorkbenchRail>
+    }
+    <button type="button" class="icon-btn icon-btn-sm"
+            aria-label="Inspector settings" @onclick="OnOpenSettings">
+        <Icon Name="gear"/>
+    </button>
 </div>
 
-@code {
-    [Inject] public InspectorState State { get; set; } = default!;
+<button type="button" class="insp-salt @(State.HasSalt ? "on" : "")"
+        @onclick="OnOpenSalt">
+    @(State.HasSalt ? "salt set" : "salt unset")
+</button>
 
-    [Parameter] public bool Overlay { get; set; }
-    [Parameter] public EventCallback OnDismiss { get; set; }
+@if (!string.IsNullOrEmpty(State.Notice)) {
+    <StatusNote Severity="StatusNoteKind.Error">@State.Notice</StatusNote>
+}
+
+<FilterInput Class="insp-filter" AriaLabel="@FilterLabel"
+             Value="@State.RailFilter" ValueChanged="OnFilterChanged"/>
+
+@if (State.RailList == InspectorRailList.Endpoints) {
+    <WorkbenchSection Label="Endpoints" Scroll="true" MaxHeight="@ListMaxHeight">
+        <div class="insp-list">
+            <Virtualize Items="EndpointRows()" Context="row" ItemSize="24" OverscanCount="12">
+                @if (row.Route is null) {
+                    <div class="ep-ns" @onclick="@(() => ToggleGroup(row.Ns))">
+                        <span class="ep-caret @(_collapsed.Contains(row.Ns) ? "" : "ep-caret-open")"></span>@(row.Ns)/
+                    </div>
+                } else {
+                    <div class="ep @(State.Selected?.Path == row.Route.Path ? "active" : "")"
+                         @onclick="@(() => OnSelectEndpoint.InvokeAsync(row.Route))">
+                        <span class="ep-name">@row.Label</span>
+                        @if (row.Route.RequestWrapped) {
+                            <span class="ep-signed">
+                                <Icon Name="lock" Class="icon-sm"/>
+                            </span>
+                        }
+                    </div>
+                }
+            </Virtualize>
+        </div>
+    </WorkbenchSection>
+} else {
+    <WorkbenchSection Label="Objects" Scroll="true" MaxHeight="@ListMaxHeight">
+        <div class="insp-list">
+            <Virtualize Items="ObjectRows()" Context="name" ItemSize="24" OverscanCount="12">
+                <div class="ep obj-row @(State.SelectedObject == name ? "active" : "")"
+                     @onclick="@(() => OnSelectObject.InvokeAsync(name))">
+                    <span class="obj-name">@name</span>
+                </div>
+            </Virtualize>
+        </div>
+    </WorkbenchSection>
+}
+
+<WorkbenchSection Label="History">
+    <HistoryPanel HistoryEnabled="State.HistoryEnabled" History="State.History"
+                  OnRestoreHistory="OnRestoreHistory" OnDeleteHistory="OnDeleteHistory"
+                  OnClearHistory="OnClearHistory"/>
+</WorkbenchSection>
+
+@code {
+    [Inject] public ApiWorkbenchState State { get; set; } = default!;
+
     [Parameter] public EventCallback<RouteInfo> OnSelectEndpoint { get; set; }
     [Parameter] public EventCallback<string> OnSelectObject { get; set; }
     [Parameter] public EventCallback OnOpenSalt { get; set; }

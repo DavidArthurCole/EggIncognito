@@ -1,6 +1,7 @@
 using Bunit;
 using EggIncognito.Components.Inspector;
 using EggIncognito.Services;
+using EggIncognito.Services.Api;
 using EggIncognito.Services.Inspector;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -73,13 +74,13 @@ public class InspectorReaderTests : BunitContext {
     }
 
     [Fact]
-    public void InspectorState_OwnsNoReaderModes() {
-        Assert.Empty(new InspectorState().Modes);
+    public void ApiWorkbenchState_OwnsNoReaderModes() {
+        Assert.Empty(new ApiWorkbenchState().Modes);
     }
 
     [Fact]
     public void EnvValidation_SurvivesATransactionClear() {
-        var state = new InspectorState {
+        var state = new ApiWorkbenchState {
             EnvValidated = true,
             EnvOpen = false,
             LastBuild = new BuildResponse(null, "", "", false, null, null, null),
@@ -94,6 +95,6 @@ public class InspectorReaderTests : BunitContext {
 
     [Fact]
     public void TargetResetsToMockOnAFreshState() {
-        Assert.Equal(InspectorTarget.Mock, new InspectorState().Target);
+        Assert.Equal(InspectorTarget.Mock, new ApiWorkbenchState().Target);
     }
 }

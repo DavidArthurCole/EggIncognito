@@ -50,6 +50,14 @@ public partial class WorkbenchStyleTests(SharedAppFactory f) {
     }
 
     [Fact]
+    public async Task ApiCard_DeclaresNoSizeOfItsOwn() {
+        string css = await SheetAsync();
+
+        Assert.Contains(".awb-card ", css, StringComparison.Ordinal);
+        Assert.Empty(AwbCardRegex().Matches(css));
+    }
+
+    [Fact]
     public async Task DeviceModeControl_IsGone() {
         string css = await SheetAsync();
 
@@ -102,4 +110,7 @@ public partial class WorkbenchStyleTests(SharedAppFactory f) {
 
     [GeneratedRegex(@"^\s*\.theme-wb-card\s*\{[^}]*\}", RegexOptions.Multiline)]
     private static partial Regex ThemeCardRegex();
+
+    [GeneratedRegex(@"^\s*\.awb-card\s*\{[^}]*\}", RegexOptions.Multiline)]
+    private static partial Regex AwbCardRegex();
 }

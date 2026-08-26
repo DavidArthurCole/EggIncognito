@@ -2,7 +2,6 @@
 @using System.Globalization
 @using System.Text
 @using System.Text.Json
-@using EggIncognito.Components.Data
 @using EggIncognito.Core
 @using EggIncognito.Models.Periodicals
 @using EggIncognito.Services.Assets
@@ -59,7 +58,7 @@
                         }
                     </div>
                     <button type="button" class="dropzone-open"
-                            aria-label="Open the data workbench" @onclick="OpenDataWorkbench">
+                            aria-label="Open the data workbench" @onclick="OnOpenData">
                         <Icon Name="chevronRight" Class="icon-sm"/>
                     </button>
                 </div>
@@ -248,7 +247,6 @@
 
         </div>
     </div>
-    <DataWorkbenchModal @ref="_dataWorkbench"/>
 }
 
 @code {
@@ -261,11 +259,8 @@
     List<EventRow>? _events;
     IJSObjectReference? _countdown;
     IJSObjectReference? _images;
-    DataWorkbenchModal? _dataWorkbench;
 
-    Task OpenDataWorkbench() {
-        return _dataWorkbench?.Open() ?? Task.CompletedTask;
-    }
+    [Parameter] public EventCallback OnOpenData { get; set; }
 
     static string? ExtractVersion(PeriodicalsSummary s) {
         return s.Extracted.Select(x => x.BinaryVersion).FirstOrDefault(v => !string.IsNullOrEmpty(v));

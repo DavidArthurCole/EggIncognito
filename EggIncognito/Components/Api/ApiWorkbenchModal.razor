@@ -1,0 +1,1031 @@
+@rendermode @(RenderMode.InteractiveServer)
+@implements IAsyncDisposable
+@using System.Net
+@using System.Text.Json
+@using System.Text.Json.Nodes
+@using EggIncognito.Components.Inspector
+@using EggIncognito.Components.Shared.Workbench
+@using EggIncognito.Models.Data
+@using EggIncognito.Models.Inspector
+@using EggIncognito.Services.Api
+@using EggIncognito.Services.Inspector
+@inherits SelfCallComponentBase
+@inject IRouteCatalog Catalog
+@inject IProtoReflection Reflection
+@inject IAppMode AppMode
+@inject ICurrentUser User
+@inject ISealedProxy SealedProxy
+@inject IJSRuntime JS
+@inject IWebHostEnvironment Env
+@inject ApiWorkbenchState State
+@inject ILogger<ApiWorkbenchModal> Logger
+
+<WorkbenchModal Open="_open" Title="APIs" TitleId="apiWorkbenchTitle" Size="WorkbenchSize.Wide"
+                CardClass="awb-card" Notice="_wbNotice" NoticeDismissed="ClearNotice" OnClose="CloseAsync">
+    <Rail>
+        <WorkbenchRail>
+            <InspectorRail OnSelectEndpoint="SelectEndpointFromRail" OnSelectObject="SelectObjectFromRail"
+                           OnOpenSalt="OpenSalt" OnOpenSettings="@(() => _settingsOpen = true)"
+                           OnOpenStatus="OpenStatus" StatusLoading="_statusLoading"
+                           OnRestoreHistory="RestoreHistory" OnDeleteHistory="DeleteHistory"
+                           OnClearHistory="ClearHistory"/>
+            <WorkbenchLoad T="DataSourceRow" Items="@State.Sources" EmptyText="No data sources on this instance."
+                           Context="sources">
+                @foreach (var group in DataGroups(sources)) {
+                    <WorkbenchSection Label="@DataGroupLabel(group)">
+                        @foreach (var root in DataRootsOf(sources, group)) {
+                            <WorkbenchEntry @key="root.Url"
+                                            Selected="@(State.Kind == ApiSelectionKind.Dataset && State.Sub is null && State.Group == root.Group && State.Id == root.Id)"
+                                            OnClick="@(_ => SelectDataset(root, null))">
+                                <Name>@root.DisplayName</Name>
+                                <MetaLine>@root.Id</MetaLine>
+                            </WorkbenchEntry>
+                            @foreach (var child in root.Children ?? []) {
+                                <WorkbenchEntry @key="child.Url" Class="ds-sub"
+                                                Selected="@(State.Kind == ApiSelectionKind.Dataset && State.Sub == child.Id && State.Group == root.Group && State.Id == root.Id)"
+                                                OnClick="@(_ => SelectDataset(root, child))">
+                                    <Name>@child.DisplayName</Name>
+                                    <MetaLine>@child.Id</MetaLine>
+                                </WorkbenchEntry>
+                            }
+                        }
+                    </WorkbenchSection>
+                }
+            </WorkbenchLoad>
+            @if (User.IsAuthenticated) {
+                <WorkbenchSection Label="Keys">
+                    <WorkbenchEntry Selected="@(State.Kind == ApiSelectionKind.Keys)"
+                                    OnClick="@(_ => SelectSection(ApiSelectionKind.Keys))">
+                        <Name>Your keys</Name>
+                    </WorkbenchEntry>
+                    @if (State.IsAdmin) {
+                        <WorkbenchEntry Selected="@(State.Kind == ApiSelectionKind.AllKeys)"
+                                        OnClick="@(_ => SelectSection(ApiSelectionKind.AllKeys))">
+                            <Name>All keys</Name>
+                        </WorkbenchEntry>
+                    }
+                </WorkbenchSection>
+            }
+            @if (State.IsAdmin) {
+                <WorkbenchSection Label="Routes">
+                    <WorkbenchEntry Selected="@(State.Kind == ApiSelectionKind.Routes)"
+                                    OnClick="@(_ => SelectSection(ApiSelectionKind.Routes))">
+                        <Name>Route catalog</Name>
+                    </WorkbenchEntry>
+                </WorkbenchSection>
+            }
+        </WorkbenchRail>
+    </Rail>
+    <ChildContent>
+        @switch (State.Kind) {
+            case ApiSelectionKind.Dataset:
+                <DatasetPane/>
+                break;
+            case ApiSelectionKind.Keys:
+                <KeysPane AllScope="false"/>
+                break;
+            case ApiSelectionKind.AllKeys:
+                <KeysPane AllScope="true"/>
+                break;
+            case ApiSelectionKind.Routes:
+                <RouteCatalogPane/>
+                break;
+            default:
+                <div class="awb-try">
+                    <section class="panel insp-compose">
+                        <div class="insp-compose-body">
+                            <EnvironmentPanel Rows="State.EnvRows" OnChanged="OnEnvChanged"
+                                              OnValidate="ValidateEnv" OnForceSave="ForceSaveEnv"/>
+                            <PathParamRow Show="@(State.Selected?.PathParam == true)" Value="@State.PathParam"
+                                          ValueChanged="OnPathParamChanged" RecentEids="State.RecentEids" OnForget="ForgetEids"/>
+                            <RequestBodyEditor Route="State.Selected" Nodes="State.FieldNodes" Hosted="State.Hosted"
+                                               RawMode="State.RawMode" RawModeChanged="ToggleRaw"
+                                               RawJson="@State.RawJson" RawJsonChanged="OnRawJsonChanged"
+                                               RawError="@State.RawError" OnTreeChanged="OnTreeChanged"/>
+                        </div>
+
+                        <div class="insp-compose-foot">
+                            <SendBar Target="State.Target" TargetChanged="RequestTarget"
+                                     CanBuild="State.CanBuild" CanSend="State.CanSend"
+                                     LiveDisabled="State.LiveDisabled" SealedAvailable="State.SealedAvailable"
+                                     Sealed="State.Sealed" SealedChanged="@(v => State.Sealed = v)"
+                                     CustomTarget="@State.CustomTarget" CustomTargetChanged="OnCustomTargetChanged"
+                                     OnBuild="Build" OnSend="Send"/>
+                        </div>
+                    </section>
+
+                    <section class="panel insp-reader">
+                        <div class="insp-reader-head">
+                            @{ var sel = State.Selected; }
+                            @if (sel is not null) {
+                                <div class="insp-reader-subject">
+                                    <span class="insp-route">@sel.Path</span>
+                                    <span class="insp-typing">
+                                        @if (sel.PathParamOnly) {
+                                            <span class="muted">no request body, identity via URL path param</span>
+                                        } else if (sel.Request is not null) {
+                                            <button type="button" class="doc-type-link"
+                                                    @onclick="@(() => SelectObjectFromReader(sel.Request!))">
+                                                @sel.Request
+                                            </button>
+                                            @if (sel.RequestWrapped) {
+                                                <span class="ep-signed">
+                                                    <Icon Name="lock" Class="icon-sm"/>
+                                                </span>
+                                            }
+                                        } else {
+                                            <span class="muted">no request type</span>
+                                        }
+                                        <span class="insp-typing-sep">-&gt;</span>
+                                        @if (sel.Response is not null) {
+                                            <button type="button" class="doc-type-link"
+                                                    @onclick="@(() => SelectObjectFromReader(sel.Response!))">
+                                                @sel.Response
+                                            </button>
+                                        } else {
+                                            <span class="muted">no response type</span>
+                                        }
+                                    </span>
+                                </div>
+                            } else {
+                                <span class="text-xs text-muted">Pick an endpoint to see its transaction here.</span>
+                            }
+                            <button type="button" class="btn-mini insp-docs-btn" disabled="@(State.Selected is null)"
+                                    @onclick="OpenDocs">
+                                <Icon Name="log" Class="icon-sm"/> Docs
+                            </button>
+                        </div>
+                        <div class="insp-reader-body">
+                            <TransactionView Build="State.BuildStages" Response="State.Response" Diagnosis="State.Diagnosis"
+                                             RootType="@State.Selected?.Response" IsAdmin="State.IsAdmin"
+                                             FixBusy="_fixWrappedBusy" OnFixWrapped="FixWrapped" ClientFactory="Client"
+                                             CanSaveDb="State.CanSaveDb" OnSaveToDb="SaveToDb"
+                                             SaveStatus="@State.SaveOut" SaveFailed="State.SaveFailed"/>
+                        </div>
+                    </section>
+                </div>
+                break;
+        }
+    </ChildContent>
+</WorkbenchModal>
+
+<DocsDialog Open="_docsOpen" ObjectName="@State.SelectedObject" Route="State.Selected"
+            OnClose="CloseDocs" OnSelectObject="SelectObjectFromReader" OnSelectEndpoint="SelectEndpointFromReader"/>
+<SaltDialog Open="_saltOpen" OnSave="SaveSalt" OnClose="@(() => _saltOpen = false)"/>
+<LiveConsentDialog Open="_liveConsentOpen" OnAccept="AcceptLiveConsent" OnClose="@(() => _liveConsentOpen = false)"/>
+<InspectorSettingsDialog Open="_settingsOpen" HistoryEnabled="State.HistoryEnabled"
+                         HistoryEnabledChanged="ToggleHistoryEnabled" OnClose="@(() => _settingsOpen = false)"/>
+<EndpointStatusDialog Open="_statusOpen" Loading="_statusLoading" Summary="@_statusSummary" Body="@_statusOut"
+                      OnRefresh="RefreshStatus" OnClose="@(() => _statusOpen = false)"/>
+
+@code {
+    static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
+
+    readonly Dictionary<string, SchemaMessage?> _schemaCache = new();
+
+    bool _open;
+    bool _storeLoaded;
+    bool _hashWired;
+    bool _docsOpen;
+    bool _saltOpen;
+    bool _liveConsentOpen;
+    bool _settingsOpen;
+    bool _statusOpen;
+    bool _statusLoading;
+    bool _fixWrappedBusy;
+    string _statusOut = "";
+    string _statusSummary = "";
+    WorkbenchNotice? _wbNotice;
+
+    IJSObjectReference? _store;
+    IJSObjectReference? _nav;
+    IJSObjectReference? _navHandle;
+    DotNetObjectReference<ApiWorkbenchModal>? _selfRef;
+
+    protected override void OnInitialized() {
+        base.OnInitialized();
+
+        State.Hosted = AppMode.Mode == Services.AppMode.Hosted;
+        State.LiveDisabled = State.Hosted && !User.IsAuthenticated;
+        State.CanSaveDb = AppMode.Mode != Services.AppMode.Hosted || User.IsAtLeast(UserRole.Contributor);
+        State.IsAdmin = User.IsAtLeast(UserRole.Admin);
+        State.SealedAvailable = SealedProxy.IsConfigured && User.IsSupporter;
+        State.Target = InspectorTarget.Mock;
+        State.Sealed = false;
+        State.SeedEnvRows();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender) {
+        if (!firstRender) return;
+        try {
+            _nav = await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/hashnav.js"));
+            _selfRef = DotNetObjectReference.Create(this);
+            _navHandle = await _nav.InvokeAsync<IJSObjectReference>("listen", _selfRef);
+            _hashWired = true;
+            await ApplyHash(await _nav.InvokeAsync<string>("read"));
+        }
+        catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
+            Logger.LogDebug(ex, "hash navigation could not be wired");
+        }
+
+        StateHasChanged();
+    }
+
+    async Task LoadStore() {
+        if (_storeLoaded) return;
+        _storeLoaded = true;
+        try {
+            _store = await JS.InvokeAsync<IJSObjectReference>(
+                "import", InteropAsset.Url(Env, "./interop/inspectorStore.js"));
+        }
+        catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
+            Logger.LogDebug(ex, "the inspector browser store could not be loaded");
+            State.Notice = "Browser storage is unavailable, so salt, history and remembered EIDs are off for this session.";
+        }
+
+        State.Rinfo = (await ServerSeed()).OverlaidWith(await InvokeOr<RinfoSeed?>("getRinfoDefaults", null));
+        State.HasSalt = !string.IsNullOrEmpty(await InvokeOr("getSalt", ""));
+        State.CustomTarget = await InvokeOr("getCustomTarget", "");
+        State.RecentEids = await InvokeOr("recentEids", Array.Empty<string>());
+        State.HistoryEnabled = await InvokeOr("getHistoryEnabled", true);
+        State.History = await InvokeOr("getHistory", new List<InspectorHistoryEntry>());
+        State.SeedEnvRows();
+    }
+
+    public async Task Open() {
+        await LoadStore();
+        _open = true;
+        await LoadSources();
+        await WriteHash(true);
+        StateHasChanged();
+    }
+
+    public async Task OpenData(string? group = null, string? id = null) {
+        await LoadStore();
+        _open = true;
+        await LoadSources();
+        if (group is { Length: > 0 } g && id is { Length: > 0 } i) State.SelectDataset(g, i, null);
+        else if (State.Kind != ApiSelectionKind.Dataset) {
+            var first = State.Sources?.FirstOrDefault();
+            if (first is not null) State.SelectDataset(first.Group, first.Id, null);
+        }
+
+        await WriteHash(true);
+        StateHasChanged();
+    }
+
+    async Task CloseAsync() {
+        _open = false;
+        await WriteHash(true, true);
+        StateHasChanged();
+    }
+
+    void ClearNotice() {
+        _wbNotice = null;
+    }
+
+    async Task LoadSources() {
+        if (State.Sources is not null) return;
+        var index = await Client().OneAsync<DataIndex>("/api/v1/data", Logger);
+        State.Sources = index?.Sources ?? [];
+        if (State.Sources.Count == 0) _wbNotice = new WorkbenchNotice("The source catalog could not be read.", StatusNoteKind.Error);
+    }
+
+    async Task SelectDataset(DataSourceRow root, DataSourceRow? child) {
+        State.SelectDataset(root.Group, root.Id, child?.Id);
+        await WriteHash();
+    }
+
+    async Task SelectSection(ApiSelectionKind kind) {
+        _docsOpen = false;
+        State.Kind = kind;
+        await WriteHash();
+    }
+
+    static IEnumerable<string> DataGroups(IReadOnlyCollection<DataSourceRow> sources) {
+        return sources.Select(s => s.Group).Distinct(StringComparer.Ordinal);
+    }
+
+    static string DataGroupLabel(string key) {
+        return key switch {
+            "periodical" => "Periodical",
+            "gamedata" => "Game data",
+            "asset" => "Assets",
+            _ => TitleCase(key)
+        };
+    }
+
+    static List<DataSourceRow> DataRootsOf(IReadOnlyCollection<DataSourceRow> sources, string group) {
+        return [.. sources.Where(s => string.Equals(s.Group, group, StringComparison.Ordinal))];
+    }
+
+    static string TitleCase(string raw) {
+        var words = raw.Split([' ', '_', '-'], StringSplitOptions.RemoveEmptyEntries);
+        return words.Length == 0
+            ? raw
+            : string.Join(' ', words.Select(w => char.ToUpperInvariant(w[0]) + w[1..].ToLowerInvariant()));
+    }
+
+    async Task<RinfoSeed> ServerSeed() {
+        try {
+            return await Client().GetFromJsonAsync<RinfoSeed>("/api/inspector/rinfo-seed", JsonOpts) ?? new RinfoSeed();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException) {
+            Logger.LogDebug(ex, "the request-info seed could not be read");
+            return new RinfoSeed();
+        }
+    }
+
+    async Task<T> InvokeOr<T>(string fn, T fallback, params object?[] args) {
+        if (_store is null) return fallback;
+        try {
+            return await _store.InvokeAsync<T>(fn, args);
+        }
+        catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
+            Logger.LogDebug(ex, "inspector store call {Function} failed", fn);
+            return fallback;
+        }
+    }
+
+    async Task InvokeVoid(string fn, params object?[] args) {
+        if (_store is null) return;
+        try {
+            await _store.InvokeVoidAsync(fn, args);
+        }
+        catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
+            Logger.LogDebug(ex, "inspector store call {Function} failed", fn);
+        }
+    }
+
+    async Task SelectEndpointFromRail(RouteInfo e) {
+        _docsOpen = false;
+        State.SelectedObject = null;
+        await SelectEndpoint(e);
+        await WriteHash(true);
+    }
+
+    async Task SelectObjectFromRail(string name) {
+        State.Kind = ApiSelectionKind.Endpoint;
+        State.SelectedObject = name;
+        _docsOpen = true;
+        await WriteHash(true);
+    }
+
+    async Task SelectObjectFromReader(string name) {
+        State.Kind = ApiSelectionKind.Endpoint;
+        State.RailList = InspectorRailList.Objects;
+        State.SelectedObject = name;
+        _docsOpen = true;
+        await WriteHash(true);
+    }
+
+    async Task SelectEndpointFromReader(RouteInfo e) {
+        _docsOpen = false;
+        State.RailList = InspectorRailList.Endpoints;
+        State.SelectedObject = null;
+        await SelectEndpoint(e);
+        await WriteHash(true);
+    }
+
+    void OpenDocs() {
+        if (State.Selected is null && State.SelectedObject is null) return;
+        _docsOpen = true;
+    }
+
+    async Task CloseDocs() {
+        _docsOpen = false;
+        if (State.SelectedObject is null) return;
+        State.SelectedObject = null;
+        await WriteHash();
+    }
+
+    async Task SelectEndpoint(RouteInfo e) {
+        State.Kind = ApiSelectionKind.Endpoint;
+        State.Selected = e;
+        State.Notice = null;
+        State.ClearTransaction();
+        State.RawMode = false;
+        State.RawJson = "{}";
+        State.RawError = null;
+        State.PathParam = "";
+        if (e.PathParam) {
+            var last = State.RecentEids.FirstOrDefault() ?? "";
+            if (last.Length > 0) State.PathParam = last;
+        }
+
+        await BuildFieldTree();
+    }
+
+    SchemaMessage? Schema(string? typeName) {
+        if (string.IsNullOrEmpty(typeName)) return null;
+        if (!_schemaCache.TryGetValue(typeName, out var s)) {
+            s = Reflection.Schema(typeName);
+            _schemaCache[typeName] = s;
+        }
+
+        return s;
+    }
+
+    Task BuildFieldTree() {
+        State.FieldNodes = null;
+        var e = State.Selected;
+        if (e is null || e.PathParamOnly || e.Request is null) return Task.CompletedTask;
+        var s = Schema(e.Request);
+        if (s is null) return Task.CompletedTask;
+        State.FieldNodes = FieldTreeBuilder.Build(s, t => Schema(t));
+        State.ApplyEnvLock();
+        return Task.CompletedTask;
+    }
+
+    async Task OnEnvChanged(EnvRow row) {
+        State.SyncRinfoFromRow(row);
+        State.ApplyEnvLock();
+        State.EnvValidated = false;
+        State.EnvError = null;
+        await InvokeVoid("setRinfoDefaults", State.Rinfo);
+    }
+
+    async Task ValidateEnv() {
+        if (State.EnvValidating) return;
+        State.EnvValidating = true;
+        State.EnvError = null;
+        try {
+            var bad = State.EnvRows.Where(r => r.IsInvalid()).Select(r => r.Key).ToList();
+            if (bad.Count > 0) {
+                State.EnvValidated = false;
+                State.EnvError = "These values do not fit their fields: " + string.Join(", ", bad);
+                return;
+            }
+
+            var fields = EnvCollector.Collect(State.EnvRows.Where(r => !string.IsNullOrWhiteSpace(r.Value)));
+            var res = await Client().PostAsJsonAsync("/api/inspector/build", new {
+                path = "",
+                requestType = "BasicRequestInfo",
+                wrap = false,
+                fields,
+                env = (object?)null,
+                salt = (string?)null
+            }, JsonOpts);
+            var data = await res.Content.ReadFromJsonAsync<BuildResponse>(JsonOpts);
+            if (data?.Error is not null) {
+                State.EnvValidated = false;
+                State.EnvError = data.Error;
+                return;
+            }
+
+            State.EnvValidated = true;
+            State.EnvOpen = false;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException) {
+            State.EnvValidated = false;
+            State.EnvError = "validation failed: " + ex.Message;
+        }
+        finally {
+            State.EnvValidating = false;
+        }
+    }
+
+    void ForceSaveEnv() {
+        State.EnvValidated = false;
+        State.EnvError = null;
+        State.EnvOpen = false;
+    }
+
+    void OnPathParamChanged(string value) {
+        State.PathParam = value;
+    }
+
+    void OnRawJsonChanged(string value) {
+        State.RawJson = value;
+    }
+
+    void OnCustomTargetChanged(string value) {
+        State.CustomTarget = value;
+        _ = InvokeVoid("setCustomTarget", value);
+    }
+
+    void OnTreeChanged() {
+        State.RawError = null;
+    }
+
+    void ToggleRaw(bool on) {
+        if (on) {
+            State.RawError = null;
+            State.RawMode = true;
+            if (State.FieldNodes is not null) {
+                State.RawJson = FieldTreeBuilder.Collect(State.FieldNodes)
+                    .ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+            }
+
+            return;
+        }
+
+        if (State.FieldNodes is not null) {
+            try {
+                var obj = JsonNode.Parse(string.IsNullOrWhiteSpace(State.RawJson) ? "{}" : State.RawJson) as JsonObject
+                          ?? throw new FormatException("raw body must be a JSON object");
+                FieldTreeBuilder.Apply(State.FieldNodes, obj);
+                State.ApplyEnvLock();
+            }
+            catch (Exception ex) when (ex is JsonException or FormatException) {
+                State.RawError = "Raw JSON does not parse, so it was not applied to the tree. Fix it or switch back: " + ex.Message;
+                State.RawMode = true;
+                return;
+            }
+        }
+
+        State.RawError = null;
+        State.RawMode = false;
+    }
+
+    async Task OpenStatus() {
+        _statusOpen = true;
+        if (string.IsNullOrEmpty(_statusSummary)) await RefreshStatus();
+    }
+
+    async Task RefreshStatus() {
+        _statusLoading = true;
+        _statusOut = "Loading...";
+        try {
+            var r = await Client().GetFromJsonAsync<EndpointStatusResult>("/api/tools/endpoint-status", JsonOpts);
+            if (r is not null) {
+                _statusSummary = $"ok {r.Ok.Count} / empty {r.Empty.Count} / missing {r.Missing.Count}";
+                var lines = new List<string>();
+                if (r.Empty.Count > 0) {
+                    lines.Add("empty:");
+                    lines.AddRange(r.Empty.Select(p => "  " + p));
+                }
+
+                if (r.Missing.Count > 0) {
+                    lines.Add("missing:");
+                    lines.AddRange(r.Missing.Select(p => "  " + p));
+                }
+
+                _statusOut = lines.Count > 0 ? string.Join("\n", lines) : "All mapped routes have a fixture.";
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException) {
+            _statusOut = $"Request failed: {ex.Message}";
+        }
+        finally {
+            _statusLoading = false;
+        }
+    }
+
+    void OpenSalt() {
+        _saltOpen = true;
+    }
+
+    async Task SaveSalt(string salt) {
+        await InvokeVoid("setSalt", salt);
+        State.HasSalt = !string.IsNullOrEmpty(salt);
+        _saltOpen = false;
+    }
+
+    async Task RequestTarget(InspectorTarget target) {
+        if (target == InspectorTarget.Mock) {
+            State.Target = target;
+            return;
+        }
+
+        if (State.LiveDisabled) return;
+        if (!await InvokeOr("getLiveConsent", false)) {
+            _liveConsentOpen = true;
+            return;
+        }
+
+        State.Target = target;
+    }
+
+    async Task AcceptLiveConsent() {
+        await InvokeVoid("setLiveConsent");
+        _liveConsentOpen = false;
+        State.Target = InspectorTarget.LiveViaServer;
+    }
+
+    async Task Build() {
+        if (State.Busy) return;
+        State.Busy = true;
+        try {
+            await BuildCore();
+        }
+        finally {
+            State.Busy = false;
+        }
+    }
+
+    async Task Send() {
+        if (State.Busy) return;
+        State.Busy = true;
+        try {
+            await SendCore();
+        }
+        finally {
+            State.Busy = false;
+        }
+    }
+
+    async Task BuildCore() {
+        var e = State.Selected;
+        if (e is null) return;
+        State.Response = null;
+        State.Diagnosis = null;
+
+        if (e.PathParamOnly) {
+            State.LastBuild = new BuildResponse(null, "", "", false, null, null, null);
+            State.BuildStages = null;
+            return;
+        }
+
+        if (e.Request is null) {
+            State.BuildStages = null;
+            State.Response = new SendResponse(null, null, null, null,
+                "no request type for this endpoint",
+                State.Hosted
+                    ? "An admin needs to map a `request:` type for this route before it can be built."
+                    : "Add a `request:` type in routes.yaml before building.");
+            return;
+        }
+
+        JsonNode? fields;
+        try {
+            fields = State.RawMode
+                ? JsonNode.Parse(string.IsNullOrWhiteSpace(State.RawJson) ? "{}" : State.RawJson)
+                : FieldTreeBuilder.Collect(State.FieldNodes ?? []);
+        }
+        catch (JsonException ex) {
+            State.Response = new SendResponse(null, null, null, null, "invalid raw JSON: " + ex.Message, null);
+            return;
+        }
+
+        var salt = await InvokeOr<string?>("getSalt", null);
+
+        var body = new {
+            path = e.Path,
+            requestType = e.Request,
+            wrap = e.RequestWrapped,
+            fields,
+            env = EnvCollector.Collect(State.EnvRows),
+            salt
+        };
+
+        try {
+            var res = await Client().PostAsJsonAsync("/api/inspector/build", body, JsonOpts);
+            var data = await res.Content.ReadFromJsonAsync<BuildResponse>(JsonOpts);
+            if (data?.Error is not null) {
+                State.BuildStages = null;
+                State.Response = new SendResponse(null, null, null, null, data.Error, data.Resolution);
+                State.LastBuild = null;
+                return;
+            }
+
+            State.LastBuild = data;
+            State.BuildStages = data?.Stages;
+            await SaveToHistory(e, fields);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException) {
+            State.Response = new SendResponse(null, null, null, null, "build failed: " + ex.Message, null);
+        }
+    }
+
+    async Task SaveToHistory(RouteInfo e, JsonNode? fields) {
+        if (!State.HistoryEnabled || _store is null) return;
+        var entry = new InspectorHistoryEntry(
+            Guid.NewGuid().ToString("n"),
+            e.Path,
+            HistorySummary(e),
+            EnvCollector.AsStrings(State.EnvRows),
+            fields?.ToJsonString() ?? "{}",
+            string.IsNullOrWhiteSpace(State.PathParam) ? null : State.PathParam.Trim(),
+            State.Target,
+            0);
+        State.History = await InvokeOr("saveHistory", State.History, entry);
+    }
+
+    string HistorySummary(RouteInfo e) {
+        var bits = new List<string>();
+        if (e.PathParam && !string.IsNullOrWhiteSpace(State.PathParam)) bits.Add(State.PathParam.Trim());
+        bits.Add(InspectorTargets.Label(State.Target));
+        return string.Join(" / ", bits);
+    }
+
+    async Task RestoreHistory(InspectorHistoryEntry h) {
+        var route = Catalog.All().FirstOrDefault(r => r.Path == h.Path);
+        if (route is null) {
+            State.Notice = $"The saved request points at {h.Path}, which this build no longer serves.";
+            return;
+        }
+
+        State.RailList = InspectorRailList.Endpoints;
+        State.SelectedObject = null;
+        _docsOpen = false;
+        await SelectEndpoint(route);
+
+        foreach (var row in State.EnvRows) {
+            if (h.Env.TryGetValue(row.Key, out var v)) {
+                row.Value = v;
+                State.SyncRinfoFromRow(row);
+            }
+        }
+
+        if (!string.IsNullOrEmpty(h.PathParam)) State.PathParam = h.PathParam;
+
+        if (State.FieldNodes is not null) {
+            try {
+                if (JsonNode.Parse(string.IsNullOrWhiteSpace(h.FieldsJson) ? "{}" : h.FieldsJson) is JsonObject obj)
+                    FieldTreeBuilder.Apply(State.FieldNodes, obj);
+            }
+            catch (JsonException ex) {
+                Logger.LogDebug(ex, "a saved request body did not parse; keeping the freshly seeded tree");
+            }
+        }
+
+        State.ApplyEnvLock();
+        await WriteHash(true);
+    }
+
+    async Task DeleteHistory(string id) {
+        State.History = await InvokeOr("deleteHistory", State.History, id);
+    }
+
+    async Task ClearHistory() {
+        State.History = await InvokeOr("clearHistory", new List<InspectorHistoryEntry>());
+    }
+
+    async Task ToggleHistoryEnabled(bool on) {
+        State.HistoryEnabled = on;
+        await InvokeVoid("setHistoryEnabled", on);
+    }
+
+    async Task SendCore() {
+        var e = State.Selected;
+        if (State.LastBuild is null || e is null) return;
+
+        if (State.Target == InspectorTarget.LiveViaProxy) {
+            await SendCustom(e);
+            return;
+        }
+
+        var param = State.PathParam.Trim();
+        if (e.PathParam && param.Length == 0) {
+            State.Response = new SendResponse(null, null, null, null,
+                "URL path parameter is required for this endpoint",
+                "Enter the EID (or other path value) in the field above the Build button.");
+            return;
+        }
+
+        var mockUrl = State.Target == InspectorTarget.Mock ? MockUrl(e, param) : null;
+
+        await RememberEnteredEids();
+        try {
+            var res = await Client().PostAsJsonAsync("/api/inspector/send",
+                new {
+                    url = mockUrl,
+                    path = mockUrl is null ? e.Path : null,
+                    pathParam = mockUrl is null ? param : null,
+                    formBody = State.LastBuild.FinalFormBody,
+                    responseType = e.Response,
+                    responseWrapped = e.ResponseWrapped,
+                    @sealed = State.Target == InspectorTarget.LiveViaServer && State.Sealed
+                }, JsonOpts);
+            State.Response = await res.Content.ReadFromJsonAsync<SendResponse>(JsonOpts);
+            await MaybeDiagnose();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException) {
+            State.Response = new SendResponse(null, null, null, null, "send failed: " + ex.Message, null);
+        }
+    }
+
+    string MockUrl(RouteInfo e, string param) {
+        var url = $"{SelfBaseAddress}/{e.Path}";
+        return param.Length == 0 ? url : url + "/" + Uri.EscapeDataString(param);
+    }
+
+    async Task MaybeDiagnose() {
+        State.Diagnosis = null;
+        if (State.Response?.Error is null || string.IsNullOrEmpty(State.Response.RawBase64)) return;
+        try {
+            var res = await Client().PostAsJsonAsync("/api/tools/diagnose",
+                new { Base64 = State.Response.RawBase64, RootType = State.Selected?.Response }, JsonOpts);
+            State.Diagnosis = await res.Content.ReadFromJsonAsync<DiagnoseDto>(JsonOpts);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException) {
+            Logger.LogDebug(ex, "the failed decode could not be diagnosed");
+        }
+    }
+
+    async Task FixWrapped() {
+        var e = State.Selected;
+        if (e is null || State.Response is null) return;
+
+        _fixWrappedBusy = true;
+        try {
+            var rows = await Client().GetFromJsonAsync<List<RouteAdminRow>>("/api/admin/routes", JsonOpts);
+            var current = rows?.FirstOrDefault(r => r.Path == e.Path)?.Override;
+            var res = await Client().PutAsJsonAsync($"/api/admin/routes/{e.Path}",
+                new {
+                    request = current?.Request,
+                    response = current?.Response,
+                    requestWrapped = current?.RequestWrapped,
+                    responseWrapped = true,
+                    pathParam = current?.PathParam
+                }, JsonOpts);
+            if (!res.IsSuccessStatusCode) {
+                State.Response = State.Response with { Error = $"failed to set responseWrapped: HTTP {(int)res.StatusCode}" };
+                return;
+            }
+
+            var fresh = Catalog.Resolve(e.Path) ?? e;
+            State.Selected = fresh;
+            await RedecodeAfterFix(fresh);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException) {
+            State.Response = State.Response with { Error = "failed to set responseWrapped: " + ex.Message };
+        }
+        finally {
+            _fixWrappedBusy = false;
+        }
+    }
+
+    async Task RedecodeAfterFix(RouteInfo e) {
+        if (State.Response?.RawBase64 is null) return;
+        try {
+            var res = await Client().PostAsJsonAsync("/api/inspector/decode-response",
+                new { rawBase64 = State.Response.RawBase64, responseType = e.Response, responseWrapped = (bool?)null }, JsonOpts);
+            var dec = await res.Content.ReadFromJsonAsync<SendResponse>(JsonOpts);
+            State.Response = State.Response with {
+                Stages = dec?.Stages,
+                Json = dec?.Json,
+                Error = dec?.Error,
+                WrappedMismatch = dec?.WrappedMismatch ?? false
+            };
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException) {
+            State.Response = State.Response with { Error = "redecode failed: " + ex.Message };
+        }
+    }
+
+    async Task SendCustom(RouteInfo e) {
+        if (string.IsNullOrEmpty(State.CustomTarget)) {
+            State.Response = new SendResponse(null, null, null, null,
+                "no custom proxy URL set", "Set your Custom proxy URL above first.");
+            return;
+        }
+
+        var proxyUrl = State.CustomTarget.TrimEnd('/') + "/" + e.Path;
+        if (e.PathParam) {
+            var param = State.PathParam.Trim();
+            if (param.Length == 0) {
+                State.Response = new SendResponse(null, null, null, null,
+                    "URL path parameter is required", "Enter the EID above Build.");
+                return;
+            }
+
+            proxyUrl += "/" + Uri.EscapeDataString(param);
+        }
+
+        await RememberEnteredEids();
+
+        if (_store is null) {
+            State.Response = new SendResponse(null, null, null, null,
+                "custom send needs the browser interop", "Reload the page and try again.");
+            return;
+        }
+
+        string raw;
+        try {
+            raw = await _store.InvokeAsync<string>("postForm", proxyUrl, State.LastBuild!.FinalFormBody);
+        }
+        catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
+            State.Response = new SendResponse(null, null, null, null,
+                $"direct request to your proxy failed: {ex.Message}",
+                "Your proxy must be reachable from this browser and allow this origin (CORS).");
+            return;
+        }
+
+        try {
+            var res = await Client().PostAsJsonAsync("/api/inspector/decode-response",
+                new { rawBase64 = raw, responseType = e.Response, responseWrapped = e.ResponseWrapped }, JsonOpts);
+            var dec = await res.Content.ReadFromJsonAsync<SendResponse>(JsonOpts);
+            State.Response = new SendResponse(200, raw, dec?.Stages, dec?.Json, dec?.Error, null, dec?.WrappedMismatch ?? false);
+            await MaybeDiagnose();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException) {
+            State.Response = new SendResponse(null, null, null, null, "decode failed: " + ex.Message, null);
+        }
+    }
+
+    async Task RememberEnteredEids() {
+        var candidates = new List<string?> { State.PathParam };
+        candidates.AddRange(State.EnvRows.Select(r => r.Value));
+        var present = candidates.Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s!).ToArray();
+        if (present.Length == 0) return;
+
+        State.RecentEids = await InvokeOr("rememberEids", State.RecentEids, new object?[] { present });
+    }
+
+    async Task ForgetEids() {
+        State.RecentEids = await InvokeOr("forgetEids", Array.Empty<string>());
+        State.PathParam = "";
+    }
+
+    async Task SaveToDb() {
+        var e = State.Selected;
+        if (e is null || State.Response?.Json is null) {
+            State.SaveOut = "Build and send a request first.";
+            State.SaveFailed = true;
+            return;
+        }
+
+        State.SaveOut = "Saving...";
+        State.SaveFailed = false;
+        try {
+            using var doc = JsonDocument.Parse(State.Response.Json);
+            var res = await Client().PostAsJsonAsync("/api/db/endpoint", new {
+                path = e.Path,
+                eid = string.IsNullOrWhiteSpace(State.PathParam) ? null : State.PathParam,
+                responseJson = doc.RootElement,
+                responseType = e.Response
+            }, JsonOpts);
+            if (res.IsSuccessStatusCode) {
+                State.SaveOut = $"Saved {e.Path}{(string.IsNullOrWhiteSpace(State.PathParam) ? "" : $" ({State.PathParam})")} to the shared DB.";
+                return;
+            }
+
+            State.SaveFailed = true;
+            State.SaveOut = res.StatusCode == HttpStatusCode.Forbidden
+                ? "Not authorized to write to the shared DB."
+                : $"Save failed: HTTP {(int)res.StatusCode}";
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException) {
+            State.SaveFailed = true;
+            State.SaveOut = $"Request failed: {ex.Message}";
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnHashChanged(string hash) {
+        await ApplyHash(hash);
+        StateHasChanged();
+    }
+
+    async Task ApplyHash(string hash) {
+        if (!State.ApplyHash(hash)) {
+            if (_open) {
+                _open = false;
+                StateHasChanged();
+            }
+
+            return;
+        }
+
+        _open = true;
+        await LoadStore();
+        await LoadSources();
+        await ResolvePending();
+        StateHasChanged();
+    }
+
+    async Task ResolvePending() {
+        if (State.PendingEndpointPath is { Length: > 0 } path) {
+            State.PendingEndpointPath = null;
+            var route = Catalog.Resolve(path) ?? Catalog.All().FirstOrDefault(r => r.Path == path);
+            if (route is null) State.Notice = $"The link points at endpoint {path}, which this build does not serve.";
+            else if (State.Selected?.Path != route.Path) await SelectEndpoint(route);
+        }
+
+        if (State.PendingObjectName is { Length: > 0 } name) {
+            State.PendingObjectName = null;
+            if (Reflection.Schema(name) is null) {
+                State.Notice = $"The link points at message type {name}, which this build does not know.";
+            } else {
+                State.SelectedObject = name;
+                State.RailList = InspectorRailList.Objects;
+                _docsOpen = true;
+            }
+        }
+
+        if (State.Kind is ApiSelectionKind.Routes && !State.IsAdmin) State.Kind = ApiSelectionKind.Endpoint;
+        if (State.Kind is ApiSelectionKind.AllKeys && !State.IsAdmin) State.Kind = ApiSelectionKind.Endpoint;
+        if (State.Kind is ApiSelectionKind.Keys && !User.IsAuthenticated) State.Kind = ApiSelectionKind.Endpoint;
+    }
+
+    async Task WriteHash(bool push = false, bool clear = false) {
+        if (!_hashWired || _nav is null) return;
+        var hash = clear ? "" : State.Hash() ?? "";
+        try {
+            await _nav.InvokeVoidAsync(push ? "push" : "write", hash);
+        }
+        catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
+            Logger.LogDebug(ex, "the workbench hash could not be updated");
+        }
+    }
+
+    public async ValueTask DisposeAsync() {
+        await _navHandle.DisposeModuleAsync("dispose", Logger);
+        await _nav.DisposeModuleAsync(logger: Logger);
+        await _store.DisposeModuleQuietAsync(logger: Logger);
+        _selfRef?.Dispose();
+    }
+
+}

@@ -17,20 +17,6 @@ public class InspectorPageTests {
             var c = _f.CreateClient();
             var r = await c.GetAsync("/inspector");
             Assert.Equal(HttpStatusCode.OK, r.StatusCode);
-            string html = await r.Content.ReadAsStringAsync();
-
-            Assert.Contains(">Inspector</a>", html);
-
-            Assert.Contains("insp-rail", html);
-            Assert.Contains("wb-seg-btn", html);
-
-            Assert.Contains("insp-target", html);
-            Assert.Contains(">Build</button>", html);
-            Assert.Contains(">Send</button>", html);
-
-            Assert.Contains("Live API", html);
-
-            Assert.Contains("insp-disc-toggle", html);
         }
 
         [Fact]

@@ -8,7 +8,7 @@ public partial class UnifiedStyleTests(SharedAppFactory f) {
     private readonly WebApplicationFactory<Program> _f = f;
 
     [Theory]
-    [InlineData("/inspector")]
+    [InlineData("/protos")]
     [InlineData("/capture")]
     public async Task Page_LinksCompiledSheet_NotTailwind(string path) {
         var c = _f.CreateClient();

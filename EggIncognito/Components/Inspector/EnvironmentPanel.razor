@@ -1,4 +1,4 @@
-@using EggIncognito.Services.Inspector
+@using EggIncognito.Services.Api
 <div class="env-box">
     <div class="env-head">
         <button type="button" class="env-title" @onclick="Toggle">
@@ -44,7 +44,7 @@
 </div>
 
 @code {
-    [Inject] public InspectorState State { get; set; } = default!;
+    [Inject] public ApiWorkbenchState State { get; set; } = default!;
 
     [Parameter] public IReadOnlyList<EnvRow> Rows { get; set; } = [];
     [Parameter] public EventCallback<EnvRow> OnChanged { get; set; }

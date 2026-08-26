@@ -17,10 +17,6 @@ public static class PageMeta {
 
 
     private static readonly (string Prefix, Meta Meta)[] Routes = [
-        ("/inspector", new Meta(
-            "EggIncognito - Inspector",
-            "Build, sign, send, and decode any Egg, Inc. API request by hand. Every transform in the " +
-            "transport pipeline is visualized, from proto to signed wire format and back.")),
         ("/capture", new Meta(
             "EggIncognito - Capture",
             "A TLS-intercepting proxy that records live Egg, Inc. game traffic into reusable endpoint " +

@@ -14,6 +14,7 @@ public abstract class EgiTestFactory : WebApplicationFactory<Program> {
 
     protected override void ConfigureWebHost(IWebHostBuilder builder) {
         builder.UseSetting("NoBrowser", "true");
+        builder.UseSetting("RateLimiting:Enabled", "false");
         builder.UseSetting(FakeDeviceGate.EnabledKey, "false");
         builder.UseSetting(LocalIdentityGate.EnabledKey, "false");
         Configure(builder);
