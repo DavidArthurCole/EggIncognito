@@ -79,7 +79,8 @@ public class HostedCapturePageTests {
             Assert.DoesNotContain("id=\"hostedLogin\"", html);
             Assert.DoesNotContain("id=\"statsPanel\"", html);
             Assert.DoesNotContain("href=\"capture\"", html);
-            Assert.Contains("href=\"protos\"", html);
+            Assert.DoesNotContain("href=\"admin\"", html);
+            Assert.Contains("app-nav-brand", html);
         }
 
         [Fact]

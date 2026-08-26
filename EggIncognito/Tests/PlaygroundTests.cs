@@ -29,8 +29,8 @@ public class PlaygroundTests(SharedAppFactory f) {
         Assert.DoesNotContain("playgroundCanvas", html);
         Assert.DoesNotContain("Contributor access required", html);
         Assert.DoesNotContain("href=\"playground\"", html);
-        Assert.Contains("href=\"protos\"", html);
-        Assert.Contains("Protos &amp; Data", html);
+        Assert.DoesNotContain("href=\"admin\"", html);
+        Assert.Contains("app-nav-brand", html);
     }
 
     [Fact]
@@ -226,12 +226,12 @@ public class PlaygroundTests(SharedAppFactory f) {
     }
 
     [Fact]
-    public async Task Periodicals_Route_MergedIntoProtosData_AdminOnlyTabs() {
+    public async Task Periodicals_Route_MergedIntoProtosData() {
         var c = _factory.CreateClient();
         var r = await c.GetAsync("/periodicals");
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
         string html = await r.Content.ReadAsStringAsync();
-        Assert.Contains("Protos &amp; Data", html);
+        Assert.Contains("app-nav-brand", html);
 
         Assert.DoesNotContain(">Periodicals</button>", html);
     }
