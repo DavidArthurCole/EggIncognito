@@ -52,8 +52,10 @@
                         <div class="flex items-center gap-2 mt-1">
                             <button type="button" class="btn-primary" disabled="@f.ProtoBusy" @onclick="@(() => SaveProto(f))">@(f.ProtoBusy ? "Saving..." : "Save proto")</button>
                             <button type="button" class="btn-mini" @onclick="@(() => f.ProtoOpen = false)">Cancel</button>
-                            <span class="text-xs @(f.ProtoMsg == "saved" ? "text-accent" : "text-muted")">@f.ProtoMsg</span>
                         </div>
+                        @if (f.ProtoMsg.Length > 0) {
+                            <StatusNote Severity="@(f.ProtoMsg == "saved" ? StatusNoteKind.Ok : StatusNoteKind.Error)" OnDismiss="@(() => f.ProtoMsg = string.Empty)">@f.ProtoMsg</StatusNote>
+                        }
                     }
                 </div>
             </div>
@@ -61,8 +63,10 @@
 
         <div class="flex items-center gap-2">
             <button type="button" class="btn-primary" disabled="@_busy" @onclick="Save">@(_busy ? "Saving..." : "Save")</button>
-            <span class="text-xs @(_msg == "saved" ? "text-accent" : "text-muted")">@_msg</span>
         </div>
+        @if (_msg.Length > 0) {
+            <StatusNote Severity="@(_msg == "saved" ? StatusNoteKind.Ok : StatusNoteKind.Error)" OnDismiss="@(() => _msg = string.Empty)">@_msg</StatusNote>
+        }
     </div>
 }
 

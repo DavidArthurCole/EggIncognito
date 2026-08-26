@@ -13,7 +13,7 @@
 @implements IAsyncDisposable
 
 <WorkbenchModal Open="Open" Title="Theme workbench" TitleId="themeWbTitle" Size="WorkbenchSize.Wide"
-                Notice="_notice" OnClose="CloseAsync">
+                Notice="_notice" NoticeDismissed="ClearNotice" OnClose="CloseAsync">
     <Rail>
         <WorkbenchRail>
             @if (User.IsAuthenticated) {
@@ -315,7 +315,7 @@
         using var client = Client();
         var resp = await client.PostAsync($"/api/theme/{Uri.EscapeDataString(State.Draft.Slug)}/activate", null);
         if (resp.IsSuccessStatusCode) {
-            SetStatus("activated; reload to see it everywhere", true);
+            SetStatus("activated; reload to see it everywhere", true, true);
             await LoadThemesAsync();
         } else {
             SetStatus(await Describe(resp), false);
@@ -503,8 +503,12 @@
         return v.ToString("0.#", CultureInfo.InvariantCulture);
     }
 
-    void SetStatus(string message, bool ok) {
-        _notice = new WorkbenchNotice(message, ok ? StatusNoteKind.Ok : StatusNoteKind.Error);
+    void ClearNotice() {
+        _notice = null;
+    }
+
+    void SetStatus(string message, bool ok, bool needsReload = false) {
+        _notice = new WorkbenchNotice(message, ok ? StatusNoteKind.Ok : StatusNoteKind.Error, needsReload);
     }
 
     static async Task<string> Describe(HttpResponseMessage resp) {

@@ -20,6 +20,7 @@
             </button>
         }
     </div>
+    @StatusFor(ThemeStatusSource.Presets)
     @if (User.IsAuthenticated) {
         <label class="theme-field">
             <span>My themes</span>
@@ -30,6 +31,7 @@
                 }
             </select>
         </label>
+        @StatusFor(ThemeStatusSource.Themes)
     }
     <div class="theme-picker-actions">
         <button type="button" class="btn-mini" @onclick="() => _wbOpen = true">Open theme workbench</button>
@@ -37,9 +39,7 @@
             <button type="button" class="btn-mini" @onclick="ResetLocalAsync">Reset</button>
         }
     </div>
-    @if (_status is not null) {
-        <div class="@(_statusOk ? "text-ok" : "text-err") text-xs">@_status</div>
-    }
+    @StatusFor(ThemeStatusSource.Actions)
 </div>
 
 <ThemeWorkbenchModal Open="_wbOpen" OnClose="CloseWorkbenchAsync"/>
@@ -49,8 +49,7 @@
     readonly List<ThemeRow> _themes = [];
     string _activeSlug = "";
     bool _wbOpen;
-    string? _status;
-    bool _statusOk;
+    ThemeStatus? _status;
     IJSObjectReference? _prefs;
     IJSObjectReference? _preview;
 
@@ -97,16 +96,16 @@
             var save = await client.PutAsync($"/api/theme/{slug}",
                 new StringContent(model.ToJson(), Encoding.UTF8, "application/json"));
             if (!save.IsSuccessStatusCode) {
-                SetStatus("could not save the preset", false);
+                SetStatus("could not save the preset", StatusNoteKind.Error, ThemeStatusSource.Presets);
                 return;
             }
 
             var activate = await client.PostAsync($"/api/theme/{slug}/activate", null);
             if (activate.IsSuccessStatusCode) {
-                SetStatus($"{preset.Name} active; reload to apply everywhere", true);
+                SetStatus($"{preset.Name} active; reload to apply everywhere", StatusNoteKind.Ok, ThemeStatusSource.Presets, true);
                 await LoadThemesAsync();
             } else {
-                SetStatus("preset failed validation", false);
+                SetStatus("preset failed validation", StatusNoteKind.Error, ThemeStatusSource.Presets);
             }
 
             return;
@@ -116,7 +115,7 @@
         await _prefs.InvokeVoidAsync("set", "theme.model", preset.ToJson());
         await _prefs.InvokeVoidAsync("set", "theme.active", "1");
         await _preview.InvokeVoidAsync("applyTokens", TokenCssMap(preset));
-        SetStatus($"{preset.Name} applied in this browser", true);
+        SetStatus($"{preset.Name} applied in this browser", StatusNoteKind.Ok, ThemeStatusSource.Presets);
     }
 
     async Task OnThemeSelectedAsync(ChangeEventArgs e) {
@@ -124,10 +123,12 @@
         using var client = Client();
         if (slug.Length == 0) {
             var resp = await client.PostAsync("/api/theme/deactivate", null);
-            SetStatus(resp.IsSuccessStatusCode ? "theme off; reload to apply" : "could not deactivate", resp.IsSuccessStatusCode);
+            if (resp.IsSuccessStatusCode) SetStatus("theme off; reload to apply", StatusNoteKind.Ok, ThemeStatusSource.Themes, true);
+            else SetStatus("could not deactivate", StatusNoteKind.Error, ThemeStatusSource.Themes);
         } else {
             var resp = await client.PostAsync($"/api/theme/{Uri.EscapeDataString(slug)}/activate", null);
-            SetStatus(resp.IsSuccessStatusCode ? $"{slug} active; reload to apply" : "activation failed contrast checks", resp.IsSuccessStatusCode);
+            if (resp.IsSuccessStatusCode) SetStatus($"{slug} active; reload to apply", StatusNoteKind.Ok, ThemeStatusSource.Themes, true);
+            else SetStatus("activation failed contrast checks", StatusNoteKind.Error, ThemeStatusSource.Themes);
         }
 
         await LoadThemesAsync();
@@ -138,7 +139,7 @@
         await _prefs.InvokeVoidAsync("remove", "theme.model");
         await _prefs.InvokeVoidAsync("remove", "theme.active");
         await _preview.InvokeVoidAsync("clearTokens", ThemeTokens.Settable);
-        SetStatus("reset to the shipped default", true);
+        SetStatus("reset to the shipped default", StatusNoteKind.Ok, ThemeStatusSource.Actions);
     }
 
     async Task CloseWorkbenchAsync() {
@@ -156,9 +157,24 @@
         return preset.ResolveToken("accent").ToCss();
     }
 
-    void SetStatus(string message, bool ok) {
-        _status = message;
-        _statusOk = ok;
+    void SetStatus(string message, StatusNoteKind kind, ThemeStatusSource source, bool needsReload = false) {
+        _status = new ThemeStatus(message, kind, source, needsReload);
+    }
+
+    void ClearStatus() {
+        _status = null;
+    }
+
+    RenderFragment? StatusFor(ThemeStatusSource source) {
+        if (_status is not { } s || s.Source != source) return null;
+        return @<StatusNote Severity="@s.Kind" OnDismiss="ClearStatus">
+                   <ChildContent>@s.Message</ChildContent>
+                   <Actions>
+                       @if (s.NeedsReload) {
+                           <ReloadButton/>
+                       }
+                   </Actions>
+               </StatusNote>;
     }
 
     public async ValueTask DisposeAsync() {

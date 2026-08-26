@@ -1,0 +1,11 @@
+@inject NavigationManager Nav
+
+<button type="button" class="btn-mini" @onclick="Reload">Reload</button>
+
+@code {
+
+    void Reload() {
+        Nav.Refresh(true);
+    }
+
+}

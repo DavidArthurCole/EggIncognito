@@ -12,13 +12,14 @@
                 <section class="wb-main">
                     @if (Notice is { } notice) {
                         <div class="wb-notice">
-                            <StatusNote Severity="@notice.Severity">@notice.Text</StatusNote>
-                            @if (NoticeDismissed.HasDelegate) {
-                                <button type="button" class="wb-x" aria-label="Dismiss"
-                                        @onclick="@(() => NoticeDismissed.InvokeAsync())">
-                                    <Icon Name="x" Class="icon-sm"/>
-                                </button>
-                            }
+                            <StatusNote Severity="@notice.Severity" OnDismiss="@NoticeDismissed">
+                                <ChildContent>@notice.Text</ChildContent>
+                                <Actions>
+                                    @if (notice.NeedsReload) {
+                                        <ReloadButton/>
+                                    }
+                                </Actions>
+                            </StatusNote>
                         </div>
                     }
                     @ChildContent

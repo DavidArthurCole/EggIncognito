@@ -4,7 +4,6 @@
    token to the value instead of wrapping the selection. *@
 @using System.Net.Http.Headers
 @using System.Text.Json
-@using EggIncognito.Models.Docs
 @inherits SelfCallComponentBase
 @inject ICurrentUser User
 
@@ -21,14 +20,16 @@
             <span class="md-editor-spacer"></span>
             <button type="button" class="btn-primary" disabled="@_busy" @onclick="Save">Save</button>
         </div>
+        @if (!string.IsNullOrEmpty(_status)) {
+            <div class="px-2 pb-2">
+                <StatusNote Severity="@_statusKind" OnDismiss="ClearStatus">@_status</StatusNote>
+            </div>
+        }
         <textarea class="md-source" spellcheck="false" value="@_value" @oninput="OnInput"></textarea>
         <div class="md-preview-wrap">
             <div class="md-preview-label">Preview</div>
             <Markdown Body="@_value" CssClass="md-preview"/>
         </div>
-        @if (!string.IsNullOrEmpty(_status)) {
-            <div class="md-editor-status">@_status</div>
-        }
     </div>
 }
 
@@ -58,6 +59,7 @@
     bool _busy;
     string _value = "";
     string? _status;
+    StatusNoteKind _statusKind = StatusNoteKind.Info;
     string? _seeded;
     bool _dirty;
 
@@ -85,23 +87,32 @@
         _dirty = true;
     }
 
+    void SetStatus(string message, StatusNoteKind kind) {
+        _status = message;
+        _statusKind = kind;
+    }
+
+    void ClearStatus() {
+        _status = null;
+    }
+
     async Task Save() {
         _busy = true;
-        _status = "Saving...";
+        SetStatus("Saving...", StatusNoteKind.Busy);
         try {
             var res = await Client().PostAsJsonAsync("/api/docs/doc",
                 new { subjectKind = Kind, subjectKey = Key, bodyMd = _value }, JsonOpts);
             if (res.IsSuccessStatusCode) {
-                _status = string.IsNullOrWhiteSpace(_value) ? "Cleared." : "Saved.";
+                SetStatus(string.IsNullOrWhiteSpace(_value) ? "Cleared." : "Saved.", StatusNoteKind.Ok);
                 if (OnSaved.HasDelegate) await OnSaved.InvokeAsync(_value);
             } else {
-                _status = (int)res.StatusCode == 403 ? "Not authorized."
+                SetStatus((int)res.StatusCode == 403 ? "Not authorized."
                     : (int)res.StatusCode == 503 ? "No database configured."
-                    : $"HTTP {(int)res.StatusCode}";
+                    : $"HTTP {(int)res.StatusCode}", StatusNoteKind.Error);
             }
         }
         catch (Exception ex) {
-            _status = $"Save failed: {ex.Message}";
+            SetStatus($"Save failed: {ex.Message}", StatusNoteKind.Error);
         }
         finally {
             _busy = false;
@@ -113,7 +124,7 @@
         var file = e.File;
         _dirty = true;
         _busy = true;
-        _status = $"Uploading {file.Name}...";
+        SetStatus($"Uploading {file.Name}...", StatusNoteKind.Busy);
         try {
             using var content = new MultipartFormDataContent();
             using var stream = file.OpenReadStream(MaxImageBytes);
@@ -123,19 +134,19 @@
             content.Add(part, "file", file.Name);
             var res = await Client().PostAsync("/api/docs/image", content);
             if (res.IsSuccessStatusCode) {
-                var data = await res.Content.ReadFromJsonAsync<ImageResult>(JsonOpts);
+                var data = await res.Content.ReadFromJsonAsync<Models.Docs.ImageResult>(JsonOpts);
                 _value += $"\n![{file.Name}]({data?.Url})\n";
-                _status = "Image inserted.";
+                SetStatus("Image inserted.", StatusNoteKind.Ok);
             } else {
                 var msg = (int)res.StatusCode == 403 ? "not authorized"
                     : (int)res.StatusCode == 503 ? "no database" : $"HTTP {(int)res.StatusCode}";
                 _value += $"\n*(image upload failed: {msg})*\n";
-                _status = $"Upload failed: {msg}";
+                SetStatus($"Upload failed: {msg}", StatusNoteKind.Error);
             }
         }
         catch (Exception ex) {
             _value += $"\n*(image upload failed: {ex.Message})*\n";
-            _status = $"Upload failed: {ex.Message}";
+            SetStatus($"Upload failed: {ex.Message}", StatusNoteKind.Error);
         }
         finally {
             _busy = false;

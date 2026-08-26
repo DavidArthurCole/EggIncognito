@@ -3,17 +3,21 @@
    it into one grouped release; the canonical is picked automatically since members are the same version
    and all platforms stay visible on the grouped row. Server ACL is the real gate. *@
 
-<div class="panel flex items-center gap-3 flex-wrap">
-    <span class="text-fg text-sm font-semibold">@Selected.Count selected</span>
+<div class="panel">
+    <div class="flex items-center gap-3 flex-wrap">
+        <span class="text-fg text-sm font-semibold">@Selected.Count selected</span>
 
-    <button type="button" class="btn-mini" disabled="@_busy" @onclick="DeleteSelected">Delete</button>
+        <button type="button" class="btn-mini" disabled="@_busy" @onclick="DeleteSelected">Delete</button>
 
-    @if (Selected.Count >= 2) {
-        <button type="button" class="btn-mini" disabled="@_busy" @onclick="MergeSelected">Merge</button>
+        @if (Selected.Count >= 2) {
+            <button type="button" class="btn-mini" disabled="@_busy" @onclick="MergeSelected">Merge</button>
+        }
+
+        <button type="button" class="btn-mini" @onclick="@(() => OnClear.InvokeAsync())">Clear</button>
+    </div>
+    @if (_msg.Length > 0) {
+        <StatusNote Severity="@(_ok ? StatusNoteKind.Ok : StatusNoteKind.Error)" OnDismiss="@(() => _msg = string.Empty)">@_msg</StatusNote>
     }
-
-    <button type="button" class="btn-mini" @onclick="@(() => OnClear.InvokeAsync())">Clear</button>
-    <span class="text-xs @(_msg.StartsWith("err") ? "text-muted" : "text-accent")">@_msg</span>
 </div>
 
 @code {
@@ -23,13 +27,15 @@
     [Parameter] public EventCallback OnClear { get; set; }
 
     bool _busy;
+    bool _ok;
     string _msg = "";
 
     async Task DeleteSelected() {
         _busy = true;
         _msg = "";
         var ok = await Post("/api/protos/versions/delete", new { versions = Selected });
-        _msg = ok ? $"deleted {Selected.Count}" : "err: delete failed (admin only?)";
+        _ok = ok;
+        _msg = ok ? $"deleted {Selected.Count}" : "delete failed (admin only?)";
         _busy = false;
         if (ok) await OnChanged.InvokeAsync();
     }
@@ -44,7 +50,8 @@
         var canonical = ordered[0];
         var aliases = ordered.Skip(1).ToList();
         var ok = await Post("/api/protos/versions/merge", new { canonical, aliases });
-        _msg = ok ? $"merged {Selected.Count} builds into one release" : "err: merge failed (admin only?)";
+        _ok = ok;
+        _msg = ok ? $"merged {Selected.Count} builds into one release" : "merge failed (admin only?)";
         _busy = false;
         if (ok) await OnChanged.InvokeAsync();
     }

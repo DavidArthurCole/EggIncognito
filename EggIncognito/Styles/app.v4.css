@@ -403,6 +403,8 @@ html { color-scheme: dark; }
 .status-note-ok { @apply text-ok; border-color: color-mix(in oklab, var(--color-ok) 50%, transparent); background: color-mix(in oklab, var(--color-ok) 7%, transparent); }
 .status-note-error { @apply text-err; border-color: color-mix(in oklab, var(--color-err) 50%, transparent); background: color-mix(in oklab, var(--color-err) 7%, transparent); }
 .status-note-busy { @apply text-fg; }
+.status-note-x { @apply w-5 h-5 shrink-0 grid place-items-center rounded bg-transparent border-0 p-0 text-muted cursor-pointer; }
+.status-note-x:hover { @apply text-fg; }
 .status-chip { @apply font-mono text-[0.6875rem] text-muted; }
 .status-chip-ok { @apply text-ok; }
 .status-chip-err { @apply text-err; }
@@ -1175,8 +1177,6 @@ input[type="search"]::placeholder { @apply text-muted; }
 .md-body hr.md-rule, .doc-body hr.md-rule, .md-preview hr.md-rule { @apply border-0 border-t border-border my-3; }
 
 .md-editor-spacer { @apply ml-auto; }
-.md-editor-status { @apply px-2 py-1 text-xs text-muted border-t border-border; }
-
 .protos-filter { @apply w-[160px] bg-panel2 rounded-md px-2 py-1 font-mono; }
 .protos-filter::placeholder { @apply text-muted; }
 .reg-wrap { @apply border border-border rounded-md overflow-x-auto bg-panel; overflow-y: hidden; }

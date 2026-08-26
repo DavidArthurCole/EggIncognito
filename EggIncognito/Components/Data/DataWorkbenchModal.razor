@@ -11,7 +11,7 @@
 @implements IAsyncDisposable
 
 <WorkbenchModal Open="_open" Title="Data" TitleId="dataWorkbenchTitle" CardClass="ds-card"
-                Notice="_notice" OnClose="CloseAsync">
+                Notice="_notice" NoticeDismissed="ClearNotice" OnClose="CloseAsync">
     <Rail>
         <WorkbenchRail>
             <WorkbenchLoad T="DataSourceRow" Items="@_sources" EmptyText="No data sources on this instance."
@@ -272,6 +272,10 @@
         var first = _sources?.FirstOrDefault();
         if (first is null) return;
         State.Select(first.Group, first.Id, null);
+    }
+
+    void ClearNotice() {
+        _notice = null;
     }
 
     async Task Select(DataSourceRow root, DataSourceRow? child) {

@@ -14,4 +14,4 @@ public enum WorkbenchTone {
     Bad
 }
 
-public sealed record WorkbenchNotice(string Text, StatusNoteKind Severity = StatusNoteKind.Info);
+public sealed record WorkbenchNotice(string Text, StatusNoteKind Severity = StatusNoteKind.Info, bool NeedsReload = false);

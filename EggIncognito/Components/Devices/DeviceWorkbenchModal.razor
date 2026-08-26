@@ -18,7 +18,7 @@
 @implements IDisposable
 
 <WorkbenchModal Open="@(_open && _isAdmin)" Title="Devices" TitleId="deviceWorkbenchTitle"
-                Notice="@_notice" OnClose="CloseModal">
+                Notice="@_notice" NoticeDismissed="ClearNotice" OnClose="CloseModal">
     <HeadTools>
         <button type="button" class="btn-mini" disabled="@_bulkBusy" @onclick="ProbeAll">Probe all</button>
         <button type="button" class="btn-mini" disabled="@_bulkBusy" @onclick="PokeAll">Poke all</button>
@@ -400,6 +400,10 @@
 
     void ToggleJob(long id) {
         if (!State.Expanded.Remove(id)) State.Expanded.Add(id);
+    }
+
+    void ClearNotice() {
+        _notice = null;
     }
 
     void Note(string text, bool ok) {
