@@ -2,7 +2,7 @@
 
 Host-side device runner, containerized, deployed as a sidecar via EggIdentity. One container watches every configured device (android over adb, ios via a staged binary), extracts the cleaned proto, posts new-version events, and serves an authed resync/probe API. `network_mode: host`.
 
-Image: `ghcr.io/davidarthurcole/eggincognito-runner:latest`, built by the release workflow. A new `:latest` push redeploys automatically through the stack's pull-and-update pipeline; no app callback.
+Image: `ghcr.io/egginctools/eggincognito-runner:latest`, built by the release workflow. A new `:latest` push redeploys automatically through the stack's pull-and-update pipeline; no app callback.
 
 ## Env vars
 
