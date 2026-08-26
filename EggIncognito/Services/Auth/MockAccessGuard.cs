@@ -1,5 +1,4 @@
 using EggIdentity.Contract;
-using EggIncognito.Services;
 
 namespace EggIncognito.Services.Auth;
 

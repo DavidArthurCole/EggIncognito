@@ -38,7 +38,7 @@ public class EndpointCatalogRebuilderTests {
         Assert.Contains(kept, e => e.Path == "ei_i18n/get_translation_pack");
         Assert.Contains(kept, e => e.Path == "ei_i18n/get_translations");
         Assert.DoesNotContain(kept, e => e.Path == "ei/kb");
-        Assert.DoesNotContain(kept, e => e.Path == "ei_afx/zoom_zoom");
+        Assert.Contains(kept, e => e.Path == "ei_afx/zoom_zoom");
     }
 
     [Fact]
@@ -48,8 +48,7 @@ public class EndpointCatalogRebuilderTests {
 
         var yaml = RouteCatalog.ForRepo(contentRoot);
         Assert.Contains("ei/kb", yaml.ExcludedPaths);
-        Assert.Contains("ei_afx/zoom_zoom", yaml.ExcludedPaths);
-        Assert.Equal(2, yaml.ExcludedPaths.Count);
+        Assert.Single(yaml.ExcludedPaths);
         Assert.DoesNotContain("ei/has_voted", yaml.ExcludedPaths);
         Assert.DoesNotContain("ei/shell_showcase_view_poll", yaml.ExcludedPaths);
         Assert.DoesNotContain("ei/confirm_gift_delivery", yaml.ExcludedPaths);
@@ -80,7 +79,7 @@ public class EndpointCatalogRebuilderTests {
         var kept = EndpointCatalogRebuilder.Filter(descriptors, yaml.ExcludedPaths);
 
         Assert.DoesNotContain(kept, e => e.Path == "ei/kb");
-        Assert.DoesNotContain(kept, e => e.Path == "ei_afx/zoom_zoom");
+        Assert.Contains(kept, e => e.Path == "ei_afx/zoom_zoom");
         Assert.Contains(kept, e => e.Path == "ei/has_voted");
         Assert.Contains(kept, e => e.Path == "ei/shell_showcase_view_poll");
         Assert.Contains(kept, e => e.Path == "ei/confirm_gift_delivery");

@@ -1,7 +1,6 @@
 using EggIdentity.Contract;
 using EggIncognito.Services;
 using EggIncognito.Services.Auth;
-using Xunit;
 
 namespace EggIncognito.Tests.Auth;
 

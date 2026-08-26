@@ -3,7 +3,6 @@ using EggIncognito.Services;
 using EggIncognito.Services.Auth;
 using Google.Protobuf;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace EggIncognito.Controllers;
 
