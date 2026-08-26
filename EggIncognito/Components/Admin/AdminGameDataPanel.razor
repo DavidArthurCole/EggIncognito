@@ -1,0 +1,142 @@
+@rendermode @(RenderMode.InteractiveServer)
+@using EggIncognito.Models.Admin
+@inherits BrowserApiComponentBase
+
+<AdminCard Title="Game data" Stat="@StatText" OnOpened="Load">
+    <Summary>
+        @if (_data is not null) {
+            <div class="text-xs text-muted">@_data.Missing.Count missing</div>
+            @foreach (var d in RecentlyUpdated) {
+                <div class="admin-card-extra text-xs text-muted">@d.Id &middot; <TimeAgo Value="@d.UpdatedAt!.Value" Hover="false"/></div>
+            }
+        }
+    </Summary>
+    <Detail>
+        @if (_data is not null) {
+            <div class="reg-wrap">
+                <table class="data-table">
+                    <thead>
+                    <tr>
+                        <th>Id</th><th>Present</th><th>Updated</th><th>Bytes</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var d in _data.Documents) {
+                        <tr>
+                            <td class="mono text-xs">@d.Id</td>
+                            <td class="text-xs">@(d.Present ? "yes" : "no")</td>
+                            <td class="text-xs">
+                                @if (d.UpdatedAt is { } updated) {
+                                    <TimeAgo Value="@updated"/>
+                                }
+                            </td>
+                            <td class="mono text-xs">@d.Bytes</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        <div class="sub-section-head">Rebuild</div>
+        <div class="flex gap-1 items-center">
+            <label class="text-xs flex gap-1 items-center">
+                <input type="checkbox" checked="@_force" @onchange="e => _force = e.Value is true"/>
+                force
+            </label>
+            <button type="button" class="btn-mini" disabled="@_busy" @onclick="Rebuild">Rebuild</button>
+        </div>
+        @if (_rebuildResult is not null) {
+            <pre class="result-pre">@RebuildLines()</pre>
+        }
+
+        <div class="sub-section-head">Import</div>
+        <div class="flex gap-1 items-center">
+            <input class="reg-filter-input w-auto" placeholder="document id" @bind="_importId"/>
+            <button type="button" class="btn-mini" disabled="@_busy" @onclick="Import">Import</button>
+        </div>
+        <textarea class="reg-filter-input w-full mono text-xs" rows="6" placeholder="{ }" @bind="_importJson"></textarea>
+
+        @if (_msg is not null) {
+            <StatusNote>@_msg</StatusNote>
+        }
+    </Detail>
+</AdminCard>
+
+@code {
+    GameDataStatusResponse? _data;
+    GameDataRebuildResponse? _rebuildResult;
+    bool _force;
+    bool _busy;
+    string _importId = "";
+    string _importJson = "";
+    string? _msg;
+
+    string StatText {
+        get {
+            if (_data is null) return "";
+            int present = _data.Documents.Count(d => d.Present);
+            return $"{present}/{_data.Documents.Count} docs";
+        }
+    }
+
+    List<GameDataDocRow> RecentlyUpdated =>
+        (_data?.Documents ?? [])
+        .Where(d => d.Present && d.UpdatedAt is not null)
+        .OrderByDescending(d => d.UpdatedAt)
+        .Take(3)
+        .ToList();
+
+    protected override async Task OnApiReadyAsync() {
+        await Load();
+    }
+
+    async Task Load() {
+        if (Api is null) return;
+        var res = await Api.GetAsync("/api/admin/gamedata");
+        if (!res.Ok) {
+            _msg = $"load failed: {res.Describe()}";
+            return;
+        }
+
+        _data = res.Json<GameDataStatusResponse>();
+    }
+
+    async Task Rebuild() {
+        if (Api is null) return;
+        _busy = true;
+        _msg = null;
+        var res = await Api.PostAsync($"/api/admin/gamedata/rebuild?force={(_force ? "true" : "false")}", TimeSpan.FromMinutes(5));
+        if (res.Ok) {
+            _rebuildResult = res.Json<GameDataRebuildResponse>();
+            _msg = _rebuildResult is null
+                ? "rebuild complete"
+                : $"rebuild complete: {_rebuildResult.Results.Count} docs" +
+                  (string.IsNullOrEmpty(_rebuildResult.Binary) ? "" : $" ({_rebuildResult.Binary})");
+        } else {
+            _rebuildResult = null;
+            _msg = $"rebuild failed: {res.Describe()}";
+        }
+
+        await Load();
+        _busy = false;
+    }
+
+    string RebuildLines() {
+        if (_rebuildResult is null) return "";
+        return string.Join('\n', _rebuildResult.Results.Select(r =>
+            $"{r.Id}: {r.Status} count={r.Count?.ToString() ?? "-"} bytes={r.Bytes?.ToString() ?? "-"}" +
+            (string.IsNullOrEmpty(r.Note) ? "" : $" ({r.Note})")));
+    }
+
+    async Task Import() {
+        if (Api is null || string.IsNullOrWhiteSpace(_importId)) return;
+        _busy = true;
+        _msg = null;
+        var res = await Api.SendAsync("POST", $"/api/admin/gamedata/{Uri.EscapeDataString(_importId.Trim())}", _importJson);
+        _msg = res.Ok ? $"imported {_importId.Trim()}" : $"import failed: {res.Describe()}";
+        await Load();
+        _busy = false;
+    }
+
+}

@@ -8,6 +8,9 @@
             <div class="text-muted text-xs">No users loaded.</div>
         } else {
             <div class="text-muted text-xs">@((MarkupString)RoleBreakdown())</div>
+            @foreach (var u in RecentLogins) {
+                <div class="admin-card-extra text-xs text-muted">@u.Username &middot; <TimeAgo Value="@u.LastLoginAt" Hover="false"/></div>
+            }
         }
     </Summary>
     <Detail>
@@ -58,6 +61,8 @@
 
     List<UserRow> _users = [];
     string? _msg;
+
+    List<UserRow> RecentLogins => _users.OrderByDescending(u => u.LastLoginAt).Take(3).ToList();
 
     protected override async Task OnApiReadyAsync() {
         await LoadUsers();

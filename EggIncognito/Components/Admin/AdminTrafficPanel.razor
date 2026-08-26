@@ -33,6 +33,9 @@
             <svg class="traffic-spark" viewBox="0 0 240 40" preserveAspectRatio="none" role="img" aria-label="Requests per minute">
                 <polyline points="@Spark()" fill="none" stroke="currentColor" stroke-width="1.5"/>
             </svg>
+            @foreach (var p in TopPaths) {
+                <div class="admin-card-extra text-xs text-muted">@p.Path &middot; @p.Count.ToString("N0")</div>
+            }
         }
     </Summary>
     <Detail>
@@ -53,6 +56,8 @@
     int RequestsHour => _snap?.Minutes.Sum(m => m.Total) ?? 0;
 
     int Limited => _snap?.Minutes.Sum(m => m.Limited) ?? 0;
+
+    List<PathCount> TopPaths => (_snap?.Paths ?? []).Take(3).ToList();
 
     protected override async Task OnInitializedAsync() {
         _source = Services.GetService<ITrafficSource>();

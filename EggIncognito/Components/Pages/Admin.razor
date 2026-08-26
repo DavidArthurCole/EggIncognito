@@ -13,17 +13,26 @@
             <AdminTrafficPanel/>
             <DeviceStatusPanel OnManage="OpenDeviceWorkbench"/>
         </div>
-        <div class="admin-cards">
-            <AdminBotConfigPanel/>
-            <AdminRoutesPanel/>
+        <AdminSection Title="Access">
             <AdminUsersPanel/>
-            <AdminSessionsPanel/>
             <AdminApiKeysPanel/>
-            <AdminBinariesPanel/>
-            <AdminEventsPanel/>
+            <AdminNotificationsPanel/>
             <AdminThemePolicyPanel/>
+        </AdminSection>
+        <AdminSection Title="Data">
+            <AdminDataStatusPanel/>
+            <AdminRoutesPanel/>
+            <AdminBinariesPanel/>
+            <AdminGameDataPanel/>
+            <AdminEventsPanel/>
+            <AdminStagedPanel/>
+        </AdminSection>
+        <AdminSection Title="Ops">
+            <AdminSessionsPanel/>
             <AdminConsolePanel/>
-        </div>
+            <AdminBotConfigPanel/>
+            <AdminMaintenancePanel/>
+        </AdminSection>
     }
 </main>
 

@@ -10,6 +10,9 @@
             <p class="text-muted text-sm m-0">No active capture sessions.</p>
         } else {
             <p class="text-muted text-xs m-0">@((MarkupString)KindBreakdown())</p>
+            @foreach (var s in _rows.Take(4)) {
+                <div class="text-xs text-muted">@Label(s.Key) &middot; <span class="sess-kind @KindClass(s.Kind)">@s.Kind</span> &middot; @(s.Running ? "running" : "stopped")</div>
+            }
         }
     </Summary>
     <Detail>

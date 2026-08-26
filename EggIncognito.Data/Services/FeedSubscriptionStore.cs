@@ -19,6 +19,11 @@ public interface IFeedSubscriptionStore {
 
     Task SuppressAsync(int subId, string eventKind, string dedupKey, string reason, string? summary,
         CancellationToken ct = default);
+
+    Task<List<FeedSubscription>> AllForAdminAsync(CancellationToken ct = default);
+    Task<FeedSubscription?> AdminByIdAsync(int id, CancellationToken ct = default);
+    Task<bool> AdminDeactivateAsync(int id, CancellationToken ct = default);
+    Task<bool> AdminDeleteAsync(int id, CancellationToken ct = default);
 }
 
 public sealed class FeedSubscriptionStore(EggIncognitoDbContext db) : IFeedSubscriptionStore {
@@ -128,4 +133,23 @@ public sealed class FeedSubscriptionStore(EggIncognitoDbContext db) : IFeedSubsc
         db.FeedSuppressions.AsNoTracking()
             .Where(s => s.SubscriptionId == subId)
             .OrderByDescending(s => s.Id).Take(take).ToListAsync(ct);
+
+    public Task<List<FeedSubscription>> AllForAdminAsync(CancellationToken ct = default) =>
+        db.FeedSubscriptions.AsNoTracking()
+            .OrderByDescending(s => s.CreatedAt)
+            .ToListAsync(ct);
+
+    public Task<FeedSubscription?> AdminByIdAsync(int id, CancellationToken ct = default) =>
+        db.FeedSubscriptions.AsNoTracking().FirstOrDefaultAsync(s => s.Id == id, ct);
+
+    public async Task<bool> AdminDeactivateAsync(int id, CancellationToken ct = default) {
+        var s = await db.FeedSubscriptions.FirstOrDefaultAsync(x => x.Id == id, ct);
+        if (s is null) return false;
+        s.Active = false;
+        await db.SaveChangesAsync(ct);
+        return true;
+    }
+
+    public async Task<bool> AdminDeleteAsync(int id, CancellationToken ct = default) =>
+        await db.FeedSubscriptions.Where(s => s.Id == id).ExecuteDeleteAsync(ct) > 0;
 }

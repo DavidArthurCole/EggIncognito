@@ -4,6 +4,7 @@ using EggIdentity.Contract;
 using EggIncognito.Components.Pages;
 using EggIncognito.Services;
 using EggIncognito.Services.Devices;
+using EggIncognito.Services.Notifications;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -39,6 +40,7 @@ public class AdminPageTests {
             Services.AddSingleton<IWebHostEnvironment>(new FakeWebHostEnvironment());
             Services.AddSingleton(new AuthState(false));
             Services.AddScoped<DeviceWorkbenchState>();
+            Services.AddScoped<NotificationsWorkbenchState>();
             Services.AddHttpClient();
         }
 
@@ -56,7 +58,7 @@ public class AdminPageTests {
             var cut = Render<Admin>();
             Assert.Empty(cut.FindAll("#denied"));
             Assert.Contains("Users", cut.Markup);
-            Assert.NotNull(cut.WaitForElement(".admin-cards"));
+            Assert.Equal(3, cut.WaitForElements(".admin-section").Count);
         }
     }
 

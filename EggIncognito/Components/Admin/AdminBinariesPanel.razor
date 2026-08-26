@@ -9,7 +9,14 @@
         @if (_rows.Count == 0) {
             <div class="text-muted text-xs">No stored binaries. Pulled automatically on the device maintenance schedule when a new version is installed.</div>
         } else {
-            <div class="text-muted text-xs">newest @(_rows[0].Version) (@(_rows[0].Platform))</div>
+            @foreach (var platform in Platforms) {
+                var b = NewestFor(platform);
+                @if (b is not null) {
+                    <div class="text-xs text-muted">
+                        <VersionLine App="@b.Version" Platform="@b.Platform"/> &middot; <TimeAgo Value="@b.PulledAt" Hover="false"/>
+                    </div>
+                }
+            }
         }
     </Summary>
     <Detail>
@@ -113,6 +120,7 @@
 
 @code {
     const string RefInputId = "symRefFile";
+    static readonly string[] Platforms = ["ios", "android"];
 
     List<StoredBinaryRow> _rows = [];
     bool _busy;
@@ -235,6 +243,10 @@
 
     static int EffectiveSymbols(StoredBinaryRow b) {
         return b.EffectiveSymbols > 0 ? b.EffectiveSymbols : b.NativeSymbols;
+    }
+
+    StoredBinaryRow? NewestFor(string platform) {
+        return _rows.FirstOrDefault(b => b.Platform == platform);
     }
 
 }

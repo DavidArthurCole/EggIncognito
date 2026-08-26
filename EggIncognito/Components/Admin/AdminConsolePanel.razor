@@ -4,9 +4,6 @@
 @inherits BrowserApiComponentBase
 
 <AdminCard Title="API console" Stat="@($"{_endpoints.Count} endpoints")">
-    <Summary>
-        <p class="text-muted text-xs m-0">Send requests to any registered API endpoint from the browser session.</p>
-    </Summary>
     <Detail>
         @if (_endpoints.Count == 0) {
             <p class="text-muted text-sm m-0">No endpoints available.</p>

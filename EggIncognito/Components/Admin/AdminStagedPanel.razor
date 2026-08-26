@@ -1,0 +1,39 @@
+@rendermode @(RenderMode.InteractiveServer)
+@using EggIncognito.Components.Protos
+@using EggIncognito.Models.Admin
+@inherits BrowserApiComponentBase
+
+<AdminCard Title="Staged protos" Stat="@StatText" OnOpened="Load">
+    <Summary>
+        @if (Oldest is { } oldest) {
+            <div class="text-xs text-muted">oldest <TimeAgo Value="@oldest" Hover="false"/></div>
+        } else {
+            <div class="text-xs text-muted">nothing staged</div>
+        }
+    </Summary>
+    <Detail>
+        <StagedReviewPanel IsAdmin="true" OnChanged="Load"/>
+    </Detail>
+</AdminCard>
+
+@code {
+    List<StagedPendingRow> _rows = [];
+
+    string StatText => _rows.Count.ToString();
+
+    DateTimeOffset? Oldest => _rows.Where(r => r.SubmittedAt is not null)
+        .OrderBy(r => r.SubmittedAt)
+        .Select(r => r.SubmittedAt)
+        .FirstOrDefault();
+
+    protected override async Task OnApiReadyAsync() {
+        await Load();
+    }
+
+    async Task Load() {
+        if (Api is null) return;
+        var res = await Api.GetAsync("/api/protos/staged");
+        if (res.Ok) _rows = res.Json<List<StagedPendingRow>>() ?? [];
+    }
+
+}

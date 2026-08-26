@@ -17,7 +17,11 @@
 <WorkbenchModal Open="_open" Title="Notifications" TitleId="notificationsWorkbenchTitle" CardClass="nwb-card"
                 Notice="_notice" NoticeDismissed="DismissNotice" OnClose="CloseAsync">
     <HeadTools>
-        @if (State.Creating) {
+        @if (AdminScope) {
+            @if (_admin is { } summary) {
+                <span class="text-xs text-muted">@AdminHeadLine(summary)</span>
+            }
+        } else if (State.Creating) {
             <button type="button" class="btn-primary nwb-act"
                     disabled="@(_busy || !User.IsAuthenticated || State.NewDraft.Url.Trim().Length == 0)"
                     @onclick="Create">
@@ -43,32 +47,55 @@
         }
     </HeadTools>
     <Rail>
-        <WorkbenchRail HasFilter="true" Filter="@State.RailFilter" FilterChanged="OnRailFilter"
-                       FilterLabel="Filter notifications">
-            <WorkbenchEntry Selected="@State.Creating" OnClick="@(_ => SelectNew())">
-                <Name>New notification</Name>
-            </WorkbenchEntry>
-            @if (User.IsAuthenticated) {
-                <WorkbenchLoad T="NotificationRow" Items="@FilteredOrNull" EmptyText="@EmptyRailText" Context="rows">
-                    @foreach (var g in rows.GroupBy(s => s.EventKind).OrderBy(g => g.Key, StringComparer.Ordinal)) {
-                        <WorkbenchSection Label="@KindLabel(g.Key)">
-                            @foreach (var s in g) {
-                                <WorkbenchEntry @key="s.Id" Selected="@(!State.Creating && State.SelectedId == s.Id)"
-                                                Status="@HealthStatus(s)" OnClick="@(_ => Select(s))">
-                                    <Name>@s.UrlMasked</Name>
-                                    <MetaLine>@TriggerLabel(s.EventKind, s.Trigger)</MetaLine>
-                                    <Foot>@Health(s)</Foot>
+        @if (AdminScope) {
+            <WorkbenchRail HasFilter="true" Filter="@_adminFilter" FilterChanged="OnAdminFilter"
+                           FilterLabel="Filter notifications">
+                <WorkbenchLoad T="AdminFeedRow" Items="@AdminFilteredOrNull" EmptyText="@AdminEmptyRailText"
+                               Context="rows">
+                    @foreach (var g in rows.GroupBy(r => r.OwnerUsername, StringComparer.OrdinalIgnoreCase)) {
+                        <WorkbenchSection Label="@g.Key">
+                            @foreach (var r in g) {
+                                <WorkbenchEntry @key="r.Id" Selected="@(_adminSelectedId == r.Id)"
+                                                Status="@HealthStatus(r)" OnClick="@(_ => AdminSelect(r))">
+                                    <Name>@AdminRowLabel(r)</Name>
+                                    <MetaLine>@r.TargetMasked</MetaLine>
+                                    <Foot>@Health(r)</Foot>
                                 </WorkbenchEntry>
                             }
                         </WorkbenchSection>
                     }
                 </WorkbenchLoad>
-            }
-        </WorkbenchRail>
+            </WorkbenchRail>
+        } else {
+            <WorkbenchRail HasFilter="true" Filter="@State.RailFilter" FilterChanged="OnRailFilter"
+                           FilterLabel="Filter notifications">
+                <WorkbenchEntry Selected="@State.Creating" OnClick="@(_ => SelectNew())">
+                    <Name>New notification</Name>
+                </WorkbenchEntry>
+                @if (User.IsAuthenticated) {
+                    <WorkbenchLoad T="NotificationRow" Items="@FilteredOrNull" EmptyText="@EmptyRailText" Context="rows">
+                        @foreach (var g in rows.GroupBy(s => s.EventKind).OrderBy(g => g.Key, StringComparer.Ordinal)) {
+                            <WorkbenchSection Label="@KindLabel(g.Key)">
+                                @foreach (var s in g) {
+                                    <WorkbenchEntry @key="s.Id" Selected="@(!State.Creating && State.SelectedId == s.Id)"
+                                                    Status="@HealthStatus(s)" OnClick="@(_ => Select(s))">
+                                        <Name>@s.UrlMasked</Name>
+                                        <MetaLine>@TriggerLabel(s.EventKind, s.Trigger)</MetaLine>
+                                        <Foot>@Health(s)</Foot>
+                                    </WorkbenchEntry>
+                                }
+                            </WorkbenchSection>
+                        }
+                    </WorkbenchLoad>
+                }
+            </WorkbenchRail>
+        }
     </Rail>
     <ChildContent>
         <div class="nwb-pane">
-            @if (State.Creating) {
+            @if (AdminScope) {
+                @AdminDetail()
+            } else if (State.Creating) {
                 @Config(State.NewDraft, null)
             } else if (Current is { } row) {
                 @Config(State.Draft(row.Id), row)
@@ -82,12 +109,22 @@
 @code {
     const int PreviewDebounceMs = 500;
 
+    static readonly AdminFeedListResponse EmptyAdmin = new(0, 0, 0, []);
+
+    [Parameter] public bool AdminScope { get; set; }
+
     bool _open;
     bool _busy;
     bool _armed;
     bool _json;
     bool _hashWired;
     WorkbenchNotice? _notice;
+
+    AdminFeedListResponse? _admin;
+    int? _adminSelectedId;
+    string _adminFilter = "";
+    bool _confirmDelete;
+    bool _confirmTest;
 
     IJSObjectReference? _nav;
     IJSObjectReference? _navHandle;
@@ -120,6 +157,37 @@
         return value is not null && value.Contains(needle, StringComparison.OrdinalIgnoreCase);
     }
 
+    AdminFeedRow? AdminCurrent => _admin?.Rows.FirstOrDefault(r => r.Id == _adminSelectedId);
+
+    IReadOnlyCollection<AdminFeedRow>? AdminFilteredOrNull {
+        get {
+            if (_admin is null) return null;
+            var f = _adminFilter.Trim();
+            if (f.Length == 0) return _admin.Rows;
+            return _admin.Rows.Where(r =>
+                Has(r.OwnerUsername, f) || Has(r.TargetMasked, f) || Has(r.Label, f) ||
+                Has(KindLabel(r.EventKind), f) || Has(TriggerLabel(r.EventKind, r.Trigger), f)).ToList();
+        }
+    }
+
+    string AdminEmptyRailText => _admin is { Total: > 0 } ? "No match." : "No notifications yet.";
+
+    string AdminRowLabel(AdminFeedRow r) {
+        return string.IsNullOrWhiteSpace(r.Label) ? KindLabel(r.EventKind) : r.Label;
+    }
+
+    static string AdminHeadLine(AdminFeedListResponse a) {
+        return $"{a.Total} subscriptions, {a.ActiveCount} active, {a.Owners} owners";
+    }
+
+    static string AdminList(string[] values) {
+        return values.Length == 0 ? "none" : string.Join(", ", values);
+    }
+
+    static string AdminStamp(DateTimeOffset? at) {
+        return at is { } value ? value.ToLocalTime().ToString("yyyy-MM-dd HH:mm") : "never";
+    }
+
     KindInfo? KindOf(string? key) {
         return _kinds.FirstOrDefault(k => k.Key == key);
     }
@@ -145,14 +213,30 @@
     }
 
     static string Health(NotificationRow s) {
-        if (!s.Active) return "paused";
-        return s.FailCount > 0 ? $"{s.FailCount} failed" : s.LastDeliveryAt is null ? "no sends yet" : "healthy";
+        return Health(s.Active, s.FailCount, s.LastDeliveryAt);
+    }
+
+    static string Health(AdminFeedRow r) {
+        return Health(r.Active, r.FailCount, r.LastDeliveryAt);
+    }
+
+    static string Health(bool active, int failCount, DateTimeOffset? lastDelivery) {
+        if (!active) return "paused";
+        return failCount > 0 ? $"{failCount} failed" : lastDelivery is null ? "no sends yet" : "healthy";
     }
 
     static WorkbenchStatusKind HealthStatus(NotificationRow s) {
-        if (!s.Active) return WorkbenchStatusKind.Muted;
-        if (s.FailCount > 0) return WorkbenchStatusKind.Error;
-        return s.LastDeliveryAt is null ? WorkbenchStatusKind.Muted : WorkbenchStatusKind.Done;
+        return HealthStatus(s.Active, s.FailCount, s.LastDeliveryAt);
+    }
+
+    static WorkbenchStatusKind HealthStatus(AdminFeedRow r) {
+        return HealthStatus(r.Active, r.FailCount, r.LastDeliveryAt);
+    }
+
+    static WorkbenchStatusKind HealthStatus(bool active, int failCount, DateTimeOffset? lastDelivery) {
+        if (!active) return WorkbenchStatusKind.Muted;
+        if (failCount > 0) return WorkbenchStatusKind.Error;
+        return lastDelivery is null ? WorkbenchStatusKind.Muted : WorkbenchStatusKind.Done;
     }
 
     static bool FiltersApply(NotificationDraft d) {
@@ -269,6 +353,79 @@
                                     </div>
                                 </div>;
 
+    RenderFragment AdminDetail() => @<text>
+                                         @if (AdminCurrent is { } row) {
+                                             <div class="nwb-surface">
+                                                 <div class="nwb-row">
+                                                     <span class="nwb-k">Owner</span>
+                                                     <span class="nwb-static">@row.OwnerUsername</span>
+                                                 </div>
+                                                 <div class="nwb-row">
+                                                     <span class="nwb-k">Target</span>
+                                                     <span class="nwb-static font-mono">@row.TargetMasked</span>
+                                                 </div>
+                                                 <div class="nwb-row">
+                                                     <span class="nwb-cell">
+                                                         <span class="nwb-k">Event</span>
+                                                         <span class="nwb-static">@KindLabel(row.EventKind)</span>
+                                                     </span>
+                                                     <span class="nwb-cell">
+                                                         <span class="nwb-k">Trigger</span>
+                                                         <span class="nwb-static">@TriggerLabel(row.EventKind, row.Trigger)</span>
+                                                     </span>
+                                                 </div>
+                                                 <div class="nwb-row">
+                                                     <span class="nwb-cell">
+                                                         <span class="nwb-k">Platforms</span>
+                                                         <span class="nwb-static">@AdminList(row.Platforms)</span>
+                                                     </span>
+                                                     <span class="nwb-cell">
+                                                         <span class="nwb-k">Filters</span>
+                                                         <span class="nwb-static">@AdminList(row.Filters)</span>
+                                                     </span>
+                                                 </div>
+                                                 <div class="nwb-row">
+                                                     <span class="nwb-cell">
+                                                         <span class="nwb-k">Created</span>
+                                                         <span class="nwb-static">@AdminStamp(row.CreatedAt)</span>
+                                                     </span>
+                                                     <span class="nwb-cell">
+                                                         <span class="nwb-k">Last delivery</span>
+                                                         <span class="nwb-static">@AdminStamp(row.LastDeliveryAt)</span>
+                                                     </span>
+                                                 </div>
+                                                 <div class="nwb-row">
+                                                     <span class="nwb-cell">
+                                                         <span class="nwb-k">Failures</span>
+                                                         <span class="nwb-static">@row.FailCount</span>
+                                                     </span>
+                                                     <span class="nwb-cell">
+                                                         <span class="nwb-k">State</span>
+                                                         <span class="nwb-static">@(row.Active ? "active" : "paused")</span>
+                                                     </span>
+                                                 </div>
+                                             </div>
+                                             <div class="flex gap-1 items-center">
+                                                 <button type="button" class="btn-mini" disabled="@_busy"
+                                                         @onclick="@(() => AdminTest(row.Id))">
+                                                     @(_confirmTest ? "Confirm, send test" : "Send test")
+                                                 </button>
+                                                 @if (row.Active) {
+                                                     <button type="button" class="btn-mini" disabled="@_busy"
+                                                             @onclick="@(() => AdminDeactivate(row.Id))">
+                                                         Deactivate
+                                                     </button>
+                                                 }
+                                                 <button type="button" class="btn-mini" disabled="@_busy"
+                                                         @onclick="@(() => AdminDelete(row.Id))">
+                                                     @(_confirmDelete ? "Confirm delete" : "Delete")
+                                                 </button>
+                                             </div>
+                                         } else {
+                                             <div class="text-muted text-sm">Select a notification.</div>
+                                         }
+                                     </text>;
+
     static string Pretty(string json) {
         try {
             using var doc = JsonDocument.Parse(json);
@@ -281,7 +438,9 @@
 
     public async Task Open(int? id = null) {
         _open = true;
-        if (id is not null) {
+        if (AdminScope) {
+            if (id is not null) _adminSelectedId = id;
+        } else if (id is not null) {
             State.Creating = false;
             State.SelectedId = id;
         }
@@ -294,6 +453,8 @@
     async Task CloseAsync() {
         _open = false;
         _armed = false;
+        _confirmDelete = false;
+        _confirmTest = false;
         await WriteHash(true, true);
         StateHasChanged();
     }
@@ -307,7 +468,7 @@
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender) {
-        if (!firstRender) return;
+        if (!firstRender || AdminScope) return;
         try {
             _nav = await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/hashnav.js"));
             _selfRef = DotNetObjectReference.Create(this);
@@ -350,6 +511,11 @@
 
     async Task LoadAll() {
         if (_kinds.Count == 0) await LoadKinds();
+        if (AdminScope) {
+            await LoadAdmin();
+            return;
+        }
+
         if (User.IsAuthenticated && _rows is null) await LoadRows();
         if (!State.Creating && Current is null && _rows is { Count: > 0 }) {
             State.Creating = true;
@@ -362,7 +528,31 @@
 
     async Task LoadKinds() {
         _kinds = await Client().ListAsync<KindInfo>("/api/protos/feed/kinds", Logger);
+        if (AdminScope) return;
         if (_kinds.Count > 0 && State.NewDraft.Filters.Count == 0) ApplyKindDefaults(State.NewDraft);
+    }
+
+    async Task LoadAdmin() {
+        try {
+            var res = await Client().GetAsync("/api/admin/feed/subscriptions");
+            if (res.IsSuccessStatusCode) {
+                _admin = await res.Content.ReadFromJsonAsync<AdminFeedListResponse>(SelfCallJson.Web) ?? EmptyAdmin;
+            } else {
+                Note($"Load failed ({(int)res.StatusCode}).", false);
+                _admin ??= EmptyAdmin;
+            }
+        }
+        catch (Exception ex) {
+            Logger.LogWarning(ex, "loading the admin notification list failed");
+            Note("Load failed.", false);
+            _admin ??= EmptyAdmin;
+        }
+
+        if (AdminCurrent is null) {
+            _adminSelectedId = null;
+            _confirmDelete = false;
+            _confirmTest = false;
+        }
     }
 
     async Task LoadRows() {
@@ -562,6 +752,85 @@
         }
         catch (Exception ex) {
             Logger.LogWarning(ex, "deleting notification {NotificationId} failed", id);
+        }
+
+        _busy = false;
+    }
+
+    void OnAdminFilter(string value) {
+        _adminFilter = value;
+    }
+
+    void AdminSelect(AdminFeedRow row) {
+        _adminSelectedId = row.Id;
+        _notice = null;
+        _confirmDelete = false;
+        _confirmTest = false;
+    }
+
+    async Task AdminTest(int id) {
+        if (!_confirmTest) {
+            _confirmTest = true;
+            _confirmDelete = false;
+            _notice = null;
+            return;
+        }
+
+        _confirmTest = false;
+        _busy = true;
+        _notice = null;
+        try {
+            var res = await Client().PostAsync($"/api/admin/feed/subscriptions/{id}/test", null);
+            Note(res.IsSuccessStatusCode ? "Sent to the webhook." : "The webhook rejected it.", res.IsSuccessStatusCode);
+        }
+        catch (Exception ex) {
+            Logger.LogWarning(ex, "admin test send for notification {NotificationId} failed", id);
+            Note("Send failed.", false);
+        }
+
+        _busy = false;
+    }
+
+    async Task AdminDeactivate(int id) {
+        _busy = true;
+        _notice = null;
+        _confirmDelete = false;
+        _confirmTest = false;
+        try {
+            var res = await Client().PostAsync($"/api/admin/feed/subscriptions/{id}/deactivate", null);
+            Note(res.IsSuccessStatusCode ? "Deactivated." : "Deactivate failed.", res.IsSuccessStatusCode);
+            if (res.IsSuccessStatusCode) await LoadAdmin();
+        }
+        catch (Exception ex) {
+            Logger.LogWarning(ex, "admin deactivate of notification {NotificationId} failed", id);
+            Note("Deactivate failed.", false);
+        }
+
+        _busy = false;
+    }
+
+    async Task AdminDelete(int id) {
+        if (!_confirmDelete) {
+            _confirmDelete = true;
+            _confirmTest = false;
+            _notice = null;
+            return;
+        }
+
+        _confirmDelete = false;
+        _busy = true;
+        _notice = null;
+        try {
+            var res = await Client().DeleteAsync($"/api/admin/feed/subscriptions/{id}");
+            Note(res.IsSuccessStatusCode ? "Deleted." : "Delete failed.", res.IsSuccessStatusCode);
+            if (res.IsSuccessStatusCode) {
+                _adminSelectedId = null;
+                await LoadAdmin();
+            }
+        }
+        catch (Exception ex) {
+            Logger.LogWarning(ex, "admin delete of notification {NotificationId} failed", id);
+            Note("Delete failed.", false);
         }
 
         _busy = false;

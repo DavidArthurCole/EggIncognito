@@ -17,10 +17,10 @@
 
 <PageTitle>EggIncognito - Farm Playground</PageTitle>
 
-@if (!_isAdmin) {
+@if (!_canUse) {
     <main class="page page-app pt-6 pb-8">
         <h1 class="text-[1.3rem] mt-0 mb-4">Farm Playground</h1>
-        <div class="panel">Admin access required. <LoginButton CssClass="auth-btn" Label="Log in" Placement="LoginMenuPlacement.BottomLeft"/></div>
+        <div class="panel">Contributor access required. <LoginButton CssClass="auth-btn" Label="Log in" Placement="LoginMenuPlacement.BottomLeft"/></div>
     </main>
 } else {
     <main class="page page-wide pt-6 pb-8" @onclick="CloseMenus">
@@ -533,7 +533,7 @@
 @code {
     const string MeshPlatform = "ios";
 
-    bool _isAdmin;
+    bool _canUse;
     ElementReference _canvas;
     IJSObjectReference? _mod;
     IJSObjectReference? _autosave;
@@ -618,11 +618,11 @@
 
     protected override void OnInitialized() {
         base.OnInitialized();
-        _isAdmin = User.IsAtLeast(UserRole.Admin);
+        _canUse = User.IsAtLeast(UserRole.Contributor);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender) {
-        if (!_isAdmin) return;
+        if (!_canUse) return;
         if (firstRender) {
             try {
                 _mod = await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/playground.js"));

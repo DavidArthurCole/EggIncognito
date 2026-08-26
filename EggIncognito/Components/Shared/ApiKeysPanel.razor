@@ -1,5 +1,6 @@
 @using System.Net
 @using System.Text.Json
+@using EggIncognito.Models.Admin
 @using EggIncognito.Models.ApiKeys
 @inherits SelfCallComponentBase
 @inject ILogger<ApiKeysPanel> Logger
@@ -56,33 +57,7 @@
                 <div class="reg-empty-hint">Create one above to use the data API.</div>
             </div>
         } else {
-            <div class="reg-wrap">
-                <table class="data-table">
-                    <thead>
-                    <tr>
-                        <th>Prefix</th><th>Name</th><th>Last used</th><th>Requests</th><th>Status</th><th></th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    @foreach (var k in _keys) {
-                        <tr class="@(k.Revoked ? "text-muted" : null)">
-                            <td class="mono text-xs">@($"{k.Prefix}…")</td>
-                            <td class="font-medium">@k.Name</td>
-                            <td class="text-muted text-xs">@(k.LastUsedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "never")</td>
-                            <td class="mono text-xs">@k.RequestCount</td>
-                            <td>
-                                <span class="@(k.Revoked ? "text-muted" : "text-ok")">@(k.Revoked ? "revoked" : "active")</span>
-                            </td>
-                            <td>
-                                @if (!k.Revoked) {
-                                    <button type="button" class="btn-mini btn-danger" disabled="@_busyRow" @onclick="() => Revoke(k.Id)">Revoke</button>
-                                }
-                            </td>
-                        </tr>
-                    }
-                    </tbody>
-                </table>
-            </div>
+            <ApiKeysTable Rows="@TableRows" ShowOwner="false" Busy="_busyRow" OnRevoke="Revoke"/>
         }
     }
 </div>
@@ -106,6 +81,8 @@
     int ActiveCount => _keys?.Count(k => !k.Revoked) ?? 0;
 
     bool AtCap => _cap is { } c && ActiveCount >= c;
+
+    List<ApiKeyRow> TableRows => (_keys ?? []).Select(k => new ApiKeyRow(k.Id, null, k.Name, k.Prefix, k.LastUsedAt, k.RequestCount, k.Revoked)).ToList();
 
     protected override async Task OnInitializedAsync() {
         if (!string.IsNullOrEmpty(SelfBaseAddress)) _origin = SelfBaseAddress;

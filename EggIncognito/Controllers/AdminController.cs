@@ -315,7 +315,15 @@ public sealed partial class AdminController(ICurrentUser currentUser, IServicePr
         if (!IconNameRegex().IsMatch(name)) return BadRequest(new { error = "invalid icon name" });
 
         byte[] data;
-        using (var ms = new MemoryStream()) {
+        if (Request.HasFormContentType) {
+            var form = await Request.ReadFormAsync(ct);
+            var file = form.Files.Count > 0 ? form.Files[0] : null;
+            if (file is null) return BadRequest(new { error = "empty body" });
+            using var ms = new MemoryStream();
+            await file.CopyToAsync(ms, ct);
+            data = ms.ToArray();
+        } else {
+            using var ms = new MemoryStream();
             await Request.Body.CopyToAsync(ms, ct);
             data = ms.ToArray();
         }

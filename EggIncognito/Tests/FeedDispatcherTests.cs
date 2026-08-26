@@ -348,6 +348,26 @@ public class FeedDispatcherTests {
             Task.FromResult(Subs.Where(s => s.OwnerUserId == ownerUserId)
                 .OrderByDescending(s => s.CreatedAt).ToList());
 
+        public Task<List<FeedSubscription>> AllForAdminAsync(CancellationToken ct = default) =>
+            Task.FromResult(Subs.OrderByDescending(s => s.CreatedAt).ToList());
+
+        public Task<FeedSubscription?> AdminByIdAsync(int id, CancellationToken ct = default) =>
+            Task.FromResult(Subs.FirstOrDefault(x => x.Id == id));
+
+        public Task<bool> AdminDeactivateAsync(int id, CancellationToken ct = default) {
+            var s = Subs.FirstOrDefault(x => x.Id == id);
+            if (s is null) return Task.FromResult(false);
+            s.Active = false;
+            return Task.FromResult(true);
+        }
+
+        public Task<bool> AdminDeleteAsync(int id, CancellationToken ct = default) {
+            var s = Subs.FirstOrDefault(x => x.Id == id);
+            if (s is null) return Task.FromResult(false);
+            Subs.Remove(s);
+            return Task.FromResult(true);
+        }
+
         public Task<bool> DeleteAsync(int id, Guid ownerUserId, CancellationToken ct = default) {
             var s = Subs.FirstOrDefault(x => x.Id == id && x.OwnerUserId == ownerUserId);
             if (s is null) return Task.FromResult(false);

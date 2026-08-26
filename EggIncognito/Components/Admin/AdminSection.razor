@@ -1,0 +1,9 @@
+<div class="admin-section">
+    <div class="admin-section-head">@Title</div>
+    <div class="admin-cards">@ChildContent</div>
+</div>
+
+@code {
+    [Parameter] [EditorRequired] public string Title { get; set; } = "";
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

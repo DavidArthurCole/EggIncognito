@@ -1,50 +1,24 @@
 @rendermode @(RenderMode.InteractiveServer)
 @using EggIncognito.Models.AdminUi
+@using TableApiKeyRow = EggIncognito.Models.Admin.ApiKeyRow
 @inherits BrowserApiComponentBase
 
 <AdminCard Title="API keys" Stat="@($"{_rows.Count} total")">
     <Summary>
         @if (_rows.Count == 0) {
-            <p class="text-muted text-sm m-0">No API keys.</p>
+            <p class="text-muted text-sm m-0">no api keys</p>
         } else {
             <p class="text-muted text-xs m-0">@_rows.Count(k => !k.Revoked) active &middot; @_rows.Count(k => k.Revoked) revoked</p>
+            @foreach (var k in RecentlyUsed) {
+                <div class="admin-card-extra text-xs text-muted">@k.OwnerUserId &middot; @k.Prefix &middot; <TimeAgo Value="@k.LastUsedAt!.Value" Hover="false"/></div>
+            }
         }
     </Summary>
     <Detail>
         @if (_rows.Count == 0) {
-            <p class="text-muted text-sm m-0">No API keys.</p>
+            <p class="text-muted text-sm m-0">no api keys</p>
         } else {
-            <div class="reg-wrap">
-                <table class="data-table">
-                    <thead>
-                    <tr>
-                        <th>Owner</th><th>Name</th><th>Prefix</th><th>Last used</th><th>Requests</th><th>Status</th><th></th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    @foreach (var k in _rows) {
-                        <tr>
-                            <td class="mono text-xs">@k.OwnerUserId</td>
-                            <td class="font-medium">@k.Name</td>
-                            <td class="mono text-xs">@k.Prefix</td>
-                            <td class="text-muted text-xs">@(k.LastUsedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "never")</td>
-                            <td class="mono text-xs">@k.RequestCount</td>
-                            <td>
-                                <span class="@(k.Revoked ? "text-muted" : "text-green-400")">@(k.Revoked ? "revoked" : "active")</span>
-                            </td>
-                            <td>
-                                <div class="flex gap-1 justify-end">
-                                    @if (!k.Revoked) {
-                                        <button type="button" class="btn-mini" disabled="@_busy" @onclick="() => Revoke(k.Id)">Revoke</button>
-                                    }
-                                    <button type="button" class="btn-mini btn-danger" disabled="@_busy" @onclick="() => Delete(k.Id)">Delete</button>
-                                </div>
-                            </td>
-                        </tr>
-                    }
-                    </tbody>
-                </table>
-            </div>
+            <ApiKeysTable Rows="@TableRows" ShowOwner="true" Busy="_busy" OnRevoke="Revoke" OnDelete="Delete"/>
         }
         @if (_msg is not null) {
             <StatusNote>@_msg</StatusNote>
@@ -56,6 +30,10 @@
     List<ApiKeyRow> _rows = [];
     bool _busy;
     string? _msg;
+
+    List<TableApiKeyRow> TableRows => _rows.Select(r => new TableApiKeyRow(r.Id, r.OwnerUserId, r.Name, r.Prefix, r.LastUsedAt, r.RequestCount, r.Revoked)).ToList();
+
+    List<ApiKeyRow> RecentlyUsed => _rows.Where(k => k.LastUsedAt is not null).OrderByDescending(k => k.LastUsedAt).Take(3).ToList();
 
     protected override async Task OnApiReadyAsync() {
         await Load();

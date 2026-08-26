@@ -1,17 +1,19 @@
 @rendermode @(RenderMode.InteractiveServer)
 @using EggIncognito.Models.Events
+@using EggIncognito.Services.Events
 @inherits BrowserApiComponentBase
 
 <AdminCard Title="Events" Stat="@StatText" OnOpened="Load">
     <Summary>
-        @if (_stats?.Latest is { } latest) {
-            <div class="text-xs text-muted">
-                <span>@latest.Type @latest.Message</span>
-            </div>
-        } else {
+        @if (_stats is null || _stats.Total == 0) {
             <div class="text-sm text-muted">
                 <span>no events stored</span>
             </div>
+        } else {
+            <div class="text-xs text-muted">@((MarkupString)TotalsBySource())</div>
+            @foreach (var e in _latest) {
+                <div class="admin-card-extra text-xs text-muted">@e.Type &middot; @FormatStart(e.StartTimestamp)</div>
+            }
         }
     </Summary>
     <Detail>
@@ -48,11 +50,20 @@
 
 @code {
     EventStatsResponse? _stats;
+    List<GameEventDto> _latest = [];
     string _url = "";
     string? _msg;
     bool _busy;
 
     string StatText => _stats?.Total.ToString() ?? "";
+
+    string TotalsBySource() {
+        return _stats is null ? "" : $"{_stats.Total} total &middot; {_stats.Device} device &middot; {_stats.Carpet} carpet";
+    }
+
+    static string FormatStart(double startTimestamp) {
+        return UnixSeconds.ToTime(startTimestamp).ToLocalTime().ToString("yyyy-MM-dd");
+    }
 
     static string CarpetPlaceholder =>
         "https://raw.githubusercontent.com/carpetsage/egg/master/periodicals/data/events.json";
@@ -70,6 +81,9 @@
         }
 
         _stats = res.Json<EventStatsResponse>();
+
+        var latestRes = await Api.GetAsync("/api/v1/events?limit=3");
+        _latest = latestRes.Ok ? latestRes.Json<GameEventListResponse>()?.Events.ToList() ?? [] : [];
     }
 
     async Task Sweep() {

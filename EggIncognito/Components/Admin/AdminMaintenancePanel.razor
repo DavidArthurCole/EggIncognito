@@ -1,0 +1,180 @@
+@rendermode @(RenderMode.InteractiveServer)
+@using System.Text.Json
+@using EggIncognito.Models.Admin
+@inherits BrowserApiComponentBase
+
+<AdminCard Title="Maintenance" Stat="@Stat">
+    <Detail>
+        <div class="reg-wrap">
+            <table class="data-table">
+                <tbody>
+                <tr>
+                    <td>Backfill capture user ids</td>
+                    <td>
+                        <button type="button" class="btn-mini" disabled="@_busy" @onclick="BackfillCaptureUserIds">Run</button>
+                    </td>
+                    <td class="text-xs">@Result("backfill-capture")</td>
+                </tr>
+                <tr>
+                    <td>Backfill owner/author user ids</td>
+                    <td>
+                        <button type="button" class="btn-mini" disabled="@_busy" @onclick="BackfillOwnerAuthorUserIds">Run</button>
+                    </td>
+                    <td class="text-xs">@Result("backfill-owner")</td>
+                </tr>
+                <tr>
+                    <td>Proto realign</td>
+                    <td>
+                        <button type="button" class="btn-mini" disabled="@_busy" @onclick="RealignProtos">@(_realignArmed ? "Confirm realign" : "Run")</button>
+                    </td>
+                    <td class="text-xs">@Result("realign")</td>
+                </tr>
+                <tr>
+                    <td>Refresh endpoint catalog</td>
+                    <td>
+                        <button type="button" class="btn-mini" disabled="@_busy" @onclick="RefreshEndpoints">Run</button>
+                    </td>
+                    <td class="text-xs">@Result("refresh-endpoints")</td>
+                </tr>
+                <tr>
+                    <td>
+                        <div class="flex gap-1 items-center flex-wrap">
+                            <span>Config refresh-live</span>
+                            <select class="reg-filter-input w-auto" @bind="_livePlatform">
+                                <option value="ios">ios</option>
+                                <option value="android">android</option>
+                            </select>
+                        </div>
+                    </td>
+                    <td>
+                        <button type="button" class="btn-mini" disabled="@_busy" @onclick="RefreshLive">Run</button>
+                    </td>
+                    <td class="text-xs">@Result("refresh-live")</td>
+                </tr>
+                <tr>
+                    <td>
+                        <div class="flex gap-1 items-center flex-wrap">
+                            <span>Config ingest JSON</span>
+                            <select class="reg-filter-input w-auto" @bind="_ingestPlatform">
+                                <option value="ios">ios</option>
+                                <option value="android">android</option>
+                            </select>
+                        </div>
+                        <textarea class="reg-filter-input w-full mono text-xs" rows="3" placeholder="ConfigResponse JSON" @bind="_ingestJson"></textarea>
+                    </td>
+                    <td>
+                        <button type="button" class="btn-mini" disabled="@_busy" @onclick="IngestJson">Run</button>
+                    </td>
+                    <td class="text-xs">@Result("ingest-json")</td>
+                </tr>
+                <tr>
+                    <td>
+                        <div class="flex gap-1 items-center flex-wrap">
+                            <span>Icon import</span>
+                            <input class="reg-filter-input w-auto" placeholder="name" @bind="_iconName"/>
+                            <InputFile OnChange="OnIconFile" class="text-xs"/>
+                        </div>
+                    </td>
+                    <td>
+                        <button type="button" class="btn-mini" disabled="@_busy" @onclick="ImportIcon">Run</button>
+                    </td>
+                    <td class="text-xs">@Result("icon-import")</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </Detail>
+</AdminCard>
+
+@code {
+    const int ToolCount = 7;
+
+    bool _busy;
+    bool _realignArmed;
+    string _livePlatform = "ios";
+    string _ingestPlatform = "ios";
+    string _ingestJson = "";
+    string _iconName = "";
+    byte[]? _iconBytes;
+    string? _iconFileName;
+    readonly Dictionary<string, string> _results = new(StringComparer.Ordinal);
+
+    string Stat => $"{ToolCount} tools";
+
+    string Result(string key) {
+        return _results.GetValueOrDefault(key, "");
+    }
+
+    async Task Run(string key, Func<Task<BrowserResponse>> call) {
+        if (Api is null) return;
+        _realignArmed = false;
+        _busy = true;
+        var res = await call();
+        _results[key] = res.Ok ? "ok" : res.Describe();
+        _busy = false;
+    }
+
+    async Task RunConfig(string key, Func<Task<BrowserResponse>> call) {
+        if (Api is null) return;
+        _realignArmed = false;
+        _busy = true;
+        var res = await call();
+        if (!res.Ok) {
+            _results[key] = res.Describe();
+        } else {
+            var payload = res.Json<ConfigStoreResult>();
+            _results[key] = payload is null || payload.Ok ? "ok" : payload.Diagnostics ?? "failed";
+        }
+
+        _busy = false;
+    }
+
+    Task BackfillCaptureUserIds() {
+        return Run("backfill-capture", () => Api!.PostAsync("/api/admin/backfill-capture-user-ids", TimeSpan.FromMinutes(5)));
+    }
+
+    Task BackfillOwnerAuthorUserIds() {
+        return Run("backfill-owner", () => Api!.PostAsync("/api/admin/backfill-owner-author-user-ids", TimeSpan.FromMinutes(5)));
+    }
+
+    async Task RealignProtos() {
+        if (!_realignArmed) {
+            _realignArmed = true;
+            return;
+        }
+
+        await Run("realign", () => Api!.PostAsync("/api/admin/protos/realign?confirm=true", TimeSpan.FromMinutes(5)));
+        _realignArmed = false;
+    }
+
+    Task RefreshEndpoints() {
+        return Run("refresh-endpoints", () => Api!.PostAsync("/api/config/refresh-endpoints", TimeSpan.FromMinutes(2)));
+    }
+
+    Task RefreshLive() {
+        return RunConfig("refresh-live", () => Api!.PostAsync($"/api/config/{_livePlatform}/refresh-live", TimeSpan.FromMinutes(2)));
+    }
+
+    Task IngestJson() {
+        string body = JsonSerializer.Serialize(new { json = _ingestJson });
+        return RunConfig("ingest-json", () => Api!.SendAsync("POST", $"/api/config/{_ingestPlatform}/ingest-json", body));
+    }
+
+    async Task OnIconFile(InputFileChangeEventArgs e) {
+        using var ms = new MemoryStream();
+        await e.File.OpenReadStream(1_000_000).CopyToAsync(ms);
+        _iconBytes = ms.ToArray();
+        _iconFileName = e.File.Name;
+    }
+
+    Task ImportIcon() {
+        if (_iconBytes is null || string.IsNullOrWhiteSpace(_iconName)) {
+            _results["icon-import"] = "select a name and file first";
+            return Task.CompletedTask;
+        }
+
+        return Run("icon-import", () => Api!.SendFileAsync(
+            "POST", $"/api/admin/icons/{Uri.EscapeDataString(_iconName.Trim())}", "file", _iconFileName ?? "icon.png", _iconBytes));
+    }
+
+}

@@ -22,6 +22,9 @@
             </div>
         }
         <p class="text-muted text-xs m-0">@(_rows.Count(r => r.Override is not null)) edited &middot; @(_rows.Count(r => r.Source == "db")) db-only &middot; @(_rows.Count(r => r.Source == "orphan")) orphans</p>
+        @foreach (var path in DriftedRouteNames()) {
+            <div class="admin-card-extra text-xs text-muted">@path</div>
+        }
     </Summary>
     <Detail>
         @if (_binaryUnavailable) {
@@ -217,6 +220,11 @@
     List<RouteDriftRow> DriftFor(string path) {
         if (_binary is null) return [];
         return _binary.Drift.Where(d => d.Path == path && d.Field != "new").ToList();
+    }
+
+    List<string> DriftedRouteNames() {
+        if (_binary is null) return [];
+        return _binary.Drift.Where(d => d.Field != "new").Select(d => d.Path).Distinct().Take(3).ToList();
     }
 
     bool IsInBinary(string path) {

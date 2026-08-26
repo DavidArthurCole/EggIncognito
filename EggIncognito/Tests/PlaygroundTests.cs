@@ -21,13 +21,13 @@ public class PlaygroundTests(SharedAppFactory f) {
             + $"{(int)r.StatusCode}");
 
     [Fact]
-    public async Task Playground_Page_Renders_AdminGated() {
+    public async Task Playground_Page_Renders_ContributorGated() {
         var c = _factory.CreateClient();
         var r = await c.GetAsync("/playground");
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
         string html = await r.Content.ReadAsStringAsync();
         Assert.Contains("Farm Playground", html);
-        Assert.Contains("Admin access required", html);
+        Assert.Contains("Contributor access required", html);
         Assert.DoesNotContain("playgroundCanvas", html);
     }
 

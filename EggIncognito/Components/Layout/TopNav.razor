@@ -6,7 +6,7 @@
     </a>
     <NavLink href="inspector" Match="NavLinkMatch.Prefix" ActiveClass="active">Inspector</NavLink>
     <NavLink href="protos" Match="NavLinkMatch.Prefix" ActiveClass="active">Protos & Data</NavLink>
-    @if (User.IsAtLeast(UserRole.Admin)) {
+    @if (User.IsAtLeast(UserRole.Contributor)) {
         <NavLink href="playground" ActiveClass="active">Playground</NavLink>
     }
     <NavLink href="capture" ActiveClass="active">Capture</NavLink>

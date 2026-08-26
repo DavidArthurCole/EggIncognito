@@ -1503,7 +1503,7 @@ input[type="search"]::placeholder { @apply text-muted; }
   .admin-top { grid-template-columns: 2fr 1fr; }
 }
 .admin-cards { @apply grid gap-4; grid-template-columns: repeat(auto-fill, minmax(24rem, 1fr)); }
-.admin-card { @apply cursor-pointer min-w-0; }
+.admin-card { @apply cursor-pointer min-w-0; container-type: inline-size; }
 .admin-card:hover { border-color: var(--color-control-border); }
 .admin-card .admin-panel-head { @apply mb-0; }
 .admin-card .admin-panel-head:has(+ .admin-card-summary) { @apply mb-3; }
@@ -1512,6 +1512,19 @@ input[type="search"]::placeholder { @apply text-muted; }
 .traffic-spark { @apply block w-full; height: 2.75rem; color: var(--color-accent); }
 .admin-users-scroll { max-height: 36rem; overflow-y: auto; }
 .admin-routes-scroll { max-height: 34rem; overflow-y: auto; }
+.admin-section { margin-top: 1.25rem; }
+.admin-section-head {
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+@container (max-width: 340px) {
+  .admin-card-extra { display: none; }
+}
 .oidc-sources { @apply flex items-center gap-1.5; }
 .oidc-icon { @apply inline-flex items-center text-muted; }
 .oidc-icon:hover { @apply text-fg; }
@@ -1530,6 +1543,7 @@ input[type="search"]::placeholder { @apply text-muted; }
 .modal-card {
   @apply w-full max-w-3xl bg-panel border border-border rounded-lg shadow-xl my-auto overflow-hidden;
 }
+.modal-card:focus, .modal-card:focus-visible { outline: none; }
 .modal-card-sm { max-width: 32rem; }
 .modal-card-lg { max-width: 64rem; }
 .modal-head { @apply flex items-center gap-3 px-5 py-3 border-b border-border; }
@@ -1566,6 +1580,7 @@ body .modal-body .skm { color: var(--color-fg); }
 .wb-entry { @apply border border-border rounded-md bg-bg px-2 py-1.5 cursor-pointer text-xs flex flex-col gap-0.5; }
 .wb-entry:hover { @apply [border-color:var(--color-accent)]; }
 .wb-entry.selected { @apply [border-color:var(--color-accent)]; }
+.wb-entry:focus-visible { outline: 1px solid var(--color-accent); outline-offset: -1px; }
 .wb-entry-name {
   @apply font-mono text-fg flex-1 min-w-0;
   overflow-wrap: break-word;

@@ -1,0 +1,58 @@
+@using EggIncognito.Models.Admin
+
+<div class="reg-wrap">
+    <table class="data-table">
+        <thead>
+        <tr>
+            @if (ShowOwner) {
+                <th>Owner</th>
+                <th>Name</th><th>Prefix</th>
+            } else {
+                <th>Prefix</th><th>Name</th>
+            }
+            <th>Last used</th><th>Requests</th><th>Status</th><th></th>
+        </tr>
+        </thead>
+        <tbody>
+        @foreach (var k in Rows) {
+            <tr class="@(!ShowOwner && k.Revoked ? "text-muted" : null)">
+                @if (ShowOwner) {
+                    <td class="mono text-xs">@k.OwnerUserId</td>
+                    <td class="font-medium">@k.Name</td>
+                    <td class="mono text-xs">@k.Prefix</td>
+                } else {
+                    <td class="mono text-xs">@($"{k.Prefix}…")</td>
+                    <td class="font-medium">@k.Name</td>
+                }
+                <td class="text-muted text-xs">@(k.LastUsedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "never")</td>
+                <td class="mono text-xs">@k.RequestCount</td>
+                <td>
+                    <span class="@(k.Revoked ? "text-muted" : "text-ok")">@(k.Revoked ? "revoked" : "active")</span>
+                </td>
+                <td>
+                    @if (OnDelete.HasDelegate) {
+                        <div class="flex gap-1 justify-end">
+                            @if (!k.Revoked) {
+                                <button type="button" class="btn-mini" disabled="@Busy" @onclick="() => OnRevoke.InvokeAsync(k.Id)">Revoke</button>
+                            }
+                            <button type="button" class="btn-mini btn-danger" disabled="@Busy" @onclick="() => OnDelete.InvokeAsync(k.Id)">Delete</button>
+                        </div>
+                    } else {
+                        @if (!k.Revoked) {
+                            <button type="button" class="btn-mini btn-danger" disabled="@Busy" @onclick="() => OnRevoke.InvokeAsync(k.Id)">Revoke</button>
+                        }
+                    }
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    [Parameter] [EditorRequired] public List<ApiKeyRow> Rows { get; set; } = [];
+    [Parameter] public bool ShowOwner { get; set; }
+    [Parameter] public bool Busy { get; set; }
+    [Parameter] [EditorRequired] public EventCallback<long> OnRevoke { get; set; }
+    [Parameter] public EventCallback<long> OnDelete { get; set; }
+}
