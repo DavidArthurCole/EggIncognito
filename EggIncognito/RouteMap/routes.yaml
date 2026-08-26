@@ -192,6 +192,9 @@ routes:
   - path: ei_afx/sync_mission
     requestType: MissionRequest
     responseType: GetActiveMissionsResponse
+  - path: ei_afx/zoom_zoom
+    request: MissionInfo
+    response: MissionResponse
 
   # ei_ctx/
   - path: ei_ctx/confirm_season_reward
@@ -284,7 +287,6 @@ routes:
 
 excluded:
   - ei/kb
-  - ei_afx/zoom_zoom
 
 missing_endpoints:
   - ei/has_voted

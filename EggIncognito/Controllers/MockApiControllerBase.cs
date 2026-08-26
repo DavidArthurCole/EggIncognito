@@ -3,6 +3,7 @@ using EggIncognito.Services;
 using EggIncognito.Services.Auth;
 using Google.Protobuf;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace EggIncognito.Controllers;
 
@@ -11,6 +12,7 @@ namespace EggIncognito.Controllers;
 public abstract class MockApiControllerBase(IEndpointStore endpoints, IBehaviorService behaviors) : ControllerBase {
     protected Task<IActionResult> HandleAsync<TRes>(string path, string? data, string? sim = null)
         where TRes : IMessage<TRes>, new() {
+        EnforceMockAccess(path);
         if (sim is not null) {
             var behavior = behaviors.Find(sim);
             if (behavior is null) {
@@ -67,5 +69,16 @@ public abstract class MockApiControllerBase(IEndpointStore endpoints, IBehaviorS
         }
 
         return Task.FromResult<IActionResult>(Content(body, "text/plain"));
+    }
+
+    private void EnforceMockAccess(string path) {
+        if (!MockAccessGuard.AdminOnlyHosted.Contains(path)) return;
+        var mode = HttpContext.RequestServices.GetRequiredService<IAppMode>();
+        var user = HttpContext.RequestServices.GetRequiredService<ICurrentUser>();
+        if (MockAccessGuard.Blocks(path, mode, user)) {
+            throw new ApiException("admin role required",
+                "This endpoint is restricted to admins on the hosted deployment.",
+                StatusCodes.Status403Forbidden);
+        }
     }
 }
