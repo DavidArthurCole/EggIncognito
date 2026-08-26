@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   ci:
-    uses: DavidArthurCole/EggIdentity/.github/workflows/dotnet-ci.yml@main
+    uses: EggIncTools/EggIdentity/.github/workflows/dotnet-ci.yml@main
     with:
       solution: EggIncognito.slnx
       packages-auth: true
@@ -22,7 +22,7 @@ jobs:
 
   seed-app-image-cache:
     if: github.event_name == 'push'
-    uses: DavidArthurCole/EggIdentity/.github/workflows/docker-publish.yml@main
+    uses: EggIncTools/EggIdentity/.github/workflows/docker-publish.yml@main
     permissions:
       contents: read
       packages: write
@@ -36,7 +36,7 @@ jobs:
 
   seed-runner-image-cache:
     if: github.event_name == 'push'
-    uses: DavidArthurCole/EggIdentity/.github/workflows/docker-publish.yml@main
+    uses: EggIncTools/EggIdentity/.github/workflows/docker-publish.yml@main
     permissions:
       contents: read
       packages: write

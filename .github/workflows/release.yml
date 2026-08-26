@@ -6,7 +6,7 @@ on:
 
 jobs:
   ci:
-    uses: DavidArthurCole/EggIdentity/.github/workflows/dotnet-ci.yml@main
+    uses: EggIncTools/EggIdentity/.github/workflows/dotnet-ci.yml@main
     permissions:
       contents: read
       packages: read
@@ -28,7 +28,7 @@ jobs:
 
   nuget:
     needs: ci
-    uses: DavidArthurCole/EggIdentity/.github/workflows/nuget-publish.yml@main
+    uses: EggIncTools/EggIdentity/.github/workflows/nuget-publish.yml@main
     permissions:
       contents: read
       packages: write
@@ -129,7 +129,7 @@ jobs:
 
   docker:
     needs: ci
-    uses: DavidArthurCole/EggIdentity/.github/workflows/docker-publish.yml@main
+    uses: EggIncTools/EggIdentity/.github/workflows/docker-publish.yml@main
     permissions:
       contents: read
       packages: write
@@ -143,7 +143,7 @@ jobs:
 
   docker-runner:
     needs: ci
-    uses: DavidArthurCole/EggIdentity/.github/workflows/docker-publish.yml@main
+    uses: EggIncTools/EggIdentity/.github/workflows/docker-publish.yml@main
     permissions:
       contents: read
       packages: write
@@ -158,7 +158,7 @@ jobs:
       PACKAGES_PAT: ${{ secrets.PACKAGES_PAT }}
 
   fast-deploy:
-    uses: DavidArthurCole/EggIdentity/.github/workflows/fast-deploy-trigger.yml@main
+    uses: EggIncTools/EggIdentity/.github/workflows/fast-deploy-trigger.yml@main
     permissions:
       contents: read
     with:
@@ -168,7 +168,7 @@ jobs:
       deploy-secret: ${{ secrets.EGI_DEPLOY_AGENT_SECRET }}
 
   fast-deploy-runner:
-    uses: DavidArthurCole/EggIdentity/.github/workflows/fast-deploy-trigger.yml@main
+    uses: EggIncTools/EggIdentity/.github/workflows/fast-deploy-trigger.yml@main
     permissions:
       contents: read
     with:
