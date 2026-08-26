@@ -11,6 +11,7 @@ using EggIdentity.Bot;
 using EggIdentity.Client;
 using EggIdentity.Contract;
 using EggIdentity.Db;
+using EggIdentity.Fallback;
 using EggIdentity.Metrics;
 using EggIdentity.Metrics.AdminUi;
 using EggIncognito.Bot;
@@ -118,6 +119,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(o => {
 builder.Services.AddAppRateLimiter(builder.Configuration);
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 builder.Services.AddProblemDetails();
+builder.Services.AddEggIdentityFallback(new FallbackBranding("EggIncognito", FallbackBrandTokens.Tokens));
 builder.Services.AddHttpClient("inspector", c => {
     c.DefaultRequestHeaders.Add("User-Agent",
         "Dalvik/2.1.0 (Linux; U; Android 9; SM-G960U1 Build/PPR1.180610.011)");
@@ -832,6 +834,8 @@ if (authEnabled) {
     app.UseMiddleware<ApiKeyResolutionMiddleware>();
     app.UseAuthorization();
 }
+
+app.UseEggIdentityFallback();
 
 app.UseAntiforgery();
 app.UseRateLimiter();

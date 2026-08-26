@@ -8,6 +8,7 @@
   <ItemGroup>
     <PackageReference Include="EggIdentity.Bot.AdminUi" />
     <PackageReference Include="EggIdentity.AdminUi" />
+    <PackageReference Include="EggIdentity.Fallback" />
     <PackageReference Include="EggIdentity.Metrics" />
     <PackageReference Include="EggIdentity.Metrics.AdminUi" />
     <PackageReference Include="EggIdentity.UI" />
