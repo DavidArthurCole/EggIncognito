@@ -1393,7 +1393,19 @@ input[type="search"]::placeholder { @apply text-muted; }
 .reg-scroll { overflow-x: auto; overflow-y: hidden; }
 @media (max-width: 89.999rem) {
   .reg-scroll { overflow-y: auto; max-height: 60vh; overscroll-behavior: contain; }
-  .reg-scroll > .reg-table > thead { position: sticky; top: 0; z-index: 3; }
+  .reg-scroll > .reg-table > thead > tr:first-child > th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    height: 2.25rem;
+    background: var(--color-panel0);
+  }
+  .reg-scroll > .reg-table > thead > tr.reg-filter-row > th {
+    position: sticky;
+    top: 2.25rem;
+    z-index: 3;
+    background: var(--color-panel0);
+  }
 }
 .reg-table {
   border: 0;
