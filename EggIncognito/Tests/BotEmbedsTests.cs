@@ -10,7 +10,7 @@ public class BotEmbedsTests {
         42, 2, 123456,
         true, false,
         TimeSpan.FromMinutes(90),
-        BuildInfo.Parse("1.1.0+deadbeef0000", "https://github.com/DavidArthurCole/EggIncognito"),
+        BuildInfo.Parse("1.1.0+deadbeef0000", "https://github.com/EggIncTools/EggIncognito"),
         10, 3, 1);
 
     [Fact]

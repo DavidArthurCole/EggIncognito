@@ -1,7 +1,7 @@
 <h1 align="center">EggIncognito</h1>
 
 <p align="center">
-  <a href="https://github.com/DavidArthurCole/EggIncognito/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/DavidArthurCole/EggIncognito/ci.yml?branch=main" alt="CI"></a>
+  <a href="https://github.com/EggIncTools/EggIncognito/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/DavidArthurCole/EggIncognito/ci.yml?branch=main" alt="CI"></a>
   <a href="https://discord.davidarthurcole.me"><img src="https://img.shields.io/badge/discord-join%20server-5865F2?logo=discord&logoColor=white" alt="Discord"></a>
 </p>
 
@@ -11,7 +11,7 @@ Public instance: [eggincognito.davidarthurcole.me](https://eggincognito.davidart
 
 ## Quick start
 
-Self-contained binaries (`linux-x64`, `linux-arm64`, `osx-arm64`, `win-x64`) on the [latest release](https://github.com/DavidArthurCole/EggIncognito/releases/latest). No .NET install. The response set ships alongside the executable.
+Self-contained binaries (`linux-x64`, `linux-arm64`, `osx-arm64`, `win-x64`) on the [latest release](https://github.com/EggIncTools/EggIncognito/releases/latest). No .NET install. The response set ships alongside the executable.
 
 ```sh
 docker run -p 5080:8080 ghcr.io/davidarthurcole/eggincognito:latest

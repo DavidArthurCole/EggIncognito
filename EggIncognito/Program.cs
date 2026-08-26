@@ -283,7 +283,7 @@ else
 
 string? botToken = builder.Configuration["Discord:BotToken"];
 if (!string.IsNullOrWhiteSpace(botToken)) {
-    const string repoUrl = "https://github.com/DavidArthurCole/EggIncognito";
+    const string repoUrl = "https://github.com/EggIncTools/EggIncognito";
     var buildInfo = BuildInfo.FromAssembly(repoUrl);
     var startedAt = DateTimeOffset.UtcNow;
 

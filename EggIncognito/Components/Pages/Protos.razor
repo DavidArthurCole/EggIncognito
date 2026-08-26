@@ -289,7 +289,8 @@
                                           role="button" aria-label="Open proto group"
                                           @onclick:stopPropagation="true" @onclick="@(() => OpenGroup(seg.GroupId))"
                                           @onmouseenter="@(() => SetHotGroup(seg.GroupId))"
-                                          @onmouseleave="@(() => SetHotGroup(null))"></span>
+                                          @onmouseleave="@(() => SetHotGroup(null))">
+                                    </span>
                                 }
                             }
                             <span class="inline-flex items-center gap-1"
@@ -691,7 +692,7 @@
         _isContributor = User.IsAtLeast(UserRole.Contributor);
         _canWrite = User.IsAtLeast(UserRole.Contributor);
 
-        var b = BuildInfo.FromAssembly("https://github.com/davidarthurcole/EggIncognito");
+        var b = BuildInfo.FromAssembly("https://github.com/EggIncTools/EggIncognito");
         _serverVersion = $"v{b.Version}";
         _serverSha = b.ShortSha;
         _serverCommitUrl = b.CommitUrl;

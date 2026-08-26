@@ -2,7 +2,7 @@
   <PropertyGroup>
     <Authors>DavidArthurCole</Authors>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <RepositoryUrl>https://github.com/DavidArthurCole/EggIncognito</RepositoryUrl>
+    <RepositoryUrl>https://github.com/EggIncTools/EggIncognito</RepositoryUrl>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <AnalysisLevel>latest-recommended</AnalysisLevel>
