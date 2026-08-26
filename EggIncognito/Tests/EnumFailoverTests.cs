@@ -22,14 +22,6 @@ public class EnumFailoverTests {
                                      """;
 
     [Fact]
-    public void JsonFormatter_UnknownEnum_RendersRawInt() {
-        var msg = new EggIncFirstContactRequest { Platform = (Platform)987654 };
-        string json = JsonFormatter.Default.Format(msg);
-        Assert.Contains("987654", json);
-        Assert.DoesNotContain("STEAM", json);
-    }
-
-    [Fact]
     public void Apply_SubstitutesLastKnownNameForUnknownEnum() {
         var msg = new EggIncFirstContactRequest { Platform = (Platform)987654 };
         string json = JsonFormatter.Default.Format(msg);

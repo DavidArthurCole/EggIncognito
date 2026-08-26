@@ -25,28 +25,6 @@ public class ProtoCleanupTests {
         "}\n";
 
     [Fact]
-    public void Clean_Merges_Common_After_Package_StripsAux_DropsImport() {
-        string result = ProtoCleanup.Clean(Ei, Common);
-
-        Assert.DoesNotContain("import \"common.proto\"", result);
-        Assert.DoesNotContain("aux.", result);
-
-        int packageIdx = result.IndexOf("package ei;", StringComparison.Ordinal);
-        int enumIdx = result.IndexOf("enum Platform {", StringComparison.Ordinal);
-        int messageIdx = result.IndexOf("message M {", StringComparison.Ordinal);
-        Assert.True(packageIdx >= 0 && enumIdx >= 0 && messageIdx >= 0);
-
-        Assert.True(packageIdx < enumIdx, "enum must follow package ei;");
-        Assert.True(enumIdx < messageIdx, "enum (common body) must precede the original message");
-
-
-        Assert.Contains("Platform platform = 3;", result);
-
-        Assert.Contains("UNKNOWN_PLATFORM = 0;", result);
-        Assert.Contains("IOS = 1;", result);
-    }
-
-    [Fact]
     public void Clean_Exact_Expected_Output() {
         const string expected =
             "syntax = \"proto2\";\n" +

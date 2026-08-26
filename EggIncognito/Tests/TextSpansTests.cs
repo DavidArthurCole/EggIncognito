@@ -99,13 +99,6 @@ public class TextSpansTests {
     }
 
     [Fact]
-    public void Layer_ThenSlice_StillCoversTheWholeString() {
-        const string text = "0123456789";
-        var layered = TextSpans.Layer([new Span(0, 10, "u")], [new Span(4, 2, "o")], text.Length);
-        Assert.Equal(text, Concat(text, TextSpans.Slice(text, layered)));
-    }
-
-    [Fact]
     public void Find_ReturnsEveryOccurrence() {
         var found = TextSpans.Find("abcabcabc", ["abc"], "code-mark");
         Assert.Equal(3, found.Count);

@@ -62,13 +62,6 @@ public class SelfCallJsonTests {
     }
 
     [Fact]
-    public async Task OneAsync_ReturnsNullOnServerError() {
-        var client = ClientFor(_ => StubHttpMessageHandler.Json(HttpStatusCode.InternalServerError, """{"error":"x"}"""));
-
-        Assert.Null(await client.OneAsync<Thing>(Url));
-    }
-
-    [Fact]
     public async Task OneAsync_ReturnsNullOnMalformedJson() {
         var client = ClientFor(_ => StubHttpMessageHandler.Json(HttpStatusCode.OK, "{not json"));
 

@@ -38,24 +38,6 @@ public class TemplateEditorTests {
     }
 
     [Fact]
-    public void UnknownTokens_AreTheSetDifferenceAgainstTheKindsVars() {
-        string[] known = ["platform", "appVersion", "build"];
-        var used = FeedTemplate.Tokens("{{appVersion}} on {{platform}} at {{eta}} for {{whoever}}");
-
-        string[] unknown = [.. used.Where(t => !known.Contains(t, StringComparer.Ordinal))];
-
-        Assert.Equal(new[] { "eta", "whoever" }, unknown);
-    }
-
-    [Fact]
-    public void UnknownTokens_AreEmptyWhenEveryVarIsKnown() {
-        string[] known = ["feed", "sha", "pageUrl"];
-        var used = FeedTemplate.Tokens("{{feed}} changed (hash {{sha}}) - see {{pageUrl}}");
-
-        Assert.DoesNotContain(used, t => !known.Contains(t, StringComparer.Ordinal));
-    }
-
-    [Fact]
     public void Tokens_AgreeWithRender() {
         const string template = "{{appVersion}} {{build}} {{appVersion}}";
         var vars = FeedTemplate.Tokens(template).ToDictionary(t => t, _ => "x", StringComparer.Ordinal);

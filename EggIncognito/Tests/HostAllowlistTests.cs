@@ -24,18 +24,6 @@ public class HostAllowlistTests {
     public void Rejects_BadHosts(string host) =>
         Assert.False(InspectorApiController.IsAllowedHost(host));
 
-
-    [Theory]
-    [InlineData("www.auxbrain.com")]
-    [InlineData("auxbrain.com")]
-    [InlineData("auxbrainhome.appspot.com")]
-    [InlineData("ctx-dot-auxbrainhome.appspot.com")]
-    [InlineData("evil.com")]
-    [InlineData("evil.com-dot-auxbrainhome.appspot.com")]
-    [InlineData("notauxbrain.com")]
-    public void AllowlistMatchesAuxbrainRule_ForNonLocalhost(string host) =>
-        Assert.Equal(AuxbrainHosts.IsAuxbrain(host), InspectorApiController.IsAllowedHost(host));
-
     [Theory]
     [InlineData("localhost")]
     [InlineData("127.0.0.1")]

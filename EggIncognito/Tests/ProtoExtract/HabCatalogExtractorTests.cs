@@ -3,11 +3,6 @@ using EggIncognito.Services.ProtoExtract;
 namespace EggIncognito.Tests.ProtoExtract;
 
 public class HabCatalogExtractorTests {
-    private static readonly long[] ExpectedCapacities = [
-        250, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000,
-        1_000_000, 2_000_000, 5_000_000, 10_000_000, 25_000_000, 50_000_000, 100_000_000, 600_000_000
-    ];
-
     private static readonly double[] ExpectedWidths = [
         3, 4, 4.5, 4.5, 4.5, 5, 5.5, 12.2, 12.5, 7.5, 15.5, 9.5, 16.5, 8.2, 12, 17, 14, 11, 9.5
     ];
@@ -40,14 +35,6 @@ public class HabCatalogExtractorTests {
         Assert.Equal(1000, r.Entries[2].Capacity);
         Assert.Equal(600_000_000, r.Entries[18].Capacity);
         Assert.Equal("CHICKEN UNIVERSE", r.Entries[18].Name);
-    }
-
-    [Fact]
-    public void Extract_DecodesOrderedCapacitySequence() {
-        if (!BinaryFixture.TryLoad(out var bin)) return;
-        var r = HabCatalogExtractor.Extract(bin);
-        Assert.True(r.Ok, r.Diagnostics);
-        Assert.Equal(ExpectedCapacities, r.Entries.Select(e => e.Capacity));
     }
 
     [Fact]

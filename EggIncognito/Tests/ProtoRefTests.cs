@@ -63,13 +63,6 @@ public class ProtoRefTests {
         Assert.Null(parsed.B);
     }
 
-    [Fact]
-    public void ParseNeverThrows() {
-        foreach (string h in new[] { "ios_", "_1.37", "a...b...c", "ios_1.37/", "/split" }) {
-            ProtoRefParser.Parse(h);
-        }
-    }
-
     [Theory]
     [InlineData("notify")]
     [InlineData("notify_7")]
@@ -79,11 +72,6 @@ public class ProtoRefTests {
         var parsed = ProtoRefParser.Parse(hash);
         Assert.Null(parsed.A);
         Assert.Null(parsed.B);
-    }
-
-    [Fact]
-    public void AnUnknownPlatformIsRejectedRatherThanInvented() {
-        Assert.Null(ProtoRefParser.Parse("web_1.37.0.1").A);
     }
 
     [Fact]

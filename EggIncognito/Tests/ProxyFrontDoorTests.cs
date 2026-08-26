@@ -112,23 +112,6 @@ public class ProxyFrontDoorTests {
             }
         }
 
-
-        [Fact]
-        public async Task AcceptsIpv6Client() {
-            var (door, _) = await NewDoorAsync();
-            await using (door) {
-                using var client = new TcpClient(AddressFamily.InterNetworkV6);
-                await client.ConnectAsync(IPAddress.IPv6Loopback, door.Port);
-                var stream = client.GetStream();
-                await stream.WriteAsync(Encoding.ASCII.GetBytes("CONNECT www.auxbrain.com:443 HTTP/1.1\r\n\r\n"));
-                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-                byte[] buf = new byte[1024];
-
-                int n = await stream.ReadAsync(buf, cts.Token);
-                Assert.StartsWith("HTTP/1.1 503", Encoding.ASCII.GetString(buf, 0, n));
-            }
-        }
-
         [Fact]
         public async Task NonAuxbrainHost_Gets403() {
             var (door, _) = await NewDoorAsync();

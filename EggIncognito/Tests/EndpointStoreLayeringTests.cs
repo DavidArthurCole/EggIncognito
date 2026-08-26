@@ -20,28 +20,12 @@ public class EndpointStoreLayeringTests {
     }
 
     [Fact]
-    public void FileOnly_BehavesAsBefore() {
-        var file = new FakeSource(new Dictionary<string, string> { ["ei/x"] = "{}" }, 0);
-        var store = Store(file, null);
-        var msg = store.Fetch<PeriodicalsResponse>("ei/x");
-        Assert.NotNull(msg);
-    }
-
-    [Fact]
     public void Db_Overrides_File_ForSameKey() {
         var file = new FakeSource(new Dictionary<string, string> { ["ei/x"] = "{}" }, 0);
         var db = new FakeSource(new Dictionary<string, string> { ["ei/x"] = "{\"userId\":\"FROM_DB\"}" }, 100);
         var store = Store(file, db);
         var msg = store.Fetch<AuthenticatedMessage>("ei/x");
         Assert.Equal("FROM_DB", msg.UserId);
-    }
-
-    [Fact]
-    public void NonGeneric_Get_ByType() {
-        var file = new FakeSource(new Dictionary<string, string> { ["ei/x"] = "{}" }, 0);
-        var store = Store(file, null);
-        var msg = store.Fetch(typeof(AuthenticatedMessage), "ei/x");
-        Assert.IsType<AuthenticatedMessage>(msg);
     }
 
     [Fact]

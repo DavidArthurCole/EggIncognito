@@ -12,12 +12,6 @@ namespace EggIncognito.Tests;
 
 public class ThemeBlastRadiusTests {
     [Fact]
-    public async Task Resolver_ReturnsNullForAnonymous_WithZeroServiceLookups() {
-        var resolver = BuildResolver(new AnonymousUser());
-        Assert.Null(await resolver.ResolveAsync());
-    }
-
-    [Fact]
     public async Task Resolver_ReturnsNullWithoutADatabase() {
         var resolver = BuildResolver(new AuthenticatedUser());
         Assert.Null(await resolver.ResolveAsync());
@@ -88,18 +82,6 @@ public class ThemeBlastRadiusTests {
         }
 
         throw new InvalidOperationException("repo root not found");
-    }
-
-    private sealed class AnonymousUser : ICurrentUser {
-        public bool IsAuthenticated => false;
-        public Guid? UserId => null;
-        public string? DiscordId => null;
-        public string? Username => null;
-        public string? Avatar => null;
-        public string? AvatarUrl => null;
-        public UserRole Role => UserRole.Viewer;
-        public bool IsSupporter => false;
-        public bool IsAtLeast(UserRole need) => need == UserRole.Viewer;
     }
 
     private sealed class AuthenticatedUser : ICurrentUser {

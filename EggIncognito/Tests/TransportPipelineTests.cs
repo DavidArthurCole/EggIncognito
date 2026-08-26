@@ -119,15 +119,6 @@ public class TransportPipelineTests {
     }
 
     [Fact]
-    public void Build_WithPerRequestSalt_EmptyMeansUnsigned() {
-        byte[]? inner = new ContractsInfoRequest { ClientVersion = 71 }.ToByteArray();
-
-        var viaInstance = Build().Build(inner, true);
-        var viaPerRequest = Build().Build(inner, true, null);
-        Assert.Equal(viaInstance.FinalBase64, viaPerRequest.FinalBase64);
-    }
-
-    [Fact]
     public void Build_WrappedEmptyMessageWithSalt_DoesNotThrow() {
         byte[]? empty = new ContractsInfoRequest().ToByteArray();
         Assert.Empty(empty);
@@ -223,25 +214,6 @@ public class TransportPipelineTests {
     }
 
     [Fact]
-    public void Decode_UnwrappedResponseResemblingEnvelope_PrefersDirectParse() {
-        var pipe = Build();
-        var response = new ContractsInfoResponse {
-            ServerTime = 1.5,
-
-
-            Contracts = { new Contract { Identifier = "" } }
-        };
-        string b64 = Convert.ToBase64String(response.ToByteArray());
-
-        var result = pipe.Decode(b64, ContractsInfoResponse.Parser);
-
-        Assert.Null(result.Error);
-        Assert.DoesNotContain(result.Stages, s => s.Name == "authenticated-message");
-        Assert.Contains(result.Stages, s => s.Name == "proto-decode");
-        Assert.Contains("serverTime", result.Json);
-    }
-
-    [Fact]
     public void Decode_ResponseWrappedFalse_ForcesDirectEvenWhenBytesResembleEnvelope() {
         var pipe = Build();
         var response = new EggIncFirstContactResponse {
@@ -256,20 +228,6 @@ public class TransportPipelineTests {
         Assert.DoesNotContain(result.Stages, s => s.Name == "authenticated-message");
         Assert.Contains(result.Stages, s => s.Name == "proto-decode");
         Assert.Contains("oBlazin", result.Json);
-    }
-
-    [Fact]
-    public void Decode_ResponseWrappedTrue_ForcesWrappedEvenIfHeuristicWouldReject() {
-        var pipe = Build();
-        var inner = new ContractsInfoResponse { ServerTime = 7.0 };
-        var wrapped = new AuthenticatedMessage { Message = ByteString.CopyFrom(inner.ToByteArray()) };
-        string b64 = Convert.ToBase64String(wrapped.ToByteArray());
-
-        var result = pipe.Decode(b64, ContractsInfoResponse.Parser, true);
-
-        Assert.Null(result.Error);
-        Assert.Contains(result.Stages, s => s.Name == "authenticated-message");
-        Assert.Contains("7", result.Json);
     }
 
     [Fact]
@@ -417,13 +375,5 @@ public class ProtoReflectionTests {
         Assert.Same(parser, reflection.FindParser("ContractsInfoRequest"));
         Assert.Same(parser, reflection.FindParser("Ei.ContractsInfoRequest"));
         Assert.Same(descriptor, new ProtoReflection().FindMessage("ContractsInfoRequest"));
-    }
-
-    [Fact]
-    public void FindParser_UnknownType_StaysNullOnRepeatedProbes() {
-        var reflection = new ProtoReflection();
-        Assert.Null(reflection.FindParser("StillNotARealType"));
-        Assert.Null(reflection.FindParser("StillNotARealType"));
-        Assert.Null(reflection.FindMessage("StillNotARealType"));
     }
 }

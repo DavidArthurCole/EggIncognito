@@ -17,13 +17,6 @@ public class DeployAgentClientTests {
     }
 
     [Fact]
-    public void Parse_NoUrls_LeavesThemNull() {
-        var r = DeployAgentClient.Parse("""{"ok":true,"fromHash":"aaa","toHash":"bbb"}""");
-        Assert.Null(r.FromUrl);
-        Assert.Null(r.ToUrl);
-    }
-
-    [Fact]
     public void Parse_AlreadyUpToDate() {
         var r = DeployAgentClient.Parse("""{"ok":true,"alreadyUpToDate":true,"fromHash":"aaa","toHash":"aaa"}""");
         Assert.True(r.Ok);

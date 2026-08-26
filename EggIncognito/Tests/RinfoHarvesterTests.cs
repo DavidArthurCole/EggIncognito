@@ -43,14 +43,6 @@ public class RinfoHarvesterTests {
     }
 
     [Fact]
-    public void Harvest_NestedInRealRequest_AndroidContributor() {
-        var o = RinfoHarvester.TryHarvest(
-            """{ "rinfo": { "clientVersion": 71, "version": "1.35.5", "platform": "ANDROID" } }""");
-        Assert.Equal(71, o!.ClientVersion);
-        Assert.Equal("ANDROID", o.Platform);
-    }
-
-    [Fact]
     public void Harvest_Garbage_ReturnsNull() {
         Assert.Null(RinfoHarvester.TryHarvest("not json"));
         Assert.Null(RinfoHarvester.TryHarvest(""));

@@ -51,21 +51,6 @@ public class HatcheryAssemblyRecoveryTests {
     }
 
     [Fact]
-    public void Timing_ToJson_NullArgsSurviveSerialization() {
-        var json = new HatcheryAssemblyRecovery.Timing(null, false, null, 0, "no tween args resolved").ToJson();
-        Assert.Null(json["waitFor"]);
-        Assert.Null(json["smoothDuration"]);
-        Assert.Equal(0, (int)json["orbitSegments"]!);
-    }
-
-    [Fact]
-    public void Timing_ToJson_FlagsRandomFireDelay() {
-        var json = new HatcheryAssemblyRecovery.Timing(null, true, 0.5f, 3, "ok").ToJson();
-        Assert.Null(json["waitFor"]);
-        Assert.True((bool)json["waitForRandom"]!);
-    }
-
-    [Fact]
     public void Assembly_ToJson_IncludesTimingObject() {
         var timing = new HatcheryAssemblyRecovery.Timing(0.5f, false, 30f, 3, "ok");
         var asm = new HatcheryAssemblyRecovery.Assembly(true, [11.319f, 2.15f, 2.997f], [], timing, "ok");

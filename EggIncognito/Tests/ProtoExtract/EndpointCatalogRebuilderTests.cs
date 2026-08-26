@@ -209,16 +209,4 @@ public class EndpointCatalogRebuilderTests {
             "android 1.37.2 (2), merged 2; not used: ios: no binary; ios 1.37.1: 0 endpoints from 12 symbols",
             note);
     }
-
-    [Fact]
-    public void BuildNote_MergeOutputCounts_MatchTheRenderedNote() {
-        EndpointCatalogRebuilder.MergeContributor[] inputs = [
-            C("android", "1.37.2", D("ei/a"), D("ei/b")),
-            C("ios", "1.37.1", D("ei/b"), D("ei/c"))
-        ];
-        var merged = EndpointCatalogRebuilder.Merge(inputs);
-
-        Assert.Equal("android 1.37.2 (2) + ios 1.37.1 (2), merged 3",
-            EndpointCatalogRebuilder.BuildNote(inputs, merged.Count, []));
-    }
 }

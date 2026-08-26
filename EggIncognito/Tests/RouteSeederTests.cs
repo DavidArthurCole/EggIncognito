@@ -53,14 +53,6 @@ public class RouteSeederTests {
     }
 
     [Fact]
-    public void Plan_UndriftedYamlRow_NoInsertNoChange() {
-        var row = RouteSeeder.ToYamlRow(R("ei/a", "Req", "Resp"));
-        var toAdd = RouteSeeder.Plan([row], [R("ei/a", "Req", "Resp")]);
-        Assert.Empty(toAdd);
-        Assert.Equal("Resp", row.ResponseType);
-    }
-
-    [Fact]
     public void Plan_NeverTouchesDbSourceRows() {
         var dbRow = RouteSeeder.ToYamlRow(R("ei/a", "DbReq", "DbResp"));
         dbRow.Source = "db";

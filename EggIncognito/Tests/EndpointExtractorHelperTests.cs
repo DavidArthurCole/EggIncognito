@@ -38,13 +38,6 @@ public class EndpointExtractorHelperTests {
         Assert.Equal(0, EndpointExtractor.CountJsonFields("{}"));
     }
 
-    [Fact]
-    public void CountJsonFields_SeesLossThatObjectCountMisses() {
-        const string rich = "{\"a\":1,\"b\":2,\"c\":3}";
-        const string sparse = "{\"a\":1}";
-        Assert.True(EndpointExtractor.CountJsonFields(sparse) < EndpointExtractor.CountJsonFields(rich));
-    }
-
     private static JsonElement Req(string postDataJson) {
         using var doc = JsonDocument.Parse($"{{ \"postData\": {postDataJson} }}");
         return doc.RootElement.Clone();

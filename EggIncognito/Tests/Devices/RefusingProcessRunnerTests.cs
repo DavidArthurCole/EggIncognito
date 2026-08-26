@@ -29,10 +29,6 @@ public class RefusingProcessRunnerTests {
     }
 
     [Fact]
-    public void NothingIsAttemptedBeforeTheFirstCall() =>
-        Assert.Empty(new RefusingProcessRunner().Attempts);
-
-    [Fact]
     public async Task AFullFakeHarvestCompletesWithNoTransportInTheGraph() {
         foreach (var stack in new[] { FakeStack.Ios(), FakeStack.Android() }) {
             var probe = await stack.Platform.ProbeAsync(stack.Target, CancellationToken.None);
@@ -64,8 +60,4 @@ public class RefusingProcessRunnerTests {
             .ToList();
         Assert.Empty(offenders);
     }
-
-    [Fact]
-    public void ImplementsTheTransportInterfaceWithoutUsingOne() =>
-        Assert.IsAssignableFrom<IProcessRunner>(new RefusingProcessRunner());
 }

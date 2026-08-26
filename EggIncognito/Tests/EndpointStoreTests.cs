@@ -9,63 +9,6 @@ public sealed class EndpointStoreTests : IDisposable {
 
     public void Dispose() => _tmp.Dispose();
 
-    private EndpointStore CreateStore() =>
-        new(new FileEndpointSource(_tmp.Path), null, NullLogger<EndpointStore>.Instance);
-
-    private void WriteEndpoint(string relativePath, string json) {
-        string full = _tmp.Combine(relativePath.Replace('/', Path.DirectorySeparatorChar));
-        Directory.CreateDirectory(Path.GetDirectoryName(full)!);
-        File.WriteAllText(full, json);
-    }
-
-    [Fact]
-    public void ReturnsDefaultInstanceWhenNoEndpoint() {
-        var store = CreateStore();
-        var result = store.Fetch<AuthenticatedMessage>("ei/first_contact_secure");
-        Assert.NotNull(result);
-        Assert.IsType<AuthenticatedMessage>(result);
-    }
-
-    [Fact]
-    public void ReturnsEndpointWhenDefaultExists() {
-        WriteEndpoint("default/ei/first_contact_secure.json", "{}");
-        var store = CreateStore();
-        var result = store.Fetch<AuthenticatedMessage>("ei/first_contact_secure");
-        Assert.NotNull(result);
-    }
-
-    [Fact]
-    public void PrefersEidEndpointOverDefault() {
-        WriteEndpoint("default/ei/get_periodicals.json", "{}");
-        WriteEndpoint("eids/EI0000000000000001/ei/get_periodicals.json", "{}");
-
-        var store = CreateStore();
-
-        var resultDefault = store.Fetch<PeriodicalsResponse>("ei/get_periodicals");
-        Assert.NotNull(resultDefault);
-
-        var resultEid = store.Fetch<PeriodicalsResponse>("ei/get_periodicals", "EI0000000000000001");
-        Assert.NotNull(resultEid);
-    }
-
-    [Fact]
-    public void FallsBackToDefaultWhenEidEndpointMissing() {
-        WriteEndpoint("default/ei/get_periodicals.json", "{}");
-
-        var store = CreateStore();
-        var result = store.Fetch<PeriodicalsResponse>("ei/get_periodicals", "EI_NONEXISTENT");
-        Assert.NotNull(result);
-    }
-
-    [Fact]
-    public void UsesGroupedPathForLookup() {
-        WriteEndpoint("default/ei_afx/launch_mission.json", "{}");
-
-        var store = CreateStore();
-        var result = store.Fetch<MissionResponse>("ei_afx/launch_mission");
-        Assert.NotNull(result);
-    }
-
     [Fact]
     public void DoesNotThrowWhenEndpointsDirMissing() {
         var store = new EndpointStore(

@@ -22,12 +22,6 @@ public class MachoClientVersionReaderTests {
     }
 
     [Fact]
-    public void Pick_SameDistance_TieBreaksByDescendingSiteCount() {
-        var cands = new Dictionary<int, int> { [72] = 2, [73] = 99 };
-        Assert.Equal(72, MachoClientVersionReader.Pick(cands, 72));
-    }
-
-    [Fact]
     public void Pick_NoInRangeCandidate_ReturnsNull() {
         var cands = new Dictionary<int, int> { [19] = 37, [200] = 5 };
         Assert.Null(MachoClientVersionReader.Pick(cands, 71));

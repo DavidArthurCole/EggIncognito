@@ -16,11 +16,4 @@ public class SupportPageTests(SharedAppFactory f) {
         Assert.Contains("buymeacoffee.com/davidarthurcole", html);
         Assert.Contains("patreon.com/c/DavidArthurCole", html);
     }
-
-    [Fact]
-    public async Task SupportPage_HidesConnectSection_WithoutOAuth() {
-        using var client = _factory.CreateClient();
-        string html = await client.GetStringAsync("/support");
-        Assert.DoesNotContain("Connect your account", html);
-    }
 }

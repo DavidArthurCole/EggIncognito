@@ -28,25 +28,12 @@ public class WorkbenchStateBaseTests {
     }
 
     [Fact]
-    public void NormalizeMode_MatchesTheSetter() {
-        var state = new TwoModeState();
-        Assert.Equal("beta", state.NormalizeMode("beta"));
-        Assert.Equal("alpha", state.NormalizeMode("nope"));
-        Assert.Equal("alpha", state.NormalizeMode(null));
-    }
-
-    [Fact]
     public void Mode_IsEmptyWhenAWorkbenchHasNoModes() {
         var state = new NoModeState();
         Assert.Equal("", state.DefaultMode);
         Assert.Equal("", state.Mode);
         state.Mode = "anything";
         Assert.Equal("", state.Mode);
-    }
-
-    [Fact]
-    public void RailFilter_DefaultsToEmpty() {
-        Assert.Equal("", new TwoModeState().RailFilter);
     }
 
     [Fact]

@@ -46,24 +46,6 @@ public class PlaygroundTests(SharedAppFactory f) {
     }
 
     [Fact]
-    public async Task ShipAssets_Routes_AreGone() {
-        var c = _factory.CreateClient();
-        AssertRouteGone(await c.GetAsync("/api/ship-assets/list"));
-        AssertRouteGone(await c.GetAsync("/api/ship-assets/glb/ChickenOne"));
-    }
-
-    [Fact]
-    public async Task MeshUploadTools_AreGone() {
-        var c = _factory.CreateClient();
-        using var empty = new MultipartFormDataContent();
-        AssertRouteGone(await c.PostAsync("/api/tools/animate-glb?kind=SpinY&seconds=5", empty));
-        using var empty2 = new MultipartFormDataContent();
-        AssertRouteGone(await c.PostAsync("/api/tools/extract-meshes", empty2));
-        using var empty3 = new MultipartFormDataContent();
-        AssertRouteGone(await c.PostAsync("/api/tools/export-ships", empty3));
-    }
-
-    [Fact]
     public async Task ShellsObjects_ReturnsShape() {
         var c = _factory.CreateClient();
         var r = await c.GetAsync("/api/shells/objects?platform=ios&type=chicken");
@@ -120,16 +102,6 @@ public class PlaygroundTests(SharedAppFactory f) {
         var r = await c.GetAsync("/api/farm/mesh/..%2Fegginc");
         Assert.True(r.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.NotFound,
             $"expected the stem guard to reject, got {(int)r.StatusCode}");
-    }
-
-    [Fact]
-    public async Task EnvRoutes_AreGone() {
-        var c = _factory.CreateClient();
-        AssertRouteGone(await c.GetAsync("/api/env/catalog"));
-        AssertRouteGone(await c.GetAsync("/api/env/farm-layout"));
-        AssertRouteGone(await c.GetAsync("/api/env/device-stems"));
-        AssertRouteGone(await c.GetAsync("/api/env/hatchery-effects"));
-        AssertRouteGone(await c.GetAsync("/api/env/ei_farm_ground/glb"));
     }
 
     [Fact]

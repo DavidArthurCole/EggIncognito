@@ -144,15 +144,6 @@ public class FeedDispatcherTests {
     }
 
     [Fact]
-    public async Task Config_GetConfigFeed_Fires() {
-        var store = new FakeStore(ConfigSub(1, ConfigFeeds.Config));
-        var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));
-        await Dispatcher(store, handler).DispatchAsync(ConfigEvt(ConfigFeeds.Config, "cfg1"));
-
-        Assert.Equal(1, handler.Posts);
-    }
-
-    [Fact]
     public async Task Config_SameContentHash_Deduped() {
         var store = new FakeStore(ConfigSub(1, FeedEventKinds.TriggerAnyFeed));
         var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.NoContent));

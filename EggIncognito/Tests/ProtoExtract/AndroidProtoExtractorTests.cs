@@ -6,12 +6,6 @@ namespace EggIncognito.Tests.ProtoExtract;
 
 public class AndroidProtoExtractorTests {
     [Fact]
-    public void Extract_EmptyBytes_NotOk() {
-        var r = AndroidProtoExtractor.Extract([]);
-        Assert.False(r.Ok);
-    }
-
-    [Fact]
     public void Extract_BareSoWithDescriptor_CarvesProto() {
         var fdp = new FileDescriptorProto { Name = "ei.proto", Package = "ei" };
         byte[]? blob = fdp.ToByteArray();

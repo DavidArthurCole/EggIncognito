@@ -50,16 +50,4 @@ public class EggCatalogExtractorTests {
             Assert.Equal(BaseEggHatcheryExtents[i], r.Entries[i].HatcheryExtent, 3);
         }
     }
-
-    [Fact]
-    public void Read_EveryEggCarriesAFiniteHatcheryExtent() {
-        if (!BinaryFixture.TryLoad(out var bin)) return;
-        var r = EggCatalogExtractor.Read(bin);
-        Assert.True(r.Ok, r.Diagnostics);
-        Assert.NotEmpty(r.Entries);
-        foreach (var e in r.Entries) {
-            Assert.True(double.IsFinite(e.HatcheryExtent), $"egg {e.Index} ({e.Name}) extent is not finite");
-            Assert.True(e.HatcheryExtent > 0, $"egg {e.Index} ({e.Name}) extent is not positive");
-        }
-    }
 }

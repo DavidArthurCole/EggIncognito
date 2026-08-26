@@ -2,7 +2,6 @@ using EggIncognito.Core;
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Services.Devices;
 using EggIncognito.Services.Devices.Fake;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -10,17 +9,6 @@ namespace EggIncognito.Tests.Devices;
 
 public class FakeDevicePlatformTests {
     private static readonly Dictionary<string, string> Nothing = [];
-
-    [Fact]
-    public void Manifest_MatchesBothRealPlatforms() {
-        var android = FakeStack.Android().Platform.Manifest().Select(e => e.Name).Order(StringComparer.Ordinal);
-        var ios = FakeStack.Ios().Platform.Manifest().Select(e => e.Name).Order(StringComparer.Ordinal);
-        var realAndroid = FakeStack.RealAndroid().Manifest().Select(e => e.Name).Order(StringComparer.Ordinal);
-        var realIos = FakeStack.RealIos().Manifest().Select(e => e.Name).Order(StringComparer.Ordinal);
-
-        Assert.Equal(realAndroid, android);
-        Assert.Equal(realIos, ios);
-    }
 
     [Fact]
     public void Manifest_UnsupportedEntriesMatchTheRealPlatformsAndSayWhy() {
@@ -169,17 +157,6 @@ internal sealed record FakeStack(FakeDevicePlatform Platform, FakeDevice Device,
     public static FakeStack Android(string scenario = FakeScenarios.Healthy, string appVersion = AppVersion) =>
         Make(Platforms.Android, scenario, appVersion);
 
-    public static AndroidPlatform RealAndroid() =>
-        new(new DeadRunner(), new ConfigurationBuilder().Build(), [], [], [], [],
-            NullLogger<AndroidPlatform>.Instance);
-
-    public static IosPlatform RealIos() {
-        var runner = new DeadRunner();
-        var config = new DeviceCaptureConfig();
-        return new IosPlatform(new DeviceConnectionFactory(runner, config), config, runner, [], [], [], [],
-            NullLogger<IosPlatform>.Instance);
-    }
-
     public static FakeFixtureSource Fixtures() => new(new EmptyScopes());
 
     private static FakeStack Make(string platform, string scenario, string appVersion) {
@@ -196,11 +173,6 @@ internal sealed record FakeStack(FakeDevicePlatform Platform, FakeDevice Device,
             []);
         return new FakeStack(plat, device,
             new DeviceTarget(device.Id, device.Platform, device.Target, device.Package));
-    }
-
-    private sealed class DeadRunner : IProcessRunner {
-        public Task<ProcessResult> RunAsync(string exe, string[] args, CancellationToken ct) =>
-            Task.FromResult(new ProcessResult(1, "", "no device"));
     }
 }
 

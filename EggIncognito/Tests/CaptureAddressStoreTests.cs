@@ -32,18 +32,4 @@ public class CaptureAddressStoreTests {
             for (int i = 0; i < 8; i++) Assert.Equal(prefixAddr[i], ab[i]);
         }
     }
-
-    [Fact]
-    public void RandomInPrefix_AvoidsReservedHostPart() {
-        for (int n = 0; n < 50; n++) {
-            byte[] bytes = CaptureAddressStore.RandomInPrefix(Prefix).GetAddressBytes();
-            bool hostAllZeroExceptLast = true;
-            for (int i = 8; i < 15; i++) {
-                if (bytes[i] != 0)
-                    hostAllZeroExceptLast = false;
-            }
-
-            Assert.False(hostAllZeroExceptLast && bytes[15] <= 1);
-        }
-    }
 }

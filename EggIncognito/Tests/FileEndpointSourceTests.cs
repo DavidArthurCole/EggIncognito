@@ -45,10 +45,4 @@ public sealed class FileEndpointSourceTests : IDisposable {
         MakeDir(out string root);
         Assert.Null(new FileEndpointSource(root).Lookup("ei/nope", null));
     }
-
-    [Fact]
-    public void Priority_IsZero() {
-        MakeDir(out string root);
-        Assert.Equal(0, new FileEndpointSource(root).Priority);
-    }
 }

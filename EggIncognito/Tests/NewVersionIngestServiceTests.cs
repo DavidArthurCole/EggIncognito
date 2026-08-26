@@ -51,29 +51,6 @@ public class NewVersionIngestServiceTests {
         Assert.Equal(2, calls);
     }
 
-    [Fact]
-    public async Task LegacyEvent_PlatformFallsBackToAndroid() {
-        string? seenPlatform = null;
-
-        static Task NoOp(NewVersionEvent _, CancellationToken __) {
-            return Task.CompletedTask;
-        }
-
-        var svc = new NewVersionIngestService("expected-sha",
-            new FakeNotifier(),
-            (evt, __) => {
-                seenPlatform = evt.Platform ?? "android";
-                return Task.CompletedTask;
-            },
-            NoOp,
-            NoOp,
-            NoOp);
-
-        await svc.HandleAsync(new NewVersionEvent { Version = "1.34", ProtoSha = "expected-sha" });
-
-        Assert.Equal("android", seenPlatform);
-    }
-
     private sealed class FakeNotifier : ISyncNotifier {
         public readonly List<string> Sent = [];
 

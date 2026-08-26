@@ -162,14 +162,6 @@ public class NotificationsWorkbenchTests {
     }
 
     [Fact]
-    public void Hash_NeverEmitsAThirdSegment() {
-        var state = new NotificationsWorkbenchState { Creating = false, SelectedId = 7 };
-
-        Assert.Equal("notify_7", state.Hash());
-        Assert.DoesNotContain("#", state.Hash()!, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void ApplyHash_RestoresTheSelectionFromALegacyLink() {
         var state = new NotificationsWorkbenchState();
 

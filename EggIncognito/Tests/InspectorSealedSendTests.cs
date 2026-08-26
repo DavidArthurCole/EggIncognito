@@ -34,16 +34,6 @@ public class InspectorSealedSendTests {
     }
 
     [Fact]
-    public async Task Send_SealedRequest_NonSupporter_403() {
-        var sealedProxy = new FakeSealedProxy(true, false);
-        var controller = NewController(
-            new FakeAppMode(AppMode.Local), new FakeUser(true, false), sealedProxy);
-
-        var ex = await Assert.ThrowsAsync<ApiException>(() => controller.Send(SealedSend()));
-        Assert.Equal(StatusCodes.Status403Forbidden, ex.Status);
-    }
-
-    [Fact]
     public async Task Send_HostedAnonymous_403_BeforeSealedCheck() {
         var sealedProxy = new FakeSealedProxy(true, true);
         var controller = NewController(

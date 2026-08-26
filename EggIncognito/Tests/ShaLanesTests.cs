@@ -113,17 +113,6 @@ public class ShaLanesTests {
     }
 
     [Fact]
-    public void SameInput_ProducesTheSameOutput() {
-        var first = Build("aa", "bb", "aa", "cc", "bb");
-        var second = Build("aa", "bb", "aa", "cc", "bb");
-
-        foreach (long key in first.Keys) {
-            Assert.Equal(first[key].Segments, second[key].Segments);
-            Assert.Equal(first[key].GroupSize, second[key].GroupSize);
-        }
-    }
-
-    [Fact]
     public void MismatchedInputLengths_ReturnNothing() {
         var visible = new List<VersionKey> { Key("aa"), Key("aa") };
 

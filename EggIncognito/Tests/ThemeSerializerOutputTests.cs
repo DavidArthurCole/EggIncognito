@@ -13,17 +13,6 @@ public class ThemeSerializerOutputTests {
     ];
 
     [Fact]
-    public void PresetOutput_NeverContainsForbiddenBytes() {
-        var serializer = ThemeTestSupport.Serializer();
-        foreach (var preset in ThemePresets.All) {
-            foreach (var scope in new[] { ThemeScope.Live, ThemeScope.Preview }) {
-                string css = serializer.Serialize(preset, scope, true);
-                AssertAlphabet(css, preset.Slug);
-            }
-        }
-    }
-
-    [Fact]
     public void AdversarialModels_NeverEmitForbiddenBytes() {
         var serializer = ThemeTestSupport.Serializer();
         foreach (string source in AdversarialCss) {

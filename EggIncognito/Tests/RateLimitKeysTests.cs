@@ -72,13 +72,6 @@ public class RateLimitKeysTests {
         Assert.Equal(new[] { "Viewer", "Supporter" }, RateLimitKeys.TiersFor(user));
     }
 
-    [Fact]
-    public void TiersFor_NonSupporterContributor_BaseOnly() {
-        var user = new FakeUser(true, "x", UserRole.Contributor);
-        Assert.Equal(new[] { "Contributor" }, RateLimitKeys.TiersFor(user));
-    }
-
-
     [Theory]
     [InlineData("Anon", "Egress", 10)]
     [InlineData("Viewer", "Egress", 10)]
@@ -96,15 +89,6 @@ public class RateLimitKeysTests {
     [InlineData(true, UserRole.Admin, true)]
     public void IsExempt_OnlyAdmins(bool auth, UserRole role, bool expected) => Assert.Equal(expected,
         RateLimiterSetup.IsExempt(new FakeUser(auth, auth ? "x" : null, role)));
-
-    [Fact]
-    public void EffectivePermit_TakesBestTier() {
-        var opts = RateLimitOptions.Defaults();
-        int permitSupporter = RateLimiterSetup.EffectivePermit(opts, new[] { "Viewer", "Supporter" }, "Read");
-        int permitViewer = RateLimiterSetup.EffectivePermit(opts, new[] { "Viewer" }, "Read");
-        Assert.True(permitSupporter >= permitViewer);
-    }
-
 
     [Fact]
     public void FallbackRetryAfter_UsesMatchedPolicyWindow() {

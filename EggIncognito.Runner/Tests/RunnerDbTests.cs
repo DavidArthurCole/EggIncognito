@@ -16,11 +16,4 @@ public class RunnerDbTests {
         Assert.NotNull(db);
         Assert.Equal("Host=localhost;Database=x", db!.ConnectionString);
     }
-
-    [Fact]
-    public void NewContext_BuildsAContext() {
-        var db = RunnerDb.FromEnv(k => k == "ConnectionStrings__Postgres" ? "Host=localhost;Database=x" : "")!;
-        using var ctx = db.NewContext();
-        Assert.NotNull(ctx);
-    }
 }

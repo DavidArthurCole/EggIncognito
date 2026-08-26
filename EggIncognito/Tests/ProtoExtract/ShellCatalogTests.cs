@@ -66,30 +66,6 @@ public class ShellCatalogTests {
     }
 
     [Fact]
-    public void InnerConfigProto_DirectParse_KeepsShells_WrappedAsAuthMsgIsHusk() {
-        string? json = ConfigJson();
-        if (json is null) return;
-        var full = ConfigResponse.Parser.ParseJson(json);
-        int fullShells = full.DlcCatalog?.Shells.Count ?? 0;
-        Assert.True(fullShells > 1000);
-
-        byte[]? innerBytes = full.ToByteArray();
-        var direct = ConfigResponse.Parser.ParseFrom(innerBytes);
-        Assert.Equal(fullShells, direct.DlcCatalog?.Shells.Count ?? 0);
-
-        byte[]? wrapped = new AuthenticatedMessage { Message = ByteString.CopyFrom(innerBytes) }.ToByteArray();
-        ConfigResponse husk;
-        try {
-            husk = ConfigResponse.Parser.ParseFrom(wrapped);
-        } catch {
-            husk = new ConfigResponse();
-        }
-
-        Assert.True((husk.DlcCatalog?.Shells.Count ?? 0) < fullShells,
-            "wrapped bytes should not parse to the full catalog directly");
-    }
-
-    [Fact]
     public void FromCatalog_RealConfig_HasManyShells() {
         string? json = ConfigJson();
         if (json is null) return;

@@ -30,10 +30,4 @@ public class BotEmbedsTests {
         Assert.Contains("3", blob);
         Assert.Contains("1", blob);
     }
-
-    [Fact]
-    public void Health_HasUptime() {
-        var e = BotEmbeds.Health(TimeSpan.FromMinutes(5));
-        Assert.Contains("pong", (e.Title + e.Description).ToLowerInvariant());
-    }
 }

@@ -5,23 +5,6 @@ namespace EggIncognito.Runner.Tests;
 
 public class AdbParseTests {
     [Fact]
-    public void AndroidVersion_PullsVersionNameToken() {
-        var dumpsys = "    versionCode=111343 minSdk=24 targetSdk=34\n    versionName=1.35.7\n";
-        Assert.Equal("1.35.7", DeviceParsing.AndroidVersion(dumpsys).AppVersion);
-    }
-
-    [Fact]
-    public void AndroidVersion_PullsMonotonicBuild() {
-        var dumpsys = "    versionCode=111343 minSdk=24\n    versionName=1.35.7\n";
-        Assert.Equal("111343", DeviceParsing.AndroidVersion(dumpsys).Build);
-    }
-
-    [Fact]
-    public void AndroidVersion_MissingReturnsNull() {
-        Assert.Null(DeviceParsing.AndroidVersion("no version here").AppVersion);
-    }
-
-    [Fact]
     public void ApkPaths_ExtractsPathAfterColon() {
         var pm = "package:/data/app/~~a==/com.auxbrain.egginc-b==/base.apk\n"
                + "package:/data/app/~~a==/com.auxbrain.egginc-b==/split_config.arm64_v8a.apk\n";

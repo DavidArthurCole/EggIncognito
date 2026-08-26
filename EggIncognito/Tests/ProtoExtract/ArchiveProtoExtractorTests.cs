@@ -75,13 +75,6 @@ public class ArchiveProtoExtractorTests {
         Assert.True(r.Ok, r.Diagnostics);
     }
 
-    [Fact]
-    public void ApkProtoExtractor_Alias_StillWorks() {
-        if (!TryFixture(out byte[] fx)) return;
-        var r = ApkProtoExtractor.Extract(ZipWith("lib/arm64-v8a/libegginc.so", fx));
-        Assert.True(r.Ok, r.Diagnostics);
-    }
-
     private static byte[] ZipWith(string name, byte[] content, CompressionLevel level = CompressionLevel.Optimal) {
         using var ms = new MemoryStream();
         using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, true))

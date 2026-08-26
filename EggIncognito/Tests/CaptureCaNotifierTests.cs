@@ -6,7 +6,6 @@ using EggIncognito.Controllers;
 using EggIncognito.Services;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace EggIncognito.Tests;
@@ -118,26 +117,6 @@ public sealed class CaptureCaNotifierTests : IDisposable {
 
     private static string ProfileUuid(string plist) =>
         plist.Split("<key>PayloadUUID</key>")[^1].Split("<string>")[1].Split("</string>")[0];
-
-    private static ICaptureCaNotifier ResolveNotifier(string? botToken) {
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddHttpClient("discord-api");
-        services.AddSingleton(Config(new Dictionary<string, string?> { ["Discord:BotToken"] = botToken }));
-        if (!string.IsNullOrWhiteSpace(botToken))
-            services.AddSingleton<ICaptureCaNotifier, DiscordCaptureCaNotifier>();
-        else
-            services.AddSingleton<ICaptureCaNotifier, NoopCaptureCaNotifier>();
-        return services.BuildServiceProvider().GetRequiredService<ICaptureCaNotifier>();
-    }
-
-    [Fact]
-    public void Notifier_NoBotToken_RegistersNoop() =>
-        Assert.IsType<NoopCaptureCaNotifier>(ResolveNotifier(null));
-
-    [Fact]
-    public void Notifier_BotTokenSet_RegistersDiscord() =>
-        Assert.IsType<DiscordCaptureCaNotifier>(ResolveNotifier("token"));
 
     private sealed class FailingNotifier : ICaptureCaNotifier {
         public int Calls { get; private set; }

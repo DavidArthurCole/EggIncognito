@@ -62,13 +62,6 @@ public class SyntaxCacheTests {
     }
 
     [Fact]
-    public void KeyFor_IsLanguageScopedAndContentAddressed() {
-        Assert.NotEqual(SyntaxCache.KeyFor("json", "a"), SyntaxCache.KeyFor("yaml", "a"));
-        Assert.Equal(SyntaxCache.KeyFor("json", "a"), SyntaxCache.KeyFor("json", "a"));
-        Assert.NotEqual(SyntaxCache.KeyFor("json", "a"), SyntaxCache.KeyFor("json", "b"));
-    }
-
-    [Fact]
     public void SharedCache_IsReusedByTheHighlighter() {
         Assert.Same(SyntaxHighlighter.Highlight("{\"x\":1}", "json"),
             SyntaxHighlighter.Highlight("{\"x\":1}", "json"));

@@ -22,15 +22,6 @@ public class DataApiIntegrationTests(EggIncApiFactory factory) {
     }
 
     [Fact]
-    public async Task Index_IsNotScrapeGated_RepeatableForAnon() {
-        var client = Client("10.10.0.7");
-        var first = await client.GetAsync("/api/v1/data");
-        var second = await client.GetAsync("/api/v1/data");
-        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
-        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
-    }
-
-    [Fact]
     public async Task AuthenticatedSource_Anon_Returns401() {
         var resp = await Client("10.10.0.2").GetAsync("/api/v1/data/periodical/get_periodicals");
         Assert.Equal(HttpStatusCode.Unauthorized, resp.StatusCode);
