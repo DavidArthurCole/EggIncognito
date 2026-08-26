@@ -33,15 +33,7 @@
                 </tbody>
             </table>
         </div>
-        <div class="sub-section-head">Backfill</div>
-        <div class="flex gap-1 items-center">
-            <button type="button" class="btn-mini" disabled="@_busy" @onclick="Sweep">Sweep stored snapshots</button>
-        </div>
-        <div class="flex gap-1 items-center">
-            <input class="reg-filter-input w-auto" @bind="_url" placeholder="@CarpetPlaceholder"/>
-            <button type="button" class="btn-mini" disabled="@_busy" @onclick="ImportCarpet">Import carpet history</button>
-        </div>
-        <div class="text-xs text-muted">Historical data courtesy of carpetsage/egg.</div>
+        <div class="text-xs text-muted">Historical data courtesy of carpetsage/egg. Backfill tools live in the Maintenance card.</div>
         @if (_msg is not null) {
             <StatusNote>@_msg</StatusNote>
         }
@@ -51,9 +43,7 @@
 @code {
     EventStatsResponse? _stats;
     List<GameEventDto> _latest = [];
-    string _url = "";
     string? _msg;
-    bool _busy;
 
     string StatText => _stats?.Total.ToString() ?? "";
 
@@ -64,9 +54,6 @@
     static string FormatStart(double startTimestamp) {
         return UnixSeconds.ToTime(startTimestamp).ToLocalTime().ToString("yyyy-MM-dd");
     }
-
-    static string CarpetPlaceholder =>
-        "https://raw.githubusercontent.com/carpetsage/egg/master/periodicals/data/events.json";
 
     protected override async Task OnApiReadyAsync() {
         await Load();
@@ -84,31 +71,6 @@
 
         var latestRes = await Api.GetAsync("/api/v1/events?limit=3");
         _latest = latestRes.Ok ? latestRes.Json<GameEventListResponse>()?.Events.ToList() ?? [] : [];
-    }
-
-    async Task Sweep() {
-        if (Api is null) return;
-        _busy = true;
-        _msg = null;
-        var res = await Api.PostAsync("/api/admin/events/sweep-snapshots", TimeSpan.FromMinutes(10));
-        _msg = res.Ok ? Describe(res.Json<EventBackfillResult>()) : $"sweep failed: {res.Describe()}";
-        await Load();
-        _busy = false;
-    }
-
-    async Task ImportCarpet() {
-        if (Api is null) return;
-        _busy = true;
-        _msg = null;
-        var res = await Api.PostJsonAsync(
-            "/api/admin/events/import-carpet", new CarpetImportRequest(_url), TimeSpan.FromMinutes(10));
-        _msg = res.Ok ? Describe(res.Json<EventBackfillResult>()) : $"import failed: {res.Describe()}";
-        await Load();
-        _busy = false;
-    }
-
-    static string Describe(EventBackfillResult? r) {
-        return r is null ? "done" : $"scanned {r.Scanned}, inserted {r.Inserted}, updated {r.Updated}, skipped {r.Skipped}";
     }
 
 }

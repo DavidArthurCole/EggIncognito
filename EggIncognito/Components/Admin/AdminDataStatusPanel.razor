@@ -64,7 +64,9 @@
                         @foreach (var p in _data.Config.Platforms) {
                             <tr>
                                 <td>@p.Platform</td>
-                                <td class="text-xs"><TimeAgo Value="@p.SavedAt"/></td>
+                                <td class="text-xs">
+                                    <TimeAgo Value="@p.SavedAt"/>
+                                </td>
                                 <td class="mono text-xs">@p.Bytes</td>
                             </tr>
                         }
@@ -86,7 +88,9 @@
                         <tr>
                             <td class="mono text-xs">@f.Name</td>
                             <td class="mono text-xs">@f.Bytes</td>
-                            <td class="text-xs"><TimeAgo Value="@f.UpdatedAt"/></td>
+                            <td class="text-xs">
+                                <TimeAgo Value="@f.UpdatedAt"/>
+                            </td>
                             <td class="text-xs">@f.Status</td>
                         </tr>
                     }

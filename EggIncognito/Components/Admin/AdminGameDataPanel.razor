@@ -75,7 +75,7 @@
     string StatText {
         get {
             if (_data is null) return "";
-            int present = _data.Documents.Count(d => d.Present);
+            var present = _data.Documents.Count(d => d.Present);
             return $"{present}/{_data.Documents.Count} docs";
         }
     }

@@ -1,6 +1,7 @@
 @rendermode @(RenderMode.InteractiveServer)
 @using System.Text.Json
 @using EggIncognito.Models.Admin
+@using EggIncognito.Models.Events
 @inherits BrowserApiComponentBase
 
 <AdminCard Title="Maintenance" Stat="@Stat">
@@ -80,6 +81,25 @@
                     </td>
                     <td class="text-xs">@Result("icon-import")</td>
                 </tr>
+                <tr>
+                    <td>Sweep event snapshots</td>
+                    <td>
+                        <button type="button" class="btn-mini" disabled="@_busy" @onclick="SweepEvents">Run</button>
+                    </td>
+                    <td class="text-xs">@Result("event-sweep")</td>
+                </tr>
+                <tr>
+                    <td>
+                        <div class="flex gap-1 items-center flex-wrap">
+                            <span>Import carpet events</span>
+                            <input class="reg-filter-input w-auto" placeholder="@CarpetPlaceholder" @bind="_carpetUrl"/>
+                        </div>
+                    </td>
+                    <td>
+                        <button type="button" class="btn-mini" disabled="@_busy" @onclick="ImportCarpetEvents">Run</button>
+                    </td>
+                    <td class="text-xs">@Result("event-carpet")</td>
+                </tr>
                 </tbody>
             </table>
         </div>
@@ -87,13 +107,14 @@
 </AdminCard>
 
 @code {
-    const int ToolCount = 7;
+    const int ToolCount = 9;
 
     bool _busy;
     bool _realignArmed;
     string _livePlatform = "ios";
     string _ingestPlatform = "ios";
     string _ingestJson = "";
+    string _carpetUrl = "";
     string _iconName = "";
     byte[]? _iconBytes;
     string? _iconFileName;
@@ -156,8 +177,37 @@
     }
 
     Task IngestJson() {
-        string body = JsonSerializer.Serialize(new { json = _ingestJson });
+        var body = JsonSerializer.Serialize(new { json = _ingestJson });
         return RunConfig("ingest-json", () => Api!.SendAsync("POST", $"/api/config/{_ingestPlatform}/ingest-json", body));
+    }
+
+    static string CarpetPlaceholder =>
+        "https://raw.githubusercontent.com/carpetsage/egg/master/periodicals/data/events.json";
+
+    async Task RunEvents(string key, Func<Task<BrowserResponse>> call) {
+        if (Api is null) return;
+        _realignArmed = false;
+        _busy = true;
+        var res = await call();
+        if (!res.Ok) {
+            _results[key] = res.Describe();
+        } else {
+            var r = res.Json<EventBackfillResult>();
+            _results[key] = r is null
+                ? "ok"
+                : $"scanned {r.Scanned}, inserted {r.Inserted}, updated {r.Updated}, skipped {r.Skipped}";
+        }
+
+        _busy = false;
+    }
+
+    Task SweepEvents() {
+        return RunEvents("event-sweep", () => Api!.PostAsync("/api/admin/events/sweep-snapshots", TimeSpan.FromMinutes(10)));
+    }
+
+    Task ImportCarpetEvents() {
+        return RunEvents("event-carpet", () => Api!.PostJsonAsync(
+            "/api/admin/events/import-carpet", new CarpetImportRequest(_carpetUrl), TimeSpan.FromMinutes(10)));
     }
 
     async Task OnIconFile(InputFileChangeEventArgs e) {
