@@ -556,6 +556,15 @@
         _ = ResolvePair();
     }
 
+    public void OpenGroup(string protoSha) {
+        if (string.IsNullOrWhiteSpace(protoSha)) return;
+        State.Query = RegistryQuery.Empty with {
+            Groups = [new FilterGroup([new FilterCondition("sha", FilterOp.Is, protoSha)])]
+        };
+        Open();
+        if (RegistryItems().FirstOrDefault() is { } match) _ = SetA(RegistryRef(match));
+    }
+
     static string ModeOrDefault(string? mode, ProtoRef? b) {
         if (mode is { Length: > 0 }
             && ProtoRefParser.Modes.FirstOrDefault(m => m.Equals(mode, StringComparison.OrdinalIgnoreCase)) is { } known) {

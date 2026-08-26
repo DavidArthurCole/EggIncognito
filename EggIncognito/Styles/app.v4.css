@@ -1411,7 +1411,7 @@ input[type="search"]::placeholder { @apply text-muted; }
   border: 0;
   border-radius: 0;
   overflow: visible;
-  --reg-lane-w: 0.5rem;
+  --reg-lane-w: 0.75rem;
 }
 .reg-table thead th {
   position: static;
@@ -1460,20 +1460,37 @@ input[type="search"]::placeholder { @apply text-muted; }
   inset-block: -1px;
   left: calc(0.75rem + var(--lane, 0) * var(--reg-lane-w));
   width: var(--reg-lane-w);
-  pointer-events: none;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.reg-lane-c0 {
+  --lane-color: color-mix(in oklab, var(--color-accent) 60%, transparent);
+  --lane-color-hot: color-mix(in oklab, var(--color-accent) 100%, transparent);
+}
+.reg-lane-c1 {
+  --lane-color: color-mix(in oklab, var(--color-ok) 60%, transparent);
+  --lane-color-hot: color-mix(in oklab, var(--color-ok) 100%, transparent);
+}
+.reg-lane-c2 {
+  --lane-color: color-mix(in oklab, var(--color-warn) 60%, transparent);
+  --lane-color-hot: color-mix(in oklab, var(--color-warn) 100%, transparent);
+}
+.reg-lane-c3 {
+  --lane-color: color-mix(in oklab, var(--color-err) 60%, transparent);
+  --lane-color-hot: color-mix(in oklab, var(--color-err) 100%, transparent);
 }
 .reg-lane::before {
   content: "";
   position: absolute;
   left: 50%;
   width: 1px;
-  background: var(--color-separator);
+  background: var(--lane-color);
 }
 .reg-lane-pass::before, .reg-lane-node::before { top: 0; bottom: 0; }
 .reg-lane-start::before { top: 50%; bottom: 0; }
 .reg-lane-end::before { top: 0; bottom: 50%; }
 .reg-lane-start, .reg-lane-node, .reg-lane-end {
-  background-image: radial-gradient(circle at 50% 50%, var(--color-muted) 0 0.1875rem, transparent 0.1875rem);
+  background-image: radial-gradient(circle at 50% 50%, var(--lane-color) 0 0.1875rem, transparent 0.1875rem);
   background-repeat: no-repeat;
 }
 .reg-lane-start::after, .reg-lane-node::after, .reg-lane-end::after {
@@ -1483,7 +1500,19 @@ input[type="search"]::placeholder { @apply text-muted; }
   left: 50%;
   height: 1px;
   width: calc(var(--reg-gutter, 0rem) - var(--lane, 0) * var(--reg-lane-w) - var(--reg-lane-w) / 2);
-  background: var(--color-separator);
+  background: var(--lane-color);
+}
+.reg-lane-hot::before { width: 2px; background: var(--lane-color-hot); }
+.reg-lane-hot.reg-lane-start, .reg-lane-hot.reg-lane-node, .reg-lane-hot.reg-lane-end {
+  background-image: radial-gradient(circle at 50% 50%, var(--lane-color-hot) 0 0.25rem, transparent 0.25rem);
+}
+.reg-lane-hot.reg-lane-start::after, .reg-lane-hot.reg-lane-node::after, .reg-lane-hot.reg-lane-end::after {
+  background: var(--lane-color-hot);
+}
+.reg-sha-hot {
+  outline: 1px solid var(--color-accent);
+  outline-offset: 1px;
+  background: color-mix(in oklab, var(--color-accent) 12%, transparent);
 }
 
 @container pdmod (max-width: 50rem) {

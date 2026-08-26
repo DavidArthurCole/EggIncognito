@@ -4,35 +4,45 @@ namespace EggIncognito.Services.Protos;
 
 public enum ShaLaneMark { None, Start, Node, End, Pass }
 
-public sealed record ShaLaneSegment(int Lane, ShaLaneMark Mark);
+public sealed record ShaLaneSegment(int Lane, ShaLaneMark Mark, int GroupId);
 
-public sealed record ShaLaneRow(IReadOnlyList<ShaLaneSegment> Segments, int GroupSize, int VisibleGroupSize);
+public sealed record ShaLaneRow(IReadOnlyList<ShaLaneSegment> Segments, int GroupSize, int VisibleGroupSize, int? GroupId);
+
+public sealed record ShaLaneLayout(IReadOnlyDictionary<long, ShaLaneRow> Rows, IReadOnlyDictionary<int, string> GroupShas);
 
 public static class ShaLanes {
-    public static IReadOnlyDictionary<long, ShaLaneRow> Build(
+    public static ShaLaneLayout Build(
         IReadOnlyList<long> orderedKeys, IReadOnlyList<VersionKey> orderedVisible,
         IReadOnlyList<VersionKey> all, int maxLanes = 4) {
         var rows = new Dictionary<long, ShaLaneRow>();
-        if (orderedKeys.Count != orderedVisible.Count) return rows;
+        var groupShas = new Dictionary<int, string>();
+        if (orderedKeys.Count != orderedVisible.Count) return new ShaLaneLayout(rows, groupShas);
 
         List<List<int>> groups = GroupIndexes(orderedVisible);
         var segments = new List<ShaLaneSegment>[orderedVisible.Count];
         for (var ix = 0; ix < segments.Length; ix++) segments[ix] = [];
 
+        var rowGroupId = new int?[orderedVisible.Count];
         var laneEnd = new List<int>();
+        var nextGroupId = 0;
         foreach (List<int> group in groups.Where(g => g.Count > 1).OrderBy(g => g[0])) {
             int first = group[0];
             int last = group[^1];
             int lane = FreeLane(laneEnd, first, last, maxLanes);
             if (lane < 0) continue;
 
+            int groupId = nextGroupId++;
+            groupShas[groupId] = orderedVisible[first].ProtoSha ?? "";
+
             var members = new HashSet<int>(group);
             for (int ix = first; ix <= last; ix++) {
+                bool isMember = members.Contains(ix);
                 ShaLaneMark mark = ix == first ? ShaLaneMark.Start
                     : ix == last ? ShaLaneMark.End
-                    : members.Contains(ix) ? ShaLaneMark.Node
+                    : isMember ? ShaLaneMark.Node
                     : ShaLaneMark.Pass;
-                segments[ix].Add(new ShaLaneSegment(lane, mark));
+                segments[ix].Add(new ShaLaneSegment(lane, mark, groupId));
+                if (isMember) rowGroupId[ix] = groupId;
             }
         }
 
@@ -43,10 +53,14 @@ public static class ShaLanes {
 
         int[] totalSize = TotalSizes(orderedVisible, all);
         for (var ix = 0; ix < orderedKeys.Count; ix++) {
-            rows[orderedKeys[ix]] = new ShaLaneRow(segments[ix], totalSize[ix], visibleSize[ix]);
+            rows[orderedKeys[ix]] = new ShaLaneRow(segments[ix], totalSize[ix], visibleSize[ix], rowGroupId[ix]);
         }
 
-        return rows;
+        return new ShaLaneLayout(rows, groupShas);
+    }
+
+    public static int LaneCount(ShaLaneLayout layout) {
+        return LaneCount(layout.Rows);
     }
 
     public static int LaneCount(IReadOnlyDictionary<long, ShaLaneRow> rows) {

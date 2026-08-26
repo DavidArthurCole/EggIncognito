@@ -164,12 +164,13 @@
         </div>
     } else {
         var releases = SortedReleases;
-        var laneRows = ShaLanes.Build(
+        _laneLayout = ShaLanes.Build(
             releases.Select(r => r.Key).ToList(),
             releases.Select(r => r.Primary.Key()).ToList(),
             AllReleases.Select(r => r.Primary.Key()).ToList());
+        var laneRows = _laneLayout.Rows;
         <div class="reg-scroll">
-            <table class="data-table reg-table" style="--reg-gutter: @Gutter(ShaLanes.LaneCount(laneRows))">
+            <table class="data-table reg-table" style="--reg-gutter: @Gutter(ShaLanes.LaneCount(_laneLayout))">
                 <thead>
                 <tr>
                     @if (_isAdmin) {
@@ -284,11 +285,17 @@
                         <td class="reg-c-sha reg-sha-cell" data-label="Proto SHA">
                             @if (lane is not null) {
                                 foreach (var seg in lane.Segments) {
-                                    <span class="@LaneClass(seg.Mark)" style="--lane: @seg.Lane"></span>
+                                    <span class="@LaneSpanClass(seg)" style="--lane: @seg.Lane"
+                                          role="button" aria-label="Open proto group"
+                                          @onclick:stopPropagation="true" @onclick="@(() => OpenGroup(seg.GroupId))"
+                                          @onmouseenter="@(() => SetHotGroup(seg.GroupId))"
+                                          @onmouseleave="@(() => SetHotGroup(null))"></span>
                                 }
                             }
-                            <span class="inline-flex items-center gap-1">
-                                <span class="code-chip reg-sha"
+                            <span class="inline-flex items-center gap-1"
+                                  @onmouseenter="@(() => SetHotGroup(lane?.GroupId))"
+                                  @onmouseleave="@(() => SetHotGroup(null))">
+                                <span class="@ShaChipClass(lane)"
                                       @onclick:stopPropagation="true" @onclick="@(() => FilterBySha(primary))">
                                     @Short(primary.ProtoSha)
                                 </span>
@@ -593,8 +600,11 @@
         _fSha = r.ProtoSha ?? "";
     }
 
+    ShaLaneLayout _laneLayout = new(new Dictionary<long, ShaLaneRow>(), new Dictionary<int, string>());
+    string? _hotSha;
+
     static string Gutter(int lanes) {
-        return FormattableString.Invariant($"{lanes * 0.5:0.###}rem");
+        return FormattableString.Invariant($"{lanes * 0.75:0.###}rem");
     }
 
     static string LaneClass(ShaLaneMark mark) {
@@ -604,6 +614,31 @@
             ShaLaneMark.End => "reg-lane reg-lane-end",
             _ => "reg-lane reg-lane-pass"
         };
+    }
+
+    string LaneSpanClass(ShaLaneSegment seg) {
+        var css = $"{LaneClass(seg.Mark)} reg-lane-c{seg.Lane % 4}";
+        return IsHotGroup(seg.GroupId) ? $"{css} reg-lane-hot" : css;
+    }
+
+    string ShaChipClass(ShaLaneRow? lane) {
+        const string css = "code-chip reg-sha";
+        return lane?.GroupId is { } groupId && IsHotGroup(groupId) ? $"{css} reg-sha-hot" : css;
+    }
+
+    bool IsHotGroup(int groupId) {
+        return _hotSha is { Length: > 0 } hot
+               && _laneLayout.GroupShas.TryGetValue(groupId, out var sha)
+               && string.Equals(sha, hot, StringComparison.OrdinalIgnoreCase);
+    }
+
+    void SetHotGroup(int? groupId) {
+        _hotSha = groupId is { } gid && _laneLayout.GroupShas.TryGetValue(gid, out var sha) ? sha : null;
+    }
+
+    void OpenGroup(int groupId) {
+        if (!_laneLayout.GroupShas.TryGetValue(groupId, out var sha)) return;
+        _workbench?.OpenGroup(sha);
     }
 
     static string ClientText(ProtoRegistryRow r) {
