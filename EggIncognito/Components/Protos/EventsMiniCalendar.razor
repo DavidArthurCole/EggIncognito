@@ -9,6 +9,9 @@
 @inject IWebHostEnvironment Env
 @inject ILogger<EventsMiniCalendar> Logger
 
+@if (_note.Length > 0) {
+    <div class="evcal-note">@_note</div>
+} else {
 <div class="evcal-mini-scroll" @ref="_scroller">
     <div class="evcal-shell evcal-view-week evcal-mini" style="@ShellStyle">
         <div class="evcal-scale">
@@ -57,6 +60,7 @@
         </div>
     </div>
 </div>
+}
 
 @code {
     const int HistoryDays = 21;
@@ -70,6 +74,7 @@
     IReadOnlyList<EventCalendarCell> _days = [];
     DateTimeOffset _start;
     DateTimeOffset _end;
+    string _note = "";
     bool _scrolled;
 
     int DayCount => Math.Max(1, (int)Math.Round((_end - _start).TotalDays));
@@ -88,20 +93,33 @@
             $"/api/v1/events?after={UnixSeconds.FromTime(_start):0}&before={UnixSeconds.FromTime(_end):0}&limit={FetchLimit}");
         IReadOnlyList<GameEventDto> events;
         try {
-            var body = await Client().GetFromJsonAsync<GameEventListResponse>(url, JsonOpts);
+            var res = await Client().GetAsync(url);
+            if ((int)res.StatusCode == 503) {
+                _note = "Event history needs a database. This instance has none.";
+                return;
+            }
+
+            if (!res.IsSuccessStatusCode) {
+                _note = "Events could not be loaded.";
+                return;
+            }
+
+            var body = await res.Content.ReadFromJsonAsync<GameEventListResponse>(JsonOpts);
             events = body?.Events ?? [];
         }
         catch (Exception ex) {
             Logger.LogWarning(ex, "the mini event calendar could not be loaded");
+            _note = "Events could not be loaded.";
             return;
         }
 
         _rows = EventCalendarLayout.Rows(events, _start, _end, EventCalendarZoom.Week, now);
         _days = _rows.Count > 0 ? _rows[0].Cells : [];
+        if (_rows.All(r => r.Lanes.Count == 0)) _note = "No events in the last three weeks.";
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender) {
-        if (_scrolled || _rows.Count == 0) return;
+        if (_scrolled || _rows.Count == 0 || _note.Length > 0) return;
         _scrolled = true;
         try {
             _scroll ??= await JS.InvokeAsync<IJSObjectReference>(

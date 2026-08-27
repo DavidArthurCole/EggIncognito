@@ -3,6 +3,7 @@ using System.Text.Json;
 using Bunit;
 using EggIncognito.Components.Protos;
 using EggIncognito.Models.Events;
+using EggIncognito.Services.Assets;
 using EggIncognito.Services.Events;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -76,13 +77,28 @@ public class EventsCalendarModalTests : BunitContext {
     }
 
     [Fact]
-    public async Task UltraEvent_GetsAnInlineMarker() {
+    public async Task UltraEvent_UsesTheCcGradientAndSprite() {
         var now = DateTimeOffset.UtcNow;
         Wire(_ => Ok(Event("a", "Ultra sale", now.AddHours(-2), now.AddHours(2), true)));
 
         var cut = await OpenAsync();
 
-        Assert.NotEmpty(cut.FindAll(".evcal-ultra"));
+        var style = cut.Find(".evcal-bar").GetAttribute("style") ?? "";
+        Assert.Contains(EventPalette.CcGradientFrom, style, StringComparison.Ordinal);
+        Assert.Contains(EventPalette.CcGradientTo, style, StringComparison.Ordinal);
+        Assert.Contains("cc=1", cut.Find(".evcal-bar-icon").GetAttribute("src") ?? "", StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task StandardEvent_UsesTheTypeColourAndPlainSprite() {
+        var now = DateTimeOffset.UtcNow;
+        Wire(_ => Ok(Event("a", "Earnings boost", now.AddHours(-2), now.AddHours(2))));
+
+        var cut = await OpenAsync();
+
+        var style = cut.Find(".evcal-bar").GetAttribute("style") ?? "";
+        Assert.Contains(EventPalette.ColorFor("earnings-boost"), style, StringComparison.Ordinal);
+        Assert.DoesNotContain("cc=1", cut.Find(".evcal-bar-icon").GetAttribute("src") ?? "", StringComparison.Ordinal);
     }
 
     [Fact]
