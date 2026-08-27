@@ -35,11 +35,7 @@ public abstract class WorkbenchStateBase {
                || body.StartsWith(prefix + "_", StringComparison.Ordinal);
     }
 
-    public virtual string? Hash() {
-        return null;
-    }
+    public virtual string? Hash() => null;
 
-    public virtual bool ApplyHash(string? hash) {
-        return false;
-    }
+    public virtual bool ApplyHash(string? hash) => false;
 }

@@ -131,9 +131,7 @@ public class SyntaxTokenizerTests {
     }
 
     [Fact]
-    public void Text_EmitsNoTokens() {
-        Assert.Empty(Scan("text", "anything at all"));
-    }
+    public void Text_EmitsNoTokens() => Assert.Empty(Scan("text", "anything at all"));
 
     [Fact]
     public void Csharp_KeywordsTypesAndStrings() {
@@ -199,9 +197,7 @@ public class SyntaxTokenizerTests {
     [InlineData("md", "markdown")]
     [InlineData("json-tree", "json")]
     [InlineData("html", "xml")]
-    public void Aliases_ResolveToTheirTokenizer(string alias, string expected) {
-        Assert.Equal(expected, SyntaxHighlighter.Resolve(alias));
-    }
+    public void Aliases_ResolveToTheirTokenizer(string alias, string expected) => Assert.Equal(expected, SyntaxHighlighter.Resolve(alias));
 
     [Fact]
     public void PowershellSpellings_StayUnresolved() {

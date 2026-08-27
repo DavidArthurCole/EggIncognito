@@ -37,9 +37,7 @@ public static class TextSpans {
         return result;
     }
 
-    public static IReadOnlyList<Span> Layer(IReadOnlyList<Span>? under, IReadOnlyList<Span>? over) {
-        return Layer(under, over, int.MaxValue);
-    }
+    public static IReadOnlyList<Span> Layer(IReadOnlyList<Span>? under, IReadOnlyList<Span>? over) => Layer(under, over, int.MaxValue);
 
     public static IReadOnlyList<Span> Layer(IReadOnlyList<Span>? under, IReadOnlyList<Span>? over, int length) {
         var bottom = Clean(under, length);

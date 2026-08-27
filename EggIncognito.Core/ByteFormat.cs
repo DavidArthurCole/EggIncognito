@@ -10,17 +10,11 @@ public static class ByteFormat {
         return Mb(bytes, decimals, culture);
     }
 
-    public static string Kb(long bytes, string decimals = "0.0", IFormatProvider? culture = null) {
-        return (bytes / 1024.0).ToString(decimals, culture ?? CultureInfo.CurrentCulture) + " KB";
-    }
+    public static string Kb(long bytes, string decimals = "0.0", IFormatProvider? culture = null) => (bytes / 1024.0).ToString(decimals, culture ?? CultureInfo.CurrentCulture) + " KB";
 
-    public static string Mb(long bytes, string decimals = "0.0", IFormatProvider? culture = null) {
-        return (bytes / (1024.0 * 1024.0)).ToString(decimals, culture ?? CultureInfo.CurrentCulture) + " MB";
-    }
+    public static string Mb(long bytes, string decimals = "0.0", IFormatProvider? culture = null) => (bytes / (1024.0 * 1024.0)).ToString(decimals, culture ?? CultureInfo.CurrentCulture) + " MB";
 
-    public static string KbOrMb(long bytes, string decimals = "0.0", IFormatProvider? culture = null) {
-        return bytes >= 1024 * 1024 ? Mb(bytes, decimals, culture) : Kb(bytes, decimals, culture);
-    }
+    public static string KbOrMb(long bytes, string decimals = "0.0", IFormatProvider? culture = null) => bytes >= 1024 * 1024 ? Mb(bytes, decimals, culture) : Kb(bytes, decimals, culture);
 
     public static string Compact(long bytes) {
         if (bytes < 1024) return $"{bytes}B";

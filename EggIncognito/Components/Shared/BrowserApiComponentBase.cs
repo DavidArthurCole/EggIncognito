@@ -17,9 +17,7 @@ public abstract class BrowserApiComponentBase : ComponentBase, IAsyncDisposable 
         GC.SuppressFinalize(this);
     }
 
-    protected virtual Task OnApiReadyAsync() {
-        return Task.CompletedTask;
-    }
+    protected virtual Task OnApiReadyAsync() => Task.CompletedTask;
 
     protected override async Task OnAfterRenderAsync(bool firstRender) {
         if (!firstRender || Api is not null) return;

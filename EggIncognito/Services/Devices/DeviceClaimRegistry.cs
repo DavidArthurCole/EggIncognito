@@ -12,9 +12,7 @@ public sealed class DeviceClaimRegistry(TimeProvider time) {
         return expires;
     }
 
-    public void Release(string id) {
-        _claims.TryRemove(id, out _);
-    }
+    public void Release(string id) => _claims.TryRemove(id, out _);
 
     public bool IsHeld(string id) {
         if (!_claims.TryGetValue(id, out var expires)) return false;

@@ -11,9 +11,7 @@ public class ProtoRefTests {
     [InlineData("ios_1.37.0.1/meta")]
     [InlineData("file_4f2a1c9b0d3e")]
     [InlineData("file_4f2a1c9b0d3e...ios_1.37.0.1/split")]
-    public void CanonicalFormsRoundTrip(string hash) {
-        Assert.Equal(hash, ProtoRefParser.Format(ProtoRefParser.Parse(hash)));
-    }
+    public void CanonicalFormsRoundTrip(string hash) => Assert.Equal(hash, ProtoRefParser.Format(ProtoRefParser.Parse(hash)));
 
     [Fact]
     public void LeadingHashIsAccepted() {
@@ -82,7 +80,5 @@ public class ProtoRefTests {
     }
 
     [Fact]
-    public void FormatOfEmptyRefIsEmptyString() {
-        Assert.Equal("", ProtoRefParser.Format(new WorkbenchRef(null, null, null)));
-    }
+    public void FormatOfEmptyRefIsEmptyString() => Assert.Equal("", ProtoRefParser.Format(new WorkbenchRef(null, null, null)));
 }

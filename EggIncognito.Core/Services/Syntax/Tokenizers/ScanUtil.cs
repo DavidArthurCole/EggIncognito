@@ -90,9 +90,7 @@ internal static class ScanUtil {
         return true;
     }
 
-    public static int OffsetColumn(ReadOnlySpan<char> line) {
-        return line.Length >= 10 && IsHexRun(line, 0, 8) && line[8] == ' ' && line[9] == ' ' ? 8 : 0;
-    }
+    public static int OffsetColumn(ReadOnlySpan<char> line) => line.Length >= 10 && IsHexRun(line, 0, 8) && line[8] == ' ' && line[9] == ' ' ? 8 : 0;
 
     public static void Add(List<Token>? sink, int start, int length, TokenKind kind) {
         if (sink is null || length <= 0) return;

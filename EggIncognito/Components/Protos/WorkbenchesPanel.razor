@@ -1,0 +1,44 @@
+@using EggIncognito.Models.Periodicals
+<section class="panel pd-note pd-w-workbench">
+    <h3 class="text-sm font-semibold m-0">Workbenches</h3>
+    <div class="flex flex-wrap gap-2">
+        <button type="button" class="btn-primary" @onclick="@(() => OnOpenNotifications.InvokeAsync())">Notifications</button>
+        <button type="button" class="btn-primary" @onclick="@(() => OnOpenApiWorkbench.InvokeAsync())">API &amp; Data</button>
+    </div>
+    @if (Summary is { } s && (s.Extracted.Count > 0 || s.Config.Platforms.Count > 0)) {
+        <div class="pd-data">
+            @if (s.Extracted.Count > 0) {
+                <span class="ds-state-k">Game data</span>
+                <span class="pd-data-v">
+                    @if (ExtractVersion(s) is { Length: > 0 } bin) {
+                        <VersionLine App="@bin"/>
+                        <span class="dwb-sep">|</span>
+                    }
+                    <span>@s.Extracted.Count sets</span>
+                </span>
+            }
+            @if (s.Config.Platforms.Count > 0) {
+                <span class="ds-state-k">Config</span>
+                <span class="pd-data-v">
+                    @foreach (var p in s.Config.Platforms) {
+                        <PlatformIcon Platform="@p.Platform"/>
+                        <TimeAgo Value="@p.SavedAt"/>
+                    }
+                </span>
+            }
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter] public PeriodicalsSummary? Summary { get; set; }
+
+    [Parameter] public EventCallback OnOpenNotifications { get; set; }
+
+    [Parameter] public EventCallback OnOpenApiWorkbench { get; set; }
+
+    static string? ExtractVersion(PeriodicalsSummary s) {
+        return s.Extracted.Select(x => x.BinaryVersion).FirstOrDefault(v => !string.IsNullOrEmpty(v));
+    }
+
+}

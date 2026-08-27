@@ -68,6 +68,18 @@ public class ProtosPageTests {
 
             Assert.Contains("No proto versions yet.", cut.Markup);
         }
+
+        [Fact]
+        public void SideColumn_LeadsWithDevicesThenWorkbenches_AndHasNoDataWidget() {
+            Wire(UserRole.Viewer);
+            var cut = Render<Protos>();
+
+            Assert.Contains("pd-w-devices", cut.Markup);
+            Assert.Contains("pd-w-workbench", cut.Markup);
+            Assert.Contains(">Notifications<", cut.Markup);
+            Assert.DoesNotContain("pd-w-data", cut.Markup);
+            Assert.DoesNotContain("Fixtures", cut.Markup);
+        }
     }
 
     private sealed class FakeUser(UserRole role) : ICurrentUser {

@@ -35,9 +35,7 @@ public class InspectorRefTests {
     [InlineData("#reference/ep:ei/first_contact", "ep:ei/first_contact")]
     [InlineData("#result/obj:ContractsResponse", "obj:ContractsResponse")]
     [InlineData("#reference/ep:ei_ctx/a/b/c", "ep:ei_ctx/a/b/c")]
-    public void LegacyModePrefix_IsDroppedOnParse(string hash, string normalized) {
-        Assert.Equal(normalized, InspectorRefParser.Format(InspectorRefParser.Parse(hash)));
-    }
+    public void LegacyModePrefix_IsDroppedOnParse(string hash, string normalized) => Assert.Equal(normalized, InspectorRefParser.Format(InspectorRefParser.Parse(hash)));
 
     [Fact]
     public void UnknownKind_YieldsEmpty() {
@@ -52,9 +50,7 @@ public class InspectorRefTests {
     }
 
     [Fact]
-    public void EmptyRef_FormatsToEmptyString() {
-        Assert.Equal("", InspectorRefParser.Format(InspectorRefParser.Empty));
-    }
+    public void EmptyRef_FormatsToEmptyString() => Assert.Equal("", InspectorRefParser.Format(InspectorRefParser.Empty));
 
     [Theory]
     [InlineData("ep:ei/first_contact")]
@@ -77,7 +73,5 @@ public class InspectorRefTests {
     [InlineData("LiveViaProxy", InspectorTarget.LiveViaProxy)]
     [InlineData("", InspectorTarget.Mock)]
     [InlineData("nonsense", InspectorTarget.Mock)]
-    public void LegacyTargetStrings_MapOntoTheEnum(string stored, InspectorTarget expected) {
-        Assert.Equal(expected, InspectorTargets.Parse(stored));
-    }
+    public void LegacyTargetStrings_MapOntoTheEnum(string stored, InspectorTarget expected) => Assert.Equal(expected, InspectorTargets.Parse(stored));
 }

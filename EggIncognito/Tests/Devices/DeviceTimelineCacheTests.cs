@@ -4,22 +4,14 @@ namespace EggIncognito.Tests.Devices;
 
 public class DeviceTimelineCacheTests {
     [Fact]
-    public void UnmovedWatermarkDoesNotRefill() {
-        Assert.False(DeviceTimelineCache.NeedsRefill(41, 41));
-    }
+    public void UnmovedWatermarkDoesNotRefill() => Assert.False(DeviceTimelineCache.NeedsRefill(41, 41));
 
     [Fact]
-    public void ForwardMoveRefills() {
-        Assert.True(DeviceTimelineCache.NeedsRefill(41, 42));
-    }
+    public void ForwardMoveRefills() => Assert.True(DeviceTimelineCache.NeedsRefill(41, 42));
 
     [Fact]
-    public void BackwardMoveRefills() {
-        Assert.True(DeviceTimelineCache.NeedsRefill(42, 41));
-    }
+    public void BackwardMoveRefills() => Assert.True(DeviceTimelineCache.NeedsRefill(42, 41));
 
     [Fact]
-    public void ColdEntryRefills() {
-        Assert.True(DeviceTimelineCache.NeedsRefill(0, 1));
-    }
+    public void ColdEntryRefills() => Assert.True(DeviceTimelineCache.NeedsRefill(0, 1));
 }

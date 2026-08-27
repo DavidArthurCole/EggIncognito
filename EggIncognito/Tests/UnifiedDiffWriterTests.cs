@@ -37,9 +37,7 @@ public class UnifiedDiffWriterTests {
     }
 
     [Fact]
-    public void IdenticalInputsProduceEmptyOutput() {
-        Assert.Equal("", UnifiedDiffWriter.Write("same\ntext", "same\ntext", Opts));
-    }
+    public void IdenticalInputsProduceEmptyOutput() => Assert.Equal("", UnifiedDiffWriter.Write("same\ntext", "same\ntext", Opts));
 
     [Fact]
     public void HeaderCarriesPathsAndLabels() {
@@ -108,7 +106,5 @@ public class UnifiedDiffWriterTests {
     }
 
     [Fact]
-    public void SplitLinesStripsCarriageReturns() {
-        Assert.Equal(new[] { "a", "b" }, UnifiedDiffWriter.SplitLines("a\r\nb"));
-    }
+    public void SplitLinesStripsCarriageReturns() => Assert.Equal(new[] { "a", "b" }, UnifiedDiffWriter.SplitLines("a\r\nb"));
 }

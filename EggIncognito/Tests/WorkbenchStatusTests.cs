@@ -10,9 +10,7 @@ public class WorkbenchStatusTests {
     [InlineData(WorkbenchStatusKind.Error, "wb-st-err")]
     [InlineData(WorkbenchStatusKind.Info, "wb-st-offer")]
     [InlineData(WorkbenchStatusKind.Muted, "wb-st-muted")]
-    public void Class_MapsEveryKind(WorkbenchStatusKind kind, string expected) {
-        Assert.Equal(expected, WorkbenchStatus.Class(kind));
-    }
+    public void Class_MapsEveryKind(WorkbenchStatusKind kind, string expected) => Assert.Equal(expected, WorkbenchStatus.Class(kind));
 
     [Fact]
     public void Class_CoversTheWholeEnum() {
@@ -35,23 +33,17 @@ public class WorkbenchStatusTests {
     [InlineData("info", WorkbenchStatusKind.Info)]
     [InlineData("offer", WorkbenchStatusKind.Info)]
     [InlineData("offerable", WorkbenchStatusKind.Info)]
-    public void Parse_MapsTheSharedVocabulary(string value, WorkbenchStatusKind expected) {
-        Assert.Equal(expected, WorkbenchStatus.Parse(value));
-    }
+    public void Parse_MapsTheSharedVocabulary(string value, WorkbenchStatusKind expected) => Assert.Equal(expected, WorkbenchStatus.Parse(value));
 
     [Theory]
     [InlineData("RUNNING", WorkbenchStatusKind.Running)]
     [InlineData("Failed", WorkbenchStatusKind.Error)]
-    public void Parse_IsCaseInsensitive(string value, WorkbenchStatusKind expected) {
-        Assert.Equal(expected, WorkbenchStatus.Parse(value));
-    }
+    public void Parse_IsCaseInsensitive(string value, WorkbenchStatusKind expected) => Assert.Equal(expected, WorkbenchStatus.Parse(value));
 
     [Theory]
     [InlineData(null)]
     [InlineData("")]
     [InlineData("abandoned")]
     [InlineData("whatever")]
-    public void Parse_FallsBackToMuted(string? value) {
-        Assert.Equal(WorkbenchStatusKind.Muted, WorkbenchStatus.Parse(value));
-    }
+    public void Parse_FallsBackToMuted(string? value) => Assert.Equal(WorkbenchStatusKind.Muted, WorkbenchStatus.Parse(value));
 }

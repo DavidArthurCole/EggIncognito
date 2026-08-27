@@ -23,7 +23,5 @@ public class AdbParseTests {
     }
 
     [Fact]
-    public void SelectArmSplit_NoneReturnsNull() {
-        Assert.Null(DeviceParsing.SelectArmSplit("package:/data/app/x/base.apk\n"));
-    }
+    public void SelectArmSplit_NoneReturnsNull() => Assert.Null(DeviceParsing.SelectArmSplit("package:/data/app/x/base.apk\n"));
 }

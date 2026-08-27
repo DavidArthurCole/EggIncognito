@@ -30,9 +30,27 @@
             }
         </span>
     }
+    <div class="pd-brand-links">
+        <a class="pd-brand-link" href="/terms" title="Terms" aria-label="Terms">
+            <Icon Name="doc"/>
+        </a>
+        <a class="pd-brand-link" href="/privacy" title="Privacy and cookies" aria-label="Privacy and cookies">
+            <Icon Name="shield"/>
+        </a>
+        <button type="button" class="pd-brand-link" title="Support the project" aria-label="Support the project"
+                @onclick="@(() => OnOpenSupport.InvokeAsync())">
+            <Icon Name="heart"/>
+        </button>
+        <a class="pd-brand-link" href="https://github.com/EggIncTools/EggIncognito" target="_blank" rel="noopener"
+           title="EggIncognito on GitHub" aria-label="EggIncognito on GitHub">
+            <Icon Name="github"/>
+        </a>
+    </div>
 </section>
 
 @code {
+    [Parameter] public EventCallback OnOpenSupport { get; set; }
+
     string _version = "";
     string _sha = "";
     string _commitUrl = "";

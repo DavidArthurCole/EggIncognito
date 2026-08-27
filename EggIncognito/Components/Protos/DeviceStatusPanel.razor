@@ -6,7 +6,7 @@
 @using EggIncognito.Models.Registry
 @implements IDisposable
 
-<div class="panel">
+<div class="@(string.IsNullOrEmpty(Class) ? "panel pd-devices" : $"panel pd-devices {Class}")">
     <div class="flex items-center justify-between mb-2">
         <h3 class="text-sm font-semibold my-0">Devices</h3>
         @if (_isAdmin) {
@@ -19,7 +19,7 @@
     @if (_devices.Count == 0) {
         <p class="text-muted text-xs">No devices declared on this host.</p>
     } else {
-        <div class="flex flex-col gap-1.5">
+        <div class="pd-devlist">
             @foreach (var d in _devices.OrderBy(x => x.Label, StringComparer.OrdinalIgnoreCase)) {
                 <div class="pd-devrow @(_isAdmin ? "dwb-row-click" : "")"
                      @onclick="@(() => {
@@ -48,6 +48,8 @@
 </div>
 
 @code {
+
+    [Parameter] public string? Class { get; set; }
 
     [Parameter] public EventCallback<string?> OnManage { get; set; }
 

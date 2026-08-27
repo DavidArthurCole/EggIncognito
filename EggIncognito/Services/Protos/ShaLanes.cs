@@ -59,9 +59,7 @@ public static class ShaLanes {
         return new ShaLaneLayout(rows, groupShas);
     }
 
-    public static int LaneCount(ShaLaneLayout layout) {
-        return LaneCount(layout.Rows);
-    }
+    public static int LaneCount(ShaLaneLayout layout) => LaneCount(layout.Rows);
 
     public static int LaneCount(IReadOnlyDictionary<long, ShaLaneRow> rows) {
         var top = -1;

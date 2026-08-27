@@ -45,9 +45,7 @@ public class GameEventMapperTests {
     }
 
     [Fact]
-    public void FromPeriodicals_NoEventsBlock_ReturnsEmpty() {
-        Assert.Empty(GameEventMapper.FromPeriodicals(new PeriodicalsResponse(), DateTimeOffset.UtcNow));
-    }
+    public void FromPeriodicals_NoEventsBlock_ReturnsEmpty() => Assert.Empty(GameEventMapper.FromPeriodicals(new PeriodicalsResponse(), DateTimeOffset.UtcNow));
 
     [Fact]
     public void FromCarpet_MapsAndSkips() {

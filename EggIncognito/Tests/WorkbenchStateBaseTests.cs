@@ -54,9 +54,7 @@ public class WorkbenchStateBaseTests {
     [InlineData("ios_1140823", false)]
     [InlineData("", false)]
     [InlineData(null, false)]
-    public void OwnsHash_MatchesOnlyItsOwnPrefix(string? hash, bool owned) {
-        Assert.Equal(owned, new PrefixedState().OwnsHash(hash));
-    }
+    public void OwnsHash_MatchesOnlyItsOwnPrefix(string? hash, bool owned) => Assert.Equal(owned, new PrefixedState().OwnsHash(hash));
 
     private sealed class TwoModeState : WorkbenchStateBase {
         public override IReadOnlyList<WorkbenchMode> Modes { get; } = [

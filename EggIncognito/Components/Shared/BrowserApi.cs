@@ -14,9 +14,7 @@ public sealed record BrowserResponse(
     string? FileName) {
     private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web);
 
-    public static BrowserResponse Failed(string why) {
-        return new BrowserResponse(0, false, "", why, false, 0, null);
-    }
+    public static BrowserResponse Failed(string why) => new(0, false, "", why, false, 0, null);
 
     public T? Json<T>() {
         if (Binary || string.IsNullOrWhiteSpace(Body)) return default;
@@ -27,9 +25,7 @@ public sealed record BrowserResponse(
         }
     }
 
-    public byte[] Bytes() {
-        return Binary ? Convert.FromBase64String(Body) : Encoding.UTF8.GetBytes(Body);
-    }
+    public byte[] Bytes() => Binary ? Convert.FromBase64String(Body) : Encoding.UTF8.GetBytes(Body);
 
     public string Describe() {
         if (Json<ErrorBody>()?.Error is { Length: > 0 } detail) return detail;
@@ -43,35 +39,21 @@ public sealed record BrowserResponse(
 public sealed class BrowserApi(IJSObjectReference module) {
     private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web);
 
-    public Task<BrowserResponse> GetAsync(string url) {
-        return SendAsync("GET", url);
-    }
+    public Task<BrowserResponse> GetAsync(string url) => SendAsync("GET", url);
 
-    public Task<BrowserResponse> PostAsync(string url, TimeSpan? timeout = null) {
-        return SendAsync("POST", url, timeout: timeout);
-    }
+    public Task<BrowserResponse> PostAsync(string url, TimeSpan? timeout = null) => SendAsync("POST", url, timeout: timeout);
 
-    public Task<BrowserResponse> DeleteAsync(string url) {
-        return SendAsync("DELETE", url);
-    }
+    public Task<BrowserResponse> DeleteAsync(string url) => SendAsync("DELETE", url);
 
-    public Task<BrowserResponse> PostJsonAsync<T>(string url, T body, TimeSpan? timeout = null) {
-        return SendAsync("POST", url, JsonSerializer.Serialize(body, Options), timeout: timeout);
-    }
+    public Task<BrowserResponse> PostJsonAsync<T>(string url, T body, TimeSpan? timeout = null) => SendAsync("POST", url, JsonSerializer.Serialize(body, Options), timeout: timeout);
 
-    public Task<BrowserResponse> PutJsonAsync<T>(string url, T body) {
-        return SendAsync("PUT", url, JsonSerializer.Serialize(body, Options));
-    }
+    public Task<BrowserResponse> PutJsonAsync<T>(string url, T body) => SendAsync("PUT", url, JsonSerializer.Serialize(body, Options));
 
     public Task<BrowserResponse> SendAsync(string method, string url, string? body = null,
-        string contentType = "application/json", TimeSpan? timeout = null) {
-        return InvokeAsync("send", [method, url, body, contentType], timeout);
-    }
+        string contentType = "application/json", TimeSpan? timeout = null) => InvokeAsync("send", [method, url, body, contentType], timeout);
 
     public Task<BrowserResponse> SendFileAsync(string method, string url, string field, string fileName,
-        byte[] bytes) {
-        return InvokeAsync("sendFile", [method, url, field, fileName, Convert.ToBase64String(bytes)]);
-    }
+        byte[] bytes) => InvokeAsync("sendFile", [method, url, field, fileName, Convert.ToBase64String(bytes)]);
 
     private async Task<BrowserResponse> InvokeAsync(string function, object?[] args, TimeSpan? timeout = null) {
         try {

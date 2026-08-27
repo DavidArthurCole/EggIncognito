@@ -11,9 +11,7 @@ public class TemplateEditorTests {
     }
 
     [Fact]
-    public void Tokens_FindOne() {
-        Assert.Equal(new[] { "appVersion" }, FeedTemplate.Tokens("New build {{appVersion}} is up!"));
-    }
+    public void Tokens_FindOne() => Assert.Equal(new[] { "appVersion" }, FeedTemplate.Tokens("New build {{appVersion}} is up!"));
 
     [Fact]
     public void Tokens_KeepFirstAppearanceOrder() {
@@ -23,19 +21,13 @@ public class TemplateEditorTests {
     }
 
     [Fact]
-    public void Tokens_CollapseRepeats() {
-        Assert.Equal(new[] { "build", "platform" }, FeedTemplate.Tokens("{{build}} {{platform}} {{build}}"));
-    }
+    public void Tokens_CollapseRepeats() => Assert.Equal(new[] { "build", "platform" }, FeedTemplate.Tokens("{{build}} {{platform}} {{build}}"));
 
     [Fact]
-    public void Tokens_IgnoreMalformedBraces() {
-        Assert.Empty(FeedTemplate.Tokens("{appVersion} {{ build }} {{}}"));
-    }
+    public void Tokens_IgnoreMalformedBraces() => Assert.Empty(FeedTemplate.Tokens("{appVersion} {{ build }} {{}}"));
 
     [Fact]
-    public void Tokens_AreCaseSensitiveSoUnknownStaysUnknown() {
-        Assert.Equal(new[] { "AppVersion" }, FeedTemplate.Tokens("{{AppVersion}}"));
-    }
+    public void Tokens_AreCaseSensitiveSoUnknownStaysUnknown() => Assert.Equal(new[] { "AppVersion" }, FeedTemplate.Tokens("{{AppVersion}}"));
 
     [Fact]
     public void Tokens_AgreeWithRender() {

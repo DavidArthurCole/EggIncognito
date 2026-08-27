@@ -81,9 +81,7 @@ public class SelfCallJsonTests {
         Assert.True(SelfCallJson.Web.PropertyNameCaseInsensitive);
     }
 
-    private static HttpClient ClientFor(Func<HttpRequestMessage, HttpResponseMessage> respond) {
-        return new StubHttpFactory(new StubHttpMessageHandler(respond)).CreateClient("self");
-    }
+    private static HttpClient ClientFor(Func<HttpRequestMessage, HttpResponseMessage> respond) => new StubHttpFactory(new StubHttpMessageHandler(respond)).CreateClient("self");
 
     private sealed record Thing(string Name);
 }

@@ -5,13 +5,9 @@ using Microsoft.EntityFrameworkCore;
 namespace EggIncognito.Data.Services;
 
 public sealed class AnalyzedFileStore(EggIncognitoDbContext db) {
-    public static string Sha256Hex(byte[] bytes) {
-        return Hashes.Sha256Hex(bytes);
-    }
+    public static string Sha256Hex(byte[] bytes) => Hashes.Sha256Hex(bytes);
 
-    public Task<AnalyzedFile?> FindAsync(string fileSha, CancellationToken ct) {
-        return db.AnalyzedFiles.AsNoTracking().FirstOrDefaultAsync(f => f.FileSha == fileSha, ct);
-    }
+    public Task<AnalyzedFile?> FindAsync(string fileSha, CancellationToken ct) => db.AnalyzedFiles.AsNoTracking().FirstOrDefaultAsync(f => f.FileSha == fileSha, ct);
 
     public async Task RecordAsync(Entry entry, CancellationToken ct) {
         bool exists = await db.AnalyzedFiles.AnyAsync(f => f.FileSha == entry.FileSha, ct);

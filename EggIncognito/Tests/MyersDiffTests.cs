@@ -6,9 +6,7 @@ public class MyersDiffTests {
     private static IReadOnlyList<string> L(params string[] v) => v;
 
     [Fact]
-    public void EmptyInputsProduceNoOps() {
-        Assert.Empty(MyersDiff.Compute(L(), L()));
-    }
+    public void EmptyInputsProduceNoOps() => Assert.Empty(MyersDiff.Compute(L(), L()));
 
     [Fact]
     public void IdenticalInputsProduceSingleEqual() {

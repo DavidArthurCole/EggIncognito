@@ -90,7 +90,5 @@ public class SideBySideDiffBuilderTests {
     }
 
     [Fact]
-    public void TokenizeSplitsIdentifiersFromPunctuation() {
-        Assert.Equal(new[] { "ei.Foo", " ", "=", " ", "1", ";" }, SideBySideDiffBuilder.Tokenize("ei.Foo = 1;"));
-    }
+    public void TokenizeSplitsIdentifiersFromPunctuation() => Assert.Equal(new[] { "ei.Foo", " ", "=", " ", "1", ";" }, SideBySideDiffBuilder.Tokenize("ei.Foo = 1;"));
 }

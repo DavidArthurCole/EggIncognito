@@ -16,9 +16,19 @@ public class BlazorShellTests(SharedAppFactory f) {
         Assert.Contains("pd-grid", html);
         Assert.Contains("pd-brand", html);
         Assert.Contains("pd-support", html);
-        Assert.Contains("gh-bubble", html);
         Assert.Contains("/styles.css", html);
         Assert.Contains("blazor.web.js", html);
+    }
+
+    [Fact]
+    public async Task AboutWidget_CarriesTheIconRow_AndTheFloatingBubblesAreGone() {
+        var c = _f.CreateClient();
+        string html = await c.GetStringAsync("/");
+        Assert.Contains("pd-brand-links", html);
+        Assert.Contains("aria-label=\"EggIncognito on GitHub\"", html);
+        Assert.Contains("aria-label=\"Support the project\"", html);
+        Assert.DoesNotContain("gh-bubble", html);
+        Assert.DoesNotContain("support-bubble", html);
     }
 
     [Fact]

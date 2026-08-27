@@ -18,7 +18,5 @@ public abstract class SelfCallComponentBase : ComponentBase {
         }
     }
 
-    protected HttpClient Client() {
-        return SelfCallClient.Create(HttpFactory, SelfBaseAddress, SelfCookie);
-    }
+    protected HttpClient Client() => SelfCallClient.Create(HttpFactory, SelfBaseAddress, SelfCookie);
 }

@@ -20,67 +20,70 @@
 @inject ApiWorkbenchState State
 @inject ILogger<ApiWorkbenchModal> Logger
 
-<WorkbenchModal Open="_open" Title="APIs" TitleId="apiWorkbenchTitle" Size="WorkbenchSize.Wide"
+<WorkbenchModal Open="_open" Title="API &amp; Data" TitleId="apiWorkbenchTitle" Size="WorkbenchSize.Wide"
                 CardClass="awb-card" Notice="_wbNotice" NoticeDismissed="ClearNotice" OnClose="CloseAsync">
+    <HeadTools>
+        <WorkbenchModes Modes="State.Modes" Current="@State.Mode" CurrentChanged="SetMode" Disabled="ModeDisabled"
+                        Label="Workbench mode"/>
+    </HeadTools>
     <Rail>
-        <WorkbenchRail>
-            <InspectorRail OnSelectEndpoint="SelectEndpointFromRail" OnSelectObject="SelectObjectFromRail"
-                           OnOpenSalt="OpenSalt" OnOpenSettings="@(() => _settingsOpen = true)"
-                           OnOpenStatus="OpenStatus" StatusLoading="_statusLoading"
-                           OnRestoreHistory="RestoreHistory" OnDeleteHistory="DeleteHistory"
-                           OnClearHistory="ClearHistory"/>
-            <WorkbenchLoad T="DataSourceRow" Items="@State.Sources" EmptyText="No data sources on this instance."
-                           Context="sources">
-                @foreach (var group in DataGroups(sources)) {
-                    <WorkbenchSection Label="@DataGroupLabel(group)">
-                        @foreach (var root in DataRootsOf(sources, group)) {
-                            <WorkbenchEntry @key="root.Url"
-                                            Selected="@(State.Kind == ApiSelectionKind.Dataset && State.Sub is null && State.Group == root.Group && State.Id == root.Id)"
-                                            OnClick="@(_ => SelectDataset(root, null))">
-                                <Name>@root.DisplayName</Name>
-                                <MetaLine>@root.Id</MetaLine>
-                            </WorkbenchEntry>
-                            @foreach (var child in root.Children ?? []) {
-                                <WorkbenchEntry @key="child.Url" Class="ds-sub"
-                                                Selected="@(State.Kind == ApiSelectionKind.Dataset && State.Sub == child.Id && State.Group == root.Group && State.Id == root.Id)"
-                                                OnClick="@(_ => SelectDataset(root, child))">
-                                    <Name>@child.DisplayName</Name>
-                                    <MetaLine>@child.Id</MetaLine>
+        @if (State.Mode == ApiWorkbenchState.ModeApis) {
+            <WorkbenchRail>
+                <InspectorRail OnSelectEndpoint="SelectEndpointFromRail" OnSelectObject="SelectObjectFromRail"
+                               OnOpenSalt="OpenSalt" OnOpenSettings="@(() => _settingsOpen = true)"
+                               OnOpenStatus="OpenStatus" StatusLoading="_statusLoading"
+                               OnRestoreHistory="RestoreHistory" OnDeleteHistory="DeleteHistory"
+                               OnClearHistory="ClearHistory"/>
+                @if (State.IsAdmin) {
+                    <WorkbenchSection Label="Routes">
+                        <WorkbenchEntry Selected="@(State.Kind == ApiSelectionKind.Routes)"
+                                        OnClick="@(_ => SelectSection(ApiSelectionKind.Routes))">
+                            <Name>Route catalog</Name>
+                        </WorkbenchEntry>
+                    </WorkbenchSection>
+                }
+            </WorkbenchRail>
+        } else if (State.Mode == ApiWorkbenchState.ModeData) {
+            <WorkbenchRail>
+                <WorkbenchLoad T="DataSourceRow" Items="@State.Sources" EmptyText="No data sources on this instance."
+                               Context="sources">
+                    @foreach (var group in DataGroups(sources)) {
+                        <WorkbenchSection Label="@DataGroupLabel(group)">
+                            @foreach (var root in DataRootsOf(sources, group)) {
+                                <WorkbenchEntry @key="root.Url"
+                                                Selected="@(State.Kind == ApiSelectionKind.Dataset && State.Sub is null && State.Group == root.Group && State.Id == root.Id)"
+                                                OnClick="@(_ => SelectDataset(root, null))">
+                                    <Name>@root.DisplayName</Name>
+                                    <MetaLine>@root.Id</MetaLine>
                                 </WorkbenchEntry>
+                                @foreach (var child in root.Children ?? []) {
+                                    <WorkbenchEntry @key="child.Url" Class="ds-sub"
+                                                    Selected="@(State.Kind == ApiSelectionKind.Dataset && State.Sub == child.Id && State.Group == root.Group && State.Id == root.Id)"
+                                                    OnClick="@(_ => SelectDataset(root, child))">
+                                        <Name>@child.DisplayName</Name>
+                                        <MetaLine>@child.Id</MetaLine>
+                                    </WorkbenchEntry>
+                                }
                             }
+                        </WorkbenchSection>
+                    }
+                </WorkbenchLoad>
+                @if (User.IsAuthenticated) {
+                    <WorkbenchSection Label="Keys">
+                        <WorkbenchEntry Selected="@(State.Kind == ApiSelectionKind.Keys)"
+                                        OnClick="@(_ => SelectSection(ApiSelectionKind.Keys))">
+                            <Name>Your keys</Name>
+                        </WorkbenchEntry>
+                        @if (State.IsAdmin) {
+                            <WorkbenchEntry Selected="@(State.Kind == ApiSelectionKind.AllKeys)"
+                                            OnClick="@(_ => SelectSection(ApiSelectionKind.AllKeys))">
+                                <Name>All keys</Name>
+                            </WorkbenchEntry>
                         }
                     </WorkbenchSection>
                 }
-            </WorkbenchLoad>
-            <WorkbenchSection Label="Capture">
-                <WorkbenchEntry Selected="@(State.Kind == ApiSelectionKind.Capture)"
-                                OnClick="@(_ => SelectSection(ApiSelectionKind.Capture))">
-                    <Name>Live capture</Name>
-                </WorkbenchEntry>
-            </WorkbenchSection>
-            @if (User.IsAuthenticated) {
-                <WorkbenchSection Label="Keys">
-                    <WorkbenchEntry Selected="@(State.Kind == ApiSelectionKind.Keys)"
-                                    OnClick="@(_ => SelectSection(ApiSelectionKind.Keys))">
-                        <Name>Your keys</Name>
-                    </WorkbenchEntry>
-                    @if (State.IsAdmin) {
-                        <WorkbenchEntry Selected="@(State.Kind == ApiSelectionKind.AllKeys)"
-                                        OnClick="@(_ => SelectSection(ApiSelectionKind.AllKeys))">
-                            <Name>All keys</Name>
-                        </WorkbenchEntry>
-                    }
-                </WorkbenchSection>
-            }
-            @if (State.IsAdmin) {
-                <WorkbenchSection Label="Routes">
-                    <WorkbenchEntry Selected="@(State.Kind == ApiSelectionKind.Routes)"
-                                    OnClick="@(_ => SelectSection(ApiSelectionKind.Routes))">
-                        <Name>Route catalog</Name>
-                    </WorkbenchEntry>
-                </WorkbenchSection>
-            }
-        </WorkbenchRail>
+            </WorkbenchRail>
+        }
     </Rail>
     <ChildContent>
         @switch (State.Kind) {
@@ -270,21 +273,6 @@
         StateHasChanged();
     }
 
-    public async Task OpenData(string? group = null, string? id = null) {
-        await LoadStore();
-        _open = true;
-        _docsOpen = false;
-        await LoadSources();
-        if (group is { Length: > 0 } g && id is { Length: > 0 } i) State.SelectDataset(g, i, null);
-        else if (State.Kind != ApiSelectionKind.Dataset) {
-            var first = State.Sources?.FirstOrDefault();
-            if (first is not null) State.SelectDataset(first.Group, first.Id, null);
-        }
-
-        await WriteHash(true);
-        StateHasChanged();
-    }
-
     public async Task OpenCapture() {
         await LoadStore();
         _open = true;
@@ -321,6 +309,35 @@
         _docsOpen = false;
         State.Kind = kind;
         await WriteHash();
+    }
+
+    bool ModeDisabled(string key) {
+        return key == ApiWorkbenchState.ModeData && (State.Sources?.Count ?? 0) == 0 && !User.IsAuthenticated;
+    }
+
+    async Task SetMode(string key) {
+        var mode = State.NormalizeMode(key);
+        if (mode == State.Mode || ModeDisabled(mode)) return;
+        _docsOpen = false;
+        State.RememberSelection();
+        if (!State.RestoreSelection(mode)) ApplyModeDefault(mode);
+        await WriteHash();
+    }
+
+    void ApplyModeDefault(string mode) {
+        if (mode == ApiWorkbenchState.ModeCapture) {
+            State.Kind = ApiSelectionKind.Capture;
+            return;
+        }
+
+        if (mode != ApiWorkbenchState.ModeData) {
+            State.Kind = ApiSelectionKind.Endpoint;
+            return;
+        }
+
+        var first = State.Sources?.FirstOrDefault();
+        if (first is not null) State.SelectDataset(first.Group, first.Id, null);
+        else if (User.IsAuthenticated) State.Kind = ApiSelectionKind.Keys;
     }
 
     static IEnumerable<string> DataGroups(IReadOnlyCollection<DataSourceRow> sources) {

@@ -11,14 +11,10 @@ public class UnixSecondsTests {
     }
 
     [Fact]
-    public void ToTime_EpochIsZero() {
-        Assert.Equal(DateTimeOffset.UnixEpoch, UnixSeconds.ToTime(0));
-    }
+    public void ToTime_EpochIsZero() => Assert.Equal(DateTimeOffset.UnixEpoch, UnixSeconds.ToTime(0));
 
     [Fact]
-    public void IsValid_AcceptsInRangeValue() {
-        Assert.True(UnixSeconds.IsValid(1609517288.348589));
-    }
+    public void IsValid_AcceptsInRangeValue() => Assert.True(UnixSeconds.IsValid(1609517288.348589));
 
     [Fact]
     public void IsValid_RejectsNonFiniteAndOutOfRangeValues() {

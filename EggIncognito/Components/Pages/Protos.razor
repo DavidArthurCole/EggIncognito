@@ -33,19 +33,11 @@
 
 <div class="pd-grid">
 <div class="pd-mod pd-head">
-    <BrandPanel/>
-    <DeviceStatusPanel OnManage="OpenDeviceWorkbench"/>
+    <BrandPanel OnOpenSupport="OpenSupport"/>
     <section class="panel">
         <h3 class="text-sm font-semibold m-0 mb-2">Versions</h3>
         <div class="pd-versions">
             <LatestVersionsPanel Rows="_rows" OnOpen="OpenVersion"/>
-        </div>
-    </section>
-    <section class="panel pd-note">
-        <h3 class="text-sm font-semibold m-0">Workbenches</h3>
-        <div class="flex flex-wrap gap-2">
-            <button type="button" class="btn-primary" @onclick="OpenNotifications">Notifications</button>
-            <button type="button" class="btn-primary" @onclick="OpenApiWorkbench">API &amp; Data</button>
         </div>
     </section>
     <SupportPanel OnOpenCapture="OpenCaptureWorkbench" OnOpenSupport="OpenSupport"/>
@@ -339,7 +331,8 @@
 </section>
 </div>
 <div class="pd-mod pd-side">
-    <PeriodicalsPanel OnOpenData="OpenDataWorkbench"/>
+    <PeriodicalsPanel OnManageDevices="OpenDeviceWorkbench" OnOpenNotifications="OpenNotifications"
+                      OnOpenApiWorkbench="OpenApiWorkbench"/>
 </div>
 </div>
 </main>
@@ -366,10 +359,6 @@
 
     Task OpenApiWorkbench() {
         return _apiWorkbench?.Open() ?? Task.CompletedTask;
-    }
-
-    Task OpenDataWorkbench() {
-        return _apiWorkbench?.OpenData() ?? Task.CompletedTask;
     }
 
     Task OpenCaptureWorkbench() {

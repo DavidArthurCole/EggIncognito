@@ -15,7 +15,5 @@ public sealed class PageVisibility(IJSRuntime js, IWebHostEnvironment env) : IAs
         }
     }
 
-    public ValueTask DisposeAsync() {
-        return _module.DisposeModuleQuietAsync();
-    }
+    public ValueTask DisposeAsync() => _module.DisposeModuleQuietAsync();
 }

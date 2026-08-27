@@ -9,13 +9,29 @@ using Google.Protobuf.Reflection;
 namespace EggIncognito.Services.Api;
 
 public sealed class ApiWorkbenchState : WorkbenchStateBase {
+    public const string ModeApis = "apis";
+    public const string ModeData = "data";
+    public const string ModeCapture = "capture";
+
     public static readonly string[] PlatformOptions = [
         .. typeof(Ei.Platform).GetFields()
             .Where(f => f.IsLiteral)
             .Select(f => f.GetCustomAttribute<OriginalNameAttribute>()?.Name ?? f.Name)
     ];
 
-    public override IReadOnlyList<WorkbenchMode> Modes => [];
+    public override IReadOnlyList<WorkbenchMode> Modes { get; } = [
+        new(ModeApis, "APIs"),
+        new(ModeData, "Data"),
+        new(ModeCapture, "Capture")
+    ];
+
+    public static string ModeFor(ApiSelectionKind kind) {
+        return kind switch {
+            ApiSelectionKind.Dataset or ApiSelectionKind.Keys or ApiSelectionKind.AllKeys => ModeData,
+            ApiSelectionKind.Capture => ModeCapture,
+            _ => ModeApis
+        };
+    }
 
     public InspectorRailList RailList { get; set; } = InspectorRailList.Endpoints;
 
@@ -149,7 +165,31 @@ public sealed class ApiWorkbenchState : WorkbenchStateBase {
     public bool NoFillableFields =>
         FieldNodes is { Count: > 0 } && FieldNodes.All(n => n.Locked);
 
-    public ApiSelectionKind Kind { get; set; } = ApiSelectionKind.Endpoint;
+#pragma warning disable IDE0028
+    private readonly Dictionary<string, ApiSelectionMemory> _memory = new(StringComparer.Ordinal);
+#pragma warning restore IDE0028
+
+    public ApiSelectionKind Kind {
+        get;
+        set {
+            field = value;
+            Mode = ModeFor(value);
+        }
+    } = ApiSelectionKind.Endpoint;
+
+    public void RememberSelection() => _memory[ModeFor(Kind)] = new ApiSelectionMemory(Kind, Group, Id, Sub);
+
+    public bool RestoreSelection(string mode) {
+        if (!_memory.TryGetValue(mode, out var memory)) return false;
+        if (memory.Kind == ApiSelectionKind.Dataset) {
+            if (memory.Group.Length == 0 || memory.Id.Length == 0) return false;
+            SelectDataset(memory.Group, memory.Id, memory.Sub);
+            return true;
+        }
+
+        Kind = memory.Kind;
+        return true;
+    }
 
     public string Group { get; set; } = "";
     public string Id { get; set; } = "";

@@ -7,9 +7,7 @@ public class PageMetaTests {
     [InlineData("/protos/ios/1.37.0.1", "ei.proto - iOS 1.37.0.1")]
     [InlineData("/protos/android/111358", "ei.proto - Android 111358")]
     [InlineData("/protos/IOS/1.37.0.1", "ei.proto - iOS 1.37.0.1")]
-    public void AVersionPathGetsItsOwnTitle(string path, string title) {
-        Assert.Equal(title, PageMeta.For(path).Title);
-    }
+    public void AVersionPathGetsItsOwnTitle(string path, string title) => Assert.Equal(title, PageMeta.For(path).Title);
 
     [Fact]
     public void AVersionDescriptionNamesThePlatformAndBuild() {
@@ -23,9 +21,7 @@ public class PageMetaTests {
     [InlineData("/protodata")]
     [InlineData("/protos/subscribe")]
     [InlineData("/protos/sources")]
-    public void RegistryPathsKeepTheRegistryCard(string path) {
-        Assert.Equal("EggIncognito - Proto Registry", PageMeta.For(path).Title);
-    }
+    public void RegistryPathsKeepTheRegistryCard(string path) => Assert.Equal("EggIncognito - Proto Registry", PageMeta.For(path).Title);
 
     [Theory]
     [InlineData("/protos/ios/<script>")]
@@ -33,16 +29,12 @@ public class PageMetaTests {
     [InlineData("/protos/i0s/1.37.0.1")]
     [InlineData("/protos/ios/")]
     [InlineData("/protos/ios/1.37.0.1/extra")]
-    public void JunkFallsBackToThePrefixCardInsteadOfReflecting(string path) {
-        Assert.Equal("EggIncognito - Proto Registry", PageMeta.For(path).Title);
-    }
+    public void JunkFallsBackToThePrefixCardInsteadOfReflecting(string path) => Assert.Equal("EggIncognito - Proto Registry", PageMeta.For(path).Title);
 
     [Theory]
     [InlineData(null)]
     [InlineData("")]
     [InlineData("/")]
     [InlineData("/nope")]
-    public void UnknownPathsGetTheDefault(string? path) {
-        Assert.Equal(PageMeta.Default.Title, PageMeta.For(path).Title);
-    }
+    public void UnknownPathsGetTheDefault(string? path) => Assert.Equal(PageMeta.Default.Title, PageMeta.For(path).Title);
 }
