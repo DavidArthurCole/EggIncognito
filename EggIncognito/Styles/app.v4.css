@@ -1118,6 +1118,18 @@ input[type="search"]::placeholder { @apply text-muted; }
   gap: 0.75rem;
   padding: 0.625rem 0.75rem;
 }
+.pd-identity-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  margin: 0;
+  min-width: 0;
+}
+.pd-identity-facts > div { min-width: 0; }
+.pd-identity-facts dt { @apply text-[0.6875rem] uppercase tracking-wide text-muted; }
+.pd-identity-facts dd { @apply text-xs m-0 truncate; }
+.prof-prefs { @apply flex flex-col gap-2 mt-4 pt-3 border-t border-border; }
+.prof-prefs-grid { @apply flex flex-wrap gap-x-6 gap-y-2; }
 .panel.pd-note {
   align-items: flex-start;
   gap: 0.75rem;

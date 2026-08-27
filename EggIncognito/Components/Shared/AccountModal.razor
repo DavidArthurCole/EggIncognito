@@ -96,6 +96,9 @@
             } else {
                 <p class="text-muted m-0">Log in to manage your linked logins and avatar.</p>
             }
+            @if (User.IsAuthenticated && !string.IsNullOrEmpty(_sessionToken)) {
+                <ProfilePreferences SessionToken="@_sessionToken" OnChanged="OnProfileChanged"/>
+            }
             <ThemePicker/>
             @if (User.IsAuthenticated) {
                 <div class="flex flex-col gap-3 mt-4 pt-3 border-t border-border">
@@ -108,6 +111,8 @@
 }
 
 @code {
+    [Parameter] public EventCallback OnProfileChanged { get; set; }
+
     string _sessionToken = "";
     string _returnUrl = "";
     string? _linkMessage;

@@ -1,0 +1,136 @@
+@using System.Globalization
+@using EggIdentity.Client
+@inject IServiceProvider Services
+
+<div class="prof-prefs">
+    <div class="sub-section-head">Preferences</div>
+    @if (_identity is null) {
+        <p class="text-muted text-xs m-0">Preferences need the identity service.</p>
+    } else {
+        <div class="prof-prefs-grid">
+            <label class="theme-field">
+                <span>Time zone</span>
+                <select class="reg-filter-input w-auto" value="@_timezone" @onchange="OnTimezone">
+                    <option value="">Not set</option>
+                    @foreach (var (id, label) in Zones) {
+                        <option value="@id">@label</option>
+                    }
+                </select>
+            </label>
+            <label class="theme-field">
+                <span>Language</span>
+                <select class="reg-filter-input w-auto" value="@_language" @onchange="OnLanguage">
+                    <option value="">Not set</option>
+                    @foreach (var (code, label) in Languages) {
+                        <option value="@code">@label</option>
+                    }
+                </select>
+            </label>
+        </div>
+        <p class="text-muted text-xs m-0">Shared with every app that signs you in through EggIdentity.</p>
+        <div class="theme-picker-actions">
+            <button type="button" class="btn-mini" disabled="@(_busy || !Dirty)" @onclick="Save">
+                @(_busy ? "Saving..." : "Save preferences")
+            </button>
+        </div>
+        @if (_message is { } message) {
+            <StatusNote Severity="@_messageKind" OnDismiss="@(() => _message = null)">@message</StatusNote>
+        }
+    }
+</div>
+
+@code {
+    static readonly IReadOnlyList<(string Id, string Label)> Zones = BuildZones();
+    static readonly IReadOnlyList<(string Code, string Label)> Languages = BuildLanguages();
+
+    [Parameter] [EditorRequired] public string SessionToken { get; set; } = "";
+
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    IdentityApiClient? _identity;
+    string _timezone = "";
+    string _language = "";
+    string _savedTimezone = "";
+    string _savedLanguage = "";
+    bool _busy;
+    string? _message;
+    StatusNoteKind _messageKind = StatusNoteKind.Ok;
+
+    bool Dirty => _timezone != _savedTimezone || _language != _savedLanguage;
+
+    protected override async Task OnInitializedAsync() {
+        _identity = Services.GetService(typeof(IdentityApiClient)) as IdentityApiClient;
+        if (_identity is null || SessionToken.Length == 0) return;
+        try {
+            var profile = await _identity.GetProfileAsync(SessionToken, CancellationToken.None);
+            _savedTimezone = _timezone = profile?.Timezone ?? "";
+            _savedLanguage = _language = profile?.Language ?? "";
+        }
+        catch (HttpRequestException) {
+            SetMessage("Could not read your preferences.", StatusNoteKind.Error);
+        }
+    }
+
+    void OnTimezone(ChangeEventArgs e) {
+        _timezone = e.Value?.ToString() ?? "";
+    }
+
+    void OnLanguage(ChangeEventArgs e) {
+        _language = e.Value?.ToString() ?? "";
+    }
+
+    async Task Save() {
+        if (_identity is null) return;
+        _busy = true;
+        _message = null;
+        bool ok;
+        try {
+            ok = await _identity.SetPreferencesAsync(SessionToken, _timezone, _language, null, CancellationToken.None);
+        }
+        catch (HttpRequestException) {
+            ok = false;
+        }
+
+        _busy = false;
+        if (!ok) {
+            SetMessage("Could not save your preferences.", StatusNoteKind.Error);
+            return;
+        }
+
+        _savedTimezone = _timezone;
+        _savedLanguage = _language;
+        SetMessage("Preferences saved.", StatusNoteKind.Ok);
+        await OnChanged.InvokeAsync();
+    }
+
+    void SetMessage(string message, StatusNoteKind kind) {
+        _message = message;
+        _messageKind = kind;
+    }
+
+    static IReadOnlyList<(string, string)> BuildZones() {
+        var zones = new List<(string Id, string Label)>();
+        foreach (var zone in TimeZoneInfo.GetSystemTimeZones()) {
+            string id = TimeZoneInfo.TryConvertWindowsIdToIanaId(zone.Id, out string? iana) ? iana : zone.Id;
+            zones.Add((id, $"{id} (UTC{OffsetLabel(zone.BaseUtcOffset)})"));
+        }
+
+        return [.. zones.DistinctBy(z => z.Id).OrderBy(z => z.Id, StringComparer.Ordinal)];
+    }
+
+    static IReadOnlyList<(string, string)> BuildLanguages() {
+        return [
+            .. CultureInfo.GetCultures(CultureTypes.NeutralCultures)
+                .Where(c => c.TwoLetterISOLanguageName.Length == 2 && c.EnglishName.Length > 0)
+                .DistinctBy(c => c.TwoLetterISOLanguageName, StringComparer.Ordinal)
+                .OrderBy(c => c.EnglishName, StringComparer.Ordinal)
+                .Select(c => (c.TwoLetterISOLanguageName, $"{c.EnglishName} ({c.TwoLetterISOLanguageName})"))
+        ];
+    }
+
+    static string OffsetLabel(TimeSpan offset) {
+        return (offset < TimeSpan.Zero ? "-" : "+") +
+               offset.Duration().ToString(@"hh\:mm", CultureInfo.InvariantCulture);
+    }
+
+}

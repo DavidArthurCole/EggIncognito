@@ -1,11 +1,16 @@
+@using System.Globalization
+@using EggIdentity.Client
+@using EggIdentity.Contract
 @inject AuthState Auth
 @inject ICurrentUser User
+@inject IHttpContextAccessor HttpContextAccessor
+@inject IServiceProvider Services
 
 <section class="panel pd-w-identity">
     @if (Auth.Enabled || Auth.LocalIdentityActive) {
         <span class="auth-nav">
             @if (User.IsAuthenticated) {
-                <AccountModal/>
+                <AccountModal OnProfileChanged="LoadProfile"/>
                 @if (Auth.Enabled) {
                     <form method="post" action="/logout" style="margin:0;">
                         <button type="submit" class="auth-btn">Log out</button>
@@ -15,6 +20,22 @@
                 <LoginButton CssClass="auth-btn" Label="Log in"/>
             }
         </span>
+    }
+    @if (User.IsAuthenticated) {
+        <dl class="pd-identity-facts">
+            <div>
+                <dt>Role</dt>
+                <dd>@User.Role.ToString().ToLowerInvariant()@(User.IsSupporter ? ", supporter" : "")</dd>
+            </div>
+            <div>
+                <dt>Local time</dt>
+                <dd title="@(_timezone.Length == 0 ? "No time zone set" : _timezone)">@LocalTime()</dd>
+            </div>
+            <div>
+                <dt>Language</dt>
+                <dd>@(_language.Length == 0 ? "Not set" : LanguageLabel(_language))</dd>
+            </div>
+        </dl>
     }
     <div class="pd-brand-links">
         <button type="button" class="pd-brand-link" title="Terms" aria-label="Terms"
@@ -42,5 +63,53 @@
     [Parameter] public EventCallback OnOpenTerms { get; set; }
 
     [Parameter] public EventCallback OnOpenPrivacy { get; set; }
+
+    string _timezone = "";
+    string _language = "";
+    string _sessionToken = "";
+
+    protected override async Task OnInitializedAsync() {
+        _sessionToken = HttpContextAccessor.HttpContext?.Request.Cookies[Auth.SessionCookieName] ?? "";
+        await LoadProfile();
+    }
+
+    async Task LoadProfile() {
+        if (!User.IsAuthenticated || _sessionToken.Length == 0) return;
+        if (Services.GetService(typeof(IdentityApiClient)) is not IdentityApiClient identity) return;
+        ProfileResponse? profile;
+        try {
+            profile = await identity.GetProfileAsync(_sessionToken, CancellationToken.None);
+        }
+        catch (HttpRequestException) {
+            return;
+        }
+
+        _timezone = profile?.Timezone ?? "";
+        _language = profile?.Language ?? "";
+    }
+
+    string LocalTime() {
+        var now = DateTimeOffset.UtcNow;
+        if (_timezone.Length == 0) return now.ToString("HH:mm 'UTC'", CultureInfo.InvariantCulture);
+        try {
+            var zone = TimeZoneInfo.FindSystemTimeZoneById(_timezone);
+            return TimeZoneInfo.ConvertTime(now, zone).ToString("HH:mm", CultureInfo.InvariantCulture);
+        }
+        catch (TimeZoneNotFoundException) {
+            return now.ToString("HH:mm 'UTC'", CultureInfo.InvariantCulture);
+        }
+        catch (InvalidTimeZoneException) {
+            return now.ToString("HH:mm 'UTC'", CultureInfo.InvariantCulture);
+        }
+    }
+
+    static string LanguageLabel(string code) {
+        try {
+            return CultureInfo.GetCultureInfo(code).EnglishName;
+        }
+        catch (CultureNotFoundException) {
+            return code;
+        }
+    }
 
 }
