@@ -63,15 +63,18 @@ public sealed class PeriodicalsController(
         var live = liveRoute is null ? null : LiveColleggtibleSource.Derive(services, liveRoute);
         if (live is not null)
             colleggtibles = new {
-                count = live.Extract.Eggs.Count,
+                count = live.Identifiers.Count,
                 gameVersion = live.GameVersion,
                 provenance = JsonSerializer.Serialize(live.Provenance, ProvenanceJson),
-                eggs = live.Extract.Eggs.Select(e => new {
-                    e.Identifier,
-                    name = live.Names.GetValueOrDefault(e.Identifier),
-                    dimension = DimensionName(e.Dimension),
-                    e.TierValues,
-                    icon = live.Icons.GetValueOrDefault(e.Identifier)
+                eggs = live.Identifiers.Select(id => {
+                    var buffs = live.Extract.Eggs.FirstOrDefault(e => e.Identifier == id);
+                    return new {
+                        Identifier = id,
+                        name = live.Names.GetValueOrDefault(id),
+                        dimension = buffs is null ? "" : DimensionName(buffs.Dimension),
+                        tierValues = buffs?.TierValues ?? [],
+                        icon = live.Icons.GetValueOrDefault(id)
+                    };
                 })
             };
 

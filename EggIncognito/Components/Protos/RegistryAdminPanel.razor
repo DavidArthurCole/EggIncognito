@@ -1,0 +1,186 @@
+@using System.Text.Json
+@using EggIncognito.Models.Registry
+@using EggIncognito.Services.Protos
+@inherits SelfCallComponentBase
+
+<div class="pwb-admin">
+    <div class="pwb-admin-head">
+        <h3 class="text-sm m-0">Registry admin</h3>
+        <div class="settings-seg" role="radiogroup" aria-label="Registry admin action">
+            <button type="button" class="seg-btn @(_tab == TabAdd ? "active" : "")"
+                    @onclick="@(() => SetTab(TabAdd))">
+                Add version
+            </button>
+            <button type="button" class="seg-btn @(_tab == TabEdit ? "active" : "")"
+                    @onclick="@(() => SetTab(TabEdit))">
+                Edit version
+            </button>
+        </div>
+        <button type="button" class="reg-edit-btn pwb-admin-close" aria-label="Close registry admin"
+                @onclick="@(() => OnClose.InvokeAsync())">
+            <Icon Name="x"/>
+        </button>
+    </div>
+
+    @if (_tab == TabAdd) {
+        <div class="pwb-admin-grid">
+            <label class="text-xs text-muted">
+                Platform
+                <select class="protos-filter w-full" @bind="_platform">
+                    <option value="android">android</option>
+                    <option value="ios">ios</option>
+                </select>
+            </label>
+            <label class="text-xs text-muted">
+                App version
+                <FilterInput Class="protos-filter w-full" Placeholder="" AriaLabel="App version" @bind-Value="_appVersion"/>
+            </label>
+            <label class="text-xs text-muted">
+                Build
+                <FilterInput Class="protos-filter w-full" Placeholder="" AriaLabel="Build" @bind-Value="_build"/>
+            </label>
+            <label class="text-xs text-muted">
+                Client version
+                <FilterInput Class="protos-filter w-full" Placeholder="" AriaLabel="Client version" @bind-Value="_client"/>
+            </label>
+            <label class="text-xs text-muted">
+                Source
+                <FilterInput Class="protos-filter w-full" Placeholder="" AriaLabel="Source" @bind-Value="_source"/>
+            </label>
+        </div>
+        <label class="text-xs text-muted block mt-2 mb-2">
+            Proto (optional)
+            <textarea class="protos-filter w-full font-mono text-xs" rows="6" @bind="_proto"></textarea>
+        </label>
+        <div class="flex items-center gap-2">
+            <button type="button" class="btn-primary" disabled="@_busy" @onclick="Add">@(_busy ? "Saving..." : "Save")</button>
+        </div>
+        @if (_msg.Length > 0) {
+            <StatusNote Severity="@(_msg == "saved" ? StatusNoteKind.Ok : StatusNoteKind.Error)"
+                        OnDismiss="@(() => _msg = string.Empty)">
+                @_msg
+            </StatusNote>
+        }
+    } else {
+        <label class="text-xs text-muted block mb-2">
+            Version
+            <select class="protos-filter w-full" value="@_editKey" @onchange="OnPickVersion">
+                <option value="">pick a version</option>
+                @foreach (var r in EditableRows) {
+                    <option value="@RowKey(r)">@r.Platform @r.AppVersion (@r.Build)</option>
+                }
+            </select>
+        </label>
+        @if (Picked is { } picked) {
+            <ProtoEditDialog Targets="Targets(picked)" ProtoSha="@picked.ProtoSha"
+                             ShaOrder="picked.SortOrder ?? 0" CanOrder="CanOrder"
+                             Patch="PatchJson" Post="PostJson" FetchText="GetText"
+                             OnChanged="OnChanged" OnClose="@(() => _editKey = string.Empty)"/>
+        }
+    }
+</div>
+
+@code {
+    const string TabAdd = "add";
+    const string TabEdit = "edit";
+
+    static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
+
+    [Parameter] public IReadOnlyList<ProtoRegistryRow> Rows { get; set; } = [];
+
+    [Parameter] public bool CanOrder { get; set; }
+
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    string _tab = TabAdd;
+    bool _busy;
+    string _msg = "";
+    string _platform = "android";
+    string _appVersion = "";
+    string _build = "";
+    string _client = "";
+    string _source = "";
+    string _proto = "";
+    string _editKey = "";
+
+    IEnumerable<ProtoRegistryRow> EditableRows => Rows.OrderByDescending(r => r.DetectedAt);
+
+    ProtoRegistryRow? Picked =>
+        _editKey.Length == 0 ? null : Rows.FirstOrDefault(r => RowKey(r) == _editKey);
+
+    static string RowKey(ProtoRegistryRow r) {
+        return $"{r.Platform}/{r.Build}";
+    }
+
+    void SetTab(string tab) {
+        _tab = tab;
+        _msg = "";
+    }
+
+    void OnPickVersion(ChangeEventArgs e) {
+        _editKey = e.Value?.ToString() ?? "";
+    }
+
+    static List<ReleaseEditRow> Targets(ProtoRegistryRow r) {
+        return [new(r.Platform, r.Build, r.AppVersion ?? "", r.ClientVersion, r.Source ?? "")];
+    }
+
+    async Task Add() {
+        if (string.IsNullOrWhiteSpace(_platform) || string.IsNullOrWhiteSpace(_appVersion) ||
+            string.IsNullOrWhiteSpace(_build)) {
+            _msg = "platform, app version, build required";
+            return;
+        }
+
+        _busy = true;
+        _msg = "";
+        var ok = await PostJson("/api/protos/versions", new {
+            platform = _platform,
+            appVersion = _appVersion,
+            build = _build,
+            clientVersion = string.IsNullOrWhiteSpace(_client) ? null : _client,
+            source = string.IsNullOrWhiteSpace(_source) ? null : _source,
+            proto = string.IsNullOrWhiteSpace(_proto) ? null : _proto
+        });
+        _busy = false;
+        if (!ok) {
+            _msg = "failed (contributor+? build taken?)";
+            return;
+        }
+
+        _msg = "saved";
+        _appVersion = _build = _client = _source = _proto = "";
+        await OnChanged.InvokeAsync();
+    }
+
+    async Task<bool> PostJson(string url, object body) {
+        try {
+            return (await Client().PostAsJsonAsync(url, body, JsonOpts)).IsSuccessStatusCode;
+        }
+        catch (HttpRequestException) {
+            return false;
+        }
+    }
+
+    async Task<bool> PatchJson(string url, object body) {
+        try {
+            return (await Client().PatchAsJsonAsync(url, body, JsonOpts)).IsSuccessStatusCode;
+        }
+        catch (HttpRequestException) {
+            return false;
+        }
+    }
+
+    async Task<string?> GetText(string url) {
+        try {
+            var res = await Client().GetAsync(url);
+            return res.IsSuccessStatusCode ? await res.Content.ReadAsStringAsync() : "";
+        }
+        catch (HttpRequestException) {
+            return "";
+        }
+    }
+
+}

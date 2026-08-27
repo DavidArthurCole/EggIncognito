@@ -43,7 +43,10 @@ public static class ArtifactObservationSource {
                 o.SpecRarity,
                 o.Byproducts,
                 o.GoldenEggs,
-                o.CountRequested
+                o.CountRequested,
+                o.RarityAchieved,
+                o.GoldPricePaid,
+                o.CraftingCount
             })
             .ToListAsync(ct);
 
@@ -71,7 +74,19 @@ public static class ArtifactObservationSource {
                 });
             }
 
+            var rarityOutcomes = new JsonArray();
+            foreach (var outcome in group
+                         .Where(g => g.RarityAchieved is not null)
+                         .GroupBy(g => g.RarityAchieved!, StringComparer.Ordinal)
+                         .OrderByDescending(g => g.Count())) {
+                rarityOutcomes.Add(new JsonObject {
+                    ["rarity"] = outcome.Key,
+                    ["count"] = outcome.Count()
+                });
+            }
+
             double[] goldenEggs = [.. group.Select(g => g.GoldenEggs)];
+            double[] pricesPaid = [.. group.Where(g => g.GoldPricePaid is not null).Select(g => g.GoldPricePaid!.Value)];
             groups.Add(new JsonObject {
                 ["specName"] = group.Key.SpecName,
                 ["level"] = group.Key.SpecLevel,
@@ -84,7 +99,18 @@ public static class ArtifactObservationSource {
                     ["min"] = goldenEggs.Min(),
                     ["max"] = goldenEggs.Max()
                 },
-                ["byproducts"] = byproducts
+                ["byproducts"] = byproducts,
+                ["rarityOutcomes"] = rarityOutcomes,
+                ["goldPricePaid"] = pricesPaid.Length == 0
+                    ? null
+                    : new JsonObject {
+                        ["min"] = pricesPaid.Min(),
+                        ["max"] = pricesPaid.Max(),
+                        ["minCraftingCount"] = group.Where(g => g.CraftingCount is not null)
+                            .Min(g => g.CraftingCount!.Value),
+                        ["maxCraftingCount"] = group.Where(g => g.CraftingCount is not null)
+                            .Max(g => g.CraftingCount!.Value)
+                    }
             });
         }
 

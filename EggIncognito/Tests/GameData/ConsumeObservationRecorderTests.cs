@@ -12,7 +12,8 @@ public class ConsumeObservationRecorderTests {
     public void ActionFor_MatchesConsumeAndDemoteOnly() {
         Assert.Equal("consume", ConsumeObservationRecorder.ActionFor("ei_afx/consume_artifact"));
         Assert.Equal("demote", ConsumeObservationRecorder.ActionFor("ei_afx/demote_artifact"));
-        Assert.Null(ConsumeObservationRecorder.ActionFor("ei_afx/craft_artifact"));
+        Assert.Equal("craft", ConsumeObservationRecorder.ActionFor("ei_afx/craft_artifact"));
+        Assert.Null(ConsumeObservationRecorder.ActionFor("ei_afx/set_artifact"));
         Assert.Null(ConsumeObservationRecorder.ActionFor("ei/get_config"));
     }
 
@@ -85,6 +86,38 @@ public class ConsumeObservationRecorderTests {
         Assert.Equal(1, row.CountRequested);
         Assert.Equal(0, row.GoldenEggs);
         Assert.Equal("[]", Compact(row.Byproducts));
+    }
+
+    [Fact]
+    public void Build_RecordsCraftedRarityAgainstTheRequestedSpec() {
+        var request = new CraftArtifactRequest {
+            Rinfo = new BasicRequestInfo { Version = "1.37" },
+            Spec = new ArtifactSpec {
+                Name = ArtifactSpec.Types.Name.TungstenAnkh,
+                Level = ArtifactSpec.Types.Level.Lesser,
+                Rarity = ArtifactSpec.Types.Rarity.Common
+            },
+            GoldPricePaid = 3982,
+            CraftingCount = 17
+        };
+        var response = new CraftArtifactResponse {
+            ItemId = 991,
+            RarityAchieved = ArtifactSpec.Types.Rarity.Rare
+        };
+
+        var row = ConsumeObservationRecorder.Build("craft", "ios-1",
+            Flow("ei_afx/craft_artifact", request, response));
+
+        Assert.NotNull(row);
+        Assert.Equal("craft", row.Action);
+        Assert.Equal("TUNGSTEN_ANKH", row.SpecName);
+        Assert.Equal("LESSER", row.SpecLevel);
+        Assert.Equal("COMMON", row.SpecRarity);
+        Assert.Equal("RARE", row.RarityAchieved);
+        Assert.Equal(3982, row.GoldPricePaid);
+        Assert.Equal(17, row.CraftingCount);
+        Assert.True(row.Success);
+        Assert.Equal("ios-1", row.DeviceId);
     }
 
     private static ArtifactSpec Fragment(ArtifactSpec.Types.Name name) =>

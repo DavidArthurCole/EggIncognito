@@ -14,6 +14,7 @@ public sealed class ConsumeObservationRecorder(
     ILogger<ConsumeObservationRecorder> logger) : IProcessedFlowObserver, IHostedService, IDisposable {
     public const string ConsumeRoute = "ei_afx/consume_artifact";
     public const string DemoteRoute = "ei_afx/demote_artifact";
+    public const string CraftRoute = "ei_afx/craft_artifact";
 
     private static readonly JsonSerializerOptions CamelJson = new() {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
@@ -40,9 +41,38 @@ public sealed class ConsumeObservationRecorder(
     public static string? ActionFor(string path) =>
         string.Equals(path, ConsumeRoute, StringComparison.Ordinal) ? "consume"
         : string.Equals(path, DemoteRoute, StringComparison.Ordinal) ? "demote"
+        : string.Equals(path, CraftRoute, StringComparison.Ordinal) ? "craft"
         : null;
 
-    public static ArtifactConsumeObservation? Build(string action, string deviceId, DashboardFlow flow) {
+    public static ArtifactConsumeObservation? Build(string action, string deviceId, DashboardFlow flow) =>
+        string.Equals(action, "craft", StringComparison.Ordinal)
+            ? BuildCraft(deviceId, flow)
+            : BuildConsume(action, deviceId, flow);
+
+    private static ArtifactConsumeObservation? BuildCraft(string deviceId, DashboardFlow flow) {
+        if (flow.RequestJsonRaw is null || flow.ResponseJsonRaw is null) return null;
+
+        var request = JsonParser.Default.Parse<CraftArtifactRequest>(flow.RequestJsonRaw);
+        var response = JsonParser.Default.Parse<CraftArtifactResponse>(flow.ResponseJsonRaw);
+        if (request.Spec is null) return null;
+
+        return new ArtifactConsumeObservation {
+            Action = "craft",
+            SpecName = ProtoEnumNames.SpecName(request.Spec.Name),
+            SpecLevel = ProtoEnumNames.LevelName(request.Spec.Level),
+            SpecRarity = ProtoEnumNames.RarityName(request.Spec.Rarity),
+            CountRequested = 1,
+            RarityAchieved = ProtoEnumNames.RarityName(response.RarityAchieved),
+            GoldPricePaid = request.GoldPricePaid,
+            CraftingCount = (int)request.CraftingCount,
+            Success = response.ItemId != 0,
+            ClientVersion = string.IsNullOrEmpty(request.Rinfo?.Version) ? null : request.Rinfo.Version,
+            DeviceId = string.IsNullOrEmpty(deviceId) ? null : deviceId,
+            ObservedAt = DateTimeOffset.UtcNow
+        };
+    }
+
+    private static ArtifactConsumeObservation? BuildConsume(string action, string deviceId, DashboardFlow flow) {
         if (flow.RequestJsonRaw is null || flow.ResponseJsonRaw is null) return null;
 
         var request = JsonParser.Default.Parse<ConsumeArtifactRequest>(flow.RequestJsonRaw);

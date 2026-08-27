@@ -1,0 +1,46 @@
+@inject AuthState Auth
+@inject ICurrentUser User
+
+<section class="panel pd-w-identity">
+    @if (Auth.Enabled || Auth.LocalIdentityActive) {
+        <span class="auth-nav">
+            @if (User.IsAuthenticated) {
+                <AccountModal/>
+                @if (Auth.Enabled) {
+                    <form method="post" action="/logout" style="margin:0;">
+                        <button type="submit" class="auth-btn">Log out</button>
+                    </form>
+                }
+            } else if (Auth.WidgetEnabled) {
+                <LoginButton CssClass="auth-btn" Label="Log in"/>
+            }
+        </span>
+    }
+    <div class="pd-brand-links">
+        <button type="button" class="pd-brand-link" title="Terms" aria-label="Terms"
+                @onclick="@(() => OnOpenTerms.InvokeAsync())">
+            <Icon Name="doc"/>
+        </button>
+        <button type="button" class="pd-brand-link" title="Privacy and cookies" aria-label="Privacy and cookies"
+                @onclick="@(() => OnOpenPrivacy.InvokeAsync())">
+            <Icon Name="shield"/>
+        </button>
+        <button type="button" class="pd-brand-link" title="Support the project" aria-label="Support the project"
+                @onclick="@(() => OnOpenSupport.InvokeAsync())">
+            <Icon Name="heart"/>
+        </button>
+        <a class="pd-brand-link" href="https://github.com/EggIncTools/EggIncognito" target="_blank" rel="noopener"
+           title="EggIncognito on GitHub" aria-label="EggIncognito on GitHub">
+            <Icon Name="github"/>
+        </a>
+    </div>
+</section>
+
+@code {
+    [Parameter] public EventCallback OnOpenSupport { get; set; }
+
+    [Parameter] public EventCallback OnOpenTerms { get; set; }
+
+    [Parameter] public EventCallback OnOpenPrivacy { get; set; }
+
+}

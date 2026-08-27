@@ -21,315 +21,261 @@
 <PageTitle>EggIncognito</PageTitle>
 
 <main class="page page-wide pt-6 pb-8">
-<h1 class="sr-only">EggIncognito</h1>
+    <h1 class="sr-only">EggIncognito</h1>
 
-@if (LoginError == 1 && !_loginErrorDismissed) {
-    <div class="mb-4">
-        <StatusNote Severity="StatusNoteKind.Error" OnDismiss="@(() => _loginErrorDismissed = true)">
-            Login failed. Please try again.
-        </StatusNote>
-    </div>
-}
-
-<div class="pd-grid">
-<div class="pd-mod pd-head">
-    <BrandPanel Rows="_rows" OnOpenVersion="OpenVersion" OnOpenSupport="OpenSupport"
-                OnOpenTerms="OpenTerms" OnOpenPrivacy="OpenPrivacy"/>
-</div>
-<div class="pd-mod pd-main pd-stack">
-@if (_isAdmin && _addOpen) {
-    <div class="panel">
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">
-            <label class="text-xs text-muted">
-                Platform
-                <select class="protos-filter w-full" @bind="_addPlatform">
-                    <option value="android">android</option>
-                    <option value="ios">ios</option>
-                </select>
-            </label>
-            <label class="text-xs text-muted">
-                App version
-                <FilterInput Class="protos-filter w-full" Placeholder="" AriaLabel="App version" @bind-Value="_addAppVersion"/>
-            </label>
-            <label class="text-xs text-muted">
-                Build
-                <FilterInput Class="protos-filter w-full" Placeholder="" AriaLabel="Build" @bind-Value="_addBuild"/>
-            </label>
-            <label class="text-xs text-muted">
-                Client version
-                <FilterInput Class="protos-filter w-full" Placeholder="" AriaLabel="Client version" @bind-Value="_addClient"/>
-            </label>
-            <label class="text-xs text-muted">
-                Source
-                <FilterInput Class="protos-filter w-full" Placeholder="" AriaLabel="Source" @bind-Value="_addSource"/>
-            </label>
-        </div>
-        <label class="text-xs text-muted block mb-2">
-            Proto (optional)
-            <textarea class="protos-filter w-full font-mono text-xs" rows="6" @bind="_addProto"></textarea>
-        </label>
-        <div class="flex items-center gap-2">
-            <button type="button" class="btn-primary" disabled="@_addBusy" @onclick="AddVersion">@(_addBusy ? "Saving..." : "Save")</button>
-            <span class="text-xs @(_addMsg == "saved" ? "text-accent" : "text-muted")">@_addMsg</span>
-        </div>
-    </div>
-}
-@if (_isAdmin || _isContributor) {
-    <StagedReviewPanel @ref="_stagedPanel" IsAdmin="_isAdmin" OnChanged="OnMutated"/>
-}
-@if (_isAdmin && _suggestions.Count > 0) {
-    <div class="panel">
-        <div class="text-sm font-semibold mb-2">Suggested merges</div>
-        <div class="text-xs text-muted mb-2">Same app version + proto SHA across platforms. Merge links them under one entry.</div>
-        @foreach (var s in _suggestions) {
-            <div class="flex items-center gap-2 flex-wrap mb-1">
-                <span class="code-chip">@s.AppVersion</span>
-                <span class="text-xs text-muted font-mono">@(s.ProtoSha.Length > 12 ? s.ProtoSha[..12] : s.ProtoSha)</span>
-                <span class="text-xs inline-flex items-center gap-1 flex-wrap">
-                    @for (var i = 0; i < s.Members.Count; i++) {
-                        var member = s.Members[i];
-                        if (i > 0) {
-                            <span class="text-muted">+</span>
-                        }
-
-                        <PlatformIcon Platform="@member.Platform"/>
-                        <span>@member.Build</span>
-                    }
-                </span>
-                <button type="button" class="btn-mini" @onclick="@(() => AcceptSuggestion(s))">Merge</button>
-            </div>
-        }
-    </div>
-}
-@if (_isAdmin && _selected.Count > 0) {
-    <ProtoSelectionBar Selected="_selected" Post="PostJson" OnChanged="OnMutated" OnClear="ClearSelection"/>
-}
-<section class="reg-wrap">
-    <div class="reg-toolbar">
-        <div class="reg-sort">
-            <label class="reg-sort-label" for="regSort">Sort</label>
-            <select id="regSort" class="reg-filter-input reg-sort-sel" value="@_sortCol" @onchange="OnSortSelect">
-                <option value="platform">Platform</option>
-                <option value="appVersion">App version</option>
-                <option value="build">Build</option>
-                <option value="client">Client</option>
-                <option value="sha">Proto SHA</option>
-                <option value="detected">Detected</option>
-            </select>
-            <button type="button" class="reg-sort-dir" aria-label="Toggle sort direction" @onclick="ToggleSortDir">
-                @(_sortDesc ? "▾" : "▴")
-            </button>
-        </div>
-        <div class="reg-toolbar-end">
-            @if (AnyFilter) {
-                <button type="button" class="reg-filter-clear" aria-label="Clear filters" @onclick="ClearFilters">×</button>
-            }
-            <label id="protoPageDrop" class="reg-drop" for="wbFile">
-                <Icon Name="arrow-up" Class="icon-sm"/>
-                <span>Drop a build</span>
-            </label>
-            <button type="button" class="reg-intake"
-                    aria-label="Open the proto workbench" @onclick="@(() => _workbench?.Open())">
-                <Icon Name="chevronRight" Class="icon-sm"/>
-            </button>
-            @if (_isAdmin) {
-                <button type="button" class="reg-add-toggle" aria-label="@(_addOpen ? "Close add version" : "Add version")"
-                        @onclick="@(() => _addOpen = !_addOpen)">
-                    @(_addOpen ? "×" : "+")
-                </button>
-            }
-        </div>
-    </div>
-    @if (_loading && _rows.Count == 0) {
-        <div class="backfill-empty">Loading...</div>
-    } else if (_rows.Count == 0) {
-        <div class="reg-empty">
-            <div>No proto versions yet.</div>
-            <div class="reg-empty-hint">Drop a build on the toolbar, or open the proto workbench, to add one.</div>
-        </div>
-    } else {
-        var releases = SortedReleases;
-        _laneLayout = ShaLanes.Build(
-            releases.Select(r => r.Key).ToList(),
-            releases.Select(r => r.Primary.Key()).ToList(),
-            AllReleases.Select(r => r.Primary.Key()).ToList());
-        var laneRows = _laneLayout.Rows;
-        <div class="reg-scroll">
-            <table class="data-table reg-table" style="--reg-gutter: @Gutter(ShaLanes.LaneCount(_laneLayout))">
-                <thead>
-                <tr>
-                    @if (_isAdmin) {
-                        <th class="reg-c-sel">
-                            <input type="checkbox" checked="@AllSelected" @onchange="ToggleAll"/>
-                        </th>
-                    }
-                    <th class="reg-th-sort reg-c-plat" @onclick="@(() => Sort("platform"))">
-                        <span>Platform</span>@Caret("platform")
-                    </th>
-                    <th class="reg-th-sort reg-c-app" @onclick="@(() => Sort("appVersion"))">
-                        <span>App version</span>@Caret("appVersion")
-                    </th>
-                    <th class="reg-th-sort reg-c-build" @onclick="@(() => Sort("build"))">
-                        <span>Build</span>@Caret("build")
-                    </th>
-                    <th class="reg-th-sort reg-c-client" @onclick="@(() => Sort("client"))">
-                        <span>Client</span>@Caret("client")
-                    </th>
-                    <th class="reg-th-sort reg-c-sha" @onclick="@(() => Sort("sha"))">
-                        <span>Proto SHA</span>@Caret("sha")
-                    </th>
-                    <th class="reg-th-sort reg-c-det" @onclick="@(() => Sort("detected"))">
-                        <span>Detected</span>@Caret("detected")
-                    </th>
-                    <th class="reg-c-act"></th>
-                </tr>
-                <tr class="reg-filter-row">
-                    @if (_isAdmin) {
-                        <th class="reg-c-sel"></th>
-                    }
-                    <th class="reg-c-plat">
-                        <select class="reg-filter-input" aria-label="Filter by platform" value="@_fPlatform" @onchange="@(e => { _fPlatform = e.Value?.ToString() ?? ""; })">
-                            <option value="">all</option>
-                            <option value="android">android</option>
-                            <option value="ios">ios</option>
-                        </select>
-                    </th>
-                    <th class="reg-c-app">
-                        <FilterInput Class="reg-filter-input" AriaLabel="Filter by app version"
-                                     Value="@_fVersion" ValueChanged="@(v => _fVersion = v)"/>
-                    </th>
-                    <th class="reg-c-build">
-                        <FilterInput Class="reg-filter-input" AriaLabel="Filter by build"
-                                     Value="@_fBuild" ValueChanged="@(v => _fBuild = v)"/>
-                    </th>
-                    <th class="reg-c-client">
-                        <FilterInput Class="reg-filter-input" AriaLabel="Filter by client version"
-                                     Value="@_fClient" ValueChanged="@(v => _fClient = v)"/>
-                    </th>
-                    <th class="reg-c-sha">
-                        <FilterInput Class="reg-filter-input" AriaLabel="Filter by proto sha"
-                                     Value="@_fSha" ValueChanged="@(v => _fSha = v)"/>
-                    </th>
-                    <th class="reg-c-det"></th>
-                    <th class="reg-c-act"></th>
-                </tr>
-                </thead>
-                <tbody>
-                @if (releases.Count == 0) {
-                    <tr>
-                        <td colspan="@EditColspan" class="reg-empty">No versions match this filter.</td>
-                    </tr>
-                }
-                @foreach (var rel in releases) {
-                    var primary = rel.Primary;
-                    var lane = laneRows.GetValueOrDefault(rel.Key);
-                    <tr class="reg-row cursor-pointer" @onclick="@(() => OpenVersion(primary))">
-                        @if (_isAdmin) {
-                            <td class="reg-c-sel" @onclick:stopPropagation="true">
-                                <input type="checkbox" checked="@IsSelected(primary)" @onchange="@(() => ToggleRelease(rel))"/>
-                            </td>
-                        }
-                        <td class="reg-c-plat" data-label="Platform">
-                            <span class="reg-plats">
-                                @foreach (var m in rel.Platforms) {
-                                    <a class="reg-plat-link" href="@VersionHref(m)"
-                                       @onclick:stopPropagation="true" @onclick:preventDefault="true"
-                                       @onclick="@(() => OpenVersion(m))">
-                                        <PlatformIcon Platform="@m.Platform"/>
-                                    </a>
-                                }
-                            </span>
-                        </td>
-                        <td class="reg-version reg-c-app" data-label="App version">@primary.AppVersion</td>
-                        <td class="reg-c-build" data-label="Build">
-                            @if (rel.IsGrouped) {
-                                <span class="reg-builds">
-                                    @foreach (var m in rel.Members) {
-                                        <a class="reg-build-link" href="@VersionHref(m)" @onclick:stopPropagation="true"
-                                           @onclick:preventDefault="true" @onclick="@(() => OpenVersion(m))">
-                                            <PlatformIcon Platform="@m.Platform"/>
-                                            <span class="reg-num @(m.BuildFlag is null ? "" : "reg-num-bad")">@m.Build</span>
-                                        </a>
-                                    }
-                                </span>
-                            } else {
-                                <span class="reg-num @(primary.BuildFlag is null ? "" : "reg-num-bad")">@primary.Build</span>
-                            }
-                            @if (ClientText(primary).Length > 0) {
-                                <span class="reg-fold">
-                                    <span class="reg-fold-k">client</span><span class="reg-num">@ClientText(primary)</span>
-                                </span>
-                            }
-                            @if (DetectedText(primary).Length > 0) {
-                                <span class="reg-fold">
-                                    <span class="reg-fold-k">detected</span>@DetectedText(primary)
-                                </span>
-                            }
-                        </td>
-                        <td class="reg-num reg-c-client" data-label="Client">@ClientText(primary)</td>
-                        <td class="reg-c-sha reg-sha-cell" data-label="Proto SHA">
-                            @if (lane is not null) {
-                                foreach (var seg in lane.Segments) {
-                                    <span class="@LaneSpanClass(seg)" style="--lane: @seg.Lane"
-                                          role="button" aria-label="Open proto group"
-                                          @onclick:stopPropagation="true" @onclick="@(() => OpenGroup(seg.GroupId))"
-                                          @onmouseenter="@(() => SetHotGroup(seg.GroupId))"
-                                          @onmouseleave="@(() => SetHotGroup(null))">
-                                    </span>
-                                }
-                            }
-                            <span class="inline-flex items-center gap-1"
-                                  @onmouseenter="@(() => SetHotGroup(lane?.GroupId))"
-                                  @onmouseleave="@(() => SetHotGroup(null))">
-                                <span class="@ShaChipClass(lane)"
-                                      @onclick:stopPropagation="true" @onclick="@(() => FilterBySha(primary))">
-                                    @Short(primary.ProtoSha)
-                                </span>
-                                @if (primary.SortOrder is { } so && so != 0) {
-                                    <span class="text-muted text-xs">@OrderLabel(so)</span>
-                                }
-                            </span>
-                        </td>
-                        <td class="text-muted text-xs reg-c-det" data-label="Detected">@DetectedText(primary)</td>
-                        <td class="reg-actions reg-c-act" @onclick:stopPropagation="true">
-                            <div class="reg-actions-row">
-                                <a class="reg-edit-btn" download="@($"{primary.Platform}-{primary.Build}.proto")"
-                                   href="@($"/api/protos/versions/{primary.Platform}/{Uri.EscapeDataString(primary.Build)}/proto")"
-                                   aria-label="Download .proto">
-                                    <Icon Name="download"/>
-                                </a>
-                                @if (_canWrite) {
-                                    <button type="button" class="reg-edit-btn @(_editingKey == rel.Key ? "active" : "")"
-                                            aria-label="Edit" @onclick="@(() => ToggleEdit(rel))">
-                                        <Icon Name="pencil"/>
-                                    </button>
-                                }
-                            </div>
-                        </td>
-                    </tr>
-                    @if (_canWrite && _editingKey == rel.Key) {
-                        <tr class="reg-edit-row">
-                            <td colspan="@EditColspan">
-                                <ProtoEditDialog Targets="EditTargets(rel)" ProtoSha="@primary.ProtoSha"
-                                                 ShaOrder="primary.SortOrder ?? 0" CanOrder="_isAdmin"
-                                                 Patch="PatchJson" Post="PostJson"
-                                                 FetchText="GetText" OnChanged="OnMutated" OnClose="@(() => _editingKey = null)"/>
-                            </td>
-                        </tr>
-                    }
-                }
-                </tbody>
-            </table>
+    @if (LoginError == 1 && !_loginErrorDismissed) {
+        <div class="mb-4">
+            <StatusNote Severity="StatusNoteKind.Error" OnDismiss="@(() => _loginErrorDismissed = true)">
+                Login failed. Please try again.
+            </StatusNote>
         </div>
     }
-</section>
-</div>
-<div class="pd-mod pd-side">
-    <PeriodicalsPanel OnManageDevices="OpenDeviceWorkbench" OnOpenNotifications="OpenNotifications"
-                      OnOpenApiWorkbench="OpenApiWorkbench" OnOpenCapture="OpenCaptureWorkbench"
-                      OnOpenEvents="OpenEvents" OnOpenSupport="OpenSupport"/>
-</div>
-</div>
+
+    <div class="pd-grid">
+        <div class="pd-mod pd-identity">
+            <IdentityPanel OnOpenSupport="OpenSupport" OnOpenTerms="OpenTerms" OnOpenPrivacy="OpenPrivacy"/>
+        </div>
+        <div class="pd-mod pd-main pd-stack">
+            @if (_isAdmin || _isContributor) {
+                <StagedReviewPanel @ref="_stagedPanel" IsAdmin="_isAdmin" OnChanged="OnMutated"/>
+            }
+            @if (_isAdmin && _suggestions.Count > 0) {
+                <div class="panel">
+                    <div class="text-sm font-semibold mb-2">Suggested merges</div>
+                    <div class="text-xs text-muted mb-2">Same app version + proto SHA across platforms. Merge links them under one entry.</div>
+                    @foreach (var s in _suggestions) {
+                        <div class="flex items-center gap-2 flex-wrap mb-1">
+                            <span class="code-chip">@s.AppVersion</span>
+                            <span class="text-xs text-muted font-mono">@(s.ProtoSha.Length > 12 ? s.ProtoSha[..12] : s.ProtoSha)</span>
+                            <span class="text-xs inline-flex items-center gap-1 flex-wrap">
+                                @for (var i = 0; i < s.Members.Count; i++) {
+                                    var member = s.Members[i];
+                                    if (i > 0) {
+                                        <span class="text-muted">+</span>
+                                    }
+
+                                    <PlatformIcon Platform="@member.Platform"/>
+                                    <span>@member.Build</span>
+                                }
+                            </span>
+                            <button type="button" class="btn-mini" @onclick="@(() => AcceptSuggestion(s))">Merge</button>
+                        </div>
+                    }
+                </div>
+            }
+            @if (_isAdmin && _selected.Count > 0) {
+                <ProtoSelectionBar Selected="_selected" Post="PostJson" OnChanged="OnMutated" OnClear="ClearSelection"/>
+            }
+            <section class="reg-wrap">
+                <div class="reg-toolbar">
+                    <BrandPanel Rows="_rows" OnOpenVersion="OpenVersion"/>
+                    <div class="reg-sort">
+                        <label class="reg-sort-label" for="regSort">Sort</label>
+                        <select id="regSort" class="reg-filter-input reg-sort-sel" value="@_sortCol" @onchange="OnSortSelect">
+                            <option value="platform">Platform</option>
+                            <option value="appVersion">App version</option>
+                            <option value="build">Build</option>
+                            <option value="client">Client</option>
+                            <option value="sha">Proto SHA</option>
+                            <option value="detected">Detected</option>
+                        </select>
+                        <button type="button" class="reg-sort-dir" aria-label="Toggle sort direction" @onclick="ToggleSortDir">
+                            @(_sortDesc ? "▾" : "▴")
+                        </button>
+                    </div>
+                    <div class="reg-toolbar-end">
+                        @if (AnyFilter) {
+                            <button type="button" class="reg-filter-clear" aria-label="Clear filters" @onclick="ClearFilters">×</button>
+                        }
+                        <label id="protoPageDrop" class="reg-drop" for="wbFile">
+                            <Icon Name="arrow-up" Class="icon-sm"/>
+                            <span>Drop a build</span>
+                        </label>
+                        <button type="button" class="reg-intake"
+                                aria-label="Open the proto workbench" @onclick="@(() => _workbench?.Open())">
+                            <Icon Name="chevronRight" Class="icon-sm"/>
+                        </button>
+                        @if (_isAdmin) {
+                            <button type="button" class="reg-add-toggle" aria-label="Add a version in the proto workbench"
+                                    @onclick="OpenAddVersion">
+                                +
+                            </button>
+                        }
+                    </div>
+                </div>
+                @if (_loading && _rows.Count == 0) {
+                    <div class="backfill-empty">Loading...</div>
+                } else if (_rows.Count == 0) {
+                    <div class="reg-empty">
+                        <div>No proto versions yet.</div>
+                        <div class="reg-empty-hint">Drop a build on the toolbar, or open the proto workbench, to add one.</div>
+                    </div>
+                } else {
+                    var releases = SortedReleases;
+                    _laneLayout = ShaLanes.Build(
+                        releases.Select(r => r.Key).ToList(),
+                        releases.Select(r => r.Primary.Key()).ToList(),
+                        AllReleases.Select(r => r.Primary.Key()).ToList());
+                    var laneRows = _laneLayout.Rows;
+                    <div class="reg-scroll">
+                        <table class="data-table reg-table" style="--reg-gutter: @Gutter(ShaLanes.LaneCount(_laneLayout))">
+                            <thead>
+                            <tr>
+                                @if (_isAdmin) {
+                                    <th class="reg-c-sel">
+                                        <input type="checkbox" checked="@AllSelected" @onchange="ToggleAll"/>
+                                    </th>
+                                }
+                                <th class="reg-th-sort reg-c-plat" @onclick="@(() => Sort("platform"))">
+                                    <span>Platform</span>@Caret("platform")
+                                </th>
+                                <th class="reg-th-sort reg-c-app" @onclick="@(() => Sort("appVersion"))">
+                                    <span>App version</span>@Caret("appVersion")
+                                </th>
+                                <th class="reg-th-sort reg-c-build" @onclick="@(() => Sort("build"))">
+                                    <span>Build</span>@Caret("build")
+                                </th>
+                                <th class="reg-th-sort reg-c-client" @onclick="@(() => Sort("client"))">
+                                    <span>Client</span>@Caret("client")
+                                </th>
+                                <th class="reg-th-sort reg-c-sha" @onclick="@(() => Sort("sha"))">
+                                    <span>Proto SHA</span>@Caret("sha")
+                                </th>
+                                <th class="reg-th-sort reg-c-det" @onclick="@(() => Sort("detected"))">
+                                    <span>Detected</span>@Caret("detected")
+                                </th>
+                            </tr>
+                            <tr class="reg-filter-row">
+                                @if (_isAdmin) {
+                                    <th class="reg-c-sel"></th>
+                                }
+                                <th class="reg-c-plat">
+                                    <select class="reg-filter-input" aria-label="Filter by platform" value="@_fPlatform" @onchange="@(e => { _fPlatform = e.Value?.ToString() ?? ""; })">
+                                        <option value="">all</option>
+                                        <option value="android">android</option>
+                                        <option value="ios">ios</option>
+                                    </select>
+                                </th>
+                                <th class="reg-c-app">
+                                    <FilterInput Class="reg-filter-input" AriaLabel="Filter by app version"
+                                                 Value="@_fVersion" ValueChanged="@(v => _fVersion = v)"/>
+                                </th>
+                                <th class="reg-c-build">
+                                    <FilterInput Class="reg-filter-input" AriaLabel="Filter by build"
+                                                 Value="@_fBuild" ValueChanged="@(v => _fBuild = v)"/>
+                                </th>
+                                <th class="reg-c-client">
+                                    <FilterInput Class="reg-filter-input" AriaLabel="Filter by client version"
+                                                 Value="@_fClient" ValueChanged="@(v => _fClient = v)"/>
+                                </th>
+                                <th class="reg-c-sha">
+                                    <FilterInput Class="reg-filter-input" AriaLabel="Filter by proto sha"
+                                                 Value="@_fSha" ValueChanged="@(v => _fSha = v)"/>
+                                </th>
+                                <th class="reg-c-det"></th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            @if (releases.Count == 0) {
+                                <tr>
+                                    <td colspan="@EditColspan" class="reg-empty">No versions match this filter.</td>
+                                </tr>
+                            }
+                            @foreach (var rel in releases) {
+                                var primary = rel.Primary;
+                                var lane = laneRows.GetValueOrDefault(rel.Key);
+                                <tr class="reg-row cursor-pointer" @onclick="@(() => OpenVersion(primary))">
+                                    @if (_isAdmin) {
+                                        <td class="reg-c-sel" @onclick:stopPropagation="true">
+                                            <input type="checkbox" checked="@IsSelected(primary)" @onchange="@(() => ToggleRelease(rel))"/>
+                                        </td>
+                                    }
+                                    <td class="reg-c-plat" data-label="Platform">
+                                        <span class="reg-plats">
+                                            @foreach (var m in rel.Platforms) {
+                                                <a class="reg-plat-link" href="@VersionHref(m)"
+                                                   @onclick:stopPropagation="true" @onclick:preventDefault="true"
+                                                   @onclick="@(() => OpenVersion(m))">
+                                                    <PlatformIcon Platform="@m.Platform"/>
+                                                </a>
+                                            }
+                                        </span>
+                                    </td>
+                                    <td class="reg-version reg-c-app" data-label="App version">@primary.AppVersion</td>
+                                    <td class="reg-c-build" data-label="Build">
+                                        @if (rel.IsGrouped) {
+                                            <span class="reg-builds">
+                                                @foreach (var m in rel.Members) {
+                                                    <a class="reg-build-link" href="@VersionHref(m)" @onclick:stopPropagation="true"
+                                                       @onclick:preventDefault="true" @onclick="@(() => OpenVersion(m))">
+                                                        <PlatformIcon Platform="@m.Platform"/>
+                                                        <span class="reg-num @(m.BuildFlag is null ? "" : "reg-num-bad")"
+                                                              title="@m.BuildFlag">
+                                                            @m.Build
+                                                        </span>
+                                                    </a>
+                                                }
+                                            </span>
+                                        } else {
+                                            <span class="reg-num @(primary.BuildFlag is null ? "" : "reg-num-bad")"
+                                                  title="@primary.BuildFlag">
+                                                @primary.Build
+                                            </span>
+                                        }
+                                        @if (ClientText(primary).Length > 0) {
+                                            <span class="reg-fold">
+                                                <span class="reg-fold-k">client</span><span class="reg-num">@ClientText(primary)</span>
+                                            </span>
+                                        }
+                                        @if (DetectedText(primary).Length > 0) {
+                                            <span class="reg-fold">
+                                                <span class="reg-fold-k">detected</span>@DetectedText(primary)
+                                            </span>
+                                        }
+                                    </td>
+                                    <td class="reg-num reg-c-client" data-label="Client">@ClientText(primary)</td>
+                                    <td class="reg-c-sha reg-sha-cell" data-label="Proto SHA">
+                                        @if (lane is not null) {
+                                            foreach (var seg in lane.Segments) {
+                                                <span class="@LaneSpanClass(seg)" style="--lane: @seg.Lane"
+                                                      role="button" aria-label="Open proto group"
+                                                      @onclick:stopPropagation="true" @onclick="@(() => OpenGroup(seg.GroupId))"
+                                                      @onmouseenter="@(() => SetHotGroup(seg.GroupId))"
+                                                      @onmouseleave="@(() => SetHotGroup(null))">
+                                                </span>
+                                            }
+                                        }
+                                        <span class="inline-flex items-center gap-1"
+                                              @onmouseenter="@(() => SetHotGroup(lane?.GroupId))"
+                                              @onmouseleave="@(() => SetHotGroup(null))">
+                                            <span class="@ShaChipClass(lane)"
+                                                  @onclick:stopPropagation="true" @onclick="@(() => FilterBySha(primary))">
+                                                @Short(primary.ProtoSha)
+                                            </span>
+                                            @if (primary.SortOrder is { } so && so != 0) {
+                                                <span class="text-muted text-xs">@OrderLabel(so)</span>
+                                            }
+                                        </span>
+                                    </td>
+                                    <td class="text-muted text-xs reg-c-det" data-label="Detected">
+                                        @if (primary.DetectedAt is { } detected) {
+                                            <TimeAgo Value="@TimeAgo.FromUtc(detected)"/>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </section>
+        </div>
+        <div class="pd-mod pd-side">
+            <PeriodicalsPanel OnManageDevices="OpenDeviceWorkbench" OnOpenNotifications="OpenNotifications"
+                              OnOpenApiWorkbench="OpenApiWorkbench" OnOpenCapture="OpenCaptureWorkbench"
+                              OnOpenEvents="OpenEvents" OnOpenSupport="OpenSupport"/>
+        </div>
+    </div>
 </main>
 
 <NotificationsWorkbenchModal @ref="_notificationsModal"/>
@@ -391,24 +337,12 @@
     bool _loading = true;
     bool _isAdmin;
     bool _isContributor;
-    bool _canWrite;
 
 
     string _sortCol = "appVersion";
     bool _sortDesc = true;
 
-    bool _addOpen;
-    bool _addBusy;
-    string _addMsg = "";
-    string _addPlatform = "android";
-    string _addAppVersion = "";
-    string _addBuild = "";
-    string _addClient = "";
-    string _addSource = "";
-    string _addProto = "";
-
     readonly List<SelectionKey> _selected = [];
-    long? _editingKey;
     List<MergeSuggestion> _suggestions = [];
     StagedReviewPanel? _stagedPanel;
     NotificationsWorkbenchModal? _notificationsModal;
@@ -496,6 +430,7 @@
             if (string.Equals(fragment, "support", StringComparison.Ordinal)) OpenSupport();
             else if (string.Equals(fragment, "terms", StringComparison.Ordinal)) OpenTerms();
             else if (string.Equals(fragment, "privacy", StringComparison.Ordinal)) OpenPrivacy();
+            else if (string.Equals(fragment, "add", StringComparison.Ordinal)) _workbench?.OpenAdd();
             else ApplyRef(ProtoRefParser.Parse(hash));
         }
         catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
@@ -716,7 +651,6 @@
 
         _isAdmin = User.IsAtLeast(UserRole.Admin);
         _isContributor = User.IsAtLeast(UserRole.Contributor);
-        _canWrite = User.IsAtLeast(UserRole.Contributor);
     }
 
     protected override async Task OnInitializedAsync() {
@@ -806,59 +740,15 @@
         }
     }
 
-    async Task<bool> PatchJson(string url, object body) {
-        try {
-            return (await Client().PatchAsJsonAsync(url, body, JsonOpts)).IsSuccessStatusCode;
-        }
-        catch {
-            return false;
-        }
-    }
-
-    async Task<string?> GetText(string url) {
-        try {
-            var res = await Client().GetAsync(url);
-            return res.IsSuccessStatusCode ? await res.Content.ReadAsStringAsync() : "";
-        }
-        catch {
-            return "";
-        }
-    }
-
-    async Task AddVersion() {
-        if (string.IsNullOrWhiteSpace(_addPlatform) || string.IsNullOrWhiteSpace(_addAppVersion) ||
-            string.IsNullOrWhiteSpace(_addBuild)) {
-            _addMsg = "platform, app version, build required";
-            return;
-        }
-
-        _addBusy = true;
-        _addMsg = "";
-        var body = new {
-            platform = _addPlatform,
-            appVersion = _addAppVersion,
-            build = _addBuild,
-            clientVersion = string.IsNullOrWhiteSpace(_addClient) ? null : _addClient,
-            source = string.IsNullOrWhiteSpace(_addSource) ? null : _addSource,
-            proto = string.IsNullOrWhiteSpace(_addProto) ? null : _addProto
-        };
-        var ok = await PostJson("/api/protos/versions", body);
-        _addBusy = false;
-        if (ok) {
-            _addMsg = "saved";
-            _addAppVersion = _addBuild = _addClient = _addSource = _addProto = "";
-            _addOpen = false;
-            await OnMutated();
-        } else {
-            _addMsg = "failed (contributor+? build taken?)";
-        }
+    async Task OpenAddVersion() {
+        _workbench?.OpenAdd();
+        await PushHash("add");
     }
 
     async Task OnMutated() {
         _busyMutating = true;
         try {
             ClearSelection();
-            _editingKey = null;
             await Load();
             if (_stagedPanel is not null) await _stagedPanel.Load();
         }
@@ -896,25 +786,14 @@
     }
 
 
-    void ToggleEdit(Release rel) {
-        _editingKey = _editingKey == rel.Key ? null : rel.Key;
-    }
-
-    List<ReleaseEditRow> EditTargets(Release rel) {
-        return rel.Members
-            .Select(m => new ReleaseEditRow(m.Platform, m.Build, m.AppVersion ?? "", m.ClientVersion, m.Source ?? ""))
-            .ToList();
-    }
-
-
-    int EditColspan => 6 + (_isAdmin ? 1 : 0) + 1;
+    int EditColspan => 6 + (_isAdmin ? 1 : 0);
 
     static string OrderLabel(int order) {
         return order > 0 ? $"+{order}" : $"{order}";
     }
 
     static string Short(string? sha) {
-        return string.IsNullOrEmpty(sha) ? "" : sha.Length <= 12 ? sha : sha[..12];
+        return string.IsNullOrEmpty(sha) ? "" : sha.Length <= 6 ? sha : sha[..6];
     }
 
     public async ValueTask DisposeAsync() {

@@ -11,6 +11,7 @@ public sealed record LiveColleggtibles(
     ColleggtibleExtract Extract,
     IReadOnlyDictionary<string, string> Icons,
     IReadOnlyDictionary<string, string> Names,
+    IReadOnlyList<string> Identifiers,
     string GameVersion,
     IReadOnlyDictionary<string, ProvenanceSource> Provenance,
     string Json);
@@ -36,7 +37,7 @@ public static class LiveColleggtibleSource {
 
             var extract = ColleggtibleExtractor.FromPeriodicals(per);
             if (extract.Eggs.Count == 0) continue;
-            return Build(services, route, extract, IconMap(per), NameMap(per), origin);
+            return Build(services, route, extract, IconMap(per), NameMap(per), Identifiers(per), origin);
         }
 
         return null;
@@ -59,6 +60,21 @@ public static class LiveColleggtibleSource {
         }
 
         return map;
+    }
+
+    private static List<string> Identifiers(PeriodicalsResponse per) {
+        var ordered = new List<string>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var egg in per.Contracts?.CustomEggs ?? []) {
+            if (!string.IsNullOrEmpty(egg.Identifier) && seen.Add(egg.Identifier)) ordered.Add(egg.Identifier);
+        }
+
+        foreach (var contract in per.Contracts?.Contracts ?? []) {
+            if (!string.IsNullOrEmpty(contract.CustomEggId) && seen.Add(contract.CustomEggId))
+                ordered.Add(contract.CustomEggId);
+        }
+
+        return ordered;
     }
 
     private static IEnumerable<(string? Json, string Origin)> Candidates(IServiceProvider services, string route) {
@@ -90,7 +106,8 @@ public static class LiveColleggtibleSource {
     }
 
     private static LiveColleggtibles Build(IServiceProvider services, string route, ColleggtibleExtract extract,
-        IReadOnlyDictionary<string, string> icons, IReadOnlyDictionary<string, string> names, string origin) {
+        IReadOnlyDictionary<string, string> icons, IReadOnlyDictionary<string, string> names,
+        IReadOnlyList<string> identifiers, string origin) {
         string gameVersion = services.GetService(typeof(GameDataStore)) is GameDataStore store
             ? store.Provider?.Colleggtibles.GameVersion ?? ""
             : "";
@@ -109,7 +126,7 @@ public static class LiveColleggtibleSource {
             gameVersion,
             provenance
         };
-        return new LiveColleggtibles(extract, icons, names, gameVersion, provenance,
+        return new LiveColleggtibles(extract, icons, names, identifiers, gameVersion, provenance,
             JsonSerializer.Serialize(doc, CamelJson));
     }
 

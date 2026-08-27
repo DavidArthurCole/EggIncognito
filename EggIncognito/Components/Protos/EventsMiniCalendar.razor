@@ -1,0 +1,94 @@
+@using System.Globalization
+@using EggIncognito.Models.Events
+@using EggIncognito.Models.Periodicals
+@using EggIncognito.Services.Events
+<div class="evcal-shell evcal-view-week evcal-mini">
+    <div class="evcal-scale">
+        @for (var i = 0; i < WeekdayNames.Length; i++) {
+            <span class="evcal-scale-label" style="@TickStyle((i + 0.5) / 7 * 100)">@WeekdayNames[i]</span>
+        }
+    </div>
+    <div class="evcal-canvas">
+        @foreach (var row in _rows) {
+            <div class="evcal-row" style="@RowStyle(row)">
+                @foreach (var cell in row.Cells) {
+                    if (cell.LeftPercent > 0) {
+                        <div class="evcal-grid" style="@TickStyle(cell.LeftPercent)"></div>
+                    }
+                }
+                @if (row.NowPercent is { } nowPercent) {
+                    <div class="evcal-now" style="@TickStyle(nowPercent)"></div>
+                }
+                <div class="evcal-lanes">
+                    @foreach (var lane in row.Lanes) {
+                        <div class="evcal-lane">
+                            @foreach (var bar in lane) {
+                                <span class="@BarCss(bar)" style="@BarStyle(bar)" title="@Title(bar.Event)">
+                                    <span class="evcal-bar-label">@Label(bar.Event)</span>
+                                </span>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    static readonly string[] WeekdayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+    [Parameter] public IReadOnlyList<EventRow> Events { get; set; } = [];
+
+    IReadOnlyList<EventCalendarRow> _rows = [];
+
+    protected override void OnParametersSet() {
+        var now = DateTimeOffset.Now;
+        var (start, end) = EventCalendarLayout.Window(now, EventCalendarZoom.Week);
+        var dtos = Events.Select(Convert).ToList();
+        _rows = EventCalendarLayout.Rows(dtos, start, end, EventCalendarZoom.Week, now);
+    }
+
+    static GameEventDto Convert(EventRow e) {
+        return new GameEventDto(
+            e.Identifier, e.Type, e.Subtitle, e.Multiplier, false,
+            e.StartTime, e.EndTime ?? e.StartTime + e.Duration, "periodicals");
+    }
+
+    static string Title(GameEventDto e) {
+        return FormattableString.Invariant($"{Label(e)} ({e.Multiplier:0.###}x) - ends {Absolute(e.EndTimestamp)}");
+    }
+
+    static string Absolute(double unixSeconds) {
+        return UnixSeconds.ToTime(unixSeconds).ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
+    }
+
+    static string BarCss(EventCalendarBar bar) {
+        var css = bar.Active ? "evcal-bar evcal-bar-active" : bar.Past ? "evcal-bar evcal-bar-past" : "evcal-bar";
+        if (bar.ContinuesLeft) css += " evcal-bar-cut-l";
+        if (bar.ContinuesRight) css += " evcal-bar-cut-r";
+        return css;
+    }
+
+    static string BarStyle(EventCalendarBar bar) {
+        return FormattableString.Invariant($"--bar-start:{bar.LeftPercent:0.###};--bar-size:{bar.WidthPercent:0.###};");
+    }
+
+    static string TickStyle(double leftPercent) {
+        return FormattableString.Invariant($"--tick-pos:{leftPercent:0.###};");
+    }
+
+    static string RowStyle(EventCalendarRow row) {
+        return FormattableString.Invariant($"--row-weight:{Math.Max(1, row.Lanes.Count)};");
+    }
+
+    static string Label(GameEventDto e) {
+        return string.IsNullOrWhiteSpace(e.Message) ? Pretty(e.Type) : e.Message;
+    }
+
+    static string Pretty(string raw) {
+        var words = raw.Replace('-', ' ').Replace('_', ' ').Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return string.Join(' ', words.Select(w => char.ToUpperInvariant(w[0]) + w[1..].ToLowerInvariant()));
+    }
+
+}

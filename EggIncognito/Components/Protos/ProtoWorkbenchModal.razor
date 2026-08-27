@@ -27,6 +27,12 @@
     <WorkbenchModal Open="true" Title="Proto workbench" Size="WorkbenchSize.Wide" CardClass="pwb-card"
                     BodyId="wbDrop" Notice="@Notice" NoticeDismissed="DismissNotice" OnClose="Close">
     <HeadTools>
+        @if (User.IsAtLeast(UserRole.Contributor)) {
+            <button type="button" class="btn-mini @(_adminOpen ? "active" : "")"
+                    @onclick="@(() => _adminOpen = !_adminOpen)">
+                Registry admin
+            </button>
+        }
         @if (offerAllCount > 0) {
             <button type="button" class="btn-mini" disabled="@_offerBusy" @onclick="@(() => OfferAll(groups))">
                 <Icon Name="arrow-up" Class="icon-sm"/> Offer all (@offerAllCount)
@@ -157,6 +163,10 @@
         </WorkbenchRail>
     </Rail>
     <ChildContent>
+        @if (_adminOpen && User.IsAtLeast(UserRole.Contributor)) {
+            <RegistryAdminPanel Rows="State.Registry" CanOrder="@User.IsAtLeast(UserRole.Admin)"
+                                OnChanged="OnAdminChanged" OnClose="@(() => _adminOpen = false)"/>
+        }
         <div class="pwb-slots">
             <div class="@SlotClass(State.A)">
                 <VersionCombo Label="A" Items="ComboItems(null)" Selected="@State.A?.Format()"
@@ -429,6 +439,7 @@
     [Parameter] public EventCallback OnClosed { get; set; }
 
     bool _open;
+    bool _adminOpen;
     bool _dropWired;
     bool _offerBusy;
     bool _filterOpen;
@@ -544,6 +555,15 @@
         StateHasChanged();
     }
 
+    public void OpenAdd() {
+        _adminOpen = User.IsAtLeast(UserRole.Contributor);
+        Open();
+    }
+
+    async Task OnAdminChanged() {
+        if (OnChanged.HasDelegate) await OnChanged.InvokeAsync();
+    }
+
     public void OpenAt(ProtoRef a, ProtoRef? b, string? mode) {
         State.A = a;
         State.B = b;
@@ -577,6 +597,7 @@
     public void Close() {
         var was = _open;
         _open = false;
+        _adminOpen = false;
         _filterOpen = false;
         _menu = null;
         if (!was) return;

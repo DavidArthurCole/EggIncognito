@@ -3,7 +3,6 @@
 @using System.Text
 @using System.Text.Json
 @using EggIncognito.Models.Periodicals
-@using EggIncognito.Services.Assets
 @inherits SelfCallComponentBase
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env
@@ -42,8 +41,8 @@
                                 }
                             </td>
                             <td class="text-accent">@EggName(e)</td>
-                            <td class="text-muted text-xs">@TitleCase(e.Dimension)</td>
-                            <td class="mono text-xs cegg-tier">@string.Join(", ", e.TierValues.Select(TierLabel))</td>
+                            <td class="text-muted text-xs">@(e.TierValues.Count == 0 ? "-" : TitleCase(e.Dimension))</td>
+                            <td class="mono text-xs cegg-tier">@(e.TierValues.Count == 0 ? "buffs not yet published" : string.Join(", ", e.TierValues.Select(TierLabel)))</td>
                         </tr>
                     }
                     </tbody>
@@ -55,26 +54,14 @@
     <div class="pd-wcol">
         <section class="panel pd-w-events">
             <div class="flex items-center justify-between mb-3">
-                <h3 class="text-sm font-semibold m-0">Current events</h3>
+                <h3 class="text-sm font-semibold m-0">This week</h3>
                 <button type="button" class="dropzone-open" aria-label="Open the events calendar"
                         @onclick="@(() => OnOpenEvents.InvokeAsync())">
                     <Icon Name="chevronRight" Class="icon-sm"/>
                 </button>
             </div>
-            @if (_events is { Count: > 0 }) {
-                <div class="evt-list">
-                    @foreach (var e in _events) {
-                        <div class="evt-row @(RemainingSeconds(e) <= 0 ? "ended" : "")">
-                            @if (!string.IsNullOrEmpty(e.Icon)) {
-                                <span class="evt-icon" style="@IconStyle(e)">
-                                    <img src="@e.Icon" alt="" loading="lazy"/>
-                                </span>
-                            }
-                            <span class="evt-name">@(string.IsNullOrEmpty(e.Subtitle) ? Pretty(e.Type) : e.Subtitle)</span>
-                            <span class="evt-timer" data-countdown="@FormattableString.Invariant($"{e.EndTime ?? 0:0}")">@RemainingLabel(e)</span>
-                        </div>
-                    }
-                </div>
+            @if (_events is { Count: > 0 } evts) {
+                <EventsMiniCalendar Events="evts"/>
             } else if (_loaded) {
                 <div class="text-muted text-xs">No active events.</div>
             }
@@ -173,7 +160,9 @@
                                                         }
                                                         <span class="season-goal-text">
                                                             <span class="season-goal-cs">@FormatAmount(goal.Cxp) CS</span>
-                                                            <span>@RewardLabel(goal)</span>
+                                                            @if (goal.RewardAmount != 1) {
+                                                                <span class="season-goal-amt">x@FormatAmount(goal.RewardAmount)</span>
+                                                            }
                                                         </span>
                                                     </span>
                                                 </ChildContent>
@@ -220,7 +209,6 @@
     List<Season>? _seasons;
     int _seasonIx;
     List<EventRow>? _events;
-    IJSObjectReference? _countdown;
     IJSObjectReference? _images;
 
     [Parameter] public EventCallback<string?> OnManageDevices { get; set; }
@@ -424,11 +412,6 @@
         };
     }
 
-    static string RewardLabel(GoalRow g) {
-        if (g.RewardType == "PiggyFill") return $"+{FormatAmount(g.RewardAmount)} Piggy";
-        return $"{FormatAmount(g.RewardAmount)} {RewardName(g.RewardType, g.RewardSubType, g.RewardAmount != 1)}";
-    }
-
     static string TitleCase(string raw) {
         return string.Join(' ', raw.Split([' ', '_', '-'], StringSplitOptions.RemoveEmptyEntries)
             .Select(w => char.ToUpperInvariant(w[0]) + w[1..].ToLowerInvariant()));
@@ -459,39 +442,13 @@
         return sb.ToString();
     }
 
-    static string IconStyle(EventRow e) {
-        if (e.CcOnly) {
-            return $"background:linear-gradient(90deg,{EventPalette.CcGradientFrom},{EventPalette.CcGradientTo})";
-        }
-
-        return $"background:{EventPalette.ColorFor(e.Type)}";
-    }
-
-    static double RemainingSeconds(EventRow e) {
-        if (e.EndTime is not { } end || end <= 0) return 0;
-        return end - DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-    }
-
-    static string RemainingLabel(EventRow e) {
-        var s = RemainingSeconds(e);
-        if (s <= 0) return "Ended";
-        var t = TimeSpan.FromSeconds(s);
-        return $"{(int)t.TotalHours:00}:{t.Minutes:00}:{t.Seconds:00}";
-    }
-
     protected override async Task OnAfterRenderAsync(bool firstRender) {
-        if (firstRender && _images is null) {
-            _images = await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/imgFallback.js"));
-            await _images.InvokeVoidAsync("wire");
-        }
-
-        if (_countdown is not null || _events is not { Count: > 0 }) return;
-        _countdown = await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/countdown.js"));
-        await _countdown.InvokeVoidAsync("start");
+        if (!firstRender || _images is not null) return;
+        _images = await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/imgFallback.js"));
+        await _images.InvokeVoidAsync("wire");
     }
 
     public async ValueTask DisposeAsync() {
-        await _countdown.DisposeModuleAsync("stop", Logger);
         await _images.DisposeModuleAsync("unwire", Logger);
     }
 
