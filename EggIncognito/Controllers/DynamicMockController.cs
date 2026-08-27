@@ -16,7 +16,6 @@ public sealed class DynamicMockController(
         var route = routes.Resolve(slug);
         if (route is not null && Serve(route, data) is { } stored) return stored;
 
-
         if (surface.ResolveAlias(slug) is { } canonical && Serve(canonical, data) is { } aliased)
             return aliased;
 
@@ -25,7 +24,6 @@ public sealed class DynamicMockController(
         Response.Headers["x-eggincognito"] = "not-mocked";
         return Ok(new { notMocked = true, path = slug });
     }
-
 
     private ContentResult? Serve(RouteInfo route, string? data) {
         if (route.RawResponse is not null) return Content(route.RawResponse, "text/plain");

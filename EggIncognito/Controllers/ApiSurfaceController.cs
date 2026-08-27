@@ -46,7 +46,6 @@ public sealed class ApiSurfaceController(AuxbrainSurface surface) : ControllerBa
                                        </html>
                                        """;
 
-
     private const string ReferenceHtml = """
                                          <!doctype html>
                                          <html lang="en">
@@ -84,7 +83,6 @@ public sealed class ApiSurfaceController(AuxbrainSurface surface) : ControllerBa
         Response.Headers.CacheControl = "public, max-age=300";
         return Ok(surface.Entries.Select(ToWire));
     }
-
 
     [HttpGet("/{ns:eins}")]
     public IActionResult NamespaceIndex(string ns) {

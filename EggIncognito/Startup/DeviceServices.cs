@@ -1,0 +1,198 @@
+using EggIncognito.Capture;
+using EggIncognito.Core.Services.Devices;
+using EggIncognito.Data.Services;
+using EggIncognito.Services;
+using EggIncognito.Services.DataApi;
+using EggIncognito.Services.Devices;
+using EggIncognito.Services.Devices.Fake;
+using EggIncognito.Services.Feed;
+
+namespace EggIncognito.Startup;
+
+public static class DeviceServices {
+    public static void AddDeviceServices(this WebApplicationBuilder builder, BootFlags boot) {
+        var config = builder.Configuration;
+        builder.Services.AddSingleton(boot.DeviceConfig);
+        builder.Services.AddSingleton(boot.DeviceRecertConfig);
+        builder.Services.AddSingleton(boot.DeviceCaptureConfig);
+        builder.Services.AddSingleton(boot.DeviceTransportConfig);
+        if (boot.DbEnabled) builder.Services.AddScoped<DeviceRecertService>();
+
+        int probeTimeoutSeconds = config.GetValue("DeviceProbe:TimeoutSeconds", 0);
+        if (probeTimeoutSeconds > 0) DeviceProbeTimeout.Value = TimeSpan.FromSeconds(probeTimeoutSeconds);
+
+        if (boot.FakeDevices) {
+            builder.Services.AddSingleton(boot.FakeDeviceSettings);
+            builder.Services.AddSingleton<FakeDeviceVersions>();
+            builder.Services.AddSingleton<FakeFixtureSource>();
+            builder.Services.AddSingleton<IProcessRunner, RefusingProcessRunner>();
+            builder.Services.AddSingleton<FakeDeviceAgent>();
+            builder.Services.AddSingleton<IDeviceAgentClient>(sp => sp.GetRequiredService<FakeDeviceAgent>());
+            builder.Services.AddHostedService(sp => sp.GetRequiredService<FakeDeviceAgent>());
+            if (boot.DbEnabled) builder.Services.AddScoped<DeviceHarvester>();
+        } else {
+            builder.Services.AddSingleton<IProcessRunner, ProcessRunner>();
+            builder.Services.AddHttpClient<IDeviceAgentClient, DeviceAgentClient>();
+        }
+
+        if (boot.DeviceConfig.Enabled && boot.DeviceConfig.Devices.Count > 0)
+            builder.Services.AddHostedService<DeviceMaintenanceService>();
+
+        builder.Services.AddSingleton<DeviceClaimRegistry>();
+        builder.Services.AddHttpClient();
+        builder.Services.AddSingleton<IDeviceConnectionFactory, DeviceConnectionFactory>();
+        builder.AddDeviceProxyAndCa(boot);
+        builder.AddDeviceCapture(boot);
+        builder.AddStoreCheckers(boot);
+        builder.Services.AddSingleton<IDevicePlatforms, DevicePlatforms>();
+    }
+
+    private static void AddDeviceProxyAndCa(this WebApplicationBuilder builder, BootFlags boot) {
+        var capture = boot.DeviceCaptureConfig;
+        if (boot.FakeDevices) {
+            builder.Services.AddSingleton<IDeviceProxyConfigurator>(new FakeProxyConfigurator(Platforms.Ios));
+            builder.Services.AddSingleton<IDeviceProxyConfigurator>(new FakeProxyConfigurator(Platforms.Android));
+            builder.Services.AddSingleton<IDeviceCaInstaller>(new FakeCaInstaller(Platforms.Ios));
+            builder.Services.AddSingleton<IDeviceCaInstaller>(new FakeCaInstaller(Platforms.Android));
+            builder.Services.AddSingleton<FakeCaptureProxyFactory>();
+            return;
+        }
+
+        builder.Services.AddSingleton<IDeviceProxyConfigurator, AdbProxyConfigurator>();
+        builder.Services.AddSingleton<IDeviceProxyConfigurator>(sp =>
+            new IosProxyConfigurator(
+                sp.GetRequiredService<IProcessRunner>(),
+                new IosProxyConfigurator.SshConfig(
+                    capture.IosSshHost, capture.IosSshPort, capture.IosSshKeyPath,
+                    capture.IosSetCommand, capture.IosClearCommand,
+                    capture.IosNetworkServiceGuid, capture.IosPlutilPath,
+                    capture.IosPreferencesPlist)));
+        builder.Services.AddSingleton<IDeviceCaInstaller>(sp =>
+            new AdbCaInstaller(sp.GetRequiredService<IProcessRunner>(), capture.AndroidCaInstallScript));
+        builder.Services.AddSingleton<IDeviceCaInstaller>(sp =>
+            new IosCaInstaller(
+                sp.GetRequiredService<IProcessRunner>(),
+                new IosCaInstaller.SshConfig(
+                    capture.IosSshHost, capture.IosSshPort, capture.IosSshKeyPath,
+                    capture.IosCaInstallCommand, capture.IosTrustStorePath)));
+    }
+
+    private static void AddDeviceCapture(this WebApplicationBuilder builder, BootFlags boot) {
+        builder.Services.AddSingleton(sp => {
+            var config = sp.GetRequiredService<IConfiguration>();
+            string contentRoot = ContentRoot.Resolve(config["ContentRoot"]);
+            string capturePath = config["CapturePath"] ?? Path.Combine(contentRoot, "captures");
+            string caPath = config["CaPath"] ?? Path.Combine(capturePath, "eggincognito-ca.cer");
+            Func<bool, ICaptureProxy>? proxyFactory = boot.FakeDevices
+                ? sp.GetRequiredService<FakeCaptureProxyFactory>().Create
+                : null;
+            return new DeviceCaptureManager(
+                boot.DeviceCaptureConfig, boot.DeviceConfig, capturePath, caPath, proxyFactory, contentRoot,
+                sp.GetRequiredService<ILogger<DeviceCaptureManager>>(),
+                sp.GetServices<IDeviceCaInstaller>(),
+#pragma warning disable IDE0028
+                boot.FakeDevices
+                    ? new HashSet<string>(StringComparer.Ordinal)
+                    : sp.GetRequiredService<DataCatalog>().WireRoutes().ToHashSet(StringComparer.Ordinal),
+#pragma warning restore IDE0028
+                boot.FakeDevices ? null : sp.GetService<ConfigChangeNotifier>(),
+                sp.GetRequiredService<IRouteCatalog>(),
+                sp.GetService<ConsumeObservationRecorder>());
+        });
+        builder.Services.AddSingleton<DeviceProxyPusher>();
+        if (boot.DeviceCaptureConfig.Enabled && boot.DeviceConfig.Devices.Count > 0)
+            builder.Services.AddHostedService(sp => sp.GetRequiredService<DeviceCaptureManager>());
+    }
+
+    private static void AddStoreCheckers(this WebApplicationBuilder builder, BootFlags boot) {
+        var config = builder.Configuration;
+        builder.Services.AddHttpClient("itunes", c => c.Timeout = TimeSpan.FromSeconds(10));
+        builder.Services.AddHttpClient("play", c => {
+            c.Timeout = TimeSpan.FromSeconds(15);
+            c.DefaultRequestHeaders.UserAgent.ParseAdd(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36");
+            c.DefaultRequestHeaders.AcceptLanguage.ParseAdd("en-US,en;q=0.9");
+        });
+        builder.Services.AddHttpClient("carpet", c => {
+            c.Timeout = TimeSpan.FromSeconds(30);
+            c.MaxResponseContentBufferSize = 32 * 1024 * 1024;
+        });
+        builder.Services.AddSingleton<KnownVersionRecorder>();
+        builder.Services.AddSingleton<IosStoreCatalog>();
+        builder.Services.AddSingleton<AndroidStoreCatalog>();
+
+        if (boot.FakeDevices) {
+            AddFakePlatform(builder, boot, Platforms.Ios);
+            AddFakePlatform(builder, boot, Platforms.Android);
+            return;
+        }
+
+        builder.Services.AddSingleton<IDeviceStoreChecker>(sp => AndroidChecker(sp, config));
+        builder.Services.AddSingleton<IDeviceUiDriver, AndroidUiDriver>();
+        builder.Services.AddSingleton<IDeviceStoreChecker>(sp => IosChecker(sp, config));
+
+        string iosUiNavTweakPath = config["DeviceCapture:Ios:UiNavTweakPath"]
+                                   ?? "/Library/MobileSubstrate/DynamicLibraries/egiuinav.dylib";
+        builder.Services.AddSingleton<IDeviceUiDriver>(sp => new IosUiDriver(
+            sp.GetRequiredService<IDeviceConnectionFactory>(), new IosUiDriver.Options(iosUiNavTweakPath)));
+
+        builder.Services.AddSingleton<IDevicePlatform, IosPlatform>();
+        builder.Services.AddSingleton<IDevicePlatform, AndroidPlatform>();
+    }
+
+    private static void AddFakePlatform(WebApplicationBuilder builder, BootFlags boot, string platform) {
+        builder.Services.AddSingleton<IDeviceStoreChecker>(sp => new FakeStoreChecker(
+            platform, boot.FakeDeviceSettings, sp.GetRequiredService<FakeDeviceVersions>(),
+            sp.GetRequiredService<FakeFixtureSource>(), sp.GetRequiredService<KnownVersionRecorder>(),
+            sp.GetRequiredService<ILogger<FakeStoreChecker>>()));
+        builder.Services.AddSingleton<IDevicePlatform>(sp => new FakeDevicePlatform(
+            platform, boot.FakeDeviceSettings, sp.GetRequiredService<FakeDeviceVersions>(),
+            sp.GetRequiredService<FakeFixtureSource>(), sp.GetRequiredService<ILogger<FakeDevicePlatform>>(),
+            sp.GetServices<IDeviceStoreChecker>(), sp.GetServices<IDeviceProxyConfigurator>(),
+            sp.GetServices<IDeviceCaInstaller>(), sp.GetServices<IDeviceUiDriver>()));
+    }
+
+    private static StoreUpdateOrchestrator AndroidChecker(IServiceProvider sp, ConfigurationManager config) {
+        string drive = config["DeviceUpdate:Android:DriveCommand"]
+                       ?? config["DeviceCheck:Android:DriveCommand"]
+                       ?? "am start -a android.intent.action.VIEW -d market://details?id={package}";
+        int pollSeconds = config.GetValue<int?>("DeviceUpdate:Android:PollSeconds")
+                          ?? config.GetValue("DeviceCheck:Android:PollSeconds", 15);
+        int pollAttempts = config.GetValue<int?>("DeviceUpdate:Android:PollAttempts")
+                           ?? config.GetValue("DeviceCheck:Android:PollAttempts", 24);
+        int uiFirstWait = config.GetValue("DeviceUpdate:Android:UiFirstWaitSeconds", 3);
+        int uiRetryWait = config.GetValue("DeviceUpdate:Android:UiRetryWaitSeconds", 2);
+        string? lookupCountry = config["DeviceUpdate:Android:LookupCountry"];
+        string? lookupLocale = config["DeviceUpdate:Android:LookupLocale"] ?? "en";
+        return new StoreUpdateOrchestrator(
+            new AndroidStoreUpdateDriver(
+                sp.GetRequiredService<IProcessRunner>(),
+                sp.GetRequiredService<IDeviceConnectionFactory>(),
+                new AndroidStoreUpdateDriver.Options(drive, uiFirstWait, uiRetryWait, lookupCountry, lookupLocale),
+                sp.GetRequiredService<AndroidStoreCatalog>(),
+                sp.GetRequiredService<KnownVersionRecorder>(),
+                sp.GetServices<IDeviceUiDriver>(),
+                sp.GetRequiredService<ILogger<AndroidStoreUpdateDriver>>()),
+            new StoreUpdateOrchestrator.Options(pollSeconds, pollAttempts),
+            sp.GetRequiredService<KnownVersionRecorder>(),
+            sp.GetRequiredService<ILoggerFactory>().CreateLogger("device.storeupdate.android"));
+    }
+
+    private static StoreUpdateOrchestrator IosChecker(IServiceProvider sp, ConfigurationManager config) {
+        var ios = config.GetSection("DeviceUpdate").GetSection("Ios");
+        return new StoreUpdateOrchestrator(
+            new IosStoreUpdateDriver(
+                sp.GetRequiredService<IProcessRunner>(),
+                new IosStoreUpdateDriver.Options(
+                    ios["SshHost"], ios["SshPort"] ?? "2222", ios["SshKeyPath"],
+                    ios["TriggerPath"] ?? "/var/mobile/eggupdate.trigger",
+                    ios["TweakPath"] ?? "/Library/MobileSubstrate/DynamicLibraries/eggupdate.dylib",
+                    ios["AppId"] ?? "993492744", ios["LookupCountry"]),
+                sp.GetRequiredService<IosStoreCatalog>(),
+                sp.GetRequiredService<KnownVersionRecorder>(),
+                sp.GetRequiredService<ILogger<IosStoreUpdateDriver>>()),
+            new StoreUpdateOrchestrator.Options(ios.GetValue("PollSeconds", 15), ios.GetValue("PollAttempts", 24)),
+            sp.GetRequiredService<KnownVersionRecorder>(),
+            sp.GetRequiredService<ILoggerFactory>().CreateLogger("device.storeupdate.ios"));
+    }
+}

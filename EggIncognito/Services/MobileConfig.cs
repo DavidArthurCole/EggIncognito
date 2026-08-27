@@ -62,7 +62,6 @@ public static class MobileConfig {
         return Encoding.UTF8.GetBytes(xml);
     }
 
-
     internal static string DeterministicUuid(byte[] seed, string role) {
         byte[] hash = SHA256.HashData([.. seed, .. Encoding.UTF8.GetBytes(role)]);
         byte[] g = new byte[16];

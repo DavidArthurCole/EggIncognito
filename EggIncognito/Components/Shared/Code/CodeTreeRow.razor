@@ -49,16 +49,13 @@
         if (Node.IsContainer) Node.Expanded = !Node.Expanded;
     }
 
-
     bool FlattenRoot => IsRoot && Node.IsContainer && Node.DescendantCount <= CodeTreeNode.SmallChildLimit;
-
 
     bool IsEmptyLeaf => Node.Kind == "string" && Node.LeafText == "\"\"";
 
     bool IsSensitive => View.IsSensitiveKey(Node.KeyName) && !IsEmptyLeaf;
 
     string RevealKey => Node.KeyName + ":" + Node.LeafText;
-
 
     string LeafDisplay() {
         var full = Node.LeafText;

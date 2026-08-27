@@ -27,17 +27,13 @@ var wwwrootDir = Path.Combine(appProjectDir, "wwwroot");
 var markdownRendererPath = Path.GetFullPath(Path.Combine(appProjectDir, "..", "EggIncognito.Core", "Services", "MarkdownRenderer.cs"));
 
 var contentFiles = new List<string>();
-if (Directory.Exists(componentsDir)) {
-    contentFiles.AddRange(Directory.EnumerateFiles(componentsDir, "*.razor", SearchOption.AllDirectories));
-}
+if (Directory.Exists(componentsDir)) contentFiles.AddRange(Directory.EnumerateFiles(componentsDir, "*.razor", SearchOption.AllDirectories));
 if (Directory.Exists(wwwrootDir)) {
     contentFiles.AddRange(Directory.EnumerateFiles(wwwrootDir, "*.html", SearchOption.AllDirectories));
     contentFiles.AddRange(Directory.EnumerateFiles(wwwrootDir, "*.js", SearchOption.AllDirectories));
 }
 contentFiles.AddRange(Directory.EnumerateFiles(appProjectDir, "*.cs", SearchOption.AllDirectories).Where(path => !IsExcludedCsPath(appProjectDir, path)));
-if (File.Exists(markdownRendererPath)) {
-    contentFiles.Add(markdownRendererPath);
-}
+if (File.Exists(markdownRendererPath)) contentFiles.Add(markdownRendererPath);
 
 var rawSourceText = File.ReadAllText(cssSourcePath);
 var applyGuardViolation = FindSemicolonInsideApplyBracket(rawSourceText);
@@ -82,9 +78,7 @@ static (int Line, string Snippet)? FindSemicolonInsideApplyBracket(string text) 
     var searchStart = 0;
     while (true) {
         var applyIndex = text.IndexOf("@apply", searchStart, StringComparison.Ordinal);
-        if (applyIndex < 0) {
-            return null;
-        }
+        if (applyIndex < 0) return null;
         var depth = 0;
         var pos = applyIndex + "@apply".Length;
         while (pos < text.Length) {
@@ -128,9 +122,7 @@ static string UnwrapLayersAndSpliceRaw(string compiled, string raw) {
         while (headEnd < compiled.Length && compiled[headEnd] != '{' && compiled[headEnd] != ';') {
             headEnd++;
         }
-        if (headEnd >= compiled.Length) {
-            break;
-        }
+        if (headEnd >= compiled.Length) break;
         var layerName = compiled.Substring(layerIndex + "@layer".Length, headEnd - layerIndex - "@layer".Length).Trim();
         if (compiled[headEnd] == ';') {
             i = headEnd + 1;
@@ -141,11 +133,8 @@ static string UnwrapLayersAndSpliceRaw(string compiled, string raw) {
         var pos = bodyStart;
         while (pos < compiled.Length && depth > 0) {
             var c = compiled[pos];
-            if (c == '{') {
-                depth++;
-            } else if (c == '}') {
-                depth--;
-            }
+            if (c == '{') depth++;
+            else if (c == '}') depth--;
             pos++;
         }
         var bodyEnd = pos - 1;

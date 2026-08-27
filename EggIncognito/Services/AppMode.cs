@@ -10,7 +10,6 @@ public interface IAppMode {
     bool CanCapture { get; }
     bool CanWrite { get; }
 
-
     bool HostedCaptureEnabled => false;
 }
 

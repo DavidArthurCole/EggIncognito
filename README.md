@@ -42,7 +42,7 @@ Per-EID endpoint wins, default is the fallback. Files are protobuf JSON in camel
 
 ## Capture
 
-The app embeds a TLS-intercepting proxy that records real game traffic into reusable endpoints. It decrypts auxbrain hosts only; everything else tunnels through untouched. Start it from `/capture` or launch with `--capture`.
+The app embeds a TLS-intercepting proxy that records real game traffic into reusable endpoints. It decrypts auxbrain hosts only; everything else tunnels through untouched. Start it from the API workbench (`/protos#api`) or launch with `--capture`.
 
 ## Projects
 

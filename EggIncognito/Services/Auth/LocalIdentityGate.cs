@@ -16,17 +16,15 @@ public static class LocalIdentityGate {
     public static void Guard(string environmentName, AppMode mode, IConfiguration config) {
         if (!Requested(config)) return;
 
-        if (string.Equals(environmentName, RefusedEnvironment, StringComparison.OrdinalIgnoreCase)) {
+        if (string.Equals(environmentName, RefusedEnvironment, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException(
                 $"{EnabledKey} is set but the environment is {RefusedEnvironment}. The local identity only loads in a " +
                 $"{RequiredEnvironment} instance running AppMode=Local. Unset {EnabledKey} or fix ASPNETCORE_ENVIRONMENT.");
-        }
 
-        if (mode == AppMode.Hosted) {
+        if (mode == AppMode.Hosted)
             throw new InvalidOperationException(
                 $"{EnabledKey} is set but AppMode is Hosted. The local identity only loads in a {RequiredEnvironment} " +
                 $"instance running AppMode=Local. Unset {EnabledKey} or fix AppMode.");
-        }
     }
 
     private static bool Requested(IConfiguration config) => config.GetValue(EnabledKey, false);

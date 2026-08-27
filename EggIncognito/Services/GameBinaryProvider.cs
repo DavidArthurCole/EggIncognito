@@ -57,10 +57,9 @@ public sealed class GameBinaryProvider(
         var r = SymbolizedStore().Get(version);
         if (!r.Ok || r.Bytes is null) return (false, null, "", r.Diagnostics);
 
-        if (!r.ExactVersion) {
+        if (!r.ExactVersion)
             logger.LogInformation("decomp: device version {Dev} not in stash, using symbolized {Use}", version ?? "?",
                 r.Version);
-        }
 
         return (true, r.Bytes, r.Version,
             r.ExactVersion ? null : $"version mismatch: device {version ?? "?"}, using symbolized {r.Version}");
@@ -105,9 +104,8 @@ public sealed class GameBinaryProvider(
             lock (CvGate) {
                 if (CvCache.TryGetValue(platform, out var c) &&
                     string.Equals(c.Version, installed, StringComparison.Ordinal) &&
-                    (c.ClientVersion is not null || DateTimeOffset.UtcNow - c.CheckedAt < CvRecheckBackoff)) {
+                    (c.ClientVersion is not null || DateTimeOffset.UtcNow - c.CheckedAt < CvRecheckBackoff))
                     return c.ClientVersion;
-                }
             }
         }
 
@@ -172,11 +170,10 @@ public sealed class GameBinaryProvider(
         var candidates = new List<ExtractionCandidate>();
         foreach (string platform in platforms) {
             var r = await GetExtractionBinaryAsync(platform, ct);
-            if (r.Ok && r.Bytes is not null) {
+            if (r.Ok && r.Bytes is not null)
                 candidates.Add(new ExtractionCandidate(platform, r.Version, r.Bytes, r.Symbols, r.Diagnostics));
-            } else {
+            else
                 rejected.Add($"{platform}: {r.Diagnostics ?? "no binary"}");
-            }
         }
 
         candidates.Sort((a, b) => {
@@ -296,10 +293,9 @@ public sealed class GameBinaryProvider(
         int nativeCount = syms.Count;
         if (nativeCount >= 50_000) return (syms, false, nativeCount, $"{nativeCount} native symbols");
 
-        if (IsElf(bytes)) {
+        if (IsElf(bytes))
             return (syms, false, nativeCount,
                 $"{nativeCount} native ELF symbols (Mach-O stash graft not applicable)");
-        }
 
         var refStore = RefStore;
         if (refStore is not null) {
@@ -322,10 +318,9 @@ public sealed class GameBinaryProvider(
         var refr = SymbolizedStore().Get(null);
         if (refr.Ok && refr.Bytes is not null) {
             var report = SymbolRecovery.Recover(refr.Bytes, bytes, []);
-            if (report.Symbols.Count > nativeCount) {
+            if (report.Symbols.Count > nativeCount)
                 return (report.Symbols, true, nativeCount,
                     $"stripped; grafted {report.Recovered} symbols from {refr.Version} ({report.Tier})");
-            }
         }
 
         return (syms, false, nativeCount, $"{nativeCount} native symbols (no graft reference)");
@@ -340,9 +335,8 @@ public sealed class GameBinaryProvider(
 
         lock (StageGate) {
             if (StagedIos is { } s && string.Equals(s.Version, installed, StringComparison.Ordinal)
-                                   && File.Exists(stashPath)) {
+                                   && File.Exists(stashPath))
                 return (true, $"already staged {installed}");
-            }
         }
 
         var bin = await GetExtractionBinaryAsync("ios", ct);
@@ -390,10 +384,9 @@ public sealed class GameBinaryProvider(
         if (!refr.Ok || refr.Bytes is null) return (false, null, null, refr.Diagnostics);
 
         string? targetPath = targetPathOverride ?? config[DecompConfigKeys.StrippedTargetPath];
-        if (string.IsNullOrEmpty(targetPath) || !File.Exists(targetPath)) {
+        if (string.IsNullOrEmpty(targetPath) || !File.Exists(targetPath))
             return (false, refr.Bytes, null,
                 $"no stripped target binary; set {DecompConfigKeys.StrippedTargetPath} or pass targetPath");
-        }
 
         byte[] targetBytes = await File.ReadAllBytesAsync(targetPath, ct);
         return (true, refr.Bytes, targetBytes, null);

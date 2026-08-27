@@ -1,7 +1,7 @@
 @inject IAppMode AppMode
 @inject ICurrentUser User
 
-<section class="panel pd-support">
+<section class="panel pd-w-support">
     <div class="flex items-center justify-between gap-2">
         <h3 class="text-sm font-semibold m-0">Support</h3>
         <button type="button" class="dropzone-open" aria-label="Support the project"
@@ -9,16 +9,11 @@
             <Icon Name="chevronRight" Class="icon-sm"/>
         </button>
     </div>
-    <ul class="pd-perks">
-        <li>Higher rate limits</li>
-        <li>Hosted capture</li>
-        <li>Sealed API proxy</li>
-        <li>EggLedger cloud (in development)</li>
-    </ul>
+    <p class="text-muted text-xs m-0">
+        EggIncognito, EggIdentity, and EggLedger are free open-source tools; the hosting runs at a monthly deficit.
+    </p>
     @if (_canCapture) {
         <button type="button" class="btn-primary w-fit" @onclick="@(() => OnOpenCapture.InvokeAsync())">Open capture</button>
-    } else {
-        <p class="text-muted text-xs m-0">Capture is a supporter perk.</p>
     }
 </section>
 

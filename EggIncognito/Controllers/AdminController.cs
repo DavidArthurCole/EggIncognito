@@ -92,7 +92,6 @@ public sealed partial class AdminController(ICurrentUser currentUser, IServicePr
         return Ok(new { deleted = true });
     }
 
-
     [HttpGet("sessions")]
     [EnableRateLimiting("read")]
     public IActionResult Sessions() {
@@ -100,7 +99,7 @@ public sealed partial class AdminController(ICurrentUser currentUser, IServicePr
         var rows = new List<object>();
 
         if (services.GetService(typeof(CaptureSessionManager))
-            is CaptureSessionManager mgr) {
+            is CaptureSessionManager mgr)
             rows.AddRange(mgr.All().Select(x => {
                 var s = x.Session.Hub.StatsSnapshot();
                 return (object)new {
@@ -116,12 +115,11 @@ public sealed partial class AdminController(ICurrentUser currentUser, IServicePr
                     decryptErr = s.DecryptErrors
                 };
             }));
-        }
 
         if (services.GetService(typeof(DeviceCaptureManager))
                 is DeviceCaptureManager dcm
             && services.GetService(typeof(DeviceConfig))
-                is DeviceConfig devCfg) {
+                is DeviceConfig devCfg)
             rows.AddRange(devCfg.Devices.Select(d => {
                 var diag = dcm.DiagFor(d.Id);
                 int port = dcm.PortFor(d.Id);
@@ -138,7 +136,6 @@ public sealed partial class AdminController(ICurrentUser currentUser, IServicePr
                     decryptErr = diag.LastDecryptError is null ? 0 : 1
                 };
             }));
-        }
 
         return Ok(rows);
     }
@@ -250,8 +247,7 @@ public sealed partial class AdminController(ICurrentUser currentUser, IServicePr
         if (RequireAdmin() is { } no) return no;
         var db = Db;
         if (db is null) return StatusCode(503, new { error = "no database configured" });
-        var report = await ProtoRealignBackfill.RunAsync(db, !confirm, ct);
-        return Ok(report);
+        return Ok(await ProtoRealignBackfill.RunAsync(db, !confirm, ct));
     }
 
     [HttpPost("gamedata/{id}")]
@@ -339,7 +335,6 @@ public sealed partial class AdminController(ICurrentUser currentUser, IServicePr
         return Ok(new { name, bytes = data.Length });
     }
 
-
     [HttpDelete("sessions/{key}")]
     public async Task<IActionResult> KillSession(string key) {
         if (RequireAdmin() is { } no) return no;
@@ -370,7 +365,6 @@ public sealed partial class AdminController(ICurrentUser currentUser, IServicePr
         return Ok(new { discordId, role });
     }
 
-
     [HttpPost("backfill-capture-user-ids")]
     public async Task<IActionResult> BackfillCaptureUserIds(CancellationToken ct) {
         if (RequireAdmin() is { } no) return no;
@@ -381,7 +375,6 @@ public sealed partial class AdminController(ICurrentUser currentUser, IServicePr
         int updated = await CaptureUserIdBackfill.RunAsync(db, identity, ct);
         return Ok(new { updated });
     }
-
 
     [HttpPost("backfill-owner-author-user-ids")]
     public async Task<IActionResult> BackfillOwnerAuthorUserIds(CancellationToken ct) {
@@ -420,7 +413,6 @@ public sealed partial class AdminController(ICurrentUser currentUser, IServicePr
         return Ok(new { deleted = id });
     }
 
-
     [HttpPost("tag")]
     public async Task<IActionResult> AddTagAsync([FromBody] AddTag body) {
         if (RequireAdmin() is { } no) return no;
@@ -437,7 +429,6 @@ public sealed partial class AdminController(ICurrentUser currentUser, IServicePr
         await db.SaveChangesAsync();
         return Ok(new { tag.Id, tag.Slug, tag.Label, tag.Color });
     }
-
 
     [HttpDelete("tag/{id:long}")]
     public async Task<IActionResult> DeleteTag(long id) {

@@ -5,9 +5,8 @@ using EggIncognito.Services;
 namespace EggIncognito.Tests;
 
 public class SealedProxyTests {
-    private static SealedProxy NewProxy(SealedProxyOptions options, ISupporterStatus supporters,
-        IHttpClientFactory? factory = null)
-        => new(options, factory ?? new StubHttpFactory(), supporters);
+    private static SealedProxy NewProxy(SealedProxyOptions options, IHttpClientFactory? factory = null)
+        => new(options, factory ?? new StubHttpFactory());
 
     private static SealedProxyOptions Configured(string? user = null, string? pass = null) => new() {
         UpstreamUrl = "http://proxy.internal:8888",
@@ -17,56 +16,36 @@ public class SealedProxyTests {
 
     [Fact]
     public void IsConfigured_EmptyUpstream_False()
-        => Assert.False(NewProxy(new SealedProxyOptions(), new FakeSupporters(true)).IsConfigured);
+        => Assert.False(NewProxy(new SealedProxyOptions()).IsConfigured);
 
     [Fact]
     public void IsConfigured_WithUpstream_True()
-        => Assert.True(NewProxy(Configured(), new FakeSupporters(true)).IsConfigured);
+        => Assert.True(NewProxy(Configured()).IsConfigured);
 
     [Fact]
-    public async Task CanUse_Unconfigured_False() {
-        var supporters = new FakeSupporters(true);
-        var proxy = NewProxy(new SealedProxyOptions(), supporters);
-        Assert.False(await proxy.CanUseAsync(new FakeUser(true, true)));
-        Assert.Equal(0, supporters.Calls);
-    }
+    public async Task CanUse_Unconfigured_False()
+        => Assert.False(await NewProxy(new SealedProxyOptions()).CanUseAsync(new FakeUser(true, true)));
 
     [Fact]
-    public async Task CanUse_Anonymous_False() {
-        var supporters = new FakeSupporters(true);
-        var proxy = NewProxy(Configured(), supporters);
-        Assert.False(await proxy.CanUseAsync(new FakeUser(false, false)));
-        Assert.Equal(0, supporters.Calls);
-    }
+    public async Task CanUse_Anonymous_False()
+        => Assert.False(await NewProxy(Configured()).CanUseAsync(new FakeUser(false, false)));
 
     [Fact]
-    public async Task CanUse_NonSupporter_False() {
-        var supporters = new FakeSupporters(true);
-        var proxy = NewProxy(Configured(), supporters);
-        Assert.False(await proxy.CanUseAsync(new FakeUser(true, false)));
-        Assert.Equal(0, supporters.Calls);
-    }
+    public async Task CanUse_NonSupporter_False()
+        => Assert.False(await NewProxy(Configured()).CanUseAsync(new FakeUser(true, false)));
 
     [Fact]
-    public async Task CanUse_SupporterClaimButLiveCheckFails_False() {
-        var supporters = new FakeSupporters(false);
-        var proxy = NewProxy(Configured(), supporters);
-        Assert.False(await proxy.CanUseAsync(new FakeUser(true, true)));
-        Assert.Equal(1, supporters.Calls);
-    }
+    public async Task CanUse_SupporterWithoutDiscordId_False()
+        => Assert.False(await NewProxy(Configured()).CanUseAsync(new FakeUser(true, true, null)));
 
     [Fact]
-    public async Task CanUse_SupporterAndLiveCheckPasses_True() {
-        var supporters = new FakeSupporters(true);
-        var proxy = NewProxy(Configured(), supporters);
-        Assert.True(await proxy.CanUseAsync(new FakeUser(true, true)));
-        Assert.Equal(1, supporters.Calls);
-    }
+    public async Task CanUse_Supporter_True()
+        => Assert.True(await NewProxy(Configured()).CanUseAsync(new FakeUser(true, true)));
 
     [Fact]
     public void CreateEgressClient_UsesNamedEgressClient() {
         var factory = new StubHttpFactory();
-        var proxy = NewProxy(Configured(), new FakeSupporters(true), factory);
+        var proxy = NewProxy(Configured(), factory);
         _ = proxy.CreateEgressClient();
         Assert.Equal(SealedProxy.EgressClientName, factory.LastName);
     }
@@ -104,14 +83,5 @@ public class SealedProxyTests {
         public UserRole Role => UserRole.Viewer;
         public bool IsSupporter => supporter;
         public bool IsAtLeast(UserRole need) => UserRoles.IsAtLeast(UserRole.Viewer, need);
-    }
-
-    private sealed class FakeSupporters(bool result) : ISupporterStatus {
-        public int Calls { get; private set; }
-
-        public Task<bool> CheckAsync(string discordId, CancellationToken ct = default) {
-            Calls++;
-            return Task.FromResult(result);
-        }
     }
 }

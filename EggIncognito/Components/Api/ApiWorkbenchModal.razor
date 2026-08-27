@@ -20,7 +20,7 @@
 @inject ApiWorkbenchState State
 @inject ILogger<ApiWorkbenchModal> Logger
 
-<WorkbenchModal Open="_open" Title="API &amp; Data" TitleId="apiWorkbenchTitle" Size="WorkbenchSize.Wide"
+<WorkbenchModal Open="_open" Title="@("API & Data")" TitleId="apiWorkbenchTitle" Size="WorkbenchSize.Wide"
                 CardClass="awb-card" Notice="_wbNotice" NoticeDismissed="ClearNotice" OnClose="CloseAsync">
     <HeadTools>
         <WorkbenchModes Modes="State.Modes" Current="@State.Mode" CurrentChanged="SetMode" Disabled="ModeDisabled"

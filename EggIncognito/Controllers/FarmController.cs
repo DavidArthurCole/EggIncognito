@@ -31,13 +31,12 @@ public sealed class FarmController(
     [EnableRateLimiting("read")]
     public IActionResult Catalog([FromQuery] string platform = "ios") {
         var catalog = FarmAssetCatalog.From(LoadCatalog(platform));
-        if (catalog.KnownAssetTypes.Count == 0) {
+        if (catalog.KnownAssetTypes.Count == 0)
             return Ok(new {
                 ok = false,
                 platform,
                 diagnostics = $"no stored config for {platform}; ingest one via /api/config"
             });
-        }
 
         var elements = Enum.GetValues<FarmElement>()
             .Where(e => e != FarmElement.Unknown)
@@ -176,20 +175,17 @@ public sealed class FarmController(
     private static string? Diagnose(FarmPlacementData data, FarmExtents extents, FarmState state) {
         var notes = new List<string>();
         if (!data.IsComplete) notes.Add("the farm-placement document is incomplete; some tables are missing");
-        if (!extents.HatcheryResolved) {
+        if (!extents.HatcheryResolved)
             notes.Add($"no hatchery extent for egg {state.EggType}, so HOA, mission control and the fuel tank "
                       + "fall back to the depot extent alone");
-        }
 
-        if (state.HabTiersInferred) {
+        if (state.HabTiersInferred)
             notes.Add("this appearance carries no shell_configs, so hab tiers are unknown; set them in the farm "
                       + "state panel because hab width drives the row positions");
-        }
 
-        if (state.Appearance is { } appearance && FarmStateBuilder.CarriesNoAppearance(appearance)) {
+        if (state.Appearance is { } appearance && FarmStateBuilder.CarriesNoAppearance(appearance))
             notes.Add("this listing carries no appearance at all: no shell, shell-set, group, chicken or lighting "
                       + "configuration, so the farm renders empty with default shells");
-        }
 
         return notes.Count == 0 ? null : string.Join("; ", notes);
     }

@@ -27,7 +27,6 @@ public static class CommandParsing {
         _ => BotCommand.Unknown
     };
 
-
     public static ProtoArgs ParseProto(string? subcommand, IReadOnlyList<(string Name, object? Value)> options) =>
         subcommand switch {
             "list" => ProtoArgs.ListPage(

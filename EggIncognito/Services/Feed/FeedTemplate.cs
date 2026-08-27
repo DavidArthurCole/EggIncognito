@@ -8,7 +8,6 @@ public static partial class FeedTemplate {
     [GeneratedRegex(@"\{\{(\w+)\}\}")]
     private static partial Regex TokenPattern();
 
-
     public static string Render(string template, IReadOnlyDictionary<string, string> vars) =>
         TokenPattern().Replace(template, m => vars.TryGetValue(m.Groups[1].Value, out string? v) ? v : m.Value);
 

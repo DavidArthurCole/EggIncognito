@@ -26,9 +26,8 @@ public sealed class AdminFeedController(IServiceProvider services, IHttpClientFa
         if (Store is null) return StatusCode(503, new { error = "no database configured" });
         var subs = await Store.AllForAdminAsync(ct);
         var usernames = new Dictionary<Guid, string>();
-        if (Identity is { } identity) {
+        if (Identity is { } identity)
             foreach (var u in await identity.ListAdminUsersAsync(ct)) usernames[u.UserId] = u.Username;
-        }
         return Ok(FeedAdminGrouping.Build(subs, usernames));
     }
 

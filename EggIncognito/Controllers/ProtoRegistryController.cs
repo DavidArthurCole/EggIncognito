@@ -20,21 +20,18 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
 
     private ProtoRegistryStore? Store => services.GetService(typeof(ProtoRegistryStore)) as ProtoRegistryStore;
 
-
     private StagedProtoStore? StagedStore => services.GetService(typeof(StagedProtoStore)) as StagedProtoStore;
 
     private ObjectResult? Require(UserRole role) =>
         user.IsAtLeast(role) ? null : StatusCode(403, new { error = $"{UserRoles.ToName(role)}+ only" });
-
 
     [HttpPost]
     public async Task<IActionResult> Save([FromBody] SaveRequest req, CancellationToken ct) {
         if (Require(UserRole.Contributor) is { } no) return no;
         if (Store is not { } store) return StatusCode(503, new { error = NoDb });
         if (string.IsNullOrWhiteSpace(req.Platform) || string.IsNullOrWhiteSpace(req.Build) ||
-            string.IsNullOrWhiteSpace(req.AppVersion)) {
+            string.IsNullOrWhiteSpace(req.AppVersion))
             return StatusCode(400, new { error = "platform, appVersion, build required" });
-        }
 
         bool hasProto = !string.IsNullOrWhiteSpace(req.Proto);
         string? protoText = hasProto ? req.Proto : null;
@@ -58,7 +55,6 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
         });
     }
 
-
     [HttpPatch("{platform}/{build}")]
     public async Task<IActionResult> Edit(string platform, string build, [FromBody] EditRequest req,
         CancellationToken ct) {
@@ -74,7 +70,6 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
         };
     }
 
-
     [HttpPost("{platform}/{build}/proto")]
     public async Task<IActionResult> SetProto(string platform, string build, [FromBody] SetProtoRequest req,
         CancellationToken ct) {
@@ -88,7 +83,6 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
         return ok ? Ok(new { ok = true, protoSha = sha }) : NotFound();
     }
 
-
     [HttpDelete("{platform}/{build}")]
     public async Task<IActionResult> Delete(string platform, string build, CancellationToken ct) {
         if (Require(UserRole.Admin) is { } no) return no;
@@ -96,7 +90,6 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
         bool ok = await store.SoftDeleteAsync(platform, build, ct);
         return ok ? Ok(new { ok = true }) : NotFound();
     }
-
 
     [HttpPost("delete")]
     public async Task<IActionResult> BulkDelete([FromBody] BulkDeleteRequest req, CancellationToken ct) {
@@ -111,7 +104,6 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
         return Ok(new { ok = true, deleted });
     }
 
-
     [HttpGet("merge-suggestions")]
     [ApiAccess(ApiAccessLevel.Authenticated)]
     public async Task<IActionResult> MergeSuggestions(CancellationToken ct) {
@@ -119,7 +111,6 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
         var suggestions = await store.SuggestMergesAsync(ct);
         return Ok(suggestions);
     }
-
 
     [HttpPost("merge")]
     public async Task<IActionResult> Merge([FromBody] MergeRequest req, CancellationToken ct) {
@@ -132,7 +123,6 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
         return Ok(new { ok = true, linked });
     }
 
-
     [HttpPost("sha-order")]
     public async Task<IActionResult> SetShaOrder([FromBody] ShaOrderRequest req, CancellationToken ct) {
         if (Require(UserRole.Admin) is { } no) return no;
@@ -142,7 +132,6 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
         return Ok(new { ok = true, protoSha = req.ProtoSha, order = req.Order });
     }
 
-
     [HttpPost("{platform}/{build}/restore")]
     public async Task<IActionResult> Restore(string platform, string build, CancellationToken ct) {
         if (Require(UserRole.Admin) is { } no) return no;
@@ -150,7 +139,6 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
         bool ok = await store.RestoreAsync(platform, build, ct);
         return ok ? Ok(new { ok = true }) : NotFound();
     }
-
 
     [HttpGet("/api/protos/staged/check")]
     [ApiAccess(ApiAccessLevel.Public)]
@@ -164,7 +152,6 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
         return Ok(new { inRegistry = inReg, pending, knownCombination = known });
     }
 
-
     [HttpPost("/api/protos/staged/offer")]
     public async Task<IActionResult> StagedOffer([FromBody] OfferRequest req, CancellationToken ct) {
         if (StagedStore is not { } s) return StatusCode(503, new { error = NoDb });
@@ -176,14 +163,12 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
         return Ok(new { result = r.ToString().ToLowerInvariant() });
     }
 
-
     [HttpGet("/api/protos/staged/count")]
     [ApiAccess(ApiAccessLevel.Authenticated)]
     public async Task<IActionResult> StagedCount(CancellationToken ct) {
         if (StagedStore is not { } s) return Ok(new { count = 0 });
         return Ok(new { count = await s.PendingCountAsync(ct) });
     }
-
 
     [HttpGet("/api/protos/staged")]
     public async Task<IActionResult> StagedList(CancellationToken ct) {
@@ -207,7 +192,6 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
         }));
     }
 
-
     [HttpGet("/api/protos/staged/{id:int}/proto")]
     public async Task<IActionResult> StagedProto(int id, CancellationToken ct) {
         if (Require(UserRole.Contributor) is { } no) return no;
@@ -216,7 +200,6 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
         if (row is null || string.IsNullOrEmpty(row.ProtoText)) return NotFound();
         return Content(row.ProtoText, "text/plain");
     }
-
 
     [HttpPost("/api/protos/staged/{id:int}/approve")]
     public async Task<IActionResult> StagedApprove(int id, [FromBody] ApproveRequest req, CancellationToken ct) {
@@ -232,7 +215,6 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
         };
     }
 
-
     [HttpPost("/api/protos/staged/{id:int}/reject")]
     public async Task<IActionResult> StagedReject(int id, [FromBody] RejectRequest req, CancellationToken ct) {
         if (Require(UserRole.Contributor) is { } no) return no;
@@ -240,7 +222,6 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
         string who = user.DiscordId ?? "?";
         return await s.RejectAsync(id, req.Note, who, ct) ? Ok(new { ok = true }) : NotFound();
     }
-
 
     [HttpPost("/api/protos/staged/bulk-approve")]
     public async Task<IActionResult> StagedBulkApprove([FromBody] BulkApproveRequest req, CancellationToken ct) {
@@ -254,7 +235,6 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
         return Ok(new { ok = true, approved = r.Approved, skipped = r.Skipped, failed = r.Failed });
     }
 
-
     [HttpPost("/api/protos/staged/bulk-reject")]
     public async Task<IActionResult> StagedBulkReject([FromBody] BulkRejectRequest req, CancellationToken ct) {
         if (Require(UserRole.Contributor) is { } no) return no;
@@ -263,7 +243,6 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
         int rejected = await s.BulkRejectAsync(req.Ids ?? [], req.Note, who, ct);
         return Ok(new { ok = true, rejected });
     }
-
 
     [HttpPost("/api/protos/staged/import-crawl")]
     public async Task<IActionResult> ImportCrawl(IFormFile file, CancellationToken ct) {

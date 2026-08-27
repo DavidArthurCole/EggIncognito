@@ -33,14 +33,8 @@
 
 <div class="pd-grid">
 <div class="pd-mod pd-head">
-    <BrandPanel OnOpenSupport="OpenSupport"/>
-    <section class="panel">
-        <h3 class="text-sm font-semibold m-0 mb-2">Versions</h3>
-        <div class="pd-versions">
-            <LatestVersionsPanel Rows="_rows" OnOpen="OpenVersion"/>
-        </div>
-    </section>
-    <SupportPanel OnOpenCapture="OpenCaptureWorkbench" OnOpenSupport="OpenSupport"/>
+    <BrandPanel Rows="_rows" OnOpenVersion="OpenVersion" OnOpenSupport="OpenSupport"
+                OnOpenTerms="OpenTerms" OnOpenPrivacy="OpenPrivacy"/>
 </div>
 <div class="pd-mod pd-main pd-stack">
 @if (_isAdmin && _addOpen) {
@@ -332,7 +326,8 @@
 </div>
 <div class="pd-mod pd-side">
     <PeriodicalsPanel OnManageDevices="OpenDeviceWorkbench" OnOpenNotifications="OpenNotifications"
-                      OnOpenApiWorkbench="OpenApiWorkbench"/>
+                      OnOpenApiWorkbench="OpenApiWorkbench" OnOpenCapture="OpenCaptureWorkbench"
+                      OnOpenEvents="OpenEvents" OnOpenSupport="OpenSupport"/>
 </div>
 </div>
 </main>
@@ -341,16 +336,30 @@
 <ProtoWorkbenchModal @ref="_workbench" OnChanged="OnMutated" OnRefChanged="OnWorkbenchRef" OnClosed="OnWorkbenchClosed"/>
 <DeviceWorkbenchModal @ref="_deviceWorkbench" OnChanged="OnMutated"/>
 <ApiWorkbenchModal @ref="_apiWorkbench"/>
+<EventsCalendarModal @ref="_eventsModal"/>
 <SupportModal @ref="_supportModal"/>
+<TermsModal @ref="_termsModal"/>
+<PrivacyModal @ref="_privacyModal"/>
 
 @code {
     ProtoWorkbenchModal? _workbench;
     DeviceWorkbenchModal? _deviceWorkbench;
     ApiWorkbenchModal? _apiWorkbench;
+    EventsCalendarModal? _eventsModal;
     SupportModal? _supportModal;
+    TermsModal? _termsModal;
+    PrivacyModal? _privacyModal;
 
     void OpenSupport() {
         _supportModal?.Open();
+    }
+
+    void OpenTerms() {
+        _termsModal?.Open();
+    }
+
+    void OpenPrivacy() {
+        _privacyModal?.Open();
     }
 
     Task OpenDeviceWorkbench(string? deviceId) {
@@ -363,6 +372,10 @@
 
     Task OpenCaptureWorkbench() {
         return _apiWorkbench?.OpenCapture() ?? Task.CompletedTask;
+    }
+
+    Task OpenEvents() {
+        return _eventsModal?.Open() ?? Task.CompletedTask;
     }
 
     static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
@@ -479,12 +492,11 @@
             }
 
             var hash = await _hashnav.InvokeAsync<string>("read");
-            if (string.Equals(hash?.TrimStart('#'), "support", StringComparison.Ordinal)) {
-                OpenSupport();
-                return;
-            }
-
-            ApplyRef(ProtoRefParser.Parse(hash));
+            var fragment = hash?.TrimStart('#');
+            if (string.Equals(fragment, "support", StringComparison.Ordinal)) OpenSupport();
+            else if (string.Equals(fragment, "terms", StringComparison.Ordinal)) OpenTerms();
+            else if (string.Equals(fragment, "privacy", StringComparison.Ordinal)) OpenPrivacy();
+            else ApplyRef(ProtoRefParser.Parse(hash));
         }
         catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
             Logger.LogDebug(ex, "hash navigation could not be wired");

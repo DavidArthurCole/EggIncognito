@@ -5,9 +5,7 @@ namespace EggIncognito.Services;
 public interface ISealedProxy {
     bool IsConfigured { get; }
 
-
     Task<bool> CanUseAsync(ICurrentUser user, CancellationToken ct = default);
-
 
     HttpClient CreateEgressClient();
 }
@@ -26,20 +24,16 @@ public sealed class SealedProxyOptions {
 
 public sealed class SealedProxy(
     SealedProxyOptions options,
-    IHttpClientFactory httpFactory,
-    ISupporterStatus supporters) : ISealedProxy {
+    IHttpClientFactory httpFactory) : ISealedProxy {
     public const string EgressClientName = "sealed-egress";
 
     public bool IsConfigured => !string.IsNullOrWhiteSpace(options.UpstreamUrl);
 
-    public async Task<bool> CanUseAsync(ICurrentUser user, CancellationToken ct = default) {
-        if (!IsConfigured) return false;
-        return user.IsAuthenticated && !string.IsNullOrEmpty(user.DiscordId) && user.IsSupporter &&
-               await supporters.CheckAsync(user.DiscordId, ct);
-    }
+    public Task<bool> CanUseAsync(ICurrentUser user, CancellationToken ct = default) =>
+        Task.FromResult(IsConfigured && user.IsAuthenticated &&
+                        !string.IsNullOrEmpty(user.DiscordId) && user.IsSupporter);
 
     public HttpClient CreateEgressClient() => httpFactory.CreateClient(EgressClientName);
-
 
     public static IWebProxy? BuildProxy(SealedProxyOptions options) {
         if (string.IsNullOrWhiteSpace(options.UpstreamUrl)) return null;

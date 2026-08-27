@@ -1,0 +1,123 @@
+@if (_open) {
+    <ModalShell Title="@("Privacy & Cookies")" TitleId="privacyModalTitle" Width="ModalWidth.Large" OnClose="Close">
+        <div class="modal-body">
+            <h1 class="prose-legal-title">Privacy &amp; Cookies</h1>
+            <p class="prose-legal-updated">Last updated 13 June 2026</p>
+
+            <section class="prose-legal prose-legal-section">
+                <h2>The short version</h2>
+                <p>
+                    This service collects as little as possible. There is no advertising, no third-party tracking,
+                    and no analytics. The only personal data stored is what Discord gives the service when you
+                    choose to log in, and that only happens if you log in. Payment data is never handled here.
+                </p>
+            </section>
+
+            <section class="prose-legal prose-legal-section">
+                <h2>What is stored</h2>
+                <p>
+                    The hosted instance at eggincognito.davidarthurcole.me is operated by an individual, David Cole.
+                    Logging in is optional. If you do log in with Discord, the service stores a small user record so
+                    it can recognise you and apply your role and supporter perks. That record holds:
+                </p>
+                <ul>
+                    <li>Your Discord user ID.</li>
+                    <li>Your Discord username.</li>
+                    <li>Your Discord avatar reference.</li>
+                    <li>Your role on this service (viewer, contributor, or admin) and supporter status.</li>
+                </ul>
+                <p>
+                    Login goes through the EggIdentity identity service and requests only basic identity. The service
+                    does not read your email, your messages, your server list, or anything beyond the basic identity
+                    above. If you never log in, no user record is created and no personal data is stored.
+                </p>
+            </section>
+
+            <section class="prose-legal prose-legal-section">
+                <h2>Cookies and local storage</h2>
+                <p>
+                    This site uses only strictly-necessary and functional storage. There are no advertising or
+                    tracking cookies, so there is no consent banner to click through. The storage used is:
+                </p>
+                <ul>
+                    <li>
+                        <strong>Authentication cookie.</strong> Set only when you log in with Discord. It keeps you
+                        signed in across page loads. It is removed when you log out.
+                    </li>
+                    <li>
+                        <strong>Antiforgery token cookie.</strong> A security cookie that protects form submissions
+                        against cross-site request forgery. It does not identify you.
+                    </li>
+                    <li>
+                        <strong>Browser local storage.</strong> Stores your interface preferences for the API workbench
+                        and Capture tools (settings you have chosen). It stays in your own browser and is never sent
+                        to a third party.
+                    </li>
+                </ul>
+                <p>
+                    All three are required for the site to function as intended. None of them are used to profile
+                    you, to advertise, or to track you across other sites.
+                </p>
+            </section>
+
+            <section class="prose-legal prose-legal-section">
+                <h2>Payments</h2>
+                <p>
+                    Supporter payments are processed entirely by third-party platforms (GitHub Sponsors, Patreon,
+                    and Buy Me a Coffee). This application never sees, processes, or stores your payment card data.
+                    To grant supporter perks, it reads only your Discord role membership. Anything to do with
+                    billing is held by those platforms under their own privacy policies.
+                </p>
+            </section>
+
+            <section class="prose-legal prose-legal-section">
+                <h2>Data retention</h2>
+                <p>
+                    Retention is minimal. The user record exists only to keep your session and perks working. It is
+                    kept while your account is active and is removed if your data is deleted as described below. The
+                    service does not build a history of your activity for profiling purposes.
+                </p>
+            </section>
+
+            <section class="prose-legal prose-legal-section">
+                <h2>Removing your data</h2>
+                <p>To remove the data stored about you:</p>
+                <ul>
+                    <li>
+                        Revoke EggIncognito's access from your Discord account's authorized-apps settings to cut off
+                        the connection.
+                    </li>
+                    <li>Clear your browser's cookies and local storage for this site to remove the local items.</li>
+                    <li>
+                        Contact the operator through the
+                        <a href="https://github.com/EggIncTools/EggIncognito" target="_blank" rel="noopener">GitHub repository</a>
+                        or the project Discord to request deletion of your stored user record.
+                    </li>
+                </ul>
+            </section>
+
+            <section class="prose-legal prose-legal-section">
+                <h2>Changes</h2>
+                <p>
+                    This policy may change as the project evolves. The date at the top reflects the latest version.
+                    For the terms that govern use of the service, see the
+                    <a href="/terms">Terms of Service</a>.
+                </p>
+            </section>
+        </div>
+    </ModalShell>
+}
+
+@code {
+    bool _open;
+
+    public void Open() {
+        _open = true;
+        StateHasChanged();
+    }
+
+    void Close() {
+        _open = false;
+    }
+
+}

@@ -43,7 +43,6 @@ public sealed class DocRegistry : IDocRegistry {
             "host")
     ];
 
-
     private static readonly DocSubject[] Controls = [
         new("control", "inspector-send-target", "Inspector send target", "Mock / Live API / Custom proxy send toggle",
             []),
@@ -85,7 +84,6 @@ public sealed class DocRegistry : IDocRegistry {
 
     private void Index(DocSubject s) => _byKey[$"{s.Kind}:{s.Key}"] = s;
 
-
     private static List<DocSubject> BuildMessages(IProtoReflection proto) {
         var list = new List<DocSubject>();
         foreach (string name in proto.AllMessageTypeNames()) {
@@ -104,7 +102,6 @@ public sealed class DocRegistry : IDocRegistry {
         string? summary = f.Repeated ? $"repeated {typeText}" : typeText;
         return new DocSubject("field", f.Name, f.Name, summary, []);
     }
-
 
     private static List<DocSubject> BuildEndpoints(IRouteCatalog routes, IProtoReflection proto) {
         var list = new List<DocSubject>();

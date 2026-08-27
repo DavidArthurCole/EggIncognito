@@ -27,14 +27,11 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
             ? null
             : StatusCode(403, new { error = "contributor role required to edit documentation" });
 
-
     private static bool ValidKind(string kind) =>
         kind is "message" or "endpoint" or "route" or "config" or "control";
 
-
     private void CacheFor(int seconds) =>
         Response.Headers.CacheControl = $"private, max-age={seconds}";
-
 
     [HttpGet("doc/{kind}/{**key}")]
     public async Task<IActionResult> GetDoc(string kind, string key) {
@@ -47,7 +44,6 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
             ? new { bodyMd = (string?)null }
             : new { bodyMd = doc.BodyMd, updatedAt = (object)doc.UpdatedAt, owner = (object?)doc.OwnerUserId });
     }
-
 
     [HttpPost("doc")]
     public async Task<IActionResult> UpsertDocAsync([FromBody] UpsertDoc body) {
@@ -79,7 +75,6 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
         return Ok(new { saved = !empty });
     }
 
-
     [HttpGet("tags")]
     public async Task<IActionResult> GetTags() {
         var db = Db;
@@ -89,7 +84,6 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
         CacheFor(30);
         return Ok(rows);
     }
-
 
     [HttpGet("subject-tags/{kind}/{**key}")]
     public async Task<IActionResult> GetSubjectTags(string kind, string key) {
@@ -105,7 +99,6 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
         CacheFor(30);
         return Ok(rows);
     }
-
 
     [HttpPost("subject-tags")]
     public async Task<IActionResult> SetSubjectTagsAsync([FromBody] SetSubjectTags body) {
@@ -134,7 +127,6 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
         return Ok(new { tagIds = wanted });
     }
 
-
     [HttpGet("tags-map")]
     public async Task<IActionResult> GetTagsMap() {
         var db = Db;
@@ -154,7 +146,6 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
         return Ok(map);
     }
 
-
     internal static bool MagicMatches(byte[] b, string contentType) => contentType.ToLowerInvariant() switch {
         "image/png" => b.Length >= 8
                        && b[0] == 0x89 && b[1] == 0x50 && b[2] == 0x4E && b[3] == 0x47
@@ -168,7 +159,6 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
                         && b[8] == (byte)'W' && b[9] == (byte)'E' && b[10] == (byte)'B' && b[11] == (byte)'P',
         _ => false
     };
-
 
     [HttpPost("image")]
     [RequestSizeLimit(MaxImageBytes + 64 * 1024)]
@@ -200,7 +190,6 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
         return Ok(new { id = img.Id, url = $"/api/docs/image/{img.Id}" });
     }
 
-
     [HttpGet("image/{id:long}")]
     public async Task<IActionResult> GetImage(long id) {
         var db = Db;
@@ -212,7 +201,6 @@ public sealed class DocsController(ICurrentUser currentUser, IServiceProvider se
         Response.Headers.CacheControl = "public, max-age=31536000, immutable";
         return File(img.Bytes, img.ContentType);
     }
-
 
     [HttpGet("has")]
     public async Task<IActionResult> GetHasDocs() {

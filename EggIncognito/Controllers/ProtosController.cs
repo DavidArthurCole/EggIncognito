@@ -73,7 +73,6 @@ public sealed class ProtosController(IServiceProvider services) : ControllerBase
         return pp is null ? NotFound() : Content(pp.ProtoText, "text/plain");
     }
 
-
     [HttpGet("sources")]
     public async Task<IActionResult> Sources(CancellationToken ct) =>
         Store is null ? Ok(new Dictionary<string, int>()) : Ok(await Store.SourceCountsAsync(ct));
@@ -83,7 +82,6 @@ public sealed class ProtosController(IServiceProvider services) : ControllerBase
         if (Store is null) return NotFound();
         var rows = await Store.ListAsync(platform, ct);
 
-
         var r = rows
             .OrderByDescending(p => ProtoVersionQuality.LatestSortKey(p.Platform, p.Build, p.AppVersion))
             .ThenByDescending(p => p.CreatedAt)
@@ -92,7 +90,6 @@ public sealed class ProtosController(IServiceProvider services) : ControllerBase
             ? NotFound()
             : Ok(new { r.Platform, r.AppVersion, r.Build, r.ClientVersion, r.Source, r.ProtoSha, r.DetectedAt });
     }
-
 
     [HttpGet("diff")]
     public async Task<IActionResult> Diff(

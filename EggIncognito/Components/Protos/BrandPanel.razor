@@ -1,9 +1,11 @@
 @using System.Globalization
+@using EggIncognito.Services.Protos
 @inject AuthState Auth
 @inject ICurrentUser User
 
-<section class="panel pd-brand">
+<section class="panel pd-band">
     <img class="pd-brand-logo" src="/brand/logo.png" alt="EggIncognito"/>
+    <span class="pd-band-sep" aria-hidden="true"></span>
     <div class="pd-vergroup">
         <div class="pd-vergroup-head">
             <span class="ds-state-k">Server</span>
@@ -16,40 +18,56 @@
             <VersionLine App="@_version"/><span class="verline-sep">|</span><a class="pd-server-sha" href="@_commitUrl" target="_blank" rel="noopener">@_sha</a>
         </div>
     </div>
-    @if (Auth.Enabled || Auth.LocalIdentityActive) {
-        <span class="auth-nav">
-            @if (User.IsAuthenticated) {
-                <AccountModal/>
-                @if (Auth.Enabled) {
-                    <form method="post" action="/logout" style="margin:0;">
-                        <button type="submit" class="auth-btn">Log out</button>
-                    </form>
+    <span class="pd-band-sep" aria-hidden="true"></span>
+    <div class="pd-versions">
+        <LatestVersionsPanel Rows="Rows" OnOpen="OnOpenVersion"/>
+    </div>
+    <div class="pd-band-end">
+        @if (Auth.Enabled || Auth.LocalIdentityActive) {
+            <span class="auth-nav">
+                @if (User.IsAuthenticated) {
+                    <AccountModal/>
+                    @if (Auth.Enabled) {
+                        <form method="post" action="/logout" style="margin:0;">
+                            <button type="submit" class="auth-btn">Log out</button>
+                        </form>
+                    }
+                } else if (Auth.WidgetEnabled) {
+                    <LoginButton CssClass="auth-btn" Label="Log in"/>
                 }
-            } else if (Auth.WidgetEnabled) {
-                <LoginButton CssClass="auth-btn" Label="Log in"/>
-            }
-        </span>
-    }
-    <div class="pd-brand-links">
-        <a class="pd-brand-link" href="/terms" title="Terms" aria-label="Terms">
-            <Icon Name="doc"/>
-        </a>
-        <a class="pd-brand-link" href="/privacy" title="Privacy and cookies" aria-label="Privacy and cookies">
-            <Icon Name="shield"/>
-        </a>
-        <button type="button" class="pd-brand-link" title="Support the project" aria-label="Support the project"
-                @onclick="@(() => OnOpenSupport.InvokeAsync())">
-            <Icon Name="heart"/>
-        </button>
-        <a class="pd-brand-link" href="https://github.com/EggIncTools/EggIncognito" target="_blank" rel="noopener"
-           title="EggIncognito on GitHub" aria-label="EggIncognito on GitHub">
-            <Icon Name="github"/>
-        </a>
+            </span>
+        }
+        <div class="pd-brand-links">
+            <button type="button" class="pd-brand-link" title="Terms" aria-label="Terms"
+                    @onclick="@(() => OnOpenTerms.InvokeAsync())">
+                <Icon Name="doc"/>
+            </button>
+            <button type="button" class="pd-brand-link" title="Privacy and cookies" aria-label="Privacy and cookies"
+                    @onclick="@(() => OnOpenPrivacy.InvokeAsync())">
+                <Icon Name="shield"/>
+            </button>
+            <button type="button" class="pd-brand-link" title="Support the project" aria-label="Support the project"
+                    @onclick="@(() => OnOpenSupport.InvokeAsync())">
+                <Icon Name="heart"/>
+            </button>
+            <a class="pd-brand-link" href="https://github.com/EggIncTools/EggIncognito" target="_blank" rel="noopener"
+               title="EggIncognito on GitHub" aria-label="EggIncognito on GitHub">
+                <Icon Name="github"/>
+            </a>
+        </div>
     </div>
 </section>
 
 @code {
     [Parameter] public EventCallback OnOpenSupport { get; set; }
+
+    [Parameter] public EventCallback OnOpenTerms { get; set; }
+
+    [Parameter] public EventCallback OnOpenPrivacy { get; set; }
+
+    [Parameter] public IReadOnlyList<ProtoRegistryRow> Rows { get; set; } = [];
+
+    [Parameter] public EventCallback<ProtoRegistryRow> OnOpenVersion { get; set; }
 
     string _version = "";
     string _sha = "";

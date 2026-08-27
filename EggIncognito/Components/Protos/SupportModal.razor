@@ -1,44 +1,28 @@
 @inject ICurrentUser User
 @inject AuthState Auth
-@inject ISealedProxy SealedProxy
 
 @if (_open) {
     <ModalShell Title="Support the project" TitleId="supportModalTitle" Width="ModalWidth.Large" OnClose="Close">
         <div class="modal-body">
             <p class="support-lede">
-                Your support covers the servers behind EggIncognito, EggIncProtos, and EggLedger, plus the
-                code-signing certs that keep EggLedger's builds trusted. Any amount unlocks the full Supporter tier.
+                EggIncognito, EggIdentity, and EggLedger are free and open source. Supporting covers the servers
+                they run on and the code-signing certs for EggLedger's builds. Any amount unlocks the Supporter tier.
             </p>
 
             <section class="support-section">
-                <h2 class="support-h2">What you get</h2>
+                <h2 class="support-h2">Supporter tier</h2>
                 <div class="perk-list">
                     <div class="perk perk-on">
                         <div class="perk-top">
-                            <span class="perk-name">Supporter role + higher rate limits</span>
+                            <span class="perk-name">Higher rate limits</span>
                         </div>
-                        <p class="perk-desc">The Discord role lands automatically and your API limits jump the moment it does.</p>
+                        <p class="perk-desc">The Discord role raises the request ceiling on the data API. It applies the moment the role lands.</p>
                     </div>
                     <div class="perk perk-on">
                         <div class="perk-top">
-                            <span class="perk-name">Hosted Capture proxy</span>
+                            <span class="perk-name">Hosted capture</span>
                         </div>
-                        <p class="perk-desc">Run Capture straight from the web. This server holds the proxy, no local setup.</p>
-                    </div>
-                    <div class="perk @(SealedProxy.IsConfigured ? "perk-on" : "")">
-                        <div class="perk-top">
-                            <span class="perk-name">Sealed API proxy</span>
-                        </div>
-                        <p class="perk-desc">
-                            @(SealedProxy.IsConfigured ? "" : "Coming soon. ")An authenticated tunnel that hides your identity from the downstream API.
-                            Toggle it on in the API workbench when sending to the Live API.
-                        </p>
-                    </div>
-                    <div class="perk">
-                        <div class="perk-top">
-                            <span class="perk-name">EggLedger cloud storage</span>
-                        </div>
-                        <p class="perk-desc">In development. A private encrypted volume for your ledger, backed up remotely and always in sync.</p>
+                        <p class="perk-desc">Capture runs on this server instead of a local proxy. No setup on your machine.</p>
                     </div>
                 </div>
             </section>
@@ -109,7 +93,7 @@
                     </div>
                     <div class="faq-item">
                         <div class="faq-q">What if my support lapses?</div>
-                        <p class="faq-a">The role drops and the perks pause. Pick it back up any time and they return.</p>
+                        <p class="faq-a">The role drops and the Supporter tier turns off. Pick it back up any time and it returns.</p>
                     </div>
                     <div class="faq-item">
                         <div class="faq-q">Do one-time donations count?</div>

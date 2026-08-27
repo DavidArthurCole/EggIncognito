@@ -10,7 +10,6 @@ public sealed class MeshAssetCache(IConfiguration config) {
 
     public bool Enabled => CacheRoot is not null;
 
-
     public byte[]? TryGet(string platform, string stem) {
         string? path = PathFor(platform, stem);
         if (path is null || !File.Exists(path)) return null;
@@ -27,7 +26,6 @@ public sealed class MeshAssetCache(IConfiguration config) {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         await File.WriteAllBytesAsync(path, glb, ct);
     }
-
 
     public IReadOnlyList<CachedMesh> List(string platform) {
         string? root = CacheRoot;
@@ -73,14 +71,12 @@ public sealed class MeshAssetCache(IConfiguration config) {
         return n;
     }
 
-
     private string? PathFor(string platform, string stem) {
         string? root = CacheRoot;
         return root is null || string.IsNullOrEmpty(stem)
             ? null
             : Path.Combine(root, Safe(platform), Safe(stem) + ".glb");
     }
-
 
     private static string Safe(string s) {
         Span<char> buf = stackalloc char[s.Length];

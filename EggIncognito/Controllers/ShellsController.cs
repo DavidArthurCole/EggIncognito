@@ -27,7 +27,6 @@ public sealed class ShellsController(
             ? ShellCatalog.FromCatalog(catalog)
             : ShellCatalog.ForAssetType(catalog, assetType);
 
-
         string[] assetTypes = [
             .. ShellCatalog.FromCatalog(catalog)
                 .Select(s => s.AssetType).Distinct(StringComparer.Ordinal).OrderBy(a => a, StringComparer.Ordinal)
@@ -42,18 +41,16 @@ public sealed class ShellsController(
         });
     }
 
-
     [HttpGet("objects")]
     public IActionResult Objects([FromQuery] string platform = "ios", [FromQuery] string? type = null) {
         var catalog = LoadCatalog(platform);
-        if (catalog is null) {
+        if (catalog is null)
             return Ok(new {
                 ok = false,
                 platform,
                 type = type ?? "",
                 diagnostics = $"no stored config for {platform}; ingest one via /api/config"
             });
-        }
 
         var objs = type?.ToLowerInvariant() switch {
             "chicken" => ShellCatalog.Chickens(catalog),
@@ -69,7 +66,6 @@ public sealed class ShellsController(
             objects = objs.Select(o => new { o.Identifier, o.Name, o.AssetType, o.Url, anchor = o.Anchor, o.NoHats })
         });
     }
-
 
     [HttpGet("sets")]
     public IActionResult Sets([FromQuery] string platform = "ios") {
@@ -93,7 +89,6 @@ public sealed class ShellsController(
             decorators = ShellCatalog.Decorators(catalog).Select(Shape)
         });
     }
-
 
     [HttpGet("{platform}/{identifier}/glb")]
     [EnableRateLimiting("egress")]
@@ -126,7 +121,6 @@ public sealed class ShellsController(
 
         return File(glb, "model/gltf-binary", $"{identifier}.glb");
     }
-
 
     private DLCCatalog? LoadCatalog(string platform) {
         var stored = configStore.Get(platform);

@@ -33,7 +33,6 @@ public sealed class GameConfigStore(IConfiguration config) {
         }
     }
 
-
     public IReadOnlyList<(string Platform, DateTimeOffset SavedAt, long Bytes)> List() {
         string? dir = Dir;
         return dir is null || !Directory.Exists(dir)

@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text.Encodings.Web;
+using EggIdentity.Auth;
 using EggIncognito.Data.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;
@@ -20,7 +21,7 @@ public sealed class LocalIdentityAuthenticationHandler(
             new(AuthClaims.UserIdClaim, LocalIdentitySettings.UserId.ToString()),
             new(ClaimTypes.Name, settings.Username),
             new(AuthClaims.RoleClaim, settings.RoleName),
-            new(SupporterClaims.ClaimType, settings.Supporter ? "true" : "false")
+            new(SessionClaims.Supporter, settings.Supporter ? "true" : "false")
         ];
         var identity = new ClaimsIdentity(claims, LocalIdentityAuth.Scheme);
         return Task.FromResult(AuthenticateResult.Success(

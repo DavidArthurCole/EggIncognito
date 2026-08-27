@@ -61,7 +61,7 @@ public sealed class PeriodicalsController(
 
         string? liveRoute = catalog.ById("periodical", "get_periodicals")?.WireRoute;
         var live = liveRoute is null ? null : LiveColleggtibleSource.Derive(services, liveRoute);
-        if (live is not null) {
+        if (live is not null)
             colleggtibles = new {
                 count = live.Extract.Eggs.Count,
                 gameVersion = live.GameVersion,
@@ -74,7 +74,6 @@ public sealed class PeriodicalsController(
                     icon = live.Icons.GetValueOrDefault(e.Identifier)
                 })
             };
-        }
 
         object[] platforms = [];
         bool configEnabled = false;

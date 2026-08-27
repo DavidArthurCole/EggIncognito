@@ -4,7 +4,6 @@ const OUT_PATH = '/var/root/particle-capture.ndjson';
 const DURATION_MS = 5000;
 const MAX_RECORDS = 60000;
 
-
 const ADDR_OFFSET = (typeof addrOffset !== 'undefined' && addrOffset) ? addrOffset : null;
 
 function resolveAddParticle() {
@@ -14,12 +13,21 @@ function resolveAddParticle() {
     }
    
     let p = null;
-    try { p = Module.findGlobalExportByName(SYMBOL); } catch (e) { console.warn('global export lookup failed: ' + e.message); }
+    try {
+        p = Module.findGlobalExportByName(SYMBOL);
+    } catch (e) {
+        console.warn('global export lookup failed: ' + e.message);
+    }
     if (p) return p;
     for (const m of Process.enumerateModules()) {
         if (!/egg/i.test(m.name)) continue;
         let syms;
-        try { syms = m.enumerateSymbols(); } catch (e) { console.warn('symbol enumeration failed for ' + m.name + ': ' + e.message); continue; }
+        try {
+            syms = m.enumerateSymbols();
+        } catch (e) {
+            console.warn('symbol enumeration failed for ' + m.name + ': ' + e.message);
+            continue;
+        }
         for (const s of syms) {
             if (s.name === SYMBOL && s.address && !s.address.isNull()) return s.address;
         }
@@ -50,7 +58,12 @@ const PROBE_HITS = 5;
 function floatsAt(p, n) {
     if (!p || p.isNull()) return null;
     const out = [];
-    try { for (let i = 0; i < n; i++) out.push(p.add(i * 4).readFloat()); } catch (e) { console.warn('probe float read failed: ' + e.message); return null; }
+    try {
+        for (let i = 0; i < n; i++) out.push(p.add(i * 4).readFloat());
+    } catch (e) {
+        console.warn('probe float read failed: ' + e.message);
+        return null;
+    }
     return out;
 }
 
@@ -87,7 +100,11 @@ if (!target) {
             const xform = readTransform12(args[1]);
             if (!xform) return;
             let size = 0;
-            try { size = this.context.s0 !== undefined ? this.context.s0 : 0; } catch (e) { size = 0; }
+            try {
+                size = this.context.s0 !== undefined ? this.context.s0 : 0;
+            } catch (e) {
+                size = 0;
+            }
             out.write(JSON.stringify({ t: count, mesh: meshPtr.toString(), x: xform, s: size }) + '\n');
             count++;
         },
@@ -95,8 +112,17 @@ if (!target) {
 
     setTimeout(function () {
         stopped = true;
-        try { listener.detach(); } catch (e) { console.warn('detach failed: ' + e.message); }
-        try { out.flush(); out.close(); } catch (e) { console.warn('capture log may be truncated, flush/close failed: ' + e.message); }
+        try {
+            listener.detach();
+        } catch (e) {
+            console.warn('detach failed: ' + e.message);
+        }
+        try {
+            out.flush();
+            out.close();
+        } catch (e) {
+            console.warn('capture log may be truncated, flush/close failed: ' + e.message);
+        }
         send({ kind: 'done', records: count, path: OUT_PATH });
     }, DURATION_MS);
 }

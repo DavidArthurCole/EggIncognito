@@ -16,14 +16,12 @@ public static class ShipNameMap {
         new(10, "Atreggies", "Atreggies Henliner", "ei_ship_atreggies_shuttle", "afx_ship_atreggies")
     ];
 
-
     private static readonly Dictionary<string, string> StemToEnum =
         All.Where(s => s.BundleStem is not null)
             .ToDictionary(s => s.BundleStem!, s => s.EnumName, StringComparer.OrdinalIgnoreCase);
 
     public static string? EnumNameForStem(string stem) =>
         StemToEnum.GetValueOrDefault(stem);
-
 
     public static bool IsBundledShip(string stem) => StemToEnum.ContainsKey(stem);
 

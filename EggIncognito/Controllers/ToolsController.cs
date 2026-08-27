@@ -24,7 +24,6 @@ public sealed class ToolsController(
     private string DefaultsDir => Path.Combine(Root, "Endpoints", "default");
     private string CapturePath => config["CapturePath"] ?? Path.Combine(Root, "captures");
 
-
     [HttpGet("live-version")]
     public IActionResult LiveVersion([FromQuery] string platform = "ios") {
         var v = new LiveVersionStore(CapturePath).Latest(platform);
@@ -83,7 +82,6 @@ public sealed class ToolsController(
         }
     }
 
-
     [HttpPost("extract-ios-proto")]
     public IActionResult ExtractIosProto([FromBody] ExtractIosProtoRequest body) {
         byte[] macho;
@@ -95,7 +93,6 @@ public sealed class ToolsController(
 
         return ExtractResultJson(DescriptorProtoCarver.Extract(macho));
     }
-
 
     [HttpPost("extract-proto")]
     [RequestSizeLimit(200_000_000)]
@@ -137,7 +134,6 @@ public sealed class ToolsController(
         }
     }
 
-
     private OkObjectResult ExtractResultJson(DescriptorProtoCarver.ExtractResult r, string? fileSha = null) =>
         Ok(new {
             ok = r.Ok,
@@ -151,7 +147,6 @@ public sealed class ToolsController(
             fileSha
         });
 
-
     [HttpPost("diagnose")]
     public IActionResult Diagnose([FromBody] DiagnoseRequest body) {
         byte[] bytes;
@@ -161,9 +156,7 @@ public sealed class ToolsController(
             return Ok(new { error = "input is not valid base64" });
         }
 
-
         byte[] inner = ProtoFraming.TryUnwrap(bytes) ?? bytes;
-        var result = WireForensics.Diagnose(inner, body.RootType, reflection);
-        return Ok(result);
+        return Ok(WireForensics.Diagnose(inner, body.RootType, reflection));
     }
 }

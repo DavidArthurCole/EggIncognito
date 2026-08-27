@@ -27,7 +27,6 @@ public static class MeshManifest {
         return new { ok = r.Ok, diagnostics = r.Diagnostics, count = ships.Count, ships, failed };
     }
 
-
     public static object Ships(RpoAssetExtractor.ExtractResult r, string? build, bool wroteToDisk, string? outputDir,
         GltfAnimator.Options? animate = null) {
         var export = ShipAssetExporter.Build(r, build, animate);

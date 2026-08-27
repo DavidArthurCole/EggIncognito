@@ -33,7 +33,6 @@ public sealed class AuxbrainSurface {
     public IReadOnlySet<string> Namespaces => _namespaces.Value;
     public string OpenApiJson => _openApiJson.Value;
 
-
     public RouteInfo? ResolveAlias(string path) =>
         _aliases.Value.GetValueOrDefault(path);
 

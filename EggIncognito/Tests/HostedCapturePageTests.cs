@@ -40,10 +40,6 @@ public class HostedCapturePageTests {
         public bool IsAtLeast(UserRole need) => UserRoles.IsAtLeast(role, need);
     }
 
-    private sealed class FakeSupporters(bool result) : ISupporterStatus {
-        public Task<bool> CheckAsync(string discordId, CancellationToken ct = default) => Task.FromResult(result);
-    }
-
     private sealed class EmptyServices : IServiceProvider {
         public object? GetService(Type serviceType) => null;
     }
@@ -120,7 +116,7 @@ public class HostedCapturePageTests {
             Wire(tmp, true, false);
             var cut = Render<CapturePane>();
             Assert.NotNull(cut.Find("#hostedPitch"));
-            Assert.Contains("href=\"/support\"", cut.Markup);
+            Assert.Contains("href=\"/#support\"", cut.Markup);
             Assert.Empty(cut.FindAll("#hostedSetupCard"));
         }
 
@@ -172,22 +168,19 @@ public class HostedCapturePageTests {
 
         public void Dispose() => _tmp.Dispose();
 
-        private static CaptureController Controller(
-            CaptureSessionManager manager, ICurrentUser user, ISupporterStatus supporters) =>
-            new(manager, new FakeAppMode(false, true), user, supporters,
+        private static CaptureController Controller(CaptureSessionManager manager, ICurrentUser user) =>
+            new(manager, new FakeAppMode(false, true), user,
                 HostedCaptureOptions.Defaults(), new EmptyServices());
 
         [Fact]
         public async Task Start_Anonymous_Is401() {
-            var r = await Controller(NewManager(_tmp), new FakeUser(false, false), new FakeSupporters(true))
-                .Start(CancellationToken.None);
+            var r = await Controller(NewManager(_tmp), new FakeUser(false, false)).Start(CancellationToken.None);
             Assert.Equal(401, ((IStatusCodeActionResult)r).StatusCode);
         }
 
         [Fact]
-        public async Task Start_LiveCheckFails_Is403SupporterRequired() {
-            var r = await Controller(NewManager(_tmp), new FakeUser(true, true), new FakeSupporters(false))
-                .Start(CancellationToken.None);
+        public async Task Start_NonSupporter_Is403SupporterRequired() {
+            var r = await Controller(NewManager(_tmp), new FakeUser(true, false)).Start(CancellationToken.None);
             Assert.Equal(403, ((IStatusCodeActionResult)r).StatusCode);
             Assert.Contains("supporter_required", ((ObjectResult)r).Value!.ToString());
         }
@@ -195,8 +188,7 @@ public class HostedCapturePageTests {
         [Fact]
         public async Task Start_Supporter_StartsOwnSession() {
             var manager = NewManager(_tmp);
-            var r = await Controller(manager, new FakeUser(true, true), new FakeSupporters(true))
-                .Start(CancellationToken.None);
+            var r = await Controller(manager, new FakeUser(true, true)).Start(CancellationToken.None);
             Assert.Equal(200, ((IStatusCodeActionResult)r).StatusCode);
             var session = manager.Get("tester");
             Assert.NotNull(session);
@@ -206,7 +198,7 @@ public class HostedCapturePageTests {
 
         [Fact]
         public async Task ProxyAddress_NonSupporter_Is403() {
-            var r = await Controller(NewManager(_tmp), new FakeUser(true, false), new FakeSupporters(false))
+            var r = await Controller(NewManager(_tmp), new FakeUser(true, false))
                 .ProxyAddress(CancellationToken.None);
             Assert.Equal(403, ((IStatusCodeActionResult)r).StatusCode);
         }
@@ -222,7 +214,7 @@ public class HostedCapturePageTests {
             var session = manager.GetOrCreate("tester");
             var controller = new CaptureController(
                 manager, new FakeAppMode(false, true), user,
-                new FakeSupporters(true), HostedCaptureOptions.Defaults(), new EmptyServices());
+                HostedCaptureOptions.Defaults(), new EmptyServices());
             return (controller, session);
         }
 

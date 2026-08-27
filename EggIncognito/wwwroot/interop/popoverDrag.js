@@ -15,7 +15,10 @@ export function makeDraggable(el, handle) {
     el.style.top = Math.max(0, Math.min(maxTop, top)) + 'px';
   };
 
-  const onUp = () => { dragging = false; document.body.style.userSelect = ''; };
+  const onUp = () => {
+    dragging = false;
+    document.body.style.userSelect = '';
+  };
 
   const onDown = ev => {
     dragging = true;

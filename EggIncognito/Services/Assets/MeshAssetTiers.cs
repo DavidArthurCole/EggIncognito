@@ -41,10 +41,9 @@ public sealed class MeshDiskTier(MeshAssetCache cache) : IGameAssetTier {
 
     public Task<GameAsset?> TryGetAsync(GameAssetKey key, CancellationToken ct) {
         byte[]? glb = cache.TryGet(key.Platform!, key.Name);
-        var asset = glb is null
+        return Task.FromResult(glb is null
             ? null
-            : new GameAsset(key, glb, "model/gltf-binary", $"disk@{key.Platform}:{key.Name}", DateTimeOffset.UtcNow);
-        return Task.FromResult(asset);
+            : new GameAsset(key, glb, "model/gltf-binary", $"disk@{key.Platform}:{key.Name}", DateTimeOffset.UtcNow));
     }
 
     public Task PutAsync(GameAsset asset, CancellationToken ct) =>

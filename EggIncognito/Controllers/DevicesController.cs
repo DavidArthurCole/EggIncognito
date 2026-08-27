@@ -277,7 +277,6 @@ public sealed class DevicesController(
         });
     }
 
-
     [HttpPost("refresh-all")]
     [ApiAccess(ApiAccessLevel.Admin)]
     [EnableRateLimiting("write")]
@@ -314,7 +313,6 @@ public sealed class DevicesController(
         return Ok(new { probed = n });
     }
 
-
     [HttpPost("{id}/check-update")]
     [ApiAccess(ApiAccessLevel.Admin)]
     [EnableRateLimiting("write")]
@@ -349,7 +347,6 @@ public sealed class DevicesController(
 
         return Accepted(new { id = device.Id, jobId = job.Id, action = "running" });
     }
-
 
     private async Task RunCheckUpdateAsync(JobRef job, DeviceTarget target, IDeviceStoreChecker checker,
         string who) {
@@ -388,7 +385,6 @@ public sealed class DevicesController(
         }
     }
 
-
     [HttpPost("{id}/save")]
     [ApiAccess(ApiAccessLevel.Admin)]
     [EnableRateLimiting("write")]
@@ -411,7 +407,6 @@ public sealed class DevicesController(
         };
     }
 
-
     [HttpGet("{id}/list-meshes")]
     [ApiAccess(ApiAccessLevel.Admin)]
     [EnableRateLimiting("read")]
@@ -427,7 +422,6 @@ public sealed class DevicesController(
         var heads = await assets.ListAsync(DeviceAssetKinds.Mesh, device.Platform, HttpContext.RequestAborted);
         return Ok(new { meshes = heads.Select(h => h.Name), harvested = heads.Count });
     }
-
 
     [HttpPost("{id}/poke")]
     [ApiAccess(ApiAccessLevel.Admin)]
@@ -446,7 +440,6 @@ public sealed class DevicesController(
             : StatusCode(502, new { error = "device agent did not accept the poke" });
     }
 
-
     [HttpPost("poke-all")]
     [ApiAccess(ApiAccessLevel.Admin)]
     [EnableRateLimiting("write")]
@@ -460,7 +453,6 @@ public sealed class DevicesController(
             ? Accepted(new { ok = true, queued = true })
             : StatusCode(502, new { error = "device agent did not accept the poke" });
     }
-
 
     [HttpGet("{id}/harvest")]
     [ApiAccess(ApiAccessLevel.Admin)]
@@ -518,7 +510,6 @@ public sealed class DevicesController(
         return (text[..sep], note.Length == 0 ? null : note);
     }
 
-
     [HttpPost("{id}/restart-app")]
     [ApiAccess(ApiAccessLevel.Admin)]
     [EnableRateLimiting("write")]
@@ -527,9 +518,8 @@ public sealed class DevicesController(
         if (services.GetService(typeof(DeviceProxyPusher))
                 is not DeviceProxyPusher pusher
             || services.GetService(typeof(DeviceConfig))
-                is not DeviceConfig devCfg) {
+                is not DeviceConfig devCfg)
             return StatusCode(503, new { error = "device capture not configured" });
-        }
 
         var entry = devCfg.Devices.FirstOrDefault(d => d.Id == id);
         if (entry is null) return NotFound(new { error = "unknown device" });
@@ -537,7 +527,6 @@ public sealed class DevicesController(
         (bool ok, string? note) = await pusher.RestartAppAsync(entry, HttpContext.RequestAborted);
         return ok ? Ok(new { restarted = true, note }) : StatusCode(502, new { error = note ?? "restart failed" });
     }
-
 
     [HttpPost("{id}/recert")]
     [ApiAccess(ApiAccessLevel.Admin)]
@@ -556,7 +545,6 @@ public sealed class DevicesController(
         return Ok(dto);
     }
 
-
     private IActionResult? BridgeGate() {
         if (services.GetService(typeof(DeviceTransportConfig)) is not DeviceTransportConfig cfg || !cfg.BridgeEnabled)
             return NotFound();
@@ -564,9 +552,7 @@ public sealed class DevicesController(
 
         var ip = HttpContext.Connection.RemoteIpAddress;
         if (ip is null) return StatusCode(403, new { error = "forbidden" });
-        if (ip.IsIPv4MappedToIPv6) {
-            ip = ip.MapToIPv4();
-        }
+        if (ip.IsIPv4MappedToIPv6) ip = ip.MapToIPv4();
 
         foreach (string cidr in cfg.AllowedCidrs) {
             try {
@@ -578,7 +564,6 @@ public sealed class DevicesController(
 
         return StatusCode(403, new { error = "forbidden" });
     }
-
 
     private IActionResult? ResolveTransport(string id, out IDeviceConnection connection) {
         connection = null!;
@@ -597,7 +582,6 @@ public sealed class DevicesController(
         return null;
     }
 
-
     [HttpPost("{id}/transport/shell")]
     [ApiAccess(ApiAccessLevel.Admin)]
     [EnableRateLimiting("write")]
@@ -611,7 +595,6 @@ public sealed class DevicesController(
         return Ok(new TransportShellResult(r.ExitCode, r.Stdout, r.Stderr));
     }
 
-
     [HttpPost("{id}/transport/pull")]
     [ApiAccess(ApiAccessLevel.Admin)]
     [EnableRateLimiting("write")]
@@ -624,7 +607,6 @@ public sealed class DevicesController(
         byte[]? bytes = await conn.PullBytesAsync(req.Path, HttpContext.RequestAborted);
         return bytes is null ? NotFound() : File(bytes, "application/octet-stream");
     }
-
 
     [HttpPost("{id}/transport/push")]
     [ApiAccess(ApiAccessLevel.Admin)]
@@ -654,7 +636,6 @@ public sealed class DevicesController(
         }
     }
 
-
     [HttpPost("{id}/transport/claim")]
     [ApiAccess(ApiAccessLevel.Admin)]
     [EnableRateLimiting("write")]
@@ -663,9 +644,8 @@ public sealed class DevicesController(
         if (BridgeGate() is { } gate) return gate;
         if (services.GetService(typeof(DeviceConfig)) is not DeviceConfig devCfg
             || services.GetService(typeof(DeviceTransportConfig)) is not DeviceTransportConfig cfg
-            || services.GetService(typeof(DeviceClaimRegistry)) is not DeviceClaimRegistry claims) {
+            || services.GetService(typeof(DeviceClaimRegistry)) is not DeviceClaimRegistry claims)
             return StatusCode(503, new { error = "device transport not configured" });
-        }
 
         var entry = devCfg.Devices.FirstOrDefault(d => d.Id == id);
         if (entry is null) return NotFound(new { error = "unknown device" });
@@ -675,7 +655,6 @@ public sealed class DevicesController(
         return Ok(new TransportClaimResult(true, expires));
     }
 
-
     [HttpPost("{id}/transport/release")]
     [ApiAccess(ApiAccessLevel.Admin)]
     [EnableRateLimiting("write")]
@@ -683,9 +662,8 @@ public sealed class DevicesController(
         if (RequireAdmin() is { } no) return no;
         if (BridgeGate() is { } gate) return gate;
         if (services.GetService(typeof(DeviceConfig)) is not DeviceConfig devCfg
-            || services.GetService(typeof(DeviceClaimRegistry)) is not DeviceClaimRegistry claims) {
+            || services.GetService(typeof(DeviceClaimRegistry)) is not DeviceClaimRegistry claims)
             return StatusCode(503, new { error = "device transport not configured" });
-        }
 
         var entry = devCfg.Devices.FirstOrDefault(d => d.Id == id);
         if (entry is null) return NotFound(new { error = "unknown device" });
@@ -693,7 +671,6 @@ public sealed class DevicesController(
         claims.Release(id);
         return Ok(new { ok = true });
     }
-
 
     [HttpGet("{id}/live")]
     [EnableRateLimiting("fetch")]

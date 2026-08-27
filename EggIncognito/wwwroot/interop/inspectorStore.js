@@ -85,7 +85,10 @@ export function rememberEids(values) {
 export function recentEids() {
   return loadEids().sort((a, b) => b.order - a.order).map((e) => e.eid);
 }
-export function forgetEids() { setRaw(EIDS_KEY, "[]"); return []; }
+export function forgetEids() {
+  setRaw(EIDS_KEY, "[]");
+  return [];
+}
 
 
 export function getHistoryEnabled() {
@@ -120,7 +123,10 @@ export function deleteHistory(id) {
   setRaw(HISTORY_KEY, JSON.stringify(loadHistory().filter((e) => e.id !== id)));
   return getHistory();
 }
-export function clearHistory() { setRaw(HISTORY_KEY, "[]"); return []; }
+export function clearHistory() {
+  setRaw(HISTORY_KEY, "[]");
+  return [];
+}
 
 export async function postForm(url, formBody) {
   const resp = await fetch(url, {

@@ -53,9 +53,15 @@
     </div>
 
     <div class="pd-wcol">
-        @if (_events is { Count: > 0 }) {
-            <section class="panel pd-w-events">
-                <h3 class="text-sm font-semibold mt-0 mb-3">Current events</h3>
+        <section class="panel pd-w-events">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-sm font-semibold m-0">Current events</h3>
+                <button type="button" class="dropzone-open" aria-label="Open the events calendar"
+                        @onclick="@(() => OnOpenEvents.InvokeAsync())">
+                    <Icon Name="chevronRight" Class="icon-sm"/>
+                </button>
+            </div>
+            @if (_events is { Count: > 0 }) {
                 <div class="evt-list">
                     @foreach (var e in _events) {
                         <div class="evt-row @(RemainingSeconds(e) <= 0 ? "ended" : "")">
@@ -69,8 +75,10 @@
                         </div>
                     }
                 </div>
-            </section>
-        }
+            } else if (_loaded) {
+                <div class="text-muted text-xs">No active events.</div>
+            }
+        </section>
 
         @if (_seasons is { Count: > 0 } seasonList) {
             var season = seasonList[Math.Clamp(_seasonIx, 0, seasonList.Count - 1)];
@@ -196,10 +204,10 @@
             </section>
         }
 
+        <SupportPanel OnOpenCapture="OnOpenCapture" OnOpenSupport="OnOpenSupport"/>
+
         @if (!_loaded) {
             <section class="panel pd-w-note text-muted text-sm">Loading…</section>
-        } else if (_events is not { Count: > 0 } && _seasons is not { Count: > 0 }) {
-            <section class="panel pd-w-note text-muted text-sm">No event or season data right now.</section>
         }
     </div>
 </div>
@@ -220,6 +228,12 @@
     [Parameter] public EventCallback OnOpenNotifications { get; set; }
 
     [Parameter] public EventCallback OnOpenApiWorkbench { get; set; }
+
+    [Parameter] public EventCallback OnOpenEvents { get; set; }
+
+    [Parameter] public EventCallback OnOpenCapture { get; set; }
+
+    [Parameter] public EventCallback OnOpenSupport { get; set; }
 
     protected override async Task OnInitializedAsync() {
         try {

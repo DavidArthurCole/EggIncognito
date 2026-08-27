@@ -25,8 +25,6 @@ public class NewVersionEventTests {
 
     [Fact]
     public void Serializes_OmitsNullOptionalFields() {
-
-
         var evt = new NewVersionEvent { Package = "com.auxbrain.egginc", Version = "1.34", ProtoSha = "abc" };
         var json = JsonSerializer.Serialize(evt);
         Assert.DoesNotContain("appVersion", json);

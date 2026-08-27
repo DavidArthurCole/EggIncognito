@@ -5,9 +5,7 @@ namespace EggIncognito.Bot;
 public static class ProtoQuery {
     public const int PerPage = 25;
 
-
     public const int MaxDescription = 4000;
-
 
     public static (IReadOnlyList<string> Slice, int Page, int Pages) Page(
         IReadOnlyList<string> names, int requestedPage, int perPage = PerPage) {
@@ -16,7 +14,6 @@ public static class ProtoQuery {
         var slice = names.Skip((page - 1) * perPage).Take(perPage).ToList();
         return (slice, page, pages);
     }
-
 
     public static IReadOnlyList<string> Autocomplete(IReadOnlyList<string> names, string query) {
         return string.IsNullOrEmpty(query)
@@ -28,12 +25,10 @@ public static class ProtoQuery {
             ];
     }
 
-
     public static string Truncate(string text, int max = MaxDescription) {
         const string marker = "\n... (truncated)";
         return text.Length <= max ? text : text[..Math.Max(0, max - marker.Length)] + marker;
     }
-
 
     public static string TypeLines(SchemaMessage msg) {
         if (msg.Fields.Count == 0) return "(no fields)";

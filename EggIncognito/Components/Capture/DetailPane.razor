@@ -174,16 +174,14 @@
             if (hdr is not null) builder.AddContent(seq++, hdr);
         }
 
-        if (f.ResponseText is not null) {
-            builder.AddContent(seq, TextResponseSection(f.ResponseText, f.ResponseIsAck));
-        } else if (f.ResponseIsAck) {
+        if (f.ResponseText is not null) builder.AddContent(seq, TextResponseSection(f.ResponseText, f.ResponseIsAck));
+        else if (f.ResponseIsAck) {
             builder.OpenElement(seq++, "div");
             builder.AddAttribute(seq++, "class", "no-json");
             builder.AddContent(seq, "Acknowledgement - this endpoint returns a short non-protobuf ack.");
             builder.CloseElement();
-        } else if (ImageMime(f) is { } mime && !string.IsNullOrEmpty(f.ResponseB64)) {
-            builder.AddContent(seq, ImageResponseSection(mime, f.ResponseB64));
-        } else {
+        } else if (ImageMime(f) is { } mime && !string.IsNullOrEmpty(f.ResponseB64)) builder.AddContent(seq, ImageResponseSection(mime, f.ResponseB64));
+        else {
             builder.OpenComponent<CodeFormats>(seq++);
             builder.AddComponentParameter(seq++, nameof(CodeFormats.Key), "Response");
             builder.AddComponentParameter(seq++, nameof(CodeFormats.ShowLabel), false);

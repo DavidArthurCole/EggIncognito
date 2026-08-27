@@ -9,7 +9,6 @@ namespace EggIncognito.Services;
 public static class ShipAssetExporter {
     private static readonly JsonSerializerOptions ManifestJson = new() { WriteIndented = true };
 
-
     public static Result Build(RpoAssetExtractor.ExtractResult extract, string? generatedFromBuild,
         GltfAnimator.Options? animate = null) {
         var exported = new List<Exported>();
@@ -43,7 +42,6 @@ public static class ShipAssetExporter {
         var manifest = new Manifest("1", generatedFromBuild, entries);
         return new Result(manifest, exported, skipped);
     }
-
 
     public static async Task WriteToAsync(Result result, string outputDir, CancellationToken ct) {
         string shipsDir = Path.Combine(outputDir, "ships");

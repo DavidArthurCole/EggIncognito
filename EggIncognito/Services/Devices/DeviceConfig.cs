@@ -24,7 +24,6 @@ public sealed record DeviceConfig {
         };
     }
 
-
     internal static IReadOnlyList<DeviceEntry> Merge(
         IReadOnlyList<DeviceEntry> fromDir, IReadOnlyList<DeviceEntry> inline) {
         var inlineIds = inline.Select(e => e.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);

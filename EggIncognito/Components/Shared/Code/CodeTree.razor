@@ -40,7 +40,6 @@
 
     string? RootStyle => string.IsNullOrEmpty(MaxHeight) ? null : $"--jtree-max-h:{MaxHeight}";
 
-
     async Task OnSearchInput(string value) {
         _search = value;
         var previous = _debounceCts;
@@ -115,7 +114,6 @@
         if (Root.IsContainer) Root.Expanded = true;
         _count = matches + (matches == 1 ? " match" : " matches");
     }
-
 
     static bool Visit(CodeTreeNode node, string needle, ref int matches) {
         var selfMatch = false;

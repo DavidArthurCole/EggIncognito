@@ -44,12 +44,10 @@ public sealed class AdminEventsController(IServiceProvider services) : Controlle
         [FromBody] CarpetImportRequest request, CancellationToken ct) {
         var backfill = Backfill;
         if (backfill is null) return StatusCode(503, new { error = "no database configured" });
-        if (!string.IsNullOrWhiteSpace(request?.Url)) {
-            if (!Uri.TryCreate(request.Url.Trim(), UriKind.Absolute, out var uri) ||
-                uri.Scheme is not ("http" or "https")) {
-                return BadRequest(new { error = "invalid url" });
-            }
-        }
+        if (!string.IsNullOrWhiteSpace(request?.Url) &&
+            (!Uri.TryCreate(request.Url.Trim(), UriKind.Absolute, out var uri) ||
+             uri.Scheme is not ("http" or "https")))
+            return BadRequest(new { error = "invalid url" });
         try {
             return Ok(await backfill.ImportCarpetAsync(request?.Url, ct));
         } catch (HttpRequestException ex) {

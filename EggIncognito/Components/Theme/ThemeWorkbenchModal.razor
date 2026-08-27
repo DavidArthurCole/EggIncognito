@@ -258,9 +258,9 @@
         try {
             using var client = Client();
             var resp = await client.GetFromJsonAsync<ThemeListResponse>("/api/theme");
-            if (resp?.Themes is { } rows) {
-                foreach (var row in rows) _themes.Add(new ThemeRow(row.Slug ?? "", row.Name ?? "", row.IsActive));
-            }
+            if (resp?.Themes is { } rows)
+                foreach (var row in rows)
+                    _themes.Add(new ThemeRow(row.Slug ?? "", row.Name ?? "", row.IsActive));
         }
         catch (HttpRequestException) {
         }
@@ -304,9 +304,7 @@
             State.SelectedSlug = model.Slug;
             SetStatus($"saved {model.Slug}", true);
             await LoadThemesAsync();
-        } else {
-            SetStatus(await Describe(resp), false);
-        }
+        } else SetStatus(await Describe(resp), false);
     }
 
     async Task ActivateAsync() {
@@ -317,9 +315,7 @@
         if (resp.IsSuccessStatusCode) {
             SetStatus("activated; reload to see it everywhere", true, true);
             await LoadThemesAsync();
-        } else {
-            SetStatus(await Describe(resp), false);
-        }
+        } else SetStatus(await Describe(resp), false);
     }
 
     async Task DeactivateAsync() {
@@ -358,9 +354,7 @@
             SetStatus("imported", true);
             _importJson = "";
             await LoadThemesAsync();
-        } else {
-            SetStatus(await Describe(resp), false);
-        }
+        } else SetStatus(await Describe(resp), false);
     }
 
     async Task ExportAsync() {

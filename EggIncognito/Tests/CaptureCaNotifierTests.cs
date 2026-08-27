@@ -35,7 +35,7 @@ public sealed class CaptureCaNotifierTests : IDisposable {
         var notifier = new FailingNotifier();
         var controller = new CaptureController(
             manager, new FakeAppMode(false, true),
-            new FakeUser(true, true), new FakeSupporters(true),
+            new FakeUser(true, true),
             HostedCaptureOptions.Defaults(), new StubServices(notifier));
 
         var r = await controller.Start(CancellationToken.None);
@@ -149,10 +149,6 @@ public sealed class CaptureCaNotifierTests : IDisposable {
         public UserRole Role => UserRole.Viewer;
         public bool IsSupporter => supporter;
         public bool IsAtLeast(UserRole need) => UserRoles.IsAtLeast(UserRole.Viewer, need);
-    }
-
-    private sealed class FakeSupporters(bool result) : ISupporterStatus {
-        public Task<bool> CheckAsync(string discordId, CancellationToken ct = default) => Task.FromResult(result);
     }
 
     private sealed class FreshCaProxy : ICaptureProxy {

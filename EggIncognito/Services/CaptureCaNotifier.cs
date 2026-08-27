@@ -43,7 +43,6 @@ public sealed class DiscordCaptureCaNotifier(
         }
     }
 
-
     internal static string BuildMessage(CaptureSetupDm dm) =>
         $"""
          **Hosted capture is live.**
@@ -55,7 +54,6 @@ public sealed class DiscordCaptureCaNotifier(
          Auth off
          **3. Open Egg, Inc.**
          """;
-
 
     private static async Task<string?> OpenDmAsync(HttpClient http, string token, string discordId,
         CancellationToken ct) {
@@ -71,7 +69,6 @@ public sealed class DiscordCaptureCaNotifier(
             ? id.GetString()
             : null;
     }
-
 
     private static async Task<bool> PostAsync(
         HttpClient http, string token, string channelId, byte[] profile, string fileName, string content,

@@ -96,8 +96,7 @@ public sealed class RouteAdminController(
         if (services.GetService(typeof(EndpointCatalogRebuilder)) is not EndpointCatalogRebuilder rebuilder)
             return StatusCode(503, new { error = "no database configured" });
 
-        var result = await rebuilder.RebuildAsync(ct);
-        return Ok(result);
+        return Ok(await rebuilder.RebuildAsync(ct));
     }
 
     [HttpPut("{**path}")]

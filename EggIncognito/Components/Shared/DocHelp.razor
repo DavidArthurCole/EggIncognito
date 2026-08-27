@@ -50,11 +50,8 @@
     async Task Toggle() {
         _open = !_open;
         if (_open && !_loaded) await LoadDoc();
-        if (_open) {
-            await RegisterOutsideClickAsync();
-        } else {
-            await UnregisterOutsideClickAsync();
-        }
+        if (_open) await RegisterOutsideClickAsync();
+        else await UnregisterOutsideClickAsync();
     }
 
     async Task RegisterOutsideClickAsync() {

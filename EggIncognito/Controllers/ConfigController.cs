@@ -34,7 +34,6 @@ public sealed class ConfigController(
         return Ok(new { enabled = true, configs });
     }
 
-
     [HttpGet("{platform}")]
     public IActionResult Get(string platform) {
         var c = store.Get(platform);
@@ -42,7 +41,6 @@ public sealed class ConfigController(
             ? NotFound(new { error = "no stored config for that platform" })
             : File(Encoding.UTF8.GetBytes(c.Json), "application/json", $"{platform}-config.json");
     }
-
 
     [HttpPost("{platform}/ingest")]
     [EnableRateLimiting("write")]
@@ -61,7 +59,6 @@ public sealed class ConfigController(
             ? Ok(new { ok = false, diagnostics = "could not parse as a ConfigResponse (wrapped or direct)" })
             : await StoreAsync(platform, cfg, ct);
     }
-
 
     private ConfigResponse? BestConfig(byte[] bytes) {
         ConfigResponse? Try(byte[] b) {
@@ -87,7 +84,6 @@ public sealed class ConfigController(
             Shells(direct), Shells(unwrapped), ReferenceEquals(best, unwrapped) ? "unwrapped" : "direct");
         return best;
     }
-
 
     [HttpPost("{platform}/ingest-json")]
     [EnableRateLimiting("write")]
@@ -115,10 +111,9 @@ public sealed class ConfigController(
         RefreshLive(string platform, [FromBody] RefreshRequest? body, CancellationToken ct) {
         if (RequireAdmin() is { } no) return no;
         string? salt = string.IsNullOrEmpty(body?.Salt) ? null : body.Salt;
-        if (salt is null && !pipeline.CanSign) {
+        if (salt is null && !pipeline.CanSign)
             return StatusCode(503,
                 new { error = "live refresh needs a signing salt; ingest a captured config instead" });
-        }
 
         var req = new ConfigRequest { Rinfo = new BasicRequestInfo { Platform = platform } };
         var built = salt is null
@@ -156,10 +151,9 @@ public sealed class ConfigController(
         if (RequireAdmin() is { } no) return no;
         if (!appMode.CanWrite) return StatusCode(403, new { error = "endpoint writes disabled in this mode" });
         string? salt = string.IsNullOrEmpty(body?.Salt) ? null : body.Salt;
-        if (salt is null && !pipeline.CanSign) {
+        if (salt is null && !pipeline.CanSign)
             return StatusCode(503,
                 new { error = "live refresh needs a signing salt; ingest a captured response instead" });
-        }
 
         string? platform = string.IsNullOrEmpty(body?.Platform) ? "IOS" : body.Platform;
 
@@ -209,10 +203,9 @@ public sealed class ConfigController(
     }
 
     private async Task<IActionResult> StoreAsync(string platform, ConfigResponse cfg, CancellationToken ct) {
-        if (!store.Enabled) {
+        if (!store.Enabled)
             return StatusCode(503,
                 new { error = "config store needs ConfigStore:Dir or ShipAssets:OutputDir configured" });
-        }
 
         string? json = JsonFormatter.Default.Format(cfg);
         await store.SaveAsync(platform, json, ct);

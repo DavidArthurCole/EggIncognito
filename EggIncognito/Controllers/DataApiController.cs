@@ -102,10 +102,9 @@ public sealed class DataApiController(DataCatalog catalog, ICurrentUser currentU
     }
 
     private async Task<IActionResult> Serve(DataSource src, string? name, CancellationToken ct) {
-        if (src.Access == DataAccess.Authenticated && !currentUser.IsAuthenticated) {
+        if (src.Access == DataAccess.Authenticated && !currentUser.IsAuthenticated)
             return StatusCode(401,
                 new { error = "authentication required", hint = "mint an API key at /api/v1/keys or log in" });
-        }
 
         if (src.AcceptsName && string.IsNullOrEmpty(name))
             return BadRequest(new { error = "this source requires a name query parameter" });

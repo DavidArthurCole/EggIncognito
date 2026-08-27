@@ -10,7 +10,6 @@ public sealed class FeedDispatcher(
     ILogger<FeedDispatcher> logger) {
     private const int DeadAfterFailures = 5;
 
-
     public const string DefaultPageBaseUrl = "https://eggincognito.davidarthurcole.me";
 
     public static string BuildPageUrl(string? baseUrl, string platform, string build) =>

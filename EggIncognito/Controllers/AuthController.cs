@@ -24,14 +24,13 @@ public sealed class AuthController(
             string? sid = User.FindFirstValue(SessionClaims.SessionId);
             if (!string.IsNullOrEmpty(sid)) {
                 var identity = HttpContext.RequestServices.GetService<IdentityApiClient>();
-                if (identity is not null) {
+                if (identity is not null)
                     try {
                         await identity.RevokeSessionAsync(sid, HttpContext.RequestAborted);
                     } catch (HttpRequestException ex) {
                         logger.LogWarning(ex,
                             "logout: shared session {Sid} not revoked, identity API unreachable", sid);
                     }
-                }
             }
 
             SessionIssuer.ClearCookie(Response, session);

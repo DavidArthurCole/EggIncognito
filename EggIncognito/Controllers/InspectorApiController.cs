@@ -96,11 +96,10 @@ public sealed class InspectorApiController(
     public IActionResult Build([FromBody] BuildRequest body) {
         var parser = reflection.FindParser(body.RequestType);
         var descriptor = reflection.FindMessage(body.RequestType);
-        if (parser is null || descriptor is null) {
+        if (parser is null || descriptor is null)
             throw new ApiException(
                 $"unknown request type '{body.RequestType}'",
                 "Type not found in the compiled proto. Check the endpoint's request type in routes.yaml.");
-        }
 
         IMessage message;
         try {
@@ -128,20 +127,18 @@ public sealed class InspectorApiController(
     [HttpPost("send")]
     [EnableRateLimiting("egress")]
     public async Task<IActionResult> Send([FromBody] SendRequest body) {
-        if (appMode.Mode == AppMode.Hosted && !currentUser.IsAuthenticated) {
+        if (appMode.Mode == AppMode.Hosted && !currentUser.IsAuthenticated)
             throw new ApiException(
                 "log in to use Live API from the hosted site",
                 "Sign in with Discord, then retry. Local runs are never gated.",
                 StatusCodes.Status403Forbidden);
-        }
 
         bool useSealed = body.Sealed;
-        if (useSealed && !await sealedProxy.CanUseAsync(currentUser, HttpContext.RequestAborted)) {
+        if (useSealed && !await sealedProxy.CanUseAsync(currentUser, HttpContext.RequestAborted))
             throw new ApiException(
                 "the sealed API proxy is a supporter perk",
                 "Become a supporter and enable it, or send without sealed mode.",
                 StatusCodes.Status403Forbidden);
-        }
 
         var uri = ResolveAllowedUrl(ComposeUrl(body), Request.Host.Host);
 
@@ -193,7 +190,6 @@ public sealed class InspectorApiController(
         return Ok(new { decode.Stages, json = decode.Json, error = decode.Error, wrappedMismatch = decode.WrappedMismatch });
     }
 
-
     private static string MergeEnv(string fieldsJson, JsonElement? env,
         MessageDescriptor descriptor) {
         var rinfoField = descriptor.Fields.InFieldNumberOrder()
@@ -206,7 +202,6 @@ public sealed class InspectorApiController(
         var outObj = new Dictionary<string, JsonElement>();
         foreach (var prop in root.EnumerateObject())
             outObj[prop.Name] = prop.Value.Clone();
-
 
         string? rinfoKey = rinfoField.JsonName;
         var envObj = new Dictionary<string, JsonElement>();
@@ -241,22 +236,19 @@ public sealed class InspectorApiController(
         return Encoding.UTF8.GetString(stream.ToArray());
     }
 
-
     private static string ComposeUrl(SendRequest body) {
         if (!string.IsNullOrWhiteSpace(body.Url)) return body.Url;
 
         string path = (body.Path ?? "").TrimStart('/');
-        if (path.Length == 0) {
+        if (path.Length == 0)
             throw new ApiException(
                 "no target for this send",
                 "Send needs either an absolute url or an endpoint path.");
-        }
 
         string url = $"{AuxbrainHosts.OriginForPath(path)}/{path}";
         string param = (body.PathParam ?? "").Trim();
         return param.Length == 0 ? url : url + "/" + Uri.EscapeDataString(param);
     }
-
 
     private static Uri ResolveAllowedUrl(string url, string selfHost) {
         return !Uri.TryCreate(url, UriKind.Absolute, out var parsed)
@@ -270,7 +262,6 @@ public sealed class InspectorApiController(
                     $"target URL host '{parsed.Host}' is not allowed",
                     "Allowed hosts: this instance, localhost, 127.0.0.1, *.auxbrain.com, auxbrainhome.appspot.com, and its <service>-dot-auxbrainhome.appspot.com subdomains.");
     }
-
 
     internal static bool IsAllowedHost(string host, string? selfHost = null) =>
         host is "localhost" or "127.0.0.1"

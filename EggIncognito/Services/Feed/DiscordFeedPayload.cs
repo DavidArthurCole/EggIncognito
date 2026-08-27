@@ -116,9 +116,8 @@ public static class DiscordFeedPayload {
             }
         };
         if (!string.IsNullOrEmpty(prevBinaryVersion) &&
-            !string.Equals(prevBinaryVersion, binaryVersion, StringComparison.Ordinal)) {
+            !string.Equals(prevBinaryVersion, binaryVersion, StringComparison.Ordinal))
             fields.Add(new { name = "Previous", value = prevBinaryVersion, inline = true });
-        }
         if (changedDocs.Count > 0)
             fields.Add(new { name = "Changed", value = Listed(changedDocs), inline = false });
 

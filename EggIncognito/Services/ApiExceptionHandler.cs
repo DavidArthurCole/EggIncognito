@@ -12,9 +12,8 @@ public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : I
             error = api.ToApiError();
         } else {
             if (httpContext.Request.Headers.Accept.ToString()
-                    .Contains("text/html", StringComparison.OrdinalIgnoreCase)) {
+                    .Contains("text/html", StringComparison.OrdinalIgnoreCase))
                 return false;
-            }
             logger.LogError(exception, "Unhandled exception at {Path}", httpContext.Request.Path);
             error = new ApiError(
                 "internal server error",

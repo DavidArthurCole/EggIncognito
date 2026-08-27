@@ -53,7 +53,6 @@ public sealed class DecompController(
         });
     }
 
-
     [HttpGet("function-constants")]
     [EnableRateLimiting("read")]
     public async Task<IActionResult> FunctionConstants([FromQuery] string name, [FromQuery] string? device,
@@ -64,7 +63,6 @@ public sealed class DecompController(
             ? BadRequest(new { error = "name required" })
             : await ExtractAsync([name], device, ct);
     }
-
 
     [HttpGet("galaxy-particle")]
     [EnableRateLimiting("read")]
@@ -84,7 +82,6 @@ public sealed class DecompController(
             return Ok(new { ok = false, diagnostics = ex.Message });
         }
     }
-
 
     [HttpGet("recover")]
     [EnableRateLimiting("read")]
@@ -124,7 +121,6 @@ public sealed class DecompController(
         }
     }
 
-
     [HttpGet("resolve-va")]
     [EnableRateLimiting("read")]
     public async Task<IActionResult> ResolveVa(
@@ -146,22 +142,20 @@ public sealed class DecompController(
 
 
             var exact = report.Symbols.Where(s => s.Name == name).ToList();
-            if (exact.Count > 0) {
+            if (exact.Count > 0)
                 return VaResult(tgtBytes, report, exact[0].Name, exact[0].Value, textVm, textOff, "exact-recovered",
                     null);
-            }
 
             var embedded = report.Symbols
                 .Where(s => s.Name != name && s.Name.Contains(name, StringComparison.Ordinal))
                 .OrderBy(s => s.Name.Length).ToList();
             foreach (var lam in embedded) {
                 var referrers = Arm64AddrRefResolver.FindReferrers(tgtBytes, lam.Value);
-                if (referrers.Count > 0) {
+                if (referrers.Count > 0)
                     return VaResult(tgtBytes, report, name + " (via referrer of " + lam.Name + ")",
                         referrers[0].FunctionVa,
                         textVm, textOff, "addr-referrer", referrers.Take(5)
                             .Select(r => new { fnVa = "0x" + r.FunctionVa.ToString("x"), r.HitCount }).ToList());
-                }
             }
 
 
@@ -180,7 +174,6 @@ public sealed class DecompController(
             return Ok(new { ok = false, diagnostics = ex.Message });
         }
     }
-
 
     [HttpGet("effect")]
     [EnableRateLimiting("read")]
@@ -203,7 +196,6 @@ public sealed class DecompController(
             return Ok(new { ok = false, diagnostics = ex.Message });
         }
     }
-
 
     [HttpGet("farm-placement")]
     [EnableRateLimiting("read")]
@@ -228,7 +220,6 @@ public sealed class DecompController(
         }
     }
 
-
     [HttpGet("building-effects")]
     [EnableRateLimiting("read")]
     public async Task<IActionResult> BuildingEffects([FromQuery] string stem, [FromQuery] string? device,
@@ -246,7 +237,6 @@ public sealed class DecompController(
             return Ok(new { stem, effects = Array.Empty<object>(), diagnostics = ex.Message });
         }
     }
-
 
     [HttpGet("hatchery-assembly")]
     [EnableRateLimiting("read")]
@@ -296,7 +286,6 @@ public sealed class DecompController(
         }
     }
 
-
     [HttpPost("particle-capture")]
     [EnableRateLimiting("read")]
     public async Task<IActionResult> ParticleCapture([FromQuery] string? addrOffset, [FromQuery] string platform = "ios",
@@ -332,7 +321,6 @@ public sealed class DecompController(
             return null;
         }
     }
-
 
     [HttpGet("signature")]
     [EnableRateLimiting("read")]
@@ -377,7 +365,6 @@ public sealed class DecompController(
             return Ok(new { ok = false, diagnostics = ex.Message });
         }
     }
-
 
     [HttpGet("disasm")]
     [EnableRateLimiting("read")]
@@ -501,16 +488,15 @@ public sealed class DecompController(
 
         (string? ipaVersion, byte[] exec) = await ReadSymbolizedUploadAsync(file, ct);
         string resolved;
-        if (ipaVersion is { Length: > 0 }) {
+        if (ipaVersion is { Length: > 0 })
             resolved = ipaVersion;
-        } else if (string.IsNullOrWhiteSpace(version)) {
+        else if (string.IsNullOrWhiteSpace(version))
             return BadRequest(new {
                 error =
                     "no .ipa payload found, so this is treated as a raw Mach-O executable; supply the version query parameter"
             });
-        } else {
+        else
             resolved = version.Trim();
-        }
 
         int symbolCount;
         try {
@@ -519,12 +505,11 @@ public sealed class DecompController(
             return BadRequest(new { error = "could not read the Mach-O symbol table: " + ex.Message });
         }
 
-        if (symbolCount < SymbolizedSymbolFloor) {
+        if (symbolCount < SymbolizedSymbolFloor)
             return BadRequest(new {
                 error =
                     $"{symbolCount} symbols is below the {SymbolizedSymbolFloor} floor; this is not a symbolized build"
             });
-        }
 
         string sha = Hashes.Sha256Hex(exec);
         await store.PutAsync(Platforms.Ios, resolved, sha, exec, symbolCount, ct);

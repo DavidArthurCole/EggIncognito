@@ -12,7 +12,6 @@ namespace EggIncognito.Services;
 public static class AuthSetup {
     private const string SelectorScheme = "EgiAuthSelector";
 
-
     private static async Task ValidateNotRevoked(CookieValidatePrincipalContext ctx) {
         var identity = ctx.HttpContext.RequestServices.GetService<IdentityApiClient>();
         if (identity is null) return;
@@ -31,15 +30,14 @@ public static class AuthSetup {
     }
 
     private static async Task StampSupporterClaim(ClaimsPrincipal principal, HttpContext ctx, CancellationToken ct) {
-        string? discordId = principal.FindFirstValue(ClaimTypes.NameIdentifier) ??
-                            principal.FindFirstValue(SessionClaims.DiscordId);
-        if (string.IsNullOrEmpty(discordId) || principal.Identity is not ClaimsIdentity identity) return;
-        var supporters = ctx.RequestServices.GetService<ISupporterStatus>();
-        if (supporters is null) return;
+        if (principal.Identity is not ClaimsIdentity identity) return;
+        if (SupporterUserId(principal) is not { } userId) return;
+        var api = ctx.RequestServices.GetService<IdentityApiClient>();
+        if (api is null) return;
 
         bool isSupporter;
         try {
-            isSupporter = await supporters.CheckAsync(discordId, ct);
+            isSupporter = (await api.GetSupporterStatusAsync(userId, ct)).IsSupporter;
         } catch (Exception ex) {
             ctx.RequestServices.GetService<ILoggerFactory>()?
                 .CreateLogger("EggIncognito.Auth")
@@ -47,9 +45,13 @@ public static class AuthSetup {
             return;
         }
 
-        if (identity.FindFirst(SupporterClaims.ClaimType) is { } existing) identity.RemoveClaim(existing);
-        identity.AddClaim(new Claim(SupporterClaims.ClaimType, isSupporter ? "true" : "false"));
+        SupporterClaimsSync.Stamp(identity, isSupporter);
     }
+
+    private static Guid? SupporterUserId(ClaimsPrincipal principal) =>
+        Guid.TryParse(principal.FindFirstValue(AuthClaims.UserIdClaim), out var id)
+            ? id
+            : principal.EggIdentityUserId();
 
     private static Task StampSupporterClaimCookie(CookieValidatePrincipalContext ctx) =>
         ctx.Principal is null

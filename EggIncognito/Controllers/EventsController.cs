@@ -45,14 +45,8 @@ public sealed class EventsController(IServiceProvider services) : ControllerBase
             q = q.Where(e => wanted.Contains(e.EventType));
         }
         if (ultra is { } u) q = q.Where(e => e.Ultra == u);
-        if (after is { } a2) {
-            var t = UnixSeconds.ToTime(a2);
-            q = q.Where(e => e.StartTime >= t);
-        }
-        if (before is { } b2) {
-            var t = UnixSeconds.ToTime(b2);
-            q = q.Where(e => e.StartTime <= t);
-        }
+        if (after is { } a2) q = q.Where(e => e.StartTime >= UnixSeconds.ToTime(a2));
+        if (before is { } b2) q = q.Where(e => e.StartTime <= UnixSeconds.ToTime(b2));
         double? instant = activeAt ?? (active ? UnixSeconds.FromTime(DateTimeOffset.UtcNow) : null);
         if (instant is { } inst) {
             var t = UnixSeconds.ToTime(inst);

@@ -33,11 +33,10 @@ public static class AndroidRecertFlow {
             DeviceFlowSteps.Sleep(c.MagiskActionWaitSeconds)
         };
 
-        if (MagiskCloseSelector(c) is { } closeSelector) {
+        if (MagiskCloseSelector(c) is { } closeSelector)
             steps.Add(DeviceFlowSteps.Tap(closeSelector, required: false));
-        } else if (c.MagiskCloseX is { } cx && c.MagiskCloseY is { } cy) {
+        else if (c.MagiskCloseX is { } cx && c.MagiskCloseY is { } cy)
             steps.Add(DeviceFlowSteps.TapPoint(cx, cy));
-        }
 
         steps.Add(DeviceFlowSteps.Screenshot("after-magisk"));
         return steps;

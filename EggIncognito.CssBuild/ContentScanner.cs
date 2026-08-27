@@ -12,9 +12,7 @@ public static partial class ContentScanner {
             var text = File.ReadAllText(path);
             foreach (Match match in TokenPattern().Matches(text)) {
                 var token = match.Value;
-                if (token.Length < 2) {
-                    continue;
-                }
+                if (token.Length < 2) continue;
                 candidates.Add(token);
             }
         }

@@ -304,11 +304,8 @@
         var q = (Filter ?? _filter).Trim();
         if (_filterApplied is not null && string.Equals(_filterApplied, q, StringComparison.Ordinal)) return;
         _filterApplied = q;
-        if (Mode == CodeDiffMode.Split) {
-            BuildSplitRows(q);
-        } else {
-            BuildUnifiedRows(q);
-        }
+        if (Mode == CodeDiffMode.Split) BuildSplitRows(q);
+        else BuildUnifiedRows(q);
     }
 
     void BuildSplitRows(string q) {

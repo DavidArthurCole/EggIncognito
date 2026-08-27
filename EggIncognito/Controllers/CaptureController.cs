@@ -24,14 +24,12 @@ public sealed class CaptureController(
     CaptureSessionManager manager,
     IAppMode appMode,
     ICurrentUser currentUser,
-    ISupporterStatus supporters,
     HostedCaptureOptions hostedOptions,
     IServiceProvider services) : ControllerBase {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     private CaptureCredentialStore? Credentials =>
         services.GetService(typeof(CaptureCredentialStore)) as CaptureCredentialStore;
-
 
     private (CaptureSession? Session, IActionResult? Error) Resolve() {
         if (appMode.CanCapture)
@@ -135,8 +133,7 @@ public sealed class CaptureController(
         if (!currentUser.UserId.HasValue)
             return StatusCode(401, new { error = "log in to use hosted capture" });
 
-        if (!await supporters.CheckAsync(currentUser.DiscordId, ct))
-            return StatusCode(403, new { error = "supporter_required" });
+        if (!currentUser.IsSupporter) return StatusCode(403, new { error = "supporter_required" });
 
         CaptureSession session;
         try {
@@ -155,7 +152,6 @@ public sealed class CaptureController(
         return Ok(result);
     }
 
-
     [HttpPost("send-config")]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> SendConfig(CancellationToken ct) {
@@ -171,7 +167,6 @@ public sealed class CaptureController(
         await DeliverSetupAsync(session, currentUser.DiscordId, currentUser.UserId.Value, ct);
         return Ok(new { sent = !session.CaDmFailed });
     }
-
 
     private async Task DeliverSetupAsync(
         CaptureSession session, string discordId, Guid userId, CancellationToken ct) {
@@ -206,7 +201,6 @@ public sealed class CaptureController(
             DateTime.Now.ToString("HH:mm:ss", CultureInfo.InvariantCulture)));
     }
 
-
     private static async Task RestoreCaAsync(
         CaptureSession session, CaptureCredentialStore? store, Guid userId, CancellationToken ct) {
         if (store is null) return;
@@ -217,7 +211,6 @@ public sealed class CaptureController(
         Directory.CreateDirectory(Path.GetDirectoryName(pfxPath)!);
         await System.IO.File.WriteAllBytesAsync(pfxPath, ca.Pfx, ct);
     }
-
 
     private static async Task PersistFreshCaAsync(
         CaptureSession session, CaptureCredentialStore store, Guid userId,
@@ -280,7 +273,6 @@ public sealed class CaptureController(
             return Ok(new { saved = path });
         }
 
-
         if (!currentUser.IsSupporter && !currentUser.IsAtLeast(UserRole.Contributor))
             return StatusCode(403, new { error = "supporter or contributor role required to save endpoints" });
         if (services.GetService(typeof(EggIncognitoDbContext)) is not EggIncognitoDbContext db)
@@ -331,7 +323,6 @@ public sealed class CaptureController(
         return Ok(new { responseJson = r.Json, responseType = r.Type, known = r.Known });
     }
 
-
     [HttpGet("proxy-address")]
     public async Task<IActionResult> ProxyAddress(CancellationToken ct) {
         if (RequireHostedSupporter() is { } no) return no;
@@ -341,7 +332,6 @@ public sealed class CaptureController(
         return Ok(new { host = addr.ToString(), port = hostedOptions.FrontDoorPort, address = addr.ToString() });
     }
 
-
     [HttpPost("proxy-address/rotate")]
     public async Task<IActionResult> RotateProxyAddress(CancellationToken ct) {
         if (RequireHostedSupporter() is { } no) return no;
@@ -350,7 +340,6 @@ public sealed class CaptureController(
         var addr = await store.RotateAsync(hostedOptions.Ipv6Prefix, currentUser.UserId!.Value, ct);
         return Ok(new { host = addr.ToString(), port = hostedOptions.FrontDoorPort, address = addr.ToString() });
     }
-
 
     [HttpGet("ca.cer")]
     public async Task<IActionResult> DownloadCa(CancellationToken ct) {

@@ -104,9 +104,7 @@
             if (activate.IsSuccessStatusCode) {
                 SetStatus($"{preset.Name} active; reload to apply everywhere", StatusNoteKind.Ok, ThemeStatusSource.Presets, true);
                 await LoadThemesAsync();
-            } else {
-                SetStatus("preset failed validation", StatusNoteKind.Error, ThemeStatusSource.Presets);
-            }
+            } else SetStatus("preset failed validation", StatusNoteKind.Error, ThemeStatusSource.Presets);
 
             return;
         }

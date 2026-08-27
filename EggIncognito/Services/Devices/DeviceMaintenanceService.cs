@@ -181,9 +181,8 @@ public sealed class DeviceMaintenanceService(
 
                 if (_lastPublishTry.TryGetValue(d.Id, out var last)
                     && string.Equals(last.Build, build, StringComparison.Ordinal)
-                    && time.GetUtcNow() - last.At < PublishRetryBackoff) {
+                    && time.GetUtcNow() - last.At < PublishRetryBackoff)
                     continue;
-                }
 
                 _lastPublishTry[d.Id] = (build, time.GetUtcNow());
                 var res = await publisher.PublishAsync(d.Id, "device-auto", true, ct);
@@ -248,9 +247,8 @@ public sealed class DeviceMaintenanceService(
 
             if (_lastClimbHarvest.TryGetValue(d.Id, out var last)
                 && string.Equals(last.Build, probe.Build, StringComparison.Ordinal)
-                && time.GetUtcNow() - last.At < ClimbHarvestBackoff) {
+                && time.GetUtcNow() - last.At < ClimbHarvestBackoff)
                 continue;
-            }
 
             _lastClimbHarvest[d.Id] = (probe.Build, time.GetUtcNow());
 
@@ -327,9 +325,8 @@ public sealed class DeviceMaintenanceService(
             }
         } else {
             if (_lastStoreProbe.TryGetValue(d.Id, out var lastProbe)
-                && time.GetUtcNow() - lastProbe < _storeProbeInterval) {
+                && time.GetUtcNow() - lastProbe < _storeProbeInterval)
                 return;
-            }
         }
 
         var checker = storeCheckers.FirstOrDefault(c =>
@@ -340,13 +337,12 @@ public sealed class DeviceMaintenanceService(
             return;
         }
 
-        if (ahead) {
+        if (ahead)
             logger.LogInformation("device sync: {Id} store {Store} > installed {Inst}: driving on-device store",
                 d.Id, storeLatest, probe.AppVersion);
-        } else {
+        else
             logger.LogInformation("device sync: {Id} periodic store probe (installed {Inst}, no known newer version)",
                 d.Id, probe.AppVersion);
-        }
 
         _lastStoreProbe[d.Id] = time.GetUtcNow();
         var target = new DeviceTarget(d.Id, d.Platform, d.Target, d.Package);
@@ -361,9 +357,8 @@ public sealed class DeviceMaintenanceService(
                     AppVersion: result.InstalledAfter,
                     Detail: new { fromVersion = result.InstalledBefore, toVersion = result.InstalledAfter }),
                 ct);
-        } else if (result.Action is "up_to_date" or "manual_needed" && storeLatest is not null) {
+        } else if (result.Action is "up_to_date" or "manual_needed" && storeLatest is not null)
             _lastNoOpCheck[d.Id] = (storeLatest, time.GetUtcNow());
-        }
     }
 
     internal async Task RecertSyncAsync(CancellationToken ct) {

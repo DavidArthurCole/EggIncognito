@@ -74,10 +74,9 @@ public abstract class MockApiControllerBase(IEndpointStore endpoints, IBehaviorS
         if (!MockAccessGuard.AdminOnlyHosted.Contains(path)) return;
         var mode = HttpContext.RequestServices.GetRequiredService<IAppMode>();
         var user = HttpContext.RequestServices.GetRequiredService<ICurrentUser>();
-        if (MockAccessGuard.Blocks(path, mode, user)) {
+        if (MockAccessGuard.Blocks(path, mode, user))
             throw new ApiException("admin role required",
                 "This endpoint is restricted to admins on the hosted deployment.",
                 StatusCodes.Status403Forbidden);
-        }
     }
 }

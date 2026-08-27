@@ -50,10 +50,9 @@ public sealed class AndroidStoreUpdateDriver(
         string deepLink = opts.DriveTemplate.Replace("{package}", target.Package);
         var conn = connections.For(target)!;
         var open = await conn.ShellAsync(deepLink, ct);
-        if (open.ExitCode != 0) {
+        if (open.ExitCode != 0)
             return new StoreProbeOutcome(StoreAvailability.Unknown, latest,
                 $"open page: {DeviceParsing.TrimNote(open.Stderr + open.Stdout)}");
-        }
 
         progress?.Invoke("Play page open; locating Update button…");
         for (int tries = 0; tries < 3; tries++) {
@@ -71,10 +70,9 @@ public sealed class AndroidStoreUpdateDriver(
                 return new StoreProbeOutcome(StoreAvailability.UpdateOffered, latest, null);
 
             if (HasButton(tree, "Open") || HasButton(tree, "Uninstall")) {
-                if (AdvertisesUpdate(tree)) {
+                if (AdvertisesUpdate(tree))
                     return new StoreProbeOutcome(StoreAvailability.ManualNeeded, latest,
                         "Play advertises an update but no auto-tappable Update button (major update?); needs manual update");
-                }
 
                 return storeAhead
                     ? new StoreProbeOutcome(StoreAvailability.ManualNeeded, latest,

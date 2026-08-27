@@ -20,7 +20,6 @@ public sealed class CurrentUser(IHttpContextAccessor accessor, AuthState authSta
     public string? Username => IsAuthenticated ? Find(ClaimTypes.Name, SessionClaims.Name) : null;
     public string? Avatar => IsAuthenticated ? Find("urn:discord:avatar:hash", SessionClaims.Avatar) : null;
 
-
     public string? AvatarUrl => Avatar switch {
         null or "" => null,
         var a when a.StartsWith("http://", StringComparison.Ordinal) ||
@@ -33,8 +32,7 @@ public sealed class CurrentUser(IHttpContextAccessor accessor, AuthState authSta
 
     public UserRole Role => UserRoles.Parse(IsAuthenticated ? Find(AuthClaims.RoleClaim, SessionClaims.Role) : null);
 
-    public bool IsSupporter =>
-        IsAuthenticated && Principal!.FindFirstValue(SupporterClaims.ClaimType) == "true";
+    public bool IsSupporter => IsAuthenticated && Principal!.IsSupporter();
 
     public bool IsAtLeast(UserRole need) => UserRoles.IsAtLeast(Role, need);
 

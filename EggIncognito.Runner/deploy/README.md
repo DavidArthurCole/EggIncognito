@@ -13,6 +13,7 @@ Image: `ghcr.io/egginctools/eggincognito-runner:latest`, built by the release wo
 | `APK_STASH_DIR` | pulled APK / staged binary / per-device state |
 | `IOS_BINARY_PATH` | staged Mach-O for ios devices |
 | `POLL_INTERVAL` | seconds between full sweeps |
+| `PREV_CLIENT_VERSION` | prior client version, for change-detection on first sweep |
 | `SYNC_EVENT_URL` / `SYNC_EVENT_SECRET` | new-version ingest endpoint + bearer |
 | `RUNNER_TRIGGER_SECRET` | bearer for the resync/extract/probe routes |
 | `RUNNER_TRIGGER_URLS` | listener bind |

@@ -8,7 +8,6 @@ public static class HostAddress {
     public static string? Resolve(string? configured, IReadOnlyList<Nic>? nics = null) =>
         !string.IsNullOrWhiteSpace(configured) ? configured.Trim() : Pick(nics ?? Enumerate());
 
-
     public static string? Pick(IReadOnlyList<Nic> nics) {
         var usable = nics
             .Where(n => n.IsUp && !n.IsLoopback && !IsVirtual(n.Name))

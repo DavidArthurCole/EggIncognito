@@ -53,7 +53,7 @@ dotnet_style_null_propagation = true:warning
 csharp_style_prefer_null_check_over_type_check = true:warning
 csharp_style_conditional_expression_over_assignment = true:suggestion
 
-csharp_prefer_braces = when_multiline:warning
+csharp_prefer_braces = when_multiline:silent
 csharp_prefer_simple_using_statement = true:warning
 csharp_style_prefer_method_group_conversion = true:silent
 

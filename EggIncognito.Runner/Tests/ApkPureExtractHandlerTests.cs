@@ -43,7 +43,6 @@ public sealed class ApkPureExtractHandlerTests : IDisposable {
         await first;
     }
 
-
     private sealed class BlockingHandler(ManualResetEventSlim entered, ManualResetEventSlim release) : HttpMessageHandler {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) {
             entered.Set();

@@ -9,7 +9,10 @@ async function ensureGif() {
   if (GIFClass) return GIFClass;
 
   await new Promise((resolve, reject) => {
-    if (globalThis.GIF) { resolve(); return; }
+    if (globalThis.GIF) {
+      resolve();
+      return;
+    }
     const s = document.createElement('script');
     s.src = GIF_URL;
     s.onload = resolve;

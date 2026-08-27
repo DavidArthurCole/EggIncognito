@@ -47,7 +47,10 @@
       stopPolling();
       return;
     }
-    if (polls >= MAX_POLLS) { stopPolling(); return; }
+    if (polls >= MAX_POLLS) {
+      stopPolling();
+      return;
+    }
     setTimeout(tick, POLL_MS);
   }
 
@@ -56,7 +59,10 @@
  
   function observeDialog() {
     const modal = document.getElementById('components-reconnect-modal');
-    if (!modal) { setTimeout(observeDialog, 200); return; }
+    if (!modal) {
+      setTimeout(observeDialog, 200);
+      return;
+    }
     const obs = new MutationObserver(() => {
       const cls = modal.className || '';
       if (/components-reconnect-(show|failed)/.test(cls) || modal.open) startPolling();

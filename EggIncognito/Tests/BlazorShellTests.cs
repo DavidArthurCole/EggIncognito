@@ -14,8 +14,8 @@ public class BlazorShellTests(SharedAppFactory f) {
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
         string html = await r.Content.ReadAsStringAsync();
         Assert.Contains("pd-grid", html);
-        Assert.Contains("pd-brand", html);
-        Assert.Contains("pd-support", html);
+        Assert.Contains("pd-band", html);
+        Assert.Contains("pd-w-support", html);
         Assert.Contains("/styles.css", html);
         Assert.Contains("blazor.web.js", html);
     }

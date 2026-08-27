@@ -13,6 +13,10 @@ make package THEOS=$HOME/theos                    # unarmed
 make package EGGUPDATE_ARMED=1 THEOS=$HOME/theos  # armed
 ```
 
+## egiuinav tweak
+
+On-device UI navigation: drives synthetic touch/HID events and screen captures through a file-based command channel (`/tmp/egi-uinav.*`), so the app can tap through device UI without a jailbreak-unfriendly automation stack. Same Theos build path as `eggupdate`.
+
 ## frida scripts
 
 Live-capture scripts for particle-effect research: one hooks the particle renderer and logs per-frame transforms, one profiles the main thread to locate the particle functions. Copied and run over ssh.

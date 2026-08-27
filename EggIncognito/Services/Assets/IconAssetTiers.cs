@@ -45,10 +45,9 @@ public sealed class IconDiskTier(IconAssetCache cache) : IGameAssetTier {
 
     public Task<GameAsset?> TryGetAsync(GameAssetKey key, CancellationToken ct) {
         byte[]? png = cache.TryGet(key.Name);
-        var asset = png is null
+        return Task.FromResult(png is null
             ? null
-            : new GameAsset(key, png, "image/png", $"disk@{key.Name}", DateTimeOffset.UtcNow);
-        return Task.FromResult(asset);
+            : new GameAsset(key, png, "image/png", $"disk@{key.Name}", DateTimeOffset.UtcNow));
     }
 
     public Task PutAsync(GameAsset asset, CancellationToken ct) =>

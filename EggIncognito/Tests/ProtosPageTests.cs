@@ -26,7 +26,7 @@ public class ProtosPageTests {
             Assert.Equal(HttpStatusCode.OK, r.StatusCode);
             string html = await r.Content.ReadAsStringAsync();
             Assert.Contains("pd-grid", html);
-            Assert.Contains(">Versions</h3>", html);
+            Assert.Contains("pd-band", html);
 
             Assert.DoesNotContain("id=\"backfillPanel\"", html);
         }

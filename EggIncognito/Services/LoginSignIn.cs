@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 
 namespace EggIncognito.Services;
 
-public sealed class LoginSignIn(ISupporterStatus supporters) {
+public sealed class LoginSignIn {
     public async Task SignInAsync(HttpContext http, RedeemLoginCodeResponse result) {
         List<Claim> claims = [
             new(ClaimTypes.NameIdentifier, result.DiscordId ?? result.UserId.ToString()),
@@ -16,15 +16,10 @@ public sealed class LoginSignIn(ISupporterStatus supporters) {
         ];
         if (!string.IsNullOrEmpty(result.Avatar))
             claims.Add(new Claim("urn:discord:avatar:hash", result.Avatar));
-        var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
-
-        bool isSupporter = false;
-        if (!string.IsNullOrEmpty(result.DiscordId))
-            isSupporter = await supporters.CheckAsync(result.DiscordId, http.RequestAborted);
-        SupporterClaims.Stamp(identity, isSupporter);
 
         await http.SignInAsync(
-            CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity),
+            CookieAuthenticationDefaults.AuthenticationScheme,
+            new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)),
             new AuthenticationProperties { IsPersistent = true });
     }
 }

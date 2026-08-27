@@ -192,13 +192,12 @@ public sealed class ThemeController(ICurrentUser currentUser, IServiceProvider s
     public async Task<IActionResult> GetPolicy() {
         if (RequireAdmin() is { } no) return no;
         var store = Store;
-        if (store is null) {
+        if (store is null)
             return Ok(new {
                 customCssEnabled = true,
                 configFloor = CustomCssConfigFloor(),
                 defaultThemeSlug = (string?)null
             });
-        }
 
         var policy = await store.GetPolicyAsync(HttpContext.RequestAborted);
         string? defaultSlug = null;

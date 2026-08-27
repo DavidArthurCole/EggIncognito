@@ -8,7 +8,7 @@ Only auxbrain hosts are decrypted. Everything else, including Apple, Google, and
 
 ## Manual capture
 
-Start the proxy from the `/capture` tab (or launch with `--capture`), point the phone's Wi-Fi proxy at the computer, install and trust the printed root CA, and play. Each captured flow becomes a redacted endpoint on disk, the route map self-repairs, and the session is written to a HAR.
+Start the proxy from the API workbench (`/protos#api`, or launch with `--capture`), point the phone's Wi-Fi proxy at the computer, install and trust the printed root CA, and play. Each captured flow becomes a redacted endpoint on disk, the route map self-repairs, and the session is written to a HAR.
 
 ## Device farm
 

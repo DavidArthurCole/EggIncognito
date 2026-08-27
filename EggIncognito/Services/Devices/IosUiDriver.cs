@@ -96,17 +96,15 @@ public sealed class IosUiDriver(IDeviceConnectionFactory connections, IosUiDrive
             var poll = await conn.ShellAsync($"[ -f {DonePath} ] && cat {DonePath}", ct);
             if (poll.ExitCode == 0) {
                 string line = poll.Stdout.Trim();
-                if (line.Length > 0) {
+                if (line.Length > 0)
                     return line.StartsWith("ok ", StringComparison.Ordinal)
                         ? DeviceResult<string>.Success(line)
                         : DeviceResult<string>.Error(DeviceParsing.TrimNote(line));
-                }
             }
 
-            if (DateTime.UtcNow >= deadline) {
+            if (DateTime.UtcNow >= deadline)
                 return DeviceResult<string>.Unreachable(
                     "egi-uinav tweak did not respond (installed? app foreground?)");
-            }
 
             try {
                 await Task.Delay(opts.PollIntervalMs, ct);
@@ -140,11 +138,10 @@ public sealed class IosUiDriver(IDeviceConnectionFactory connections, IosUiDrive
         var bounds = ParseBounds(el);
 
         var children = new List<UiNode>();
-        if (el.TryGetProperty("children", out var childrenEl) && childrenEl.ValueKind == JsonValueKind.Array) {
+        if (el.TryGetProperty("children", out var childrenEl) && childrenEl.ValueKind == JsonValueKind.Array)
             foreach (var child in childrenEl.EnumerateArray()) {
                 children.Add(ParseNode(child));
             }
-        }
 
         return new UiNode(id, text, label, className, null, bounds, enabled, enabled, children);
     }

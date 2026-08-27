@@ -86,7 +86,6 @@ public sealed class IosStoreUpdateDriver(
     private Task<ProcessResult> SshAsync(string remoteCmd, CancellationToken ct) =>
         runner.RunAsync("ssh", new SshEndpoint(opts.SshHost!, opts.SshPort, opts.SshKeyPath!).SshArgs(remoteCmd), ct);
 
-
     public sealed record Options(
         string? SshHost,
         string SshPort,

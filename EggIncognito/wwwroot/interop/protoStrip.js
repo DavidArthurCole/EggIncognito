@@ -230,9 +230,18 @@ export function wireDrop(containerId, inputId) {
   const el = document.getElementById(containerId);
   const input = document.getElementById(inputId);
   if (!el || !input) return false;
-  const stop = e => { e.preventDefault(); e.stopPropagation(); };
-  el.addEventListener("dragover", e => { stop(e); el.classList.add("dragging"); });
-  el.addEventListener("dragleave", e => { stop(e); el.classList.remove("dragging"); });
+  const stop = e => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+  el.addEventListener("dragover", e => {
+    stop(e);
+    el.classList.add("dragging");
+  });
+  el.addEventListener("dragleave", e => {
+    stop(e);
+    el.classList.remove("dragging");
+  });
   el.addEventListener("drop", e => {
     stop(e);
     el.classList.remove("dragging");

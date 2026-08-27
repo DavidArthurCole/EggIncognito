@@ -5,7 +5,6 @@ namespace EggIncognito.Services;
 public sealed class ShipShellDownloader(IHttpClientFactory httpFactory, ILogger<ShipShellDownloader> logger) {
     private static readonly string[] AllowedHosts = ["auxbrain.com", "www.auxbrain.com"];
 
-
     public async Task<RpoMeshDecoder.DecodeResult> DownloadAndDecodeAsync(string url, string? name,
         CancellationToken ct) {
         if (!IsAllowed(url))

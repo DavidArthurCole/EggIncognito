@@ -36,22 +36,19 @@ public sealed class DeviceRegistryPublisher(
         CancellationToken ct) {
         if (services.GetService(typeof(IDeviceStatusStore)) is not IDeviceStatusStore store
             || services.GetService(typeof(ProtoRegistryStore)) is not ProtoRegistryStore registry
-            || services.GetService(typeof(DeviceStateStore)) is not DeviceStateStore states) {
+            || services.GetService(typeof(DeviceStateStore)) is not DeviceStateStore states)
             return new PublishResult(PublishOutcome.NotConfigured, Error: "no database configured");
-        }
 
         var device = await store.GetAsync(deviceId, ct);
         if (device is null) return new PublishResult(PublishOutcome.UnknownDevice, Error: "unknown device");
-        if (device.Platform is not (PlatformAndroid or PlatformIos)) {
+        if (device.Platform is not (PlatformAndroid or PlatformIos))
             return new PublishResult(PublishOutcome.UnsupportedPlatform,
                 Error: $"no extractor for platform {device.Platform}");
-        }
 
         var state = await states.GetAsync(deviceId, ct);
-        if (state is null || string.IsNullOrEmpty(state.AppVersion)) {
+        if (state is null || string.IsNullOrEmpty(state.AppVersion))
             return new PublishResult(PublishOutcome.NotHarvested,
                 Error: "device has not been harvested yet; poke the device agent and retry");
-        }
 
         if (await StaleAsync(deviceId, state, pokeWhenStale, ct) is { } stale) return stale;
 
@@ -106,17 +103,15 @@ public sealed class DeviceRegistryPublisher(
 
     private async Task<(Carve? Result, PublishResult? Error)> CarveAsync(
         Device device, DeviceState state, CancellationToken ct) {
-        if (services.GetService(typeof(DeviceAssetStore)) is not DeviceAssetStore assets) {
+        if (services.GetService(typeof(DeviceAssetStore)) is not DeviceAssetStore assets)
             return (null, new PublishResult(PublishOutcome.NotConfigured, Error: "no database configured"));
-        }
 
         if (device.Platform == PlatformAndroid) {
             var row = await assets.GetAsync(DeviceAssetKinds.Package, HarvestEntries.AndroidArmSplit,
                 device.Platform, ct);
-            if (row is null) {
+            if (row is null)
                 return (null, new PublishResult(PublishOutcome.MissingAsset,
                     Error: "no harvested arm split for this device; poke the device agent and retry"));
-            }
 
             var carved = ArchiveProtoExtractor.Extract(row.Bytes);
             if (!carved.Ok || string.IsNullOrEmpty(carved.Proto)) {
@@ -125,20 +120,18 @@ public sealed class DeviceRegistryPublisher(
                     Error: $"proto carve failed: {carved.Diagnostics}"));
             }
 
-            if (string.IsNullOrEmpty(state.Build)) {
+            if (string.IsNullOrEmpty(state.Build))
                 return (null, new PublishResult(PublishOutcome.NotHarvested,
                     Error: "harvested state has no android build number"));
-            }
 
             return (new Carve(carved.Proto, state.Build, carved.ClientVersion, carved.ProtoSha), null);
         }
 
         var binaries = (GameBinaryProvider)services.GetRequiredService(typeof(GameBinaryProvider));
         var bin = await binaries.GetExtractionBinaryAsync(device.Platform, ct);
-        if (!bin.Ok || bin.Bytes is null) {
+        if (!bin.Ok || bin.Bytes is null)
             return (null, new PublishResult(PublishOutcome.MissingAsset,
                 Error: $"no harvested {device.Platform} binary: {bin.Diagnostics}"));
-        }
 
         if (!string.IsNullOrEmpty(state.AppVersion) &&
             !string.Equals(bin.Version, state.AppVersion, StringComparison.Ordinal)) {

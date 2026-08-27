@@ -33,7 +33,6 @@ public sealed class DeviceProxyPusher(
         foreach (var d in devices) await PushOneAsync(d, host, ct);
     }
 
-
     internal static bool LooksLikeDockerBridge(string ip) {
         string[] p = ip.Split('.');
         return p.Length == 4 && p[0] == "172" && int.TryParse(p[1], out int b) && b >= 16 && b <= 31;
@@ -48,7 +47,6 @@ public sealed class DeviceProxyPusher(
         else logger.LogWarning("device capture: {Id} proxy push failed: {Note}", d.Id, res.Note);
         return (res.Ok, res.Note);
     }
-
 
     public DeviceRinfo? LastRinfo(string deviceId) => manager.Rinfo.Latest(deviceId);
 
@@ -90,12 +88,10 @@ public sealed class DeviceProxyPusher(
         return result ?? manager.Rinfo.Latest(d.Id);
     }
 
-
     public async Task<(bool Ok, string? Note)> LockDeviceAsync(DeviceEntry d, CancellationToken ct) {
         var res = await platforms.For(d.Platform).LockAsync(TargetOf(d), ct);
         return (res.Ok, res.Note);
     }
-
 
     public async Task<(bool Ok, string? Note)> RestartAppAsync(DeviceEntry d, CancellationToken ct) {
         try {

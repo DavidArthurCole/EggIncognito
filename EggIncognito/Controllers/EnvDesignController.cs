@@ -52,7 +52,6 @@ public sealed class EnvDesignController(ICurrentUser currentUser, IServiceProvid
         return row is null ? NotFound(new { error = "unknown design" }) : Content(row.Payload, "application/json");
     }
 
-
     [HttpPut("{name}")]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> Save(string name, [FromBody] SaveDesign body) {
@@ -80,7 +79,6 @@ public sealed class EnvDesignController(ICurrentUser currentUser, IServiceProvid
         return Ok(new { saved = name, version = next });
     }
 
-
     [HttpGet("{name}/versions")]
     [EnableRateLimiting("read")]
     public async Task<IActionResult> Versions(string name) {
@@ -97,7 +95,6 @@ public sealed class EnvDesignController(ICurrentUser currentUser, IServiceProvid
             .ToListAsync(HttpContext.RequestAborted);
         return Ok(new { versions = rows });
     }
-
 
     [HttpPost("{name}/rollback")]
     [EnableRateLimiting("write")]

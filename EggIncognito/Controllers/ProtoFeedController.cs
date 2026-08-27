@@ -41,9 +41,8 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
             !Uri.TryCreate(req.WebhookUrl, UriKind.Absolute, out var webhook) ||
             webhook.Scheme != Uri.UriSchemeHttps ||
             !string.Equals(webhook.Host, "discord.com", StringComparison.OrdinalIgnoreCase) ||
-            !webhook.AbsolutePath.StartsWith("/api/webhooks/", StringComparison.Ordinal)) {
+            !webhook.AbsolutePath.StartsWith("/api/webhooks/", StringComparison.Ordinal))
             return BadRequest(new { error = "a Discord webhook URL is required" });
-        }
 
         var http = httpFactory.CreateClient("discord-api");
         var test = await http.PostAsync(webhook,
@@ -103,7 +102,6 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
         return Ok(new { deleted = true });
     }
 
-
     [HttpPost("{id:int}/test")]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> Test(int id, [FromQuery] string? sample, CancellationToken ct) {
@@ -129,7 +127,6 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
         return Ok(new { tested = true, sample = chosen?.Key });
     }
 
-
     [HttpPost("preview")]
     [EnableRateLimiting("read")]
     public IActionResult Preview([FromBody] FeedPreviewReq req) {
@@ -150,7 +147,6 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
                 matches && blocked.Count == 0 ? s.Event.BuildBody(probe.MessageTemplate) : null);
         }));
     }
-
 
     [HttpPatch("{id:int}")]
     [EnableRateLimiting("write")]
@@ -174,7 +170,6 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
         if (!ok) return NotFound(new { error = "subscription not found" });
         return Ok(new { updated = true });
     }
-
 
     [HttpGet("{id:int}/activity")]
     public async Task<IActionResult> Activity(int id, CancellationToken ct) {

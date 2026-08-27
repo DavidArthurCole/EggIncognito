@@ -38,7 +38,6 @@ public sealed class DeployAgentClient(string url, string secret) {
         }
     }
 
-
     public static DeployResult Parse(string json) {
         try {
             var r = JsonSerializer.Deserialize<DeployResponse>(json);

@@ -66,7 +66,6 @@ public static class RateLimiterSetup {
         return Math.Min(opts.Policies[policyOptionKey].PermitLimit, best);
     }
 
-
     private static RateLimitPartition<string> Partition(
         HttpContext ctx, string policyOptionKey, RateLimitOptions opts, bool tierCapped = true) {
         var user = ctx.RequestServices.GetRequiredService<ICurrentUser>();
@@ -87,7 +86,6 @@ public static class RateLimiterSetup {
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst
             });
     }
-
 
     private static RateLimitPartition<string> DataPartition(HttpContext ctx, RateLimitOptions opts) {
         var user = ctx.RequestServices.GetRequiredService<ICurrentUser>();

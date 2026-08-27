@@ -61,11 +61,9 @@ public sealed class DeviceCaptureManager(
 
     public int PortFor(string deviceId) => _captures.TryGetValue(deviceId, out var c) ? c.Port : 0;
 
-
     public CaptureHub? HubFor(string deviceId) => _captures.TryGetValue(deviceId, out var c) ? c.Hub : null;
 
     private static string Now() => DateTime.Now.ToString("HH:mm:ss", CultureInfo.InvariantCulture);
-
 
     public DeviceCaptureDiag DiagFor(string deviceId) =>
         _diag.TryGetValue(deviceId, out var d) ? d.Snapshot() : DeviceCaptureDiag.Empty;
@@ -122,20 +120,17 @@ public sealed class DeviceCaptureManager(
             logger.LogInformation("device capture: {Id} listening on :{Port} (CA {Ca}, freshCa={Fresh})",
                 d.Id, port, caPath, proxy.FreshCa);
 
-
-            if (proxy.FreshCa) {
+            if (proxy.FreshCa)
                 logger.LogWarning(
                     "device capture: {Id} FRESH CA minted ({Ca}). Any cert installed on a device last run is now " +
                     "STALE. Persist the captures dir across restarts or device trust resets on every deploy.", d.Id,
                     caPath);
-            }
 
             await InstallCaAsync(d, ct);
         } catch (Exception ex) {
             logger.LogWarning(ex, "device capture: {Id} failed to start on :{Port}", d.Id, port);
         }
     }
-
 
     public async Task<(bool Ok, string? Note)> InstallCaAsync(DeviceEntry d, CancellationToken ct) {
         if (!_caInstallers.TryGetValue(d.Platform, out var installer))

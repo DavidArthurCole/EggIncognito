@@ -74,6 +74,5 @@ public sealed class StoreUpdateOrchestrator(
         }
     }
 
-
     public sealed record Options(int PollSeconds, int PollAttempts);
 }

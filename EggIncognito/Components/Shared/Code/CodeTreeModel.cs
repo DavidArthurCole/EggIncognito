@@ -9,15 +9,12 @@ public sealed class CodeTreeNode {
     public const int LargeChildLimit = 100;
     public const int ValueClamp = 200;
 
-
     public string Kind { get; init; } = "null";
     public string? KeyText { get; init; }
     public string? KeyName { get; init; }
     public int Depth { get; init; }
 
-
     public string LeafText { get; init; } = "";
-
 
     public string? KeyTextLower { get; private set; }
     public string LeafTextLower { get; private set; } = "";
@@ -26,13 +23,11 @@ public sealed class CodeTreeNode {
 
     public List<CodeTreeNode> Children { get; } = [];
 
-
     public bool Expanded { get; set; }
     public bool Dim { get; set; }
     public bool SelfMatch { get; set; }
 
     public int ChildCount => Children.Count;
-
 
     public int DescendantCount {
         get {
@@ -54,9 +49,7 @@ public sealed class CodeTreeNode {
         _ => "tok-plain"
     };
 
-
     public bool ShouldDefaultExpand() => (Depth <= DefaultDepth || ChildCount < SmallChildLimit) && ChildCount <= LargeChildLimit;
-
 
     public static CodeTreeNode? Parse(string? jsonStr) {
         if (string.IsNullOrEmpty(jsonStr)) return null;
@@ -101,7 +94,6 @@ public sealed class CodeTreeNode {
         var jv = (JsonValue)v;
         return jv.TryGetValue(out bool _) ? "boolean" : jv.TryGetValue(out string? _) ? "string" : "number";
     }
-
 
     private static string LeafValue(JsonNode? v, string kind) {
         if (v is null) return "null";

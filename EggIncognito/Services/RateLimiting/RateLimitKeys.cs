@@ -17,12 +17,10 @@ public static class RateLimitKeys {
             : ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
     }
 
-
     public static string PartitionKey(HttpContext ctx, ICurrentUser user, bool hosted) =>
         user.IsAuthenticated && user.UserId is { } userId
             ? $"user:{userId}"
             : $"ip:{ClientIp(ctx, hosted)}";
-
 
     public static IReadOnlyList<string> TiersFor(ICurrentUser user) {
         if (!user.IsAuthenticated) return ["Anon"];

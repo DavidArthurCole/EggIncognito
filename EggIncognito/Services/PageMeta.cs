@@ -9,12 +9,10 @@ public static class PageMeta {
         "capture proxy, a versioned proto registry, and a physical device farm. Test tooling without real " +
         "accounts or rate limits.");
 
-
     private static readonly Meta ProtoRegistry = new(
         "EggIncognito - Proto Registry",
         "A versioned registry of Egg, Inc. proto definitions. Drop an .ipa/.apk to extract its schema, " +
         "or browse detected builds per platform across versions.");
-
 
     private static readonly (string Prefix, Meta Meta)[] Routes = [
         ("/capture", new Meta(
@@ -68,7 +66,6 @@ public static class PageMeta {
             $"The Egg, Inc. proto schema extracted from {label} build {build}, with a full diff against the " +
             "previous version.");
     }
-
 
     private static string PlatformLabel(string platform) =>
         Platforms.Matches(platform, Platforms.Ios) ? "iOS"

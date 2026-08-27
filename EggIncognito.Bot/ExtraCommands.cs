@@ -31,7 +31,6 @@ public static class ExtraCommands {
         new(Base("endpoints", "Show endpoint coverage (ok / empty / missing).").Build(), "endpoints",
             async ctx => await RunAsync(ctx, () => BotEmbeds.Endpoints(status.Build()), logger));
 
-
     private static async Task RunAsync(SocketSlashCommandContext ctx, Func<Embed> build, ILogger? logger) {
         await ctx.Command.DeferAsync(true);
         try {

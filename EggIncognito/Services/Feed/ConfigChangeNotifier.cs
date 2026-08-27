@@ -101,9 +101,8 @@ public sealed class ConfigChangeNotifier(
     private async Task InsertSnapshotAsync(IServiceProvider sp, string route, string json, string sha) {
         try {
             if (!string.Equals(routes.Resolve(route)?.Response, PeriodicalsResponse.Descriptor.Name,
-                    StringComparison.Ordinal)) {
+                    StringComparison.Ordinal))
                 return;
-            }
             if (sp.GetService<EggIncognitoDbContext>() is not { } db) return;
             await IngestEventsAsync(sp, json);
             if (await db.PeriodicalsSnapshots.AnyAsync(s => s.Sha == sha)) return;
