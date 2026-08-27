@@ -90,7 +90,7 @@ public class EventsCalendarModalTests : BunitContext {
     }
 
     [Fact]
-    public async Task StandardEvent_UsesTheTypeColourAndPlainSprite() {
+    public async Task StandardEvent_UsesTheTypeColorAndPlainSprite() {
         var now = DateTimeOffset.UtcNow;
         Wire(_ => Ok(Event("a", "Earnings boost", now.AddHours(-2), now.AddHours(2))));
 

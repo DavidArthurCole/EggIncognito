@@ -149,16 +149,18 @@
                                             <Tooltip>
                                                 <ChildContent>
                                                     <span class="season-goal">
-                                                        @if (!string.IsNullOrEmpty(goal.Icon)) {
-                                                            <span class="season-goal-icon">
-                                                                <img src="@goal.Icon" alt="" loading="lazy" data-fallback/>
-                                                            </span>
-                                                        }
-                                                        <span class="season-goal-text">
-                                                            <span class="season-goal-cs">@FormatAmount(goal.Cxp)<span class="season-goal-unit">CS</span></span>
+                                                        <span class="season-goal-reward">
+                                                            @if (!string.IsNullOrEmpty(goal.Icon)) {
+                                                                <img class="season-goal-img" src="@goal.Icon" alt=""
+                                                                     loading="lazy" data-fallback/>
+                                                            }
+
                                                             @if (goal.RewardAmount != 1) {
                                                                 <span class="season-goal-amt">@($"x{FormatAmount(goal.RewardAmount)}")</span>
                                                             }
+                                                        </span>
+                                                        <span class="season-goal-cs">
+                                                            @FormatAmount(goal.Cxp)<span class="season-goal-unit">CS</span>
                                                         </span>
                                                     </span>
                                                 </ChildContent>

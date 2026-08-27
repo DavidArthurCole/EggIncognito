@@ -3,8 +3,12 @@ using EggIncognito.Models.Events;
 namespace EggIncognito.Services.Events;
 
 public static class EventCalendarLayout {
-    private const double LaneGapFraction = 0.004;
+    public const double DayGapFraction = 0.05;
+
     private const double MinWidthFraction = 0.006;
+
+    public static double GapPercent(DateTimeOffset start, DateTimeOffset end) =>
+        100.0 / Math.Max(1, (end - start).TotalDays) * DayGapFraction;
 
     public static (DateTimeOffset Start, DateTimeOffset End) Window(DateTimeOffset center, EventCalendarZoom zoom) {
         var local = center.ToLocalTime().DateTime;
@@ -84,6 +88,7 @@ public static class EventCalendarLayout {
             .ThenBy(e => e.StartTimestamp)
             .ThenBy(e => e.Id, StringComparer.Ordinal)
             .ToList();
+        double laneGap = DayGapFraction / Math.Max(1, (end - start).TotalDays);
         var laneRights = new List<double>();
         var dayFloors = new Dictionary<DateTime, int>();
         var bars = new List<EventCalendarBar>(hits.Count);
@@ -91,7 +96,7 @@ public static class EventCalendarLayout {
             var (left, width) = Clip(e.StartTimestamp, e.EndTimestamp, windowStart, span);
             bool past = e.EndTimestamp <= nowUnix;
             var day = StartDay(e);
-            int lane = AssignLane(laneRights, left, left + width, dayFloors.GetValueOrDefault(day, 0));
+            int lane = AssignLane(laneRights, left, left + width, dayFloors.GetValueOrDefault(day, 0), laneGap);
             if (!dayFloors.ContainsKey(day)) dayFloors[day] = lane;
             bars.Add(new EventCalendarBar(
                 e,
@@ -115,13 +120,13 @@ public static class EventCalendarLayout {
         return lanes;
     }
 
-    private static int AssignLane(List<double> laneRights, double left, double right, int floor) {
-        if (FirstFree(laneRights, left, floor) is { } preferred) {
+    private static int AssignLane(List<double> laneRights, double left, double right, int floor, double gap) {
+        if (FirstFree(laneRights, left, floor, gap) is { } preferred) {
             laneRights[preferred] = right;
             return preferred;
         }
 
-        if (floor > 0 && FirstFree(laneRights, left, 0) is { } fallback) {
+        if (floor > 0 && FirstFree(laneRights, left, 0, gap) is { } fallback) {
             laneRights[fallback] = right;
             return fallback;
         }
@@ -130,9 +135,9 @@ public static class EventCalendarLayout {
         return laneRights.Count - 1;
     }
 
-    private static int? FirstFree(List<double> laneRights, double left, int from) {
+    private static int? FirstFree(List<double> laneRights, double left, int from, double gap) {
         for (var i = from; i < laneRights.Count; i++) {
-            if (laneRights[i] + LaneGapFraction <= left) return i;
+            if (laneRights[i] + gap <= left) return i;
         }
 
         return null;

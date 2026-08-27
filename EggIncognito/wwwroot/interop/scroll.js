@@ -3,9 +3,10 @@ export function scrollToBottom(el) {
   if (el) el.scrollTop = el.scrollHeight;
 }
 
-export function scrollToFraction(el, fraction) {
+export function centerOnFraction(el, fraction) {
   if (!el) return;
   const span = el.scrollWidth - el.clientWidth;
   if (span <= 0) return;
-  el.scrollLeft = Math.max(0, Math.min(span, span * fraction));
+  const target = el.scrollWidth * fraction - el.clientWidth / 2;
+  el.scrollLeft = Math.max(0, Math.min(span, target));
 }

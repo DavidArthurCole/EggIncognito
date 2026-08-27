@@ -1,9 +1,9 @@
+@inherits SelfCallComponentBase
 @using System.Globalization
 @using System.Text.Json
 @using EggIncognito.Models.Events
 @using EggIncognito.Services.Assets
 @using EggIncognito.Services.Events
-@inherits SelfCallComponentBase
 @implements IAsyncDisposable
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env
@@ -12,54 +12,54 @@
 @if (_note.Length > 0) {
     <div class="evcal-note">@_note</div>
 } else {
-<div class="evcal-mini-scroll" @ref="_scroller">
-    <div class="evcal-shell evcal-view-week evcal-mini" style="@ShellStyle">
-        <div class="evcal-scale">
-            @foreach (var cell in _days) {
-                <span class="evcal-scale-label" style="@TickStyle(cell.LeftPercent)">@DayLabel(cell)</span>
-            }
-        </div>
-        <div class="evcal-canvas">
-            @foreach (var row in _rows) {
-                <div class="evcal-row" style="@RowStyle(row)">
-                    @foreach (var cell in row.Cells) {
-                        if (cell.LeftPercent > 0) {
-                            <div class="evcal-grid" style="@TickStyle(cell.LeftPercent)"></div>
+    <div class="evcal-mini-scroll" @ref="_scroller">
+        <div class="evcal-shell evcal-view-week evcal-mini" style="@ShellStyle">
+            <div class="evcal-scale">
+                @foreach (var cell in _days) {
+                    <span class="evcal-scale-label" style="@TickStyle(cell.LeftPercent)">@DayLabel(cell)</span>
+                }
+            </div>
+            <div class="evcal-canvas">
+                @foreach (var row in _rows) {
+                    <div class="evcal-row" style="@RowStyle(row)">
+                        @foreach (var cell in row.Cells) {
+                            if (cell.LeftPercent > 0) {
+                                <div class="evcal-grid" style="@TickStyle(cell.LeftPercent)"></div>
+                            }
                         }
-                    }
-                    @if (row.NowPercent is { } nowPercent) {
-                        <div class="evcal-now" style="@TickStyle(nowPercent)"></div>
-                    }
-                    <div class="evcal-lanes">
-                        @foreach (var lane in row.Lanes) {
-                            <div class="evcal-lane">
-                                @foreach (var bar in lane) {
-                                    <Tooltip Class="evcal-bar-tip" Style="@BarStyle(bar)">
-                                        <ChildContent>
-                                            <span class="@BarCss(bar)">
-                                                @if (EventPalette.IconUrl(bar.Event.Type, bar.Event.Ultra) is { } iconUrl) {
-                                                    <img class="evcal-bar-icon" src="@iconUrl" alt="" loading="lazy"
-                                                         data-fallback/>
-                                                }
+                        @if (row.NowPercent is { } nowPercent) {
+                            <div class="evcal-now" style="@TickStyle(nowPercent)"></div>
+                        }
+                        <div class="evcal-lanes">
+                            @foreach (var lane in row.Lanes) {
+                                <div class="evcal-lane">
+                                    @foreach (var bar in lane) {
+                                        <Tooltip Class="evcal-bar-tip" Style="@BarStyle(bar)">
+                                            <ChildContent>
+                                                <span class="@BarCss(bar)">
+                                                    @if (EventPalette.IconUrl(bar.Event.Type, bar.Event.Ultra) is { } iconUrl) {
+                                                        <img class="evcal-bar-icon" src="@iconUrl" alt="" loading="lazy"
+                                                             data-fallback/>
+                                                    }
 
-                                                <span class="evcal-bar-label">@Label(bar.Event)</span>
-                                            </span>
-                                        </ChildContent>
-                                        <Tip>
-                                            <span class="tt-title">@Label(bar.Event)</span>
-                                            <span class="tt-line">@Multiplier(bar.Event)@(bar.Event.Ultra ? " - ultra only" : "")</span>
-                                            <span class="tt-line">@Countdown(bar.Event)</span>
-                                        </Tip>
-                                    </Tooltip>
-                                }
-                            </div>
-                        }
+                                                    <span class="evcal-bar-label">@EventMagnitude.Scalar(bar.Event)</span>
+                                                </span>
+                                            </ChildContent>
+                                            <Tip>
+                                                <span class="tt-title">@Label(bar.Event)</span>
+                                                <span class="tt-line">@EventMagnitude.Describe(bar.Event)@(bar.Event.Ultra ? " - ultra only" : "")</span>
+                                                <span class="tt-line">@Countdown(bar.Event)</span>
+                                            </Tip>
+                                        </Tooltip>
+                                    }
+                                </div>
+                            }
+                        </div>
                     </div>
-                </div>
-            }
+                }
+            </div>
         </div>
     </div>
-</div>
 }
 
 @code {
@@ -79,7 +79,8 @@
 
     int DayCount => Math.Max(1, (int)Math.Round((_end - _start).TotalDays));
 
-    string ShellStyle => FormattableString.Invariant($"--evcal-days:{DayCount};");
+    string ShellStyle => FormattableString.Invariant(
+        $"--evcal-days:{DayCount};--evcal-gap:{EventCalendarLayout.GapPercent(_start, _end):0.###}%;");
 
     protected override async Task OnInitializedAsync() {
         var now = DateTimeOffset.Now;
@@ -124,7 +125,7 @@
         try {
             _scroll ??= await JS.InvokeAsync<IJSObjectReference>(
                 "import", InteropAsset.Url(Env, "./interop/scroll.js"));
-            await _scroll.InvokeVoidAsync("scrollToFraction", _scroller, 1);
+            await _scroll.InvokeVoidAsync("centerOnFraction", _scroller, NowFraction);
         }
         catch (JSDisconnectedException) {
         }
@@ -132,16 +133,14 @@
         }
     }
 
+    double NowFraction => _rows.Count > 0 && _rows[0].NowPercent is { } percent ? percent / 100 : 1;
+
     static string Countdown(GameEventDto e) {
         return EventCountdown.Describe(e.StartTimestamp, e.EndTimestamp, DateTimeOffset.UtcNow);
     }
 
-    static string Multiplier(GameEventDto e) {
-        return FormattableString.Invariant($"{e.Multiplier:0.###}x");
-    }
-
     static string DayLabel(EventCalendarCell cell) {
-        return cell.LocalDate.ToString("ddd d", CultureInfo.CurrentCulture);
+        return cell.LocalDate.ToString("d/M", CultureInfo.InvariantCulture);
     }
 
     static string BarCss(EventCalendarBar bar) {

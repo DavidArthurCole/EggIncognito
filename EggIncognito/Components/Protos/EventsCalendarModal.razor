@@ -63,7 +63,7 @@
                 @if (Note is { Length: > 0 } note) {
                     <div class="evcal-note">@note</div>
                 }
-                <div class="evcal-shell evcal-view-@ZoomClass">
+                <div class="evcal-shell evcal-view-@ZoomClass" style="@ShellStyle">
                     <div class="evcal-scale">
                         @for (var i = 0; i < WeekdayNames.Length; i++) {
                             <span class="evcal-scale-label" style="@TickStyle((i + 0.5) / 7 * 100)">@WeekdayNames[i]</span>
@@ -339,6 +339,9 @@
 
     string ZoomClass => _zoom == EventCalendarZoom.Week ? "week" : "month";
 
+    static string ShellStyle => FormattableString.Invariant(
+        $"--evcal-gap:{100.0 / 7 * EventCalendarLayout.DayGapFraction:0.###}%;");
+
     string CenterDate => _center.ToLocalTime().ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
     string RangeLabel {
@@ -400,7 +403,7 @@
     }
 
     static string Multiplier(GameEventDto e) {
-        return FormattableString.Invariant($"{e.Multiplier:0.###}x");
+        return EventMagnitude.Describe(e);
     }
 
     static string Label(GameEventDto e) {
