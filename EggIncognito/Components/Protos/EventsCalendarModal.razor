@@ -90,13 +90,9 @@
                                             @foreach (var bar in lane) {
                                                 <button type="button" class="@BarCss(bar)" style="@BarStyle(bar)"
                                                         @onclick="@(() => Select(rowIx, bar))">
-                                                    @if (EventPalette.IconUrl(bar.Event.Type) is { } iconUrl) {
+                                                    @if (EventPalette.IconUrl(bar.Event.Type, bar.Event.Ultra) is { } iconUrl) {
                                                         <img class="evcal-bar-icon" src="@iconUrl" alt="" loading="lazy"
                                                              data-fallback/>
-                                                    }
-
-                                                    @if (bar.Event.Ultra) {
-                                                        <span class="evcal-ultra">ultra</span>
                                                     }
 
                                                     <span class="evcal-bar-label">@Label(bar.Event)</span>
@@ -126,6 +122,10 @@
                                         <div class="evcal-pop-row">
                                             <span class="evcal-pop-k">Ultra</span>
                                             <span class="evcal-pop-v">@(picked.Event.Ultra ? "yes" : "no")</span>
+                                        </div>
+                                        <div class="evcal-pop-row">
+                                            <span class="evcal-pop-k">Timing</span>
+                                            <span class="evcal-pop-v">@Countdown(picked.Event)</span>
                                         </div>
                                         <div class="evcal-pop-row">
                                             <span class="evcal-pop-k">Source</span>
@@ -375,8 +375,8 @@
     }
 
     static string BarStyle(EventCalendarBar bar) {
-        return FormattableString.Invariant(
-            $"--bar-start:{bar.LeftPercent:0.###};--bar-size:{bar.WidthPercent:0.###};--evt-color:{EventPalette.ColorFor(bar.Event.Type)};");
+        return FormattableString.Invariant($"--bar-start:{bar.LeftPercent:0.###};--bar-size:{bar.WidthPercent:0.###};")
+               + EventPalette.BarStyle(bar.Event.Type, bar.Event.Ultra);
     }
 
     static string TickStyle(double leftPercent) {
@@ -393,6 +393,10 @@
 
     static string Absolute(double unixSeconds) {
         return UnixSeconds.ToTime(unixSeconds).ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
+    }
+
+    static string Countdown(GameEventDto e) {
+        return EventCountdown.Describe(e.StartTimestamp, e.EndTimestamp, DateTimeOffset.UtcNow);
     }
 
     static string Multiplier(GameEventDto e) {

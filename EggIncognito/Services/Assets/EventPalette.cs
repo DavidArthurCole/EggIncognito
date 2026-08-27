@@ -30,8 +30,13 @@ public static class EventPalette {
             ? Fallback
             : ByType.GetValueOrDefault(eventType.Replace('_', '-'), Fallback);
 
-    public static string? IconUrl(string? eventType) =>
+    public static string? IconUrl(string? eventType, bool ultra = false) =>
         string.IsNullOrEmpty(eventType) || !eventType.All(c => char.IsAsciiLetterOrDigit(c) || c is '_' or '-')
             ? null
-            : $"/api/v1/data/asset/event-icon?name={Uri.EscapeDataString(eventType)}";
+            : $"/api/v1/data/asset/event-icon?name={Uri.EscapeDataString(eventType)}{(ultra ? "&cc=1" : "")}";
+
+    public static string BarStyle(string? eventType, bool ultra) =>
+        ultra
+            ? $"--evt-color:{CcGradientTo};--evt-from:{CcGradientFrom};--evt-to:{CcGradientTo};"
+            : $"--evt-color:{ColorFor(eventType)};--evt-from:{ColorFor(eventType)};--evt-to:{ColorFor(eventType)};";
 }

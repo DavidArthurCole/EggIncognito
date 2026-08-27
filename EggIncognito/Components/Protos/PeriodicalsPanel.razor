@@ -60,11 +60,7 @@
                     <Icon Name="chevronRight" Class="icon-sm"/>
                 </button>
             </div>
-            @if (_events is { Count: > 0 } evts) {
-                <EventsMiniCalendar Events="evts"/>
-            } else if (_loaded) {
-                <div class="text-muted text-xs">No active events.</div>
-            }
+            <EventsMiniCalendar/>
         </section>
 
         @if (_seasons is { Count: > 0 } seasonList) {
@@ -159,7 +155,7 @@
                                                             </span>
                                                         }
                                                         <span class="season-goal-text">
-                                                            <span class="season-goal-cs">@FormatAmount(goal.Cxp) CS</span>
+                                                            <span class="season-goal-cs">@FormatAmount(goal.Cxp)<span class="season-goal-unit">CS</span></span>
                                                             @if (goal.RewardAmount != 1) {
                                                                 <span class="season-goal-amt">@($"x{FormatAmount(goal.RewardAmount)}")</span>
                                                             }
@@ -208,7 +204,6 @@
     PeriodicalsSummary? _summary;
     List<Season>? _seasons;
     int _seasonIx;
-    List<EventRow>? _events;
     IJSObjectReference? _images;
 
     [Parameter] public EventCallback<string?> OnManageDevices { get; set; }
@@ -232,16 +227,6 @@
         }
         catch (Exception ex) {
             Logger.LogWarning(ex, "the periodicals summary could not be loaded");
-        }
-
-        try {
-            var cur = await Client().GetFromJsonAsync<EventsResponse>("/api/periodicals/current", JsonOpts);
-            if (cur is not null) {
-                _events = cur.Events;
-            }
-        }
-        catch (Exception ex) {
-            Logger.LogWarning(ex, "the current periodicals events could not be loaded");
         }
 
         try {

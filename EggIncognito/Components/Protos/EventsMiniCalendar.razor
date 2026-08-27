@@ -1,81 +1,129 @@
 @using System.Globalization
+@using System.Text.Json
 @using EggIncognito.Models.Events
-@using EggIncognito.Models.Periodicals
 @using EggIncognito.Services.Assets
 @using EggIncognito.Services.Events
-<div class="evcal-shell evcal-view-week evcal-mini">
-    <div class="evcal-scale">
-        @for (var i = 0; i < WeekdayNames.Length; i++) {
-            <span class="evcal-scale-label" style="@TickStyle((i + 0.5) / 7 * 100)">@WeekdayNames[i]</span>
-        }
-    </div>
-    <div class="evcal-canvas">
-        @foreach (var row in _rows) {
-            <div class="evcal-row" style="@RowStyle(row)">
-                @foreach (var cell in row.Cells) {
-                    if (cell.LeftPercent > 0) {
-                        <div class="evcal-grid" style="@TickStyle(cell.LeftPercent)"></div>
-                    }
-                }
-                @if (row.NowPercent is { } nowPercent) {
-                    <div class="evcal-now" style="@TickStyle(nowPercent)"></div>
-                }
-                <div class="evcal-lanes">
-                    @foreach (var lane in row.Lanes) {
-                        <div class="evcal-lane">
-                            @foreach (var bar in lane) {
-                                <Tooltip Class="evcal-bar-tip" Style="@BarStyle(bar)">
-                                    <ChildContent>
-                                        <span class="@BarCss(bar)">
-                                            @if (EventPalette.IconUrl(bar.Event.Type) is { } iconUrl) {
-                                                <img class="evcal-bar-icon" src="@iconUrl" alt="" loading="lazy"
-                                                     data-fallback/>
-                                            }
+@inherits SelfCallComponentBase
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject IWebHostEnvironment Env
+@inject ILogger<EventsMiniCalendar> Logger
 
-                                            <span class="evcal-bar-label">@Label(bar.Event)</span>
-                                        </span>
-                                    </ChildContent>
-                                    <Tip>
-                                        <span class="tt-title">@Label(bar.Event)</span>
-                                        <span class="tt-line">@Multiplier(bar.Event)</span>
-                                        <span class="tt-line">Ends @Absolute(bar.Event.EndTimestamp)</span>
-                                    </Tip>
-                                </Tooltip>
-                            }
-                        </div>
+<div class="evcal-mini-scroll" @ref="_scroller">
+    <div class="evcal-shell evcal-view-week evcal-mini" style="@ShellStyle">
+        <div class="evcal-scale">
+            @foreach (var cell in _days) {
+                <span class="evcal-scale-label" style="@TickStyle(cell.LeftPercent)">@DayLabel(cell)</span>
+            }
+        </div>
+        <div class="evcal-canvas">
+            @foreach (var row in _rows) {
+                <div class="evcal-row" style="@RowStyle(row)">
+                    @foreach (var cell in row.Cells) {
+                        if (cell.LeftPercent > 0) {
+                            <div class="evcal-grid" style="@TickStyle(cell.LeftPercent)"></div>
+                        }
                     }
+                    @if (row.NowPercent is { } nowPercent) {
+                        <div class="evcal-now" style="@TickStyle(nowPercent)"></div>
+                    }
+                    <div class="evcal-lanes">
+                        @foreach (var lane in row.Lanes) {
+                            <div class="evcal-lane">
+                                @foreach (var bar in lane) {
+                                    <Tooltip Class="evcal-bar-tip" Style="@BarStyle(bar)">
+                                        <ChildContent>
+                                            <span class="@BarCss(bar)">
+                                                @if (EventPalette.IconUrl(bar.Event.Type, bar.Event.Ultra) is { } iconUrl) {
+                                                    <img class="evcal-bar-icon" src="@iconUrl" alt="" loading="lazy"
+                                                         data-fallback/>
+                                                }
+
+                                                <span class="evcal-bar-label">@Label(bar.Event)</span>
+                                            </span>
+                                        </ChildContent>
+                                        <Tip>
+                                            <span class="tt-title">@Label(bar.Event)</span>
+                                            <span class="tt-line">@Multiplier(bar.Event)@(bar.Event.Ultra ? " - ultra only" : "")</span>
+                                            <span class="tt-line">@Countdown(bar.Event)</span>
+                                        </Tip>
+                                    </Tooltip>
+                                }
+                            </div>
+                        }
+                    </div>
                 </div>
-            </div>
-        }
+            }
+        </div>
     </div>
 </div>
 
 @code {
-    static readonly string[] WeekdayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const int HistoryDays = 21;
+    const int FetchLimit = 500;
 
-    [Parameter] public IReadOnlyList<EventRow> Events { get; set; } = [];
+    static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
+    ElementReference _scroller;
+    IJSObjectReference? _scroll;
     IReadOnlyList<EventCalendarRow> _rows = [];
+    IReadOnlyList<EventCalendarCell> _days = [];
+    DateTimeOffset _start;
+    DateTimeOffset _end;
+    bool _scrolled;
 
-    protected override void OnParametersSet() {
+    int DayCount => Math.Max(1, (int)Math.Round((_end - _start).TotalDays));
+
+    string ShellStyle => FormattableString.Invariant($"--evcal-days:{DayCount};");
+
+    protected override async Task OnInitializedAsync() {
         var now = DateTimeOffset.Now;
-        var (start, end) = EventCalendarLayout.Window(now, EventCalendarZoom.Week);
-        var dtos = Events.Select(Convert).ToList();
-        _rows = EventCalendarLayout.Rows(dtos, start, end, EventCalendarZoom.Week, now);
+        (_, _end) = EventCalendarLayout.Window(now, EventCalendarZoom.Week);
+        _start = _end.AddDays(-HistoryDays);
+        await Load(now);
     }
 
-    static GameEventDto Convert(EventRow e) {
-        return new GameEventDto(
-            e.Identifier, e.Type, e.Subtitle, e.Multiplier, false,
-            e.StartTime, e.EndTime ?? e.StartTime + e.Duration, "periodicals");
+    async Task Load(DateTimeOffset now) {
+        var url = FormattableString.Invariant(
+            $"/api/v1/events?after={UnixSeconds.FromTime(_start):0}&before={UnixSeconds.FromTime(_end):0}&limit={FetchLimit}");
+        IReadOnlyList<GameEventDto> events;
+        try {
+            var body = await Client().GetFromJsonAsync<GameEventListResponse>(url, JsonOpts);
+            events = body?.Events ?? [];
+        }
+        catch (Exception ex) {
+            Logger.LogWarning(ex, "the mini event calendar could not be loaded");
+            return;
+        }
+
+        _rows = EventCalendarLayout.Rows(events, _start, _end, EventCalendarZoom.Week, now);
+        _days = _rows.Count > 0 ? _rows[0].Cells : [];
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender) {
+        if (_scrolled || _rows.Count == 0) return;
+        _scrolled = true;
+        try {
+            _scroll ??= await JS.InvokeAsync<IJSObjectReference>(
+                "import", InteropAsset.Url(Env, "./interop/scroll.js"));
+            await _scroll.InvokeVoidAsync("scrollToFraction", _scroller, 1);
+        }
+        catch (JSDisconnectedException) {
+        }
+        catch (JSException) {
+        }
+    }
+
+    static string Countdown(GameEventDto e) {
+        return EventCountdown.Describe(e.StartTimestamp, e.EndTimestamp, DateTimeOffset.UtcNow);
     }
 
     static string Multiplier(GameEventDto e) {
         return FormattableString.Invariant($"{e.Multiplier:0.###}x");
     }
 
-    static string Absolute(double unixSeconds) {
-        return UnixSeconds.ToTime(unixSeconds).ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
+    static string DayLabel(EventCalendarCell cell) {
+        return cell.LocalDate.ToString("ddd d", CultureInfo.CurrentCulture);
     }
 
     static string BarCss(EventCalendarBar bar) {
@@ -86,8 +134,8 @@
     }
 
     static string BarStyle(EventCalendarBar bar) {
-        return FormattableString.Invariant(
-            $"--bar-start:{bar.LeftPercent:0.###};--bar-size:{bar.WidthPercent:0.###};--evt-color:{EventPalette.ColorFor(bar.Event.Type)};");
+        return FormattableString.Invariant($"--bar-start:{bar.LeftPercent:0.###};--bar-size:{bar.WidthPercent:0.###};")
+               + EventPalette.BarStyle(bar.Event.Type, bar.Event.Ultra);
     }
 
     static string TickStyle(double leftPercent) {
@@ -105,6 +153,15 @@
     static string Pretty(string raw) {
         var words = raw.Replace('-', ' ').Replace('_', ' ').Split(' ', StringSplitOptions.RemoveEmptyEntries);
         return string.Join(' ', words.Select(w => char.ToUpperInvariant(w[0]) + w[1..].ToLowerInvariant()));
+    }
+
+    public async ValueTask DisposeAsync() {
+        if (_scroll is null) return;
+        try {
+            await _scroll.DisposeAsync();
+        }
+        catch (JSDisconnectedException) {
+        }
     }
 
 }
