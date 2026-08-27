@@ -60,7 +60,7 @@
                     <Icon Name="chevronRight" Class="icon-sm"/>
                 </button>
             </div>
-            <EventsMiniCalendar/>
+            <EventsMiniCalendar OnOpen="OnOpenEvents"/>
         </section>
 
         @if (_seasons is { Count: > 0 } seasonList) {
@@ -149,6 +149,9 @@
                                             <Tooltip>
                                                 <ChildContent>
                                                     <span class="season-goal">
+                                                        <span class="season-goal-cs">
+                                                            @FormatAmount(goal.Cxp)<span class="season-goal-unit">CS</span>
+                                                        </span>
                                                         <span class="season-goal-reward">
                                                             @if (!string.IsNullOrEmpty(goal.Icon)) {
                                                                 <img class="season-goal-img" src="@goal.Icon" alt=""
@@ -158,9 +161,6 @@
                                                             @if (goal.RewardAmount != 1) {
                                                                 <span class="season-goal-amt">@($"x{FormatAmount(goal.RewardAmount)}")</span>
                                                             }
-                                                        </span>
-                                                        <span class="season-goal-cs">
-                                                            @FormatAmount(goal.Cxp)<span class="season-goal-unit">CS</span>
                                                         </span>
                                                     </span>
                                                 </ChildContent>
@@ -400,12 +400,17 @@
     }
 
     static string TitleCase(string raw) {
-        return string.Join(' ', raw.Split([' ', '_', '-'], StringSplitOptions.RemoveEmptyEntries)
-            .Select(w => char.ToUpperInvariant(w[0]) + w[1..].ToLowerInvariant()));
+        return string.Join(' ', raw.Split([' ', '_', '-'], StringSplitOptions.RemoveEmptyEntries).Select(TitleWord));
+    }
+
+    static string TitleWord(string word) {
+        return word.Contains('.', StringComparison.Ordinal)
+            ? word
+            : char.ToUpperInvariant(word[0]) + word[1..].ToLowerInvariant();
     }
 
     static string EggName(EggRow e) {
-        return string.IsNullOrWhiteSpace(e.Name) ? TitleCase(e.Identifier) : e.Name;
+        return TitleCase(string.IsNullOrWhiteSpace(e.Name) ? e.Identifier : e.Name);
     }
 
     static string TierLabel(double value) {

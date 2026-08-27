@@ -90,17 +90,13 @@ public static class EventCalendarLayout {
             .ToList();
         double laneGap = DayGapFraction / Math.Max(1, (end - start).TotalDays);
         var laneRights = new List<double>();
-        var dayFloors = new Dictionary<DateTime, int>();
         var bars = new List<EventCalendarBar>(hits.Count);
         foreach (var e in hits) {
             var (left, width) = Clip(e.StartTimestamp, e.EndTimestamp, windowStart, span);
             bool past = e.EndTimestamp <= nowUnix;
-            var day = StartDay(e);
-            int lane = AssignLane(laneRights, left, left + width, dayFloors.GetValueOrDefault(day, 0), laneGap);
-            if (!dayFloors.ContainsKey(day)) dayFloors[day] = lane;
             bars.Add(new EventCalendarBar(
                 e,
-                lane,
+                AssignLane(laneRights, left, left + width, laneGap),
                 left * 100,
                 width * 100,
                 !past && e.StartTimestamp <= nowUnix,
@@ -120,27 +116,15 @@ public static class EventCalendarLayout {
         return lanes;
     }
 
-    private static int AssignLane(List<double> laneRights, double left, double right, int floor, double gap) {
-        if (FirstFree(laneRights, left, floor, gap) is { } preferred) {
-            laneRights[preferred] = right;
-            return preferred;
-        }
-
-        if (floor > 0 && FirstFree(laneRights, left, 0, gap) is { } fallback) {
-            laneRights[fallback] = right;
-            return fallback;
+    private static int AssignLane(List<double> laneRights, double left, double right, double gap) {
+        for (var i = 0; i < laneRights.Count; i++) {
+            if (laneRights[i] + gap > left) continue;
+            laneRights[i] = right;
+            return i;
         }
 
         laneRights.Add(right);
         return laneRights.Count - 1;
-    }
-
-    private static int? FirstFree(List<double> laneRights, double left, int from, double gap) {
-        for (var i = from; i < laneRights.Count; i++) {
-            if (laneRights[i] + gap <= left) return i;
-        }
-
-        return null;
     }
 
     private static (double Left, double Width) Clip(double startUnix, double endUnix, double windowStart, double span) {

@@ -36,18 +36,22 @@
                                     @foreach (var bar in lane) {
                                         <Tooltip Class="evcal-bar-tip" Style="@BarStyle(bar)">
                                             <ChildContent>
-                                                <span class="@BarCss(bar)">
+                                                <button type="button" class="@BarCss(bar)"
+                                                        @onclick="@(() => OnOpen.InvokeAsync())">
                                                     @if (EventPalette.IconUrl(bar.Event.Type, bar.Event.Ultra) is { } iconUrl) {
                                                         <img class="evcal-bar-icon" src="@iconUrl" alt="" loading="lazy"
                                                              data-fallback/>
                                                     }
 
                                                     <span class="evcal-bar-label">@EventMagnitude.Scalar(bar.Event)</span>
-                                                </span>
+                                                </button>
                                             </ChildContent>
                                             <Tip>
                                                 <span class="tt-title">@Label(bar.Event)</span>
-                                                <span class="tt-line">@EventMagnitude.Describe(bar.Event)@(bar.Event.Ultra ? " - ultra only" : "")</span>
+                                                @if (bar.Event.Ultra) {
+                                                    <span class="tt-ultra">ULTRA ONLY</span>
+                                                }
+
                                                 <span class="tt-line">@Countdown(bar.Event)</span>
                                             </Tip>
                                         </Tooltip>
@@ -67,6 +71,8 @@
     const int FetchLimit = 500;
 
     static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
+
+    [Parameter] public EventCallback OnOpen { get; set; }
 
     ElementReference _scroller;
     IJSObjectReference? _scroll;
