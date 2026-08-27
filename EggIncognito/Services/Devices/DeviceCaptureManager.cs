@@ -17,7 +17,8 @@ public sealed class DeviceCaptureManager(
     IEnumerable<IDeviceCaInstaller>? caInstallers = null,
     IReadOnlySet<string>? liveRoutes = null,
     IEndpointWriteObserver? writeObserver = null,
-    IRouteCatalog? catalog = null) : IHostedService, IDisposable {
+    IRouteCatalog? catalog = null,
+    IProcessedFlowObserver? flowObserver = null) : IHostedService, IDisposable {
     public const int PortsPerDevice = 3;
 
     private readonly Dictionary<string, IDeviceCaInstaller> _caInstallers =
@@ -87,7 +88,7 @@ public sealed class DeviceCaptureManager(
             var pump = pipeline.StartPump(hub, Now, null, obs => {
                 Rinfo.Observe(d.Id, obs, DateTimeOffset.UtcNow.ToString("O"));
                 if (_diag.TryGetValue(d.Id, out var dg)) dg.BumpRinfoHarvests();
-            }, ct);
+            }, flowObserver is { } observer ? dash => observer.OnFlowProcessed(d.Id, dash) : null, ct);
 
             var diag = _diag.GetOrAdd(d.Id, _ => new DeviceCaptureDiag());
 

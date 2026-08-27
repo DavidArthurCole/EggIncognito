@@ -30,7 +30,7 @@ public class PlaygroundTests(SharedAppFactory f) {
         Assert.DoesNotContain("Contributor access required", html);
         Assert.DoesNotContain("href=\"playground\"", html);
         Assert.DoesNotContain("href=\"admin\"", html);
-        Assert.Contains("app-nav-brand", html);
+        Assert.Contains("id=\"siteFooter\"", html);
     }
 
     [Fact]
@@ -231,7 +231,7 @@ public class PlaygroundTests(SharedAppFactory f) {
         var r = await c.GetAsync("/periodicals");
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
         string html = await r.Content.ReadAsStringAsync();
-        Assert.Contains("app-nav-brand", html);
+        Assert.Contains("id=\"siteFooter\"", html);
 
         Assert.DoesNotContain(">Periodicals</button>", html);
     }

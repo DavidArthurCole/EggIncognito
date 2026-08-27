@@ -1,0 +1,146 @@
+@inject ICurrentUser User
+@inject AuthState Auth
+@inject ISealedProxy SealedProxy
+
+@if (_open) {
+    <ModalShell Title="Support the project" TitleId="supportModalTitle" Width="ModalWidth.Large" OnClose="Close">
+        <div class="modal-body">
+            <p class="support-lede">
+                Your support covers the servers behind EggIncognito, EggIncProtos, and EggLedger, plus the
+                code-signing certs that keep EggLedger's builds trusted. Any amount unlocks the full Supporter tier.
+            </p>
+
+            <section class="support-section">
+                <h2 class="support-h2">What you get</h2>
+                <div class="perk-list">
+                    <div class="perk perk-on">
+                        <div class="perk-top">
+                            <span class="perk-name">Supporter role + higher rate limits</span>
+                        </div>
+                        <p class="perk-desc">The Discord role lands automatically and your API limits jump the moment it does.</p>
+                    </div>
+                    <div class="perk perk-on">
+                        <div class="perk-top">
+                            <span class="perk-name">Hosted Capture proxy</span>
+                        </div>
+                        <p class="perk-desc">Run Capture straight from the web. This server holds the proxy, no local setup.</p>
+                    </div>
+                    <div class="perk @(SealedProxy.IsConfigured ? "perk-on" : "")">
+                        <div class="perk-top">
+                            <span class="perk-name">Sealed API proxy</span>
+                        </div>
+                        <p class="perk-desc">
+                            @(SealedProxy.IsConfigured ? "" : "Coming soon. ")An authenticated tunnel that hides your identity from the downstream API.
+                            Toggle it on in the API workbench when sending to the Live API.
+                        </p>
+                    </div>
+                    <div class="perk">
+                        <div class="perk-top">
+                            <span class="perk-name">EggLedger cloud storage</span>
+                        </div>
+                        <p class="perk-desc">In development. A private encrypted volume for your ledger, backed up remotely and always in sync.</p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="support-section">
+                <h2 class="support-h2">Pick your platform</h2>
+                <div class="rail-grid">
+                    <a class="rail" href="https://github.com/sponsors/DavidArthurCole" target="_blank" rel="noopener">
+                        <span class="rail-name">GitHub Sponsors</span>
+                        <p class="rail-note">After you sponsor, run <span class="code-chip">/link-github</span> in Discord to claim your role.</p>
+                        <span class="rail-go">Sponsor →</span>
+                    </a>
+                    <a class="rail" href="https://www.patreon.com/c/DavidArthurCole" target="_blank" rel="noopener">
+                        <span class="rail-name">Patreon</span>
+                        <p class="rail-note">Link Discord on Patreon and the role arrives on its own within minutes.</p>
+                        <span class="rail-go">Become a patron →</span>
+                    </a>
+                    <a class="rail" href="https://buymeacoffee.com/davidarthurcole" target="_blank" rel="noopener">
+                        <span class="rail-name">Buy Me a Coffee</span>
+                        <p class="rail-note">Link Discord on BMAC and the role arrives on its own within minutes.</p>
+                        <span class="rail-go">Buy a coffee →</span>
+                    </a>
+                </div>
+            </section>
+
+            @if (Auth.Enabled) {
+                <section class="support-section">
+                    <h2 class="support-h2">Your account</h2>
+                    @if (User.IsAuthenticated) {
+                        <div class="connect-card">
+                            <div class="connect-id">
+                                @if (!string.IsNullOrEmpty(User.AvatarUrl)) {
+                                    <img class="connect-avatar" src="@User.AvatarUrl" alt=""/>
+                                } else {
+                                    <span class="connect-avatar">@(User.Username?.Substring(0, 1).ToUpper())</span>
+                                }
+                                <div>
+                                    <div class="connect-name">@User.Username</div>
+                                    @if (User.IsSupporter) {
+                                        <div class="text-accent text-xs">Supporter active</div>
+                                    } else {
+                                        <div class="text-muted text-xs">No supporter role yet</div>
+                                    }
+                                </div>
+                            </div>
+                            <form method="post" action="/api/account/refresh-benefits" style="margin:0;">
+                                <button type="submit" class="btn-primary">Refresh benefits</button>
+                            </form>
+                        </div>
+                        @if (!User.IsSupporter) {
+                            <p class="connect-hint">Already supporting? Give the role a minute to land, then hit Refresh.</p>
+                        }
+                    } else {
+                        <div class="connect-card">
+                            <p class="connect-prompt">Connect Discord to tie this browser session to your supporter benefits.</p>
+                            <LoginButton Label="Log in"/>
+                        </div>
+                    }
+                </section>
+            }
+
+            <section class="support-section">
+                <h2 class="support-h2">Questions</h2>
+                <div class="faq-list">
+                    <div class="faq-item">
+                        <div class="faq-q">How fast does the role land?</div>
+                        <p class="faq-a">Patreon and BMAC: a few minutes after you link Discord on their site. GitHub: instant once you run <span class="code-chip">/link-github</span>.</p>
+                    </div>
+                    <div class="faq-item">
+                        <div class="faq-q">What if my support lapses?</div>
+                        <p class="faq-a">The role drops and the perks pause. Pick it back up any time and they return.</p>
+                    </div>
+                    <div class="faq-item">
+                        <div class="faq-q">Do one-time donations count?</div>
+                        <p class="faq-a">Yes. A one-off keeps the role for 31 days.</p>
+                    </div>
+                    <div class="faq-item">
+                        <div class="faq-q">I paid but have no role.</div>
+                        <p class="faq-a">Hit Refresh benefits above. Still stuck? Ping in the Discord server.</p>
+                    </div>
+                </div>
+            </section>
+
+            <p class="support-legal-note">
+                Supporting is voluntary and handled by third-party platforms. See the
+                <a class="text-accent no-underline hover:underline" href="/terms">Terms of Service</a> and
+                <a class="text-accent no-underline hover:underline" href="/privacy">Privacy &amp; Cookies</a> for the details.
+            </p>
+        </div>
+    </ModalShell>
+}
+
+@code {
+    bool _open;
+
+    public void Open() {
+        _open = true;
+        StateHasChanged();
+    }
+
+    void Close() {
+        _open = false;
+    }
+
+}

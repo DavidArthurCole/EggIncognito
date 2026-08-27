@@ -31,7 +31,8 @@ public class DataApiRegistryTests {
     public void Catalog_GamedataSources_MatchExpectedSet() {
         var c = new DataCatalog();
         string[] ids = [.. c.ByGroup("gamedata").Select(s => s.Id).OrderBy(x => x, StringComparer.Ordinal)];
-        string[] expected = ["boost-catalog", "mission", "research-common", "research-epic"];
+        string[] expected =
+            ["artifact-catalog", "boost-catalog", "mission", "research-common", "research-epic"];
         Assert.Equal(expected, ids);
         Assert.Equal("Common research", c.ById("gamedata", "research-common")?.DisplayName);
         Assert.Equal("Epic research", c.ById("gamedata", "research-epic")?.DisplayName);

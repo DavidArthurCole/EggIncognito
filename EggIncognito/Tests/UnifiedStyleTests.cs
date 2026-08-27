@@ -29,7 +29,7 @@ public partial class UnifiedStyleTests(SharedAppFactory f) {
                      ".perk-list", ".rail", ".connect-card", ".faq-list",
                      ".data-table", ".stat-tile", ".reg-row", ".reg-version", ".reg-sha", ".reg-empty",
                      ".reg-filter-input", ".reg-edit-btn", ".sub-form",
-                     ".prose-legal", ".prose-legal-disclaimer", ".prose-legal-section",
+                     ".prose-legal", ".prose-legal-section",
                      ".popover", ".popover-combo", ".popover-combo-opt",
                      ".tt-pop", ".tt-title", ".tt-line",
                      ".pg-menubar", ".pg-menu-btn", ".pg-menu", ".pg-menu-item", ".pg-popover",

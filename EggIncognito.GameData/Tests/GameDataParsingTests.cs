@@ -140,7 +140,15 @@ public sealed class GameDataParsingTests {
             Assert.DoesNotContain(id, GameDataProvider.DocumentIds);
         }
 
-        Assert.Equal(GameDataProvider.DocumentIds.Length + GameDataProvider.AuxiliaryDocumentIds.Length,
+        foreach (string id in GameDataProvider.OptionalAuxiliaryDocumentIds) {
+            Assert.Contains(id, GameDataProvider.ImportableIds);
+            Assert.DoesNotContain(id, GameDataProvider.DocumentIds);
+            Assert.DoesNotContain(id, GameDataProvider.RequiredDocumentIds);
+        }
+
+        Assert.Equal(
+            GameDataProvider.DocumentIds.Length + GameDataProvider.AuxiliaryDocumentIds.Length +
+            GameDataProvider.OptionalAuxiliaryDocumentIds.Length,
             GameDataProvider.ImportableIds.Length);
     }
 

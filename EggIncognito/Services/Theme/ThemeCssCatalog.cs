@@ -32,9 +32,7 @@ public static class ThemeCssCatalog {
         new("workbench-rail", ".wb-rail", ThemePropertyGroup.Surface),
         new("workbench-entry", ".wb-entry", ThemePropertyGroup.Surface),
         new("workbench-entry-selected", ".wb-entry.selected", ThemePropertyGroup.Surface),
-        new("modal-card", ".modal-card", ThemePropertyGroup.Surface),
-        new("nav", ".app-nav", ThemePropertyGroup.ColorOnly),
-        new("nav-item", ".app-nav a", ThemePropertyGroup.ColorOnly)
+        new("modal-card", ".modal-card", ThemePropertyGroup.Surface)
     ];
 
     private static readonly Dictionary<string, ThemeCatalogEntry> ByName =

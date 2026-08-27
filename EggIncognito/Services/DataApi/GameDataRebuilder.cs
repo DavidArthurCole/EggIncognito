@@ -53,6 +53,7 @@ public sealed class GameDataRebuilder(
             foreach (string id in BinaryDocIds)
                 results.Add(new RebuildDocResult(id, "current", null, null, $"inputs unchanged ({inputSha[..12]})"));
             await LandColleggtiblesAsync(results, ct);
+            await LandArtifactCatalogAsync(results, ct);
             AppendUnbuildable(results);
             return (results, $"inputs unchanged ({inputSha[..12]})");
         }
@@ -139,6 +140,7 @@ public sealed class GameDataRebuilder(
         }
 
         await LandColleggtiblesAsync(results, ct);
+        await LandArtifactCatalogAsync(results, ct);
         AppendUnbuildable(results);
 
         string? note = candidates.Count == 0
@@ -184,6 +186,22 @@ public sealed class GameDataRebuilder(
                        ?? throw new InvalidOperationException("no captured get_periodicals to derive from");
             return (live.Json, live.Extract.Eggs.Count, null);
         }, ct);
+
+    private Task LandArtifactCatalogAsync(List<RebuildDocResult> results, CancellationToken ct) =>
+        LandAsync(results, ArtifactCatalog.DocumentId, () => {
+            string afx = DataCatalog.FixtureText(services, DataCatalog.AfxConfigRoute)
+                         ?? throw new InvalidOperationException("no captured ei_afx/config to decode");
+            var built = ArtifactCatalogBuilder.BuildFromJson(afx, GameVersionForAfx());
+            string? note = built.Skipped.Count > 0 ? $"{built.Skipped.Count} rows skipped" : null;
+            return (ArtifactCatalogBuilder.Serialize(built.File), built.File.Artifacts.Count, note);
+        }, ct);
+
+    private string GameVersionForAfx() =>
+        _binaryVersion.Length > 0
+            ? _binaryVersion
+            : services.GetService(typeof(GameDataStore)) is GameDataStore store
+                ? store.Provider?.Colleggtibles.GameVersion ?? ""
+                : "";
 
     private static void AppendUnbuildable(List<RebuildDocResult> results) {
         foreach (string id in Unbuildable) {

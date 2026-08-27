@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using EggIncognito.Core.Services.Assets;
 using EggIncognito.Data.Services;
+using EggIncognito.GameData;
 using EggIncognito.Services.Assets;
 using Ei;
 using Google.Protobuf;
@@ -11,6 +12,7 @@ namespace EggIncognito.Services.DataApi;
 public sealed class DataCatalog {
     public const string PeriodicalsRoute = "ei/get_periodicals";
     internal const string ConfigRoute = "ei/get_config";
+    internal const string AfxConfigRoute = "ei_afx/config";
     internal const string ShowcaseRoute = "ei/get_shell_showcase";
 
     private static readonly JsonSerializerOptions SnakeJson = new() {
@@ -87,7 +89,7 @@ public sealed class DataCatalog {
             PeriodicalsRoute, ConfigFeeds.Periodicals,
             p => new GetPeriodicalsRequest { Rinfo = new BasicRequestInfo { Platform = p } }.ToByteArray()),
         Wire("afx-config", "Artifacts config", "Raw ei_afx/config response fixture.",
-            "ei_afx/config", ConfigFeeds.Afx,
+            AfxConfigRoute, ConfigFeeds.Afx,
             p => new ArtifactsConfigurationRequest { Rinfo = new BasicRequestInfo { Platform = p } }.ToByteArray()),
         Wire("season-infos", "Season infos", "Raw get_season_infos_v2 response fixture.",
             "ei_ctx/get_season_infos_v2", ConfigFeeds.Seasons,
@@ -105,7 +107,7 @@ public sealed class DataCatalog {
         new("eiafx", "periodical", "eiafx data",
             "Artifact families/tiers extracted from ei_afx/config + get_config icons.",
             DataProvenance.DerivedExtract, DataAccess.Public,
-            "ei_afx/config", null, new DataRefresh(false), false,
+            AfxConfigRoute, null, new DataRefresh(false), false,
             ProduceEiAfx, Extends: "afx-config"),
 
         DlcSlice("items", "items", "DLC items", "DLC store items sliced from the get_config dlcCatalog."),
@@ -121,6 +123,9 @@ public sealed class DataCatalog {
         Derived("boost-catalog", "Boost catalog",
             "All 33 boosts: identity, costs, effects and durations, extracted from boostmanager + get_config.",
             (ctx, _) => Task.FromResult(BoostCatalogPayload(ctx.Services))),
+        Derived("artifact-catalog", "Artifact catalog",
+            "Per name/tier/rarity quality, value, crafting price curve and XP, decoded from ei_afx/config.",
+            (ctx, _) => Task.FromResult(DocJson(ctx.Services, ArtifactCatalog.DocumentId))),
         Derived("mission", "Missions", "Home-screen mission goals extracted from missiondata.",
             (ctx, _) => Task.FromResult(DocJson(ctx.Services, "missions"))),
         Derived("research-common", "Common research",
@@ -129,6 +134,12 @@ public sealed class DataCatalog {
         Derived("research-epic", "Epic research",
             "Epic research lines extracted from researchdata.",
             (ctx, _) => Task.FromResult(ResearchPayload(ctx.Services, epic: true))),
+
+        new("artifact-consume", "observation", "Artifact consume observations",
+            "Observed byproduct frequencies and golden-egg returns from real consume and demote responses.",
+            DataProvenance.Database, DataAccess.Authenticated,
+            null, null, new DataRefresh(false), false,
+            ArtifactObservationSource.ProduceAsync),
 
         new("icon", "asset", "Game icon", "Boost/artifact icon PNG by asset name.",
             DataProvenance.Asset, DataAccess.Public, null, null, new DataRefresh(false), true, ProduceIcon),
@@ -301,7 +312,7 @@ public sealed class DataCatalog {
     }
 
     private static Task<DataPayload?> ProduceEiAfx(DataProduceContext ctx, CancellationToken ct) {
-        string? afx = FixtureText(ctx.Services, "ei_afx/config");
+        string? afx = FixtureText(ctx.Services, AfxConfigRoute);
         if (afx is null) return Task.FromResult<DataPayload?>(null);
         string? configJson = FixtureText(ctx.Services, ConfigRoute);
         IReadOnlyDictionary<string, string> icons = new Dictionary<string, string>();

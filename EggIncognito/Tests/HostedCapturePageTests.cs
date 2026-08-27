@@ -80,7 +80,7 @@ public class HostedCapturePageTests {
             Assert.DoesNotContain("id=\"statsPanel\"", html);
             Assert.DoesNotContain("href=\"capture\"", html);
             Assert.DoesNotContain("href=\"admin\"", html);
-            Assert.Contains("app-nav-brand", html);
+            Assert.Contains("id=\"siteFooter\"", html);
         }
 
         [Fact]

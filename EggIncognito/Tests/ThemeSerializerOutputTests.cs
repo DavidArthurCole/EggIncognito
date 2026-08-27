@@ -8,7 +8,7 @@ public class ThemeSerializerOutputTests {
         "button { opacity: 0.5; transition-duration: 200ms; box-shadow: 0 0 8px color-mix(in oklab, var(--color-accent) 40%, transparent) }",
         "table-header { font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase }",
         "panel { background-image: linear-gradient(to top right, var(--color-panel) 0%, var(--color-accent) 100%) }",
-        "nav { color: oklch(70% 0.1 200); background-color: hsl(200, 40%, 20%) }",
+        "scrollbar-thumb { color: oklch(70% 0.1 200); background-color: hsl(200, 40%, 20%) }",
         "modal-card { border-radius: 12px 4px; border-width: 2px; border-style: dashed; border-color: rgba(10, 20, 30, 0.5) }"
     ];
 

@@ -25,7 +25,8 @@ public class ProtosPageTests {
             var r = await c.GetAsync("/protos");
             Assert.Equal(HttpStatusCode.OK, r.StatusCode);
             string html = await r.Content.ReadAsStringAsync();
-            Assert.Contains("Protos &amp; Data", html);
+            Assert.Contains("pd-grid", html);
+            Assert.Contains(">Versions</h3>", html);
 
             Assert.DoesNotContain("id=\"backfillPanel\"", html);
         }
@@ -44,6 +45,7 @@ public class ProtosPageTests {
     public class Component : BunitContext {
         private void Wire(UserRole role) {
             Services.AddSingleton<ICurrentUser>(new FakeUser(role));
+            Services.AddSingleton(new AuthState(false));
             Services.AddSingleton<IHttpContextAccessor>(new HttpContextAccessor());
             Services.AddSingleton<IWebHostEnvironment>(new FakeWebHostEnvironment());
             Services.AddSingleton<IRouteCatalog>(new RouteCatalog("__no_routes_yaml__"));

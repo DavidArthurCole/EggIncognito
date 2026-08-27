@@ -31,7 +31,7 @@ public class ThemeCssSanitizerTests {
     [InlineData("panel:hover { color: red }")]
     [InlineData(".panel { color: red }")]
     [InlineData("panel { box-shadow: 0 0 2px red, 0 0 2px blue, 0 0 2px green }")]
-    [InlineData("nav { box-shadow: 0 0 4px red }")]
+    [InlineData("scrollbar-thumb { box-shadow: 0 0 4px red }")]
     [InlineData("panel { color: var(--color-red-500) }")]
     [InlineData("panel { color: var(--egi-glow) }")]
     [InlineData("panel { color: var(--color-accent2) }")]
@@ -119,8 +119,16 @@ public class ThemeCssSanitizerTests {
     }
 
     [Fact]
+    public void RetiredNavSurfaces_AreUnknown() {
+        var nav = ThemeCssParser.Parse("nav { color: red }");
+        Assert.False(nav.Ok);
+        Assert.Contains(nav.Errors, e => e.Message.Contains("unknown surface", StringComparison.Ordinal));
+        Assert.False(ThemeCssParser.Parse("nav-item { color: red }").Ok);
+    }
+
+    [Fact]
     public void EveryCatalogGroup_EnforcesItsPropertyFloor() {
-        Assert.False(ThemeCssParser.Parse("nav { font-weight: 700 }").Ok);
+        Assert.False(ThemeCssParser.Parse("scrollbar-thumb { font-weight: 700 }").Ok);
         Assert.False(ThemeCssParser.Parse("table-row { font-weight: 700 }").Ok);
         Assert.True(ThemeCssParser.Parse("table-header { font-weight: 700 }").Ok);
         Assert.False(ThemeCssParser.Parse("table-header { opacity: 0.5 }").Ok);

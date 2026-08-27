@@ -31,6 +31,7 @@ public sealed class CapturePipeline {
     public Task StartPump(CaptureHub hub, Func<string> now,
         Action<CapturedFlow>? onDequeued,
         Action<RinfoHarvester.ObservedVersion>? onObserved,
+        Action<DashboardFlow>? onProcessed,
         CancellationToken ct) =>
         Task.Run(async () => {
             await foreach (var flow in Queue.Reader.ReadAllAsync()) {
@@ -38,6 +39,7 @@ public sealed class CapturePipeline {
                 try {
                     var dash = Processor.Process(flow);
                     if (dash.Observed is { } obs) onObserved?.Invoke(obs);
+                    onProcessed?.Invoke(dash);
                     hub.Publish(dash, now());
                 } catch (Exception ex) {
                     CaptureDiagnostics.Failed("pump", flow.Url, ex);

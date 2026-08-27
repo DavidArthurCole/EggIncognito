@@ -35,6 +35,8 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
     public DbSet<EnvDesignVersion> EnvDesignVersions => Set<EnvDesignVersion>();
     public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
     public DbSet<PeriodicalsSnapshot> PeriodicalsSnapshots => Set<PeriodicalsSnapshot>();
+
+    public DbSet<ArtifactConsumeObservation> ArtifactConsumeObservations => Set<ArtifactConsumeObservation>();
     public DbSet<GameEvent> GameEvents => Set<GameEvent>();
     public DbSet<GameDataDocument> GameDataDocuments => Set<GameDataDocument>();
     public DbSet<StoredBinary> StoredBinaries => Set<StoredBinary>();
@@ -55,6 +57,13 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
 
             r.HasIndex(x => x.Source);
             r.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
+        });
+        modelBuilder.Entity<ArtifactConsumeObservation>(o => {
+            o.HasKey(x => x.Id);
+            o.Property(x => x.Byproducts).HasColumnType("jsonb").HasDefaultValueSql("'[]'");
+            o.Property(x => x.OtherRewards).HasColumnType("jsonb").HasDefaultValueSql("'[]'");
+            o.Property(x => x.ObservedAt).HasDefaultValueSql("now()");
+            o.HasIndex(x => new { x.SpecName, x.SpecLevel, x.SpecRarity, x.Action });
         });
         modelBuilder.Entity<RouteOverride>(r => r.HasKey(x => x.Path));
         modelBuilder.Entity<RouteBinaryCatalog>(r => r.HasKey(x => x.Path));

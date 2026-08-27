@@ -70,12 +70,15 @@ public sealed class GameDataProvider(
 
     public static readonly ImmutableArray<string> AuxiliaryDocumentIds = ["farm-placement"];
 
+    public static readonly ImmutableArray<string> OptionalAuxiliaryDocumentIds = [ArtifactCatalog.DocumentId];
+
     public static readonly ImmutableArray<string> OptionalDocumentIds = ["boosts", "artifacts"];
 
     public static readonly ImmutableArray<string> RequiredDocumentIds =
         [.. DocumentIds.Where(id => !OptionalDocumentIds.Contains(id)), .. AuxiliaryDocumentIds];
 
-    public static readonly ImmutableArray<string> ImportableIds = [.. DocumentIds, .. AuxiliaryDocumentIds];
+    public static readonly ImmutableArray<string> ImportableIds =
+        [.. DocumentIds, .. AuxiliaryDocumentIds, .. OptionalAuxiliaryDocumentIds];
 
     private const string EmptyEffectData = """{"binaryVersion":"none","rows":[]}""";
 
@@ -106,6 +109,7 @@ public sealed class GameDataProvider(
             "missions" => MissionCatalog.Parse(json),
             "vehicles" => VehicleCatalog.Parse(json),
             FarmPlacementCatalog.DocumentId => FarmPlacementCatalog.Parse(json),
+            ArtifactCatalog.DocumentId => ArtifactCatalog.Parse(json),
             _ => throw new GameDataSchemaException($"Unknown game data document id '{id}'.")
         });
     }

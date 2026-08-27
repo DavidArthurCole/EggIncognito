@@ -39,9 +39,11 @@ public class LegalPagesTests(SharedAppFactory f) {
     }
 
     [Fact]
-    public async Task Home_DoesNotPlasterTheFooter() {
+    public async Task LayoutFooter_RendersOncePerPage() {
         using var client = _factory.CreateClient();
-        string html = await client.GetStringAsync("/");
-        Assert.DoesNotContain("site-footer", html);
+        foreach (string path in new[] { "/", "/terms", "/support" }) {
+            string html = await client.GetStringAsync(path);
+            Assert.Equal(1, html.Split("id=\"siteFooter\"").Length - 1);
+        }
     }
 }

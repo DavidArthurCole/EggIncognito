@@ -90,6 +90,7 @@ public sealed class CaptureSession(
             _consumer = pipeline.StartPump(Hub, Now,
                 _ => LastFlowUtc = DateTimeOffset.UtcNow,
                 obs => liveVersions.Observe(obs, DateTimeOffset.UtcNow.ToString("O")),
+                null,
                 ct);
 
             await proxy.StartAsync(opts.Port, opts.CaPath, ct);

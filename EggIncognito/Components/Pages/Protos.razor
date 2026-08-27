@@ -1,3 +1,4 @@
+@page "/"
 @page "/protos"
 @page "/protos/{Platform}/{Build}"
 @page "/data"
@@ -9,7 +10,6 @@
 @inject IWebHostEnvironment Env
 @inject ILogger<Protos> Logger
 @inject ProtoWorkbenchState State
-@using System.Globalization
 @using System.Text.Json
 @using EggIncognito.Components.Api
 @using EggIncognito.Components.Protos
@@ -18,40 +18,37 @@
 @using EggIncognito.Services.Protos
 @implements IAsyncDisposable
 
-<PageTitle>EggIncognito - Protos & Data</PageTitle>
+<PageTitle>EggIncognito</PageTitle>
 
 <main class="page page-wide pt-6 pb-8">
-<h1 class="text-[1.3rem] mt-0 mb-4">Protos &amp; Data</h1>
+<h1 class="sr-only">EggIncognito</h1>
+
+@if (LoginError == 1 && !_loginErrorDismissed) {
+    <div class="mb-4">
+        <StatusNote Severity="StatusNoteKind.Error" OnDismiss="@(() => _loginErrorDismissed = true)">
+            Login failed. Please try again.
+        </StatusNote>
+    </div>
+}
 
 <div class="pd-grid">
 <div class="pd-mod pd-head">
+    <BrandPanel/>
     <DeviceStatusPanel OnManage="OpenDeviceWorkbench"/>
     <section class="panel">
         <h3 class="text-sm font-semibold m-0 mb-2">Versions</h3>
         <div class="pd-versions">
             <LatestVersionsPanel Rows="_rows" OnOpen="OpenVersion"/>
-            <div class="pd-vergroup">
-                <div class="pd-vergroup-head">
-                    <span class="ds-state-k">Server</span>
-                    @if (_serverBuiltAt is { } built) {
-                        <span class="verline-sep">|</span>
-                        <TimeAgo Value="@built"/>
-                    }
-                </div>
-                <div class="pd-serverline">
-                    <VersionLine App="@_serverVersion"/><span class="verline-sep">|</span><a class="pd-server-sha" href="@_serverCommitUrl" target="_blank" rel="noopener">@_serverSha</a>
-                </div>
-            </div>
         </div>
     </section>
     <section class="panel pd-note">
-        <div class="min-w-0">
-            <h3 class="text-sm font-semibold m-0">Workbenches</h3>
-            <p class="text-muted text-xs m-0 mt-1">Discord webhook notifications, and the API workbench: build and send requests, browse data sources, manage keys.</p>
+        <h3 class="text-sm font-semibold m-0">Workbenches</h3>
+        <div class="flex flex-wrap gap-2">
+            <button type="button" class="btn-primary" @onclick="OpenNotifications">Notifications</button>
+            <button type="button" class="btn-primary" @onclick="OpenApiWorkbench">API &amp; Data</button>
         </div>
-        <button type="button" class="btn-primary" @onclick="OpenNotifications">Manage notifications</button>
-        <button type="button" class="btn-primary" @onclick="OpenApiWorkbench">API workbench</button>
     </section>
+    <SupportPanel OnOpenCapture="OpenCaptureWorkbench" OnOpenSupport="OpenSupport"/>
 </div>
 <div class="pd-mod pd-main pd-stack">
 @if (_isAdmin && _addOpen) {
@@ -351,11 +348,17 @@
 <ProtoWorkbenchModal @ref="_workbench" OnChanged="OnMutated" OnRefChanged="OnWorkbenchRef" OnClosed="OnWorkbenchClosed"/>
 <DeviceWorkbenchModal @ref="_deviceWorkbench" OnChanged="OnMutated"/>
 <ApiWorkbenchModal @ref="_apiWorkbench"/>
+<SupportModal @ref="_supportModal"/>
 
 @code {
     ProtoWorkbenchModal? _workbench;
     DeviceWorkbenchModal? _deviceWorkbench;
     ApiWorkbenchModal? _apiWorkbench;
+    SupportModal? _supportModal;
+
+    void OpenSupport() {
+        _supportModal?.Open();
+    }
 
     Task OpenDeviceWorkbench(string? deviceId) {
         return _deviceWorkbench?.Open(deviceId) ?? Task.CompletedTask;
@@ -367,6 +370,10 @@
 
     Task OpenDataWorkbench() {
         return _apiWorkbench?.OpenData() ?? Task.CompletedTask;
+    }
+
+    Task OpenCaptureWorkbench() {
+        return _apiWorkbench?.OpenCapture() ?? Task.CompletedTask;
     }
 
     static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
@@ -408,10 +415,10 @@
         return _notificationsModal?.Open() ?? Task.CompletedTask;
     }
 
-    string _serverVersion = "";
-    string _serverSha = "";
-    string _serverCommitUrl = "";
-    DateTimeOffset? _serverBuiltAt;
+    [SupplyParameterFromQuery(Name = "login_error")]
+    public int LoginError { get; set; }
+
+    bool _loginErrorDismissed;
 
     [Parameter] public string? Platform { get; set; }
 
@@ -482,7 +489,13 @@
                 return;
             }
 
-            ApplyRef(ProtoRefParser.Parse(await _hashnav.InvokeAsync<string>("read")));
+            var hash = await _hashnav.InvokeAsync<string>("read");
+            if (string.Equals(hash?.TrimStart('#'), "support", StringComparison.Ordinal)) {
+                OpenSupport();
+                return;
+            }
+
+            ApplyRef(ProtoRefParser.Parse(hash));
         }
         catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
             Logger.LogDebug(ex, "hash navigation could not be wired");
@@ -703,15 +716,6 @@
         _isAdmin = User.IsAtLeast(UserRole.Admin);
         _isContributor = User.IsAtLeast(UserRole.Contributor);
         _canWrite = User.IsAtLeast(UserRole.Contributor);
-
-        var b = BuildInfo.FromAssembly("https://github.com/EggIncTools/EggIncognito");
-        _serverVersion = $"v{b.Version}";
-        _serverSha = b.ShortSha;
-        _serverCommitUrl = b.CommitUrl;
-        _serverBuiltAt = DateTime.TryParse(b.BuildDate, CultureInfo.InvariantCulture,
-            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var built)
-            ? new DateTimeOffset(built, TimeSpan.Zero)
-            : null;
     }
 
     protected override async Task OnInitializedAsync() {

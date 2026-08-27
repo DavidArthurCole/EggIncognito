@@ -1,3 +1,4 @@
+using System.Net;
 using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace EggIncognito.Tests;
@@ -7,13 +8,14 @@ public class SupportPageTests(SharedAppFactory f) {
     private readonly WebApplicationFactory<Program> _factory = f;
 
     [Fact]
-    public async Task SupportPage_Renders() {
+    public async Task Support_Route_IsARedirectStub() {
         using var client = _factory.CreateClient();
         var res = await client.GetAsync("/support");
-        res.EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
         string html = await res.Content.ReadAsStringAsync();
-        Assert.Contains("GitHub Sponsors", html);
-        Assert.Contains("buymeacoffee.com/davidarthurcole", html);
-        Assert.Contains("patreon.com/c/DavidArthurCole", html);
+        Assert.DoesNotContain("support-lede", html);
+        Assert.DoesNotContain("support-section", html);
+        Assert.DoesNotContain("perk-list", html);
+        Assert.Contains("id=\"siteFooter\"", html);
     }
 }

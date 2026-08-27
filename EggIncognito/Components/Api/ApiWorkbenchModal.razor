@@ -264,6 +264,7 @@
     public async Task Open() {
         await LoadStore();
         _open = true;
+        _docsOpen = false;
         await LoadSources();
         await WriteHash(true);
         StateHasChanged();
@@ -272,6 +273,7 @@
     public async Task OpenData(string? group = null, string? id = null) {
         await LoadStore();
         _open = true;
+        _docsOpen = false;
         await LoadSources();
         if (group is { Length: > 0 } g && id is { Length: > 0 } i) State.SelectDataset(g, i, null);
         else if (State.Kind != ApiSelectionKind.Dataset) {
@@ -279,6 +281,16 @@
             if (first is not null) State.SelectDataset(first.Group, first.Id, null);
         }
 
+        await WriteHash(true);
+        StateHasChanged();
+    }
+
+    public async Task OpenCapture() {
+        await LoadStore();
+        _open = true;
+        _docsOpen = false;
+        await LoadSources();
+        State.Kind = ApiSelectionKind.Capture;
         await WriteHash(true);
         StateHasChanged();
     }

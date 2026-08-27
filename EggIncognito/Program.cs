@@ -499,6 +499,8 @@ builder.Services.AddSingleton(sp =>
 bool hostedCaptureOn = string.Equals(builder.Configuration["AppMode"], "Hosted", StringComparison.OrdinalIgnoreCase)
                        && builder.Configuration.GetValue("HostedCaptureEnabled", false);
 if (dbEnabled) {
+    builder.Services.AddSingleton<ConsumeObservationRecorder>();
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<ConsumeObservationRecorder>());
     builder.Services.AddScoped<CaptureCredentialStore>();
     builder.Services.AddScoped<CaptureAddressStore>();
     builder.Services.AddScoped<ProtoRegistryStore>();
@@ -618,7 +620,8 @@ builder.Services.AddSingleton(sp => {
             : sp.GetRequiredService<DataCatalog>().WireRoutes().ToHashSet(StringComparer.Ordinal),
 #pragma warning restore IDE0028
         fakeDevices ? null : sp.GetService<ConfigChangeNotifier>(),
-        sp.GetRequiredService<IRouteCatalog>());
+        sp.GetRequiredService<IRouteCatalog>(),
+        sp.GetService<ConsumeObservationRecorder>());
 });
 builder.Services.AddSingleton<DeviceProxyPusher>();
 if (deviceCaptureConfig.Enabled && deviceConfig.Devices.Count > 0)
