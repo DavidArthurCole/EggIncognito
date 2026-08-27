@@ -38,6 +38,13 @@ public sealed class ThemeController(ICurrentUser currentUser, IServiceProvider s
             ThemeResolver.Invalidate(cache, uid);
     }
 
+    private async Task AfterMutationAsync() {
+        InvalidateResolverCache();
+        if (currentUser.UserId is not { } uid) return;
+        if (services.GetService(typeof(ThemeIdentitySync)) is ThemeIdentitySync sync)
+            await sync.PushActiveAsync(uid, HttpContext.RequestAborted);
+    }
+
     [HttpGet]
     [EnableRateLimiting("read")]
     public async Task<IActionResult> List() {
@@ -80,7 +87,7 @@ public sealed class ThemeController(ICurrentUser currentUser, IServiceProvider s
         var toStore = model with { Css = keptCss };
         var row = await store.UpsertAsync(uid, model.Slug, model.Name, model.SchemaVersion, toStore.ToJson(),
             HttpContext.RequestAborted);
-        InvalidateResolverCache();
+        await AfterMutationAsync();
         return Ok(new { saved = row.Slug });
     }
 
@@ -92,7 +99,7 @@ public sealed class ThemeController(ICurrentUser currentUser, IServiceProvider s
         if (store is null) return StatusCode(503, new { error = "no database configured" });
         bool deleted = await store.DeleteAsync(uid, slug, HttpContext.RequestAborted);
         if (!deleted) return NotFound(new { error = "unknown theme" });
-        InvalidateResolverCache();
+        await AfterMutationAsync();
         return Ok(new { deleted = slug });
     }
 
@@ -111,7 +118,7 @@ public sealed class ThemeController(ICurrentUser currentUser, IServiceProvider s
             return UnprocessableEntity(new { error = "contrast validation failed", failures = contrast.Failures });
         await store.ActivateAsync(uid, slug, System.Text.Json.JsonSerializer.Serialize(contrast),
             HttpContext.RequestAborted);
-        InvalidateResolverCache();
+        await AfterMutationAsync();
         return Ok(new { activated = slug });
     }
 
@@ -122,7 +129,7 @@ public sealed class ThemeController(ICurrentUser currentUser, IServiceProvider s
         var store = Store;
         if (store is null) return StatusCode(503, new { error = "no database configured" });
         await store.DeactivateAsync(uid, HttpContext.RequestAborted);
-        InvalidateResolverCache();
+        await AfterMutationAsync();
         return Ok(new { deactivated = true });
     }
 
@@ -153,7 +160,7 @@ public sealed class ThemeController(ICurrentUser currentUser, IServiceProvider s
 
         var row = await store.UpsertAsync(uid, model.Slug, model.Name, model.SchemaVersion, model.ToJson(),
             HttpContext.RequestAborted);
-        InvalidateResolverCache();
+        await AfterMutationAsync();
         return Ok(new { imported = row.Slug });
     }
 
@@ -182,7 +189,7 @@ public sealed class ThemeController(ICurrentUser currentUser, IServiceProvider s
         var updated = model with { Css = css };
         await store.UpsertAsync(uid, model.Slug, model.Name, model.SchemaVersion, updated.ToJson(),
             HttpContext.RequestAborted);
-        InvalidateResolverCache();
+        await AfterMutationAsync();
         return Ok(new { saved = model.Slug });
     }
 

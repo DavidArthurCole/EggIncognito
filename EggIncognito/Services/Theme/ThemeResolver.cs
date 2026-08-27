@@ -1,4 +1,5 @@
 using EggIdentity.Contract;
+using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using Microsoft.Extensions.Caching.Memory;
 
@@ -30,7 +31,7 @@ public sealed class ThemeResolver(
     }
 
     private async Task<ResolvedTheme?> ResolveUncachedAsync(UserThemeStore store, Guid uid, CancellationToken ct) {
-        var row = await store.ActiveForAsync(uid, ct);
+        var row = await store.ActiveForAsync(uid, ct) ?? await AdoptSharedThemeAsync(store, uid, ct);
         bool isDefaultTheme = false;
         if (row is null) {
             var policy = await store.GetPolicyAsync(ct);
@@ -48,6 +49,16 @@ public sealed class ThemeResolver(
         string css = serializer.Serialize(model, ThemeScope.Live, customCssAllowed);
         if (css.Length == 0) return null;
         return new ResolvedTheme(css, ThemeCssSerializer.UsesHueRotation(model));
+    }
+
+    private async Task<UserTheme?> AdoptSharedThemeAsync(UserThemeStore store, Guid uid, CancellationToken ct) {
+        if (services.GetService(typeof(ThemeIdentitySync)) is not ThemeIdentitySync sync) return null;
+        if (await sync.FetchAsync(ct) is not { } shared) return null;
+        if (!ThemeContrast.Validate(shared).Passes) return null;
+
+        await store.UpsertAsync(uid, shared.Slug, shared.Name, shared.SchemaVersion, shared.ToJson(), ct);
+        await store.ActivateAsync(uid, shared.Slug, "", ct);
+        return await store.ActiveForAsync(uid, ct);
     }
 
     private async Task<bool> CustomCssAllowedAsync(UserThemeStore store, CancellationToken ct) {

@@ -69,5 +69,6 @@ public static class CoreServices {
         builder.Services.AddScoped<Services.Theme.ThemeWorkbenchState>();
         builder.Services.AddSingleton<Services.Theme.ThemeCssSerializer>();
         builder.Services.AddScoped<Services.Theme.ThemeResolver>();
+        builder.Services.AddScoped<Services.Theme.ThemeIdentitySync>();
     }
 }
