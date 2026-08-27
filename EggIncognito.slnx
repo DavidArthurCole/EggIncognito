@@ -1,7 +1,6 @@
 <Solution>
   <Project Path="EggIncognito/EggIncognito.csproj" />
   <Project Path="EggIncognito.Core/EggIncognito.Core.csproj" />
-  <Project Path="EggIncognito.ExtractMcp/EggIncognito.ExtractMcp.csproj" />
   <Project Path="EggIncognito.GameData/EggIncognito.GameData.csproj" />
   <Project Path="EggIncognito.GameData/Tests/EggIncognito.GameData.Tests.csproj" />
   <Project Path="EggIncognito.Bot/EggIncognito.Bot.csproj" />
