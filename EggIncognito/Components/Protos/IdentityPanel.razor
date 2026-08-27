@@ -1,6 +1,5 @@
 @using System.Globalization
 @using EggIdentity.Client
-@using EggIdentity.Contract
 @inject AuthState Auth
 @inject ICurrentUser User
 @inject IHttpContextAccessor HttpContextAccessor
@@ -29,7 +28,14 @@
             </div>
             <div>
                 <dt>Local time</dt>
-                <dd title="@(_timezone.Length == 0 ? "No time zone set" : _timezone)">@LocalTime()</dd>
+                <dd>
+                    <Tooltip>
+                        <ChildContent>@LocalTime()</ChildContent>
+                        <Tip>
+                            <span class="tt-line">@(_timezone.Length == 0 ? "No time zone set" : _timezone)</span>
+                        </Tip>
+                    </Tooltip>
+                </dd>
             </div>
             <div>
                 <dt>Language</dt>
@@ -38,22 +44,50 @@
         </dl>
     }
     <div class="pd-brand-links">
-        <button type="button" class="pd-brand-link" title="Terms" aria-label="Terms"
-                @onclick="@(() => OnOpenTerms.InvokeAsync())">
-            <Icon Name="doc"/>
-        </button>
-        <button type="button" class="pd-brand-link" title="Privacy and cookies" aria-label="Privacy and cookies"
-                @onclick="@(() => OnOpenPrivacy.InvokeAsync())">
-            <Icon Name="shield"/>
-        </button>
-        <button type="button" class="pd-brand-link" title="Support the project" aria-label="Support the project"
-                @onclick="@(() => OnOpenSupport.InvokeAsync())">
-            <Icon Name="heart"/>
-        </button>
-        <a class="pd-brand-link" href="https://github.com/EggIncTools/EggIncognito" target="_blank" rel="noopener"
-           title="EggIncognito on GitHub" aria-label="EggIncognito on GitHub">
-            <Icon Name="github"/>
-        </a>
+        <Tooltip>
+            <ChildContent>
+                <button type="button" class="pd-brand-link" aria-label="Terms"
+                        @onclick="@(() => OnOpenTerms.InvokeAsync())">
+                    <Icon Name="doc"/>
+                </button>
+            </ChildContent>
+            <Tip>
+                <span class="tt-line">Terms</span>
+            </Tip>
+        </Tooltip>
+        <Tooltip>
+            <ChildContent>
+                <button type="button" class="pd-brand-link" aria-label="Privacy and cookies"
+                        @onclick="@(() => OnOpenPrivacy.InvokeAsync())">
+                    <Icon Name="shield"/>
+                </button>
+            </ChildContent>
+            <Tip>
+                <span class="tt-line">Privacy and cookies</span>
+            </Tip>
+        </Tooltip>
+        <Tooltip>
+            <ChildContent>
+                <button type="button" class="pd-brand-link" aria-label="Support the project"
+                        @onclick="@(() => OnOpenSupport.InvokeAsync())">
+                    <Icon Name="heart"/>
+                </button>
+            </ChildContent>
+            <Tip>
+                <span class="tt-line">Support the project</span>
+            </Tip>
+        </Tooltip>
+        <Tooltip>
+            <ChildContent>
+                <a class="pd-brand-link" href="https://github.com/EggIncTools/EggIncognito" target="_blank"
+                   rel="noopener" aria-label="EggIncognito on GitHub">
+                    <Icon Name="github"/>
+                </a>
+            </ChildContent>
+            <Tip>
+                <span class="tt-line">EggIncognito on GitHub</span>
+            </Tip>
+        </Tooltip>
     </div>
 </section>
 

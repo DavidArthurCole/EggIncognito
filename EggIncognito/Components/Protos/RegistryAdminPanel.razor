@@ -124,7 +124,7 @@
     }
 
     static List<ReleaseEditRow> Targets(ProtoRegistryRow r) {
-        return [new(r.Platform, r.Build, r.AppVersion ?? "", r.ClientVersion, r.Source ?? "")];
+        return [new ReleaseEditRow(r.Platform, r.Build, r.AppVersion ?? "", r.ClientVersion, r.Source ?? "")];
     }
 
     async Task Add() {

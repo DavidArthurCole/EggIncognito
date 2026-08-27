@@ -209,18 +209,32 @@
                                                     <a class="reg-build-link" href="@VersionHref(m)" @onclick:stopPropagation="true"
                                                        @onclick:preventDefault="true" @onclick="@(() => OpenVersion(m))">
                                                         <PlatformIcon Platform="@m.Platform"/>
-                                                        <span class="reg-num @(m.BuildFlag is null ? "" : "reg-num-bad")"
-                                                              title="@m.BuildFlag">
-                                                            @m.Build
-                                                        </span>
+                                                        @if (m.BuildFlag is { } memberFlag) {
+                                                            <Tooltip>
+                                                                <ChildContent>
+                                                                    <span class="reg-num reg-num-bad">@m.Build</span>
+                                                                </ChildContent>
+                                                                <Tip>
+                                                                    <span class="tt-line">@memberFlag</span>
+                                                                </Tip>
+                                                            </Tooltip>
+                                                        } else {
+                                                            <span class="reg-num">@m.Build</span>
+                                                        }
                                                     </a>
                                                 }
                                             </span>
+                                        } else if (primary.BuildFlag is { } primaryFlag) {
+                                            <Tooltip>
+                                                <ChildContent>
+                                                    <span class="reg-num reg-num-bad">@primary.Build</span>
+                                                </ChildContent>
+                                                <Tip>
+                                                    <span class="tt-line">@primaryFlag</span>
+                                                </Tip>
+                                            </Tooltip>
                                         } else {
-                                            <span class="reg-num @(primary.BuildFlag is null ? "" : "reg-num-bad")"
-                                                  title="@primary.BuildFlag">
-                                                @primary.Build
-                                            </span>
+                                            <span class="reg-num">@primary.Build</span>
                                         }
                                         @if (ClientText(primary).Length > 0) {
                                             <span class="reg-fold">

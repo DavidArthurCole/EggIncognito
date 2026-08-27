@@ -1,6 +1,7 @@
 @using System.Globalization
 @using System.Text.Json
 @using EggIncognito.Models.Events
+@using EggIncognito.Services.Assets
 @using EggIncognito.Services.Events
 @inherits SelfCallComponentBase
 @inject ILogger<EventsCalendarModal> Logger
@@ -33,6 +34,32 @@
         </HeadTools>
         <ChildContent>
             <div class="modal-body evcal-body">
+                <div class="evcal-filters">
+                    <div class="settings-seg" role="radiogroup" aria-label="Ultra filter">
+                        <button type="button" class="seg-btn @(_ultra == UltraAll ? "active" : "")"
+                                @onclick="@(() => SetUltra(UltraAll))">
+                            All
+                        </button>
+                        <button type="button" class="seg-btn @(_ultra == UltraStandard ? "active" : "")"
+                                @onclick="@(() => SetUltra(UltraStandard))">
+                            Standard
+                        </button>
+                        <button type="button" class="seg-btn @(_ultra == UltraOnly ? "active" : "")"
+                                @onclick="@(() => SetUltra(UltraOnly))">
+                            Ultra
+                        </button>
+                    </div>
+                    <select class="evcal-type" aria-label="Event type" value="@_type" @onchange="SetType">
+                        <option value="">All types</option>
+                        @foreach (var type in TypesPresent) {
+                            <option value="@type">@Pretty(type)</option>
+                        }
+                    </select>
+                    @if (Filtering) {
+                        <button type="button" class="btn-mini" @onclick="ClearFilters">Clear filters</button>
+                    }
+                    <span class="evcal-count">@VisibleCount of @_events.Count</span>
+                </div>
                 @if (Note is { Length: > 0 } note) {
                     <div class="evcal-note">@note</div>
                 }
@@ -63,6 +90,11 @@
                                             @foreach (var bar in lane) {
                                                 <button type="button" class="@BarCss(bar)" style="@BarStyle(bar)"
                                                         @onclick="@(() => Select(rowIx, bar))">
+                                                    @if (EventPalette.IconUrl(bar.Event.Type) is { } iconUrl) {
+                                                        <img class="evcal-bar-icon" src="@iconUrl" alt="" loading="lazy"
+                                                             data-fallback/>
+                                                    }
+
                                                     @if (bar.Event.Ultra) {
                                                         <span class="evcal-ultra">ultra</span>
                                                     }
@@ -121,6 +153,9 @@
 @code {
     const int FetchLimit = 1000;
     const double OverlapLookbackSeconds = 7 * 24 * 60 * 60;
+    const string UltraAll = "all";
+    const string UltraStandard = "standard";
+    const string UltraOnly = "ultra";
 
     static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
     static readonly string[] WeekdayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -140,6 +175,52 @@
     bool _covered;
     int _pickedRow = -1;
     string? _pickedId;
+    string _ultra = UltraAll;
+    string _type = "";
+
+    bool Filtering => _ultra != UltraAll || _type.Length > 0;
+
+    int VisibleCount => _events.Values.Count(Match);
+
+    IEnumerable<string> TypesPresent =>
+        _events.Values
+            .Select(e => e.Type)
+            .Where(t => !string.IsNullOrEmpty(t))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(t => t, StringComparer.Ordinal);
+
+    bool Match(GameEventDto e) {
+        if (_ultra == UltraStandard && e.Ultra) return false;
+        if (_ultra == UltraOnly && !e.Ultra) return false;
+        return _type.Length == 0 || string.Equals(e.Type, _type, StringComparison.OrdinalIgnoreCase);
+    }
+
+    void SetUltra(string ultra) {
+        if (_ultra == ultra) return;
+        _ultra = ultra;
+        ApplyFilters();
+    }
+
+    void SetType(ChangeEventArgs e) {
+        _type = e.Value?.ToString() ?? "";
+        ApplyFilters();
+    }
+
+    void ClearFilters() {
+        _ultra = UltraAll;
+        _type = "";
+        ApplyFilters();
+    }
+
+    void ApplyFilters() {
+        ClearSelection();
+        Relayout();
+    }
+
+    void Relayout() {
+        _rows = EventCalendarLayout.Rows(
+            [.. _events.Values.Where(Match)], _visibleStart, _visibleEnd, _zoom, DateTimeOffset.UtcNow);
+    }
 
     public async Task Open() {
         _open = true;
@@ -177,7 +258,8 @@
         get {
             if (_loading) return "Loading events...";
             if (_error.Length > 0) return _error;
-            return _rows.Any(r => r.Lanes.Count > 0) ? "" : "No events in this range.";
+            if (_rows.Any(r => r.Lanes.Count > 0)) return "";
+            return Filtering ? "No events match these filters." : "No events in this range.";
         }
     }
 
@@ -186,8 +268,7 @@
         _center = _visibleStart + (_visibleEnd - _visibleStart) / 2;
         await EnsureFetched();
         _loading = false;
-        _rows = EventCalendarLayout.Rows(
-            _events.Values.ToList(), _visibleStart, _visibleEnd, _zoom, DateTimeOffset.UtcNow);
+        Relayout();
     }
 
     async Task EnsureFetched() {
@@ -294,7 +375,8 @@
     }
 
     static string BarStyle(EventCalendarBar bar) {
-        return FormattableString.Invariant($"--bar-start:{bar.LeftPercent:0.###};--bar-size:{bar.WidthPercent:0.###};");
+        return FormattableString.Invariant(
+            $"--bar-start:{bar.LeftPercent:0.###};--bar-size:{bar.WidthPercent:0.###};--evt-color:{EventPalette.ColorFor(bar.Event.Type)};");
     }
 
     static string TickStyle(double leftPercent) {

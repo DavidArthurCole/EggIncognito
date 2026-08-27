@@ -1,4 +1,4 @@
-<span class="tt @Class">
+<span class="tt @Class" style="@Style">
     @ChildContent
     <span class="tt-pop" role="tooltip">@Tip</span>
 </span>
@@ -9,4 +9,6 @@
     [Parameter] public RenderFragment? Tip { get; set; }
 
     [Parameter] public string? Class { get; set; }
+
+    [Parameter] public string? Style { get; set; }
 }

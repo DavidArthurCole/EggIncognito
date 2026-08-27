@@ -29,4 +29,9 @@ public static class EventPalette {
         string.IsNullOrEmpty(eventType)
             ? Fallback
             : ByType.GetValueOrDefault(eventType.Replace('_', '-'), Fallback);
+
+    public static string? IconUrl(string? eventType) =>
+        string.IsNullOrEmpty(eventType) || !eventType.All(c => char.IsAsciiLetterOrDigit(c) || c is '_' or '-')
+            ? null
+            : $"/api/v1/data/asset/event-icon?name={Uri.EscapeDataString(eventType)}";
 }

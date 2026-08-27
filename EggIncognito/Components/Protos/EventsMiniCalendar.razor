@@ -1,6 +1,7 @@
 @using System.Globalization
 @using EggIncognito.Models.Events
 @using EggIncognito.Models.Periodicals
+@using EggIncognito.Services.Assets
 @using EggIncognito.Services.Events
 <div class="evcal-shell evcal-view-week evcal-mini">
     <div class="evcal-scale">
@@ -23,9 +24,23 @@
                     @foreach (var lane in row.Lanes) {
                         <div class="evcal-lane">
                             @foreach (var bar in lane) {
-                                <span class="@BarCss(bar)" style="@BarStyle(bar)" title="@Title(bar.Event)">
-                                    <span class="evcal-bar-label">@Label(bar.Event)</span>
-                                </span>
+                                <Tooltip Class="evcal-bar-tip" Style="@BarStyle(bar)">
+                                    <ChildContent>
+                                        <span class="@BarCss(bar)">
+                                            @if (EventPalette.IconUrl(bar.Event.Type) is { } iconUrl) {
+                                                <img class="evcal-bar-icon" src="@iconUrl" alt="" loading="lazy"
+                                                     data-fallback/>
+                                            }
+
+                                            <span class="evcal-bar-label">@Label(bar.Event)</span>
+                                        </span>
+                                    </ChildContent>
+                                    <Tip>
+                                        <span class="tt-title">@Label(bar.Event)</span>
+                                        <span class="tt-line">@Multiplier(bar.Event)</span>
+                                        <span class="tt-line">Ends @Absolute(bar.Event.EndTimestamp)</span>
+                                    </Tip>
+                                </Tooltip>
                             }
                         </div>
                     }
@@ -55,8 +70,8 @@
             e.StartTime, e.EndTime ?? e.StartTime + e.Duration, "periodicals");
     }
 
-    static string Title(GameEventDto e) {
-        return FormattableString.Invariant($"{Label(e)} ({e.Multiplier:0.###}x) - ends {Absolute(e.EndTimestamp)}");
+    static string Multiplier(GameEventDto e) {
+        return FormattableString.Invariant($"{e.Multiplier:0.###}x");
     }
 
     static string Absolute(double unixSeconds) {
@@ -71,7 +86,8 @@
     }
 
     static string BarStyle(EventCalendarBar bar) {
-        return FormattableString.Invariant($"--bar-start:{bar.LeftPercent:0.###};--bar-size:{bar.WidthPercent:0.###};");
+        return FormattableString.Invariant(
+            $"--bar-start:{bar.LeftPercent:0.###};--bar-size:{bar.WidthPercent:0.###};--evt-color:{EventPalette.ColorFor(bar.Event.Type)};");
     }
 
     static string TickStyle(double leftPercent) {

@@ -54,7 +54,7 @@
     <div class="pd-wcol">
         <section class="panel pd-w-events">
             <div class="flex items-center justify-between mb-3">
-                <h3 class="text-sm font-semibold m-0">This week</h3>
+                <h3 class="text-sm font-semibold m-0">Game events</h3>
                 <button type="button" class="dropzone-open" aria-label="Open the events calendar"
                         @onclick="@(() => OnOpenEvents.InvokeAsync())">
                     <Icon Name="chevronRight" Class="icon-sm"/>
@@ -161,7 +161,7 @@
                                                         <span class="season-goal-text">
                                                             <span class="season-goal-cs">@FormatAmount(goal.Cxp) CS</span>
                                                             @if (goal.RewardAmount != 1) {
-                                                                <span class="season-goal-amt">x@FormatAmount(goal.RewardAmount)</span>
+                                                                <span class="season-goal-amt">@($"x{FormatAmount(goal.RewardAmount)}")</span>
                                                             }
                                                         </span>
                                                     </span>

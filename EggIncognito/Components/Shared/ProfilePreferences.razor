@@ -111,7 +111,7 @@
     static IReadOnlyList<(string, string)> BuildZones() {
         var zones = new List<(string Id, string Label)>();
         foreach (var zone in TimeZoneInfo.GetSystemTimeZones()) {
-            string id = TimeZoneInfo.TryConvertWindowsIdToIanaId(zone.Id, out string? iana) ? iana : zone.Id;
+            var id = TimeZoneInfo.TryConvertWindowsIdToIanaId(zone.Id, out var iana) ? iana : zone.Id;
             zones.Add((id, $"{id} (UTC{OffsetLabel(zone.BaseUtcOffset)})"));
         }
 

@@ -79,17 +79,23 @@ public static class EventCalendarLayout {
         double span = windowEnd - windowStart;
         var hits = events
             .Where(e => e.EndTimestamp > windowStart && e.StartTimestamp < windowEnd)
-            .OrderBy(e => e.StartTimestamp)
+            .OrderBy(StartDay)
+            .ThenByDescending(e => e.EndTimestamp - e.StartTimestamp)
+            .ThenBy(e => e.StartTimestamp)
             .ThenBy(e => e.Id, StringComparer.Ordinal)
             .ToList();
         var laneRights = new List<double>();
+        var dayFloors = new Dictionary<DateTime, int>();
         var bars = new List<EventCalendarBar>(hits.Count);
         foreach (var e in hits) {
             var (left, width) = Clip(e.StartTimestamp, e.EndTimestamp, windowStart, span);
             bool past = e.EndTimestamp <= nowUnix;
+            var day = StartDay(e);
+            int lane = AssignLane(laneRights, left, left + width, dayFloors.GetValueOrDefault(day, 0));
+            if (!dayFloors.ContainsKey(day)) dayFloors[day] = lane;
             bars.Add(new EventCalendarBar(
                 e,
-                AssignLane(laneRights, left, left + width),
+                lane,
                 left * 100,
                 width * 100,
                 !past && e.StartTimestamp <= nowUnix,
@@ -101,21 +107,35 @@ public static class EventCalendarLayout {
         return bars;
     }
 
+    private static DateTime StartDay(GameEventDto e) => UnixSeconds.ToTime(e.StartTimestamp).ToLocalTime().Date;
+
     private static List<IReadOnlyList<EventCalendarBar>> Lanes(List<EventCalendarBar> bars) {
         var lanes = new List<IReadOnlyList<EventCalendarBar>>();
         foreach (var lane in bars.GroupBy(b => b.Lane).OrderBy(g => g.Key)) lanes.Add([.. lane]);
         return lanes;
     }
 
-    private static int AssignLane(List<double> laneRights, double left, double right) {
-        for (var i = 0; i < laneRights.Count; i++) {
-            if (laneRights[i] + LaneGapFraction > left) continue;
-            laneRights[i] = right;
-            return i;
+    private static int AssignLane(List<double> laneRights, double left, double right, int floor) {
+        if (FirstFree(laneRights, left, floor) is { } preferred) {
+            laneRights[preferred] = right;
+            return preferred;
+        }
+
+        if (floor > 0 && FirstFree(laneRights, left, 0) is { } fallback) {
+            laneRights[fallback] = right;
+            return fallback;
         }
 
         laneRights.Add(right);
         return laneRights.Count - 1;
+    }
+
+    private static int? FirstFree(List<double> laneRights, double left, int from) {
+        for (var i = from; i < laneRights.Count; i++) {
+            if (laneRights[i] + LaneGapFraction <= left) return i;
+        }
+
+        return null;
     }
 
     private static (double Left, double Width) Clip(double startUnix, double endUnix, double windowStart, double span) {
