@@ -21,8 +21,8 @@
                 <span>Language</span>
                 <select class="reg-filter-input w-auto" value="@_language" @onchange="OnLanguage">
                     <option value="">Not set</option>
-                    @foreach (var (code, label) in Languages) {
-                        <option value="@code">@label</option>
+                    @foreach (var (lang, label) in Languages) {
+                        <option value="@lang">@label</option>
                     }
                 </select>
             </label>
