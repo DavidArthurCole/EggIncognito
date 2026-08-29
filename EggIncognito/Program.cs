@@ -43,6 +43,7 @@ builder.AddDatabaseStores(boot);
 builder.AddContributionServices(boot);
 builder.AddCaptureServices(boot);
 builder.AddDeviceServices(boot);
+builder.AddVirtualDeviceServices(boot);
 
 var app = builder.Build();
 

@@ -19,5 +19,5 @@ public sealed class DeviceFleet(IServiceScopeFactory scopeFactory, DeviceConfig 
         return [.. rows.Select(Entry)];
     }
 
-    private static DeviceEntry Entry(Device d) => new(d.Id, d.Platform, d.Label, d.Target, d.Package);
+    private static DeviceEntry Entry(Device d) => new(d.Id, d.Platform, d.Label, d.Target, d.Package, d.Origin);
 }

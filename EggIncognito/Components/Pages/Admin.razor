@@ -46,21 +46,28 @@
             <AdminConsolePanel/>
             <AdminBotConfigPanel/>
             <AdminMaintenancePanel/>
+            <AdminVirtualDevicesPanel OnConsole="OpenConsole"/>
             <AdminPlaygroundPanel OnOpen="OpenPlayground"/>
         </AdminSection>
     }
 </main>
 
 <DeviceWorkbenchModal @ref="_deviceWorkbench"/>
+<DeviceConsole @ref="_console"/>
 <PlaygroundWorkbenchModal @ref="_playground"/>
 
 @code {
     bool _isAdmin;
     DeviceWorkbenchModal? _deviceWorkbench;
+    DeviceConsole? _console;
     PlaygroundWorkbenchModal? _playground;
 
     Task OpenDeviceWorkbench(string? deviceId) {
         return _deviceWorkbench?.Open(deviceId) ?? Task.CompletedTask;
+    }
+
+    Task OpenConsole(string? deviceId) {
+        return _console?.Open(deviceId) ?? Task.CompletedTask;
     }
 
     Task OpenPlayground() {
@@ -75,6 +82,7 @@
         if (!firstRender || !_isAdmin) return;
         var fragment = new Uri(Nav.Uri).Fragment.TrimStart('#');
         if (string.Equals(fragment, "playground", StringComparison.Ordinal)) await OpenPlayground();
+        else if (string.Equals(fragment, "console", StringComparison.Ordinal)) await OpenConsole(null);
     }
 
 }

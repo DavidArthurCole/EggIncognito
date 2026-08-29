@@ -155,7 +155,9 @@ public sealed class GameBinaryProvider(
         if (store is not null) {
             try {
                 var devices = await store.EnabledDevicesAsync(ct);
-                platforms.AddRange(devices.Select(d => d.Platform).Distinct(StringComparer.OrdinalIgnoreCase));
+                platforms.AddRange(devices
+                    .Where(d => !DeviceOrigins.IsVirtual(d.Origin))
+                    .Select(d => d.Platform).Distinct(StringComparer.OrdinalIgnoreCase));
             } catch (Exception ex) {
                 logger.LogWarning(ex, "enabled-device enumeration failed; falling back to {Platform}", DefaultPlatform);
                 rejected.Add($"device enumeration failed: {ex.Message}");
@@ -197,7 +199,7 @@ public sealed class GameBinaryProvider(
 
         List<Device> devices;
         try {
-            devices = await store.EnabledDevicesAsync(ct);
+            devices = [.. (await store.EnabledDevicesAsync(ct)).Where(d => !DeviceOrigins.IsVirtual(d.Origin))];
         } catch (Exception ex) {
             results.Add((DefaultPlatform, "store-error", null, ex.Message));
             return results;

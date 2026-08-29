@@ -673,6 +673,94 @@ public sealed class DevicesController(
         return Ok(new { ok = true });
     }
 
+    private async Task<(IActionResult? Error, IDevicePlatform Platform, DeviceTarget Target)> ResolveUiAsync(
+        string id, CancellationToken ct) {
+        if (services.GetService(typeof(IDeviceFleet)) is not IDeviceFleet fleet)
+            return (StatusCode(503, new { error = "device config not available" }), null!, null!);
+        if (await FleetEntryAsync(fleet, id, ct) is not { } entry)
+            return (NotFound(new { error = "unknown device" }), null!, null!);
+        if (services.GetService(typeof(IDevicePlatforms)) is not IDevicePlatforms platforms)
+            return (StatusCode(503, new { error = "device platforms not available" }), null!, null!);
+
+        return (null, platforms.For(entry.Platform), new DeviceTarget(entry.Id, entry.Platform, entry.Target, entry.Package));
+    }
+
+    private ObjectResult UiFailure(DeviceOutcome outcome, string? note) => outcome switch {
+        DeviceOutcome.Unsupported => StatusCode(501, new { error = note ?? "ui control is unsupported on this device" }),
+        DeviceOutcome.Unreachable => StatusCode(502, new { error = note ?? "device unreachable" }),
+        _ => StatusCode(500, new { error = note ?? "device ui call failed" })
+    };
+
+    [HttpGet("{id}/ui/screenshot")]
+    [ApiAccess(ApiAccessLevel.Admin)]
+    [EnableRateLimiting("fetch")]
+    public async Task<IActionResult> UiScreenshot(string id, CancellationToken ct) {
+        if (RequireAdmin() is { } no) return no;
+        (IActionResult? err, var platform, var target) = await ResolveUiAsync(id, ct);
+        if (err is not null) return err;
+
+        var shot = await platform.ScreenshotAsync(target, ct);
+        if (!shot.Ok || shot.Value is not { Length: > 0 } png) return UiFailure(shot.Outcome, shot.Note);
+
+        Response.Headers.CacheControl = "no-store";
+        return File(png, "image/png");
+    }
+
+    [HttpGet("{id}/ui/dump")]
+    [ApiAccess(ApiAccessLevel.Admin)]
+    [EnableRateLimiting("read")]
+    public async Task<IActionResult> UiDump(string id, CancellationToken ct) {
+        if (RequireAdmin() is { } no) return no;
+        (IActionResult? err, var platform, var target) = await ResolveUiAsync(id, ct);
+        if (err is not null) return err;
+
+        var dump = await platform.DumpUiAsync(target, ct);
+        if (!dump.Ok || dump.Value is not { } tree) return UiFailure(dump.Outcome, dump.Note);
+
+        Response.Headers.CacheControl = "no-store";
+        return Ok(UiTreeProjector.Project(tree));
+    }
+
+    [HttpPost("{id}/ui/tap")]
+    [ApiAccess(ApiAccessLevel.Admin)]
+    [EnableRateLimiting("write")]
+    public async Task<IActionResult> UiTap(string id, [FromBody] UiTapRequest req, CancellationToken ct) {
+        if (RequireAdmin() is { } no) return no;
+        if (req.X < 0 || req.Y < 0) return BadRequest(new { error = "x and y must be non-negative" });
+        (IActionResult? err, var platform, var target) = await ResolveUiAsync(id, ct);
+        if (err is not null) return err;
+
+        var r = await platform.TapPointAsync(target, req.X, req.Y, ct);
+        return r.Ok ? Ok(new UiActionResult(true, DeviceOutcomes.Label(r), r.Note)) : UiFailure(r.Outcome, r.Note);
+    }
+
+    [HttpPost("{id}/ui/text")]
+    [ApiAccess(ApiAccessLevel.Admin)]
+    [EnableRateLimiting("write")]
+    public async Task<IActionResult> UiText(string id, [FromBody] UiTextRequest req, CancellationToken ct) {
+        if (RequireAdmin() is { } no) return no;
+        if (string.IsNullOrEmpty(req.Text)) return BadRequest(new { error = "text required" });
+        (IActionResult? err, var platform, var target) = await ResolveUiAsync(id, ct);
+        if (err is not null) return err;
+
+        var r = await platform.InputTextAsync(target, req.Text, ct);
+        return r.Ok ? Ok(new UiActionResult(true, DeviceOutcomes.Label(r), r.Note)) : UiFailure(r.Outcome, r.Note);
+    }
+
+    [HttpPost("{id}/ui/key")]
+    [ApiAccess(ApiAccessLevel.Admin)]
+    [EnableRateLimiting("write")]
+    public async Task<IActionResult> UiKey(string id, [FromBody] UiKeyRequest req, CancellationToken ct) {
+        if (RequireAdmin() is { } no) return no;
+        if (!DeviceKeyNames.TryParse(req.Key, out var key))
+            return BadRequest(new { error = $"unknown key (expected one of: {string.Join(", ", DeviceKeyNames.All)})" });
+        (IActionResult? err, var platform, var target) = await ResolveUiAsync(id, ct);
+        if (err is not null) return err;
+
+        var r = await platform.KeyAsync(target, key, ct);
+        return r.Ok ? Ok(new UiActionResult(true, DeviceOutcomes.Label(r), r.Note)) : UiFailure(r.Outcome, r.Note);
+    }
+
     [HttpGet("{id}/live")]
     [EnableRateLimiting("fetch")]
     public async Task<IActionResult> Live(string id, CancellationToken ct) {

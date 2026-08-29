@@ -20,7 +20,9 @@ public sealed class DeviceRecertService(
         if (devices is null) return deviceConfig.Devices.FirstOrDefault(d => d.Id == deviceId);
         if (await devices.GetAsync(deviceId, ct) is not { } row)
             return deviceConfig.Devices.FirstOrDefault(d => d.Id == deviceId);
-        return row.Enabled ? new DeviceEntry(row.Id, row.Platform, row.Label, row.Target, row.Package) : null;
+        return row.Enabled
+            ? new DeviceEntry(row.Id, row.Platform, row.Label, row.Target, row.Package, row.Origin)
+            : null;
     }
 
     public async Task<DeviceFlowResult> RecertAsync(string deviceId, string trigger, CancellationToken ct) {

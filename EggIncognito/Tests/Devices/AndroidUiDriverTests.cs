@@ -168,6 +168,7 @@ public class AndroidUiDriverTests {
     [InlineData(DeviceKey.Wake, "input keyevent KEYCODE_WAKEUP")]
     [InlineData(DeviceKey.Sleep, "input keyevent KEYCODE_SLEEP")]
     [InlineData(DeviceKey.Enter, "input keyevent KEYCODE_ENTER")]
+    [InlineData(DeviceKey.Recents, "input keyevent KEYCODE_APP_SWITCH")]
     [InlineData(DeviceKey.DismissKeyguard, "wm dismiss-keyguard")]
     public async Task KeyAsync_MapsToExpectedCommand(DeviceKey key, string expected) {
         var runner = new FakeRunner(_ => new ProcessResult(0, "", ""));

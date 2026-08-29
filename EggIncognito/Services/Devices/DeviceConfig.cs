@@ -1,4 +1,5 @@
 using EggIncognito.Core.Services.Devices;
+using EggIncognito.Data.Models;
 
 namespace EggIncognito.Services.Devices;
 
@@ -63,8 +64,11 @@ public sealed record DeviceConfig {
             (platform ?? "android").ToLowerInvariant(),
             string.IsNullOrWhiteSpace(label) ? id : label,
             target,
-            string.IsNullOrWhiteSpace(package) ? "com.auxbrain.egginc" : package));
+            string.IsNullOrWhiteSpace(package) ? "com.auxbrain.egginc" : package,
+            DeviceOrigins.Config));
     }
 }
 
-public sealed record DeviceEntry(string Id, string Platform, string Label, string Target, string Package);
+public sealed record DeviceEntry(
+    string Id, string Platform, string Label, string Target, string Package,
+    string Origin = DeviceOrigins.Runtime);

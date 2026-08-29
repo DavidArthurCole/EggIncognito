@@ -74,6 +74,7 @@ public sealed class AndroidUiDriver(IDeviceConnectionFactory connections) : IDev
             DeviceKey.Wake => "input keyevent KEYCODE_WAKEUP",
             DeviceKey.Sleep => "input keyevent KEYCODE_SLEEP",
             DeviceKey.Enter => "input keyevent KEYCODE_ENTER",
+            DeviceKey.Recents => "input keyevent KEYCODE_APP_SWITCH",
             DeviceKey.DismissKeyguard => "wm dismiss-keyguard",
             _ => throw new ArgumentOutOfRangeException(nameof(key), key, "unhandled DeviceKey")
         };

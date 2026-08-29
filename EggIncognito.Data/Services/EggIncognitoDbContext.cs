@@ -30,6 +30,7 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
     public DbSet<DeviceJobLine> DeviceJobLines => Set<DeviceJobLine>();
     public DbSet<DeviceState> DeviceStates => Set<DeviceState>();
     public DbSet<DeviceAsset> DeviceAssets => Set<DeviceAsset>();
+    public DbSet<ProvisionedInstanceRow> ProvisionedInstances => Set<ProvisionedInstanceRow>();
     public DbSet<StagedProto> StagedProtos => Set<StagedProto>();
     public DbSet<EnvDesign> EnvDesigns => Set<EnvDesign>();
     public DbSet<EnvDesignVersion> EnvDesignVersions => Set<EnvDesignVersion>();
@@ -170,6 +171,12 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
             e.HasIndex(x => new { x.Platform, x.Kind, x.Name }).IsUnique();
             e.HasIndex(x => x.Sha256);
             e.Property(x => x.UpdatedAt).HasDefaultValueSql("now()");
+        });
+        modelBuilder.Entity<ProvisionedInstanceRow>(e => {
+            e.HasKey(x => x.InstanceId);
+            e.HasIndex(x => x.State);
+            e.HasIndex(x => x.DeviceId);
+            e.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
         });
         modelBuilder.Entity<StagedProto>(e => {
             e.HasIndex(x => x.ProtoSha);

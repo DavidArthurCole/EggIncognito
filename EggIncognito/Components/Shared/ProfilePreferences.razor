@@ -1,5 +1,5 @@
-@using System.Globalization
 @using EggIdentity.Client
+@using EggIdentity.UI
 @inject IServiceProvider Services
 
 <div class="prof-prefs">
@@ -10,24 +10,18 @@
         <div class="prof-prefs-grid">
             <label class="theme-field">
                 <span>Time zone</span>
-                <select class="reg-filter-input w-auto" value="@_timezone" @onchange="OnTimezone">
-                    <option value="">Not set</option>
-                    @foreach (var (id, label) in Zones) {
-                        <option value="@id">@label</option>
-                    }
-                </select>
+                <TimeZonePicker Value="@_timezone" ValueChanged="OnTimezone"/>
             </label>
             <label class="theme-field">
                 <span>Language</span>
-                <select class="reg-filter-input w-auto" value="@_language" @onchange="OnLanguage">
-                    <option value="">Not set</option>
-                    @foreach (var (lang, label) in Languages) {
-                        <option value="@lang">@label</option>
-                    }
-                </select>
+                <LanguagePicker Value="@_language" ValueChanged="OnLanguage"/>
             </label>
         </div>
-        <p class="text-muted text-xs m-0">Shared with every app that signs you in through EggIdentity.</p>
+        <p class="text-muted text-xs m-0">
+            Shared with every app that signs you in through EggIdentity.
+            Will also take effect in other EggIdentity apps (e.g.,
+            <a href="@EggLedgerUrl" target="_blank" rel="noopener noreferrer">EggLedger</a>).
+        </p>
         <div class="theme-picker-actions">
             <button type="button" class="btn-mini" disabled="@(_busy || !Dirty)" @onclick="Save">
                 @(_busy ? "Saving..." : "Save preferences")
@@ -40,8 +34,7 @@
 </div>
 
 @code {
-    static readonly IReadOnlyList<(string Id, string Label)> Zones = BuildZones();
-    static readonly IReadOnlyList<(string Code, string Label)> Languages = BuildLanguages();
+    const string EggLedgerUrl = "https://eggledger.davidarthurcole.me";
 
     [Parameter] [EditorRequired] public string SessionToken { get; set; } = "";
 
@@ -71,12 +64,12 @@
         }
     }
 
-    void OnTimezone(ChangeEventArgs e) {
-        _timezone = e.Value?.ToString() ?? "";
+    void OnTimezone(string? value) {
+        _timezone = value ?? "";
     }
 
-    void OnLanguage(ChangeEventArgs e) {
-        _language = e.Value?.ToString() ?? "";
+    void OnLanguage(string? value) {
+        _language = value ?? "";
     }
 
     async Task Save() {
@@ -106,31 +99,6 @@
     void SetMessage(string message, StatusNoteKind kind) {
         _message = message;
         _messageKind = kind;
-    }
-
-    static IReadOnlyList<(string, string)> BuildZones() {
-        var zones = new List<(string Id, string Label)>();
-        foreach (var zone in TimeZoneInfo.GetSystemTimeZones()) {
-            var id = TimeZoneInfo.TryConvertWindowsIdToIanaId(zone.Id, out var iana) ? iana : zone.Id;
-            zones.Add((id, $"{id} (UTC{OffsetLabel(zone.BaseUtcOffset)})"));
-        }
-
-        return [.. zones.DistinctBy(z => z.Id).OrderBy(z => z.Id, StringComparer.Ordinal)];
-    }
-
-    static IReadOnlyList<(string, string)> BuildLanguages() {
-        return [
-            .. CultureInfo.GetCultures(CultureTypes.NeutralCultures)
-                .Where(c => c.TwoLetterISOLanguageName.Length == 2 && c.EnglishName.Length > 0)
-                .DistinctBy(c => c.TwoLetterISOLanguageName, StringComparer.Ordinal)
-                .OrderBy(c => c.EnglishName, StringComparer.Ordinal)
-                .Select(c => (c.TwoLetterISOLanguageName, $"{c.EnglishName} ({c.TwoLetterISOLanguageName})"))
-        ];
-    }
-
-    static string OffsetLabel(TimeSpan offset) {
-        return (offset < TimeSpan.Zero ? "-" : "+") +
-               offset.Duration().ToString(@"hh\:mm", CultureInfo.InvariantCulture);
     }
 
 }

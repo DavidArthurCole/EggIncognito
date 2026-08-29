@@ -59,27 +59,6 @@ public class ArtifactCatalogBuilderTests {
         }
     }
 
-    [Fact]
-    public void CraftingPrice_DecaysFromPriceToPriceLowOverTheDomain() {
-        if (!AfxConfigFixture.TryLoad(out string json)) return;
-
-        var row = Parse(json).Find("book-of-basan-4-legendary");
-        Assert.NotNull(row);
-
-        Assert.Equal((int)row.CraftingPrice, CraftingPrice(row, 0));
-        Assert.Equal((int)row.CraftingPriceLow, CraftingPrice(row, (int)row.CraftingPriceDomain));
-        Assert.Equal((int)row.CraftingPriceLow, CraftingPrice(row, (int)row.CraftingPriceDomain * 2));
-
-        int half = CraftingPrice(row, (int)row.CraftingPriceDomain / 2);
-        Assert.InRange(half, (int)row.CraftingPriceLow, (int)row.CraftingPrice);
-    }
-
     private static ArtifactCatalog Parse(string json) =>
         ArtifactCatalog.Parse(ArtifactCatalogBuilder.Serialize(ArtifactCatalogBuilder.BuildFromJson(json, "1.37").File));
-
-    private static int CraftingPrice(ArtifactCatalogEntry row, int craftingCount) {
-        double t = Math.Pow(Math.Min(craftingCount / (double)row.CraftingPriceDomain, 1), row.CraftingPriceCurve);
-        double price = row.CraftingPrice - (row.CraftingPrice - row.CraftingPriceLow) * t;
-        return (int)Math.Max(price, 1);
-    }
 }

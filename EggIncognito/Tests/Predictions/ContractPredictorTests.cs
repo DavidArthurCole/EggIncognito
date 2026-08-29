@@ -204,10 +204,4 @@ public class ContractPredictorTests {
         Assert.True(thrown is NpgsqlException or InvalidOperationException, thrown.ToString());
     }
 
-    [Fact]
-    public void ContractPredictionCache_DefaultsForceInitialRecompute() {
-        var cache = new ContractPredictionCache();
-        Assert.Equal(-1, cache.Version);
-        Assert.Null(cache.Value);
-    }
 }

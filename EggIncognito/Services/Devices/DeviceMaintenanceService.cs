@@ -84,6 +84,11 @@ public sealed class DeviceMaintenanceService(
                 continue;
             }
 
+            if (DeviceOrigins.IsVirtual(d.Origin)) {
+                logger.LogDebug("device {Id} is virtual, skipping version maintenance", d.Id);
+                continue;
+            }
+
             try {
                 var rinfo = await HarvestAsync(d, TimeSpan.FromSeconds(25), ct);
                 logger.LogInformation("device capture: {Id} startup harvest -> {Cv}",
@@ -101,6 +106,11 @@ public sealed class DeviceMaintenanceService(
         foreach (var d in await fleet.EnabledAsync(ct)) {
             if (claims.IsHeld(d.Id)) {
                 logger.LogDebug("device {Id} held by remote bridge, skipping maintenance", d.Id);
+                continue;
+            }
+
+            if (DeviceOrigins.IsVirtual(d.Origin)) {
+                logger.LogDebug("device {Id} is virtual, skipping version maintenance", d.Id);
                 continue;
             }
 
@@ -158,6 +168,11 @@ public sealed class DeviceMaintenanceService(
                 continue;
             }
 
+            if (DeviceOrigins.IsVirtual(d.Origin)) {
+                logger.LogDebug("device {Id} is virtual, skipping version maintenance", d.Id);
+                continue;
+            }
+
             if (!latest.TryGetValue(d.Id, out var probe)) continue;
             try {
                 await StoreSyncAsync(d, probe, jobs, db, ct);
@@ -184,6 +199,7 @@ public sealed class DeviceMaintenanceService(
         if (sp.GetService(typeof(DeviceStateStore)) is not DeviceStateStore states) return;
 
         foreach (var d in devices) {
+            if (DeviceOrigins.IsVirtual(d.Origin)) continue;
             try {
                 var state = await states.GetAsync(d.Id, ct);
                 if (state?.Build is not { Length: > 0 } build) continue;
@@ -227,7 +243,8 @@ public sealed class DeviceMaintenanceService(
 
         try {
             string? package = devices
-                .FirstOrDefault(d => Platforms.Matches(d.Platform, Platforms.Android))?.Package;
+                .FirstOrDefault(d => Platforms.Matches(d.Platform, Platforms.Android)
+                                     && !DeviceOrigins.IsVirtual(d.Origin))?.Package;
             if (package is null) return;
             string? playLatest = await androidCatalog.LatestVersionAsync(
                 package, appConfig["DeviceUpdate:Android:LookupCountry"],
@@ -245,6 +262,11 @@ public sealed class DeviceMaintenanceService(
         foreach (var d in devices) {
             if (claims.IsHeld(d.Id)) {
                 logger.LogDebug("device {Id} held by remote bridge, skipping maintenance", d.Id);
+                continue;
+            }
+
+            if (DeviceOrigins.IsVirtual(d.Origin)) {
+                logger.LogDebug("device {Id} is virtual, skipping version maintenance", d.Id);
                 continue;
             }
 
@@ -381,6 +403,11 @@ public sealed class DeviceMaintenanceService(
         foreach (var d in await fleet.EnabledAsync(ct)) {
             if (claims.IsHeld(d.Id)) {
                 logger.LogDebug("device {Id} held by remote bridge, skipping maintenance", d.Id);
+                continue;
+            }
+
+            if (DeviceOrigins.IsVirtual(d.Origin)) {
+                logger.LogDebug("device {Id} is virtual, skipping version maintenance", d.Id);
                 continue;
             }
 

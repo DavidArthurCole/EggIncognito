@@ -1,0 +1,135 @@
+using System.Security.Cryptography;
+using Microsoft.Extensions.Logging;
+
+namespace EggIncognito.Core.Services.Devices;
+
+public sealed class RedroidProvisioner(
+    DockerEngineClient docker,
+    VirtualDeviceConfig config,
+    TimeProvider time,
+    ILogger<RedroidProvisioner> logger) : IDeviceProvisioner {
+    public const string OwnerLabel = "egi.virtual";
+    public const string KindLabel = "egi.kind";
+    public const string NamePrefix = "egi-vd-";
+    public const int AdbPort = 5555;
+
+    private const string OwnerFilter = OwnerLabel + "=1";
+
+    public static readonly string[] BootArgs = [
+        "androidboot.redroid_width=720",
+        "androidboot.redroid_height=1280",
+        "androidboot.redroid_dpi=320",
+        "androidboot.redroid_gpu_mode=guest"
+    ];
+
+    public string Kind => "redroid";
+
+    public ProvisionerCapabilities Capabilities =>
+        ProvisionerCapabilities.Create | ProvisionerCapabilities.StartStop |
+        ProvisionerCapabilities.Destroy | ProvisionerCapabilities.List;
+
+    public static string TargetFor(string instanceId) => $"{instanceId}:{AdbPort}";
+
+    public static string VolumeFor(string instanceId) => $"{instanceId}-data";
+
+    public async Task<DeviceResult<ProvisionedInstance>> CreateAsync(ProvisionSpec spec, CancellationToken ct) {
+        var ping = await docker.PingAsync(ct);
+        if (!ping.Ok) return DeviceResult<ProvisionedInstance>.Unsupported(ping.Note);
+
+        var existing = await docker.ListAsync(OwnerFilter, ct);
+        if (!existing.Ok) return new DeviceResult<ProvisionedInstance>(existing.Outcome, null, existing.Note);
+        if (existing.Value is { } live && live.Count >= config.MaxInstances) {
+            return DeviceResult<ProvisionedInstance>.Error(
+                $"virtual device cap reached ({live.Count}/{config.MaxInstances}); destroy one before creating another");
+        }
+
+        var network = await docker.SelfNetworkAsync(ct);
+        if (!network.Ok || network.Value is not { } net)
+            return DeviceResult<ProvisionedInstance>.Error(network.Note ?? "could not discover the app docker network");
+
+        string name = NewName();
+        string image = string.IsNullOrWhiteSpace(spec.Image) ? config.Image : spec.Image;
+        var labels = new Dictionary<string, string>(StringComparer.Ordinal) {
+            [OwnerLabel] = "1",
+            [KindLabel] = Kind,
+            ["egi.instance"] = name
+        };
+        if (!string.IsNullOrWhiteSpace(spec.Label)) labels["egi.label"] = spec.Label;
+
+        var created = await docker.CreateAsync(
+            new DockerCreateSpec(name, image, BootArgs, [$"{VolumeFor(name)}:/data"], net, labels), ct);
+        if (!created.Ok || created.Value is not { } id)
+            return DeviceResult<ProvisionedInstance>.Error(created.Note ?? "container create failed");
+
+        var started = await docker.StartAsync(id, ct);
+        if (!started.Ok) {
+            await docker.RemoveAsync(id, ct);
+            await docker.RemoveVolumeAsync(VolumeFor(name), ct);
+            return DeviceResult<ProvisionedInstance>.Error(started.Note ?? "container start failed");
+        }
+
+        logger.LogInformation("virtual device: created {Name} from {Image} on docker network {Network}",
+            name, image, net);
+
+        return DeviceResult<ProvisionedInstance>.Success(new ProvisionedInstance(
+            name, Kind, image, ProvisionStates.Creating, TargetFor(name), id, time.GetUtcNow(),
+            $"attached to docker network {net}"));
+    }
+
+    public async Task<DeviceResult> StartAsync(string instanceId, CancellationToken ct) {
+        var guard = Guard(instanceId);
+        return guard ?? await docker.StartAsync(instanceId, ct);
+    }
+
+    public async Task<DeviceResult> StopAsync(string instanceId, CancellationToken ct) {
+        var guard = Guard(instanceId);
+        return guard ?? await docker.StopAsync(instanceId, 20, ct);
+    }
+
+    public async Task<DeviceResult> DestroyAsync(string instanceId, CancellationToken ct) {
+        if (Guard(instanceId) is { } guard) return guard;
+
+        await docker.StopAsync(instanceId, 15, ct);
+        var removed = await docker.RemoveAsync(instanceId, ct);
+        if (!removed.Ok) return removed;
+
+        var volume = await docker.RemoveVolumeAsync(VolumeFor(instanceId), ct);
+        if (!volume.Ok)
+            logger.LogWarning("virtual device: {Id} removed but its data volume lingers: {Note}", instanceId,
+                volume.Note);
+
+        logger.LogInformation("virtual device: destroyed {Id}", instanceId);
+        return DeviceResult.Success(volume.Ok ? null : "container removed, volume left behind");
+    }
+
+    public async Task<DeviceResult<IReadOnlyList<ProvisionedInstance>>> ListAsync(CancellationToken ct) {
+        var listed = await docker.ListAsync(OwnerFilter, ct);
+        if (!listed.Ok || listed.Value is not { } rows)
+            return new DeviceResult<IReadOnlyList<ProvisionedInstance>>(listed.Outcome, null, listed.Note);
+
+        var mapped = rows
+            .Where(c => c.Name.StartsWith(NamePrefix, StringComparison.Ordinal))
+            .Select(c => new ProvisionedInstance(
+                c.Name, Kind, c.Image, StateOf(c.State), TargetFor(c.Name), c.Id, c.CreatedAt, c.Status))
+            .ToList();
+        return DeviceResult<IReadOnlyList<ProvisionedInstance>>.Success(mapped);
+    }
+
+    private static string StateOf(string dockerState) => dockerState switch {
+        "running" => ProvisionStates.Booting,
+        "created" or "restarting" => ProvisionStates.Creating,
+        "paused" or "exited" => ProvisionStates.Stopped,
+        _ => ProvisionStates.Failed
+    };
+
+    private DeviceResult? Guard(string instanceId) {
+        if (!docker.SocketPresent)
+            return DeviceResult.Unsupported($"docker socket {docker.SocketPath} is not present");
+        return instanceId.StartsWith(NamePrefix, StringComparison.Ordinal)
+            ? null
+            : DeviceResult.Error($"'{instanceId}' is not a provisioned virtual device");
+    }
+
+    private static string NewName() =>
+        NamePrefix + Convert.ToHexString(RandomNumberGenerator.GetBytes(4)).ToLowerInvariant();
+}

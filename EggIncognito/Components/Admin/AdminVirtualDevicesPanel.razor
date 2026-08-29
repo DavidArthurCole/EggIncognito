@@ -1,0 +1,192 @@
+@rendermode @(RenderMode.InteractiveServer)
+@using EggIncognito.Models.Devices
+@inherits BrowserApiComponentBase
+
+<AdminCard Title="Virtual devices" Stat="@StatText" OnOpened="Load">
+    <Summary>
+        @if (_status is null) {
+            <div class="text-sm text-muted">loading</div>
+        } else if (!_status.Enabled) {
+            <div class="text-sm text-muted">disabled (Devices:Virtual:Enabled)</div>
+        } else if (!_status.Supported) {
+            <div class="text-sm text-muted">provisioner unavailable</div>
+        } else {
+            <div class="text-xs text-muted">@StateLine()</div>
+            @foreach (var i in _status.Instances.Where(x => x.State != "destroyed").Take(3)) {
+                <div class="admin-card-extra text-xs text-muted">
+                    @i.InstanceId, @i.State, @(i.Target ?? "no target"), @FlowLine(i)
+                </div>
+            }
+        }
+    </Summary>
+    <Detail>
+        <div class="sub-section-head">Fleet</div>
+        <div class="text-xs text-muted">
+            kind @(_status?.Kind ?? "?"), image @(_status?.Image ?? "?"),
+            live @(_status?.LiveCount ?? 0) of @(_status?.MaxInstances ?? 0)
+        </div>
+
+        <div class="reg-wrap">
+            <table class="data-table">
+                <thead>
+                <tr>
+                    <th>instance</th>
+                    <th>state</th>
+                    <th>target</th>
+                    <th>image</th>
+                    <th>device</th>
+                    <th>uptime</th>
+                    <th>capture</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                @if (_status is null || _status.Instances.Count == 0) {
+                    <tr>
+                        <td colspan="8" class="text-muted">no instances provisioned</td>
+                    </tr>
+                } else {
+                    @foreach (var i in _status.Instances) {
+                        <tr>
+                            <td class="mono">@i.InstanceId</td>
+                            <td>@i.State@(i.ContainerPresent ? "" : " (no container)")</td>
+                            <td class="mono">@(i.Target ?? "-")</td>
+                            <td class="mono">@i.Image</td>
+                            <td class="mono">@(i.DeviceId ?? "-")</td>
+                            <td>
+                                <TimeAgo Value="@i.CreatedAt" Hover="false"/>
+                            </td>
+                            <td>@FlowLine(i)</td>
+                            <td>
+                                @if (i.DeviceId is { Length: > 0 } did) {
+                                    <button type="button" class="btn-mini" disabled="@_busy"
+                                            @onclick="() => OnConsole.InvokeAsync(did)">
+                                        console
+                                    </button>
+                                }
+                                <button type="button" class="btn-mini btn-danger" disabled="@_busy"
+                                        @onclick="() => Destroy(i.InstanceId)">
+                                    destroy
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                }
+                </tbody>
+            </table>
+        </div>
+
+        @if (_status?.Note is { Length: > 0 } note) {
+            <div class="text-xs text-muted">@note</div>
+        }
+
+        <div class="flex items-center gap-2">
+            <button type="button" class="btn-primary" disabled="@(_busy || _status?.Enabled != true)"
+                    @onclick="Create">
+                Provision instance
+            </button>
+            <button type="button" class="btn-secondary" disabled="@_busy" @onclick="Reconcile">Reconcile</button>
+            <button type="button" class="btn-secondary" disabled="@_busy" @onclick="Load">Refresh</button>
+        </div>
+
+        @if (_msg is { Length: > 0 }) {
+            <StatusNote Severity="@_msgKind" OnDismiss="Clear">@_msg</StatusNote>
+        }
+    </Detail>
+</AdminCard>
+
+@code {
+    [Parameter] public EventCallback<string> OnConsole { get; set; }
+
+    VirtualDevicesStatus? _status;
+    string? _msg;
+    StatusNoteKind _msgKind = StatusNoteKind.Info;
+    bool _busy;
+
+    string StatText => _status is null ? "" : $"{_status.LiveCount}/{_status.MaxInstances}";
+
+    string StateLine() {
+        if (_status is null || _status.ByState.Count == 0) return "no instances";
+        return string.Join(", ", _status.ByState.OrderBy(p => p.Key, StringComparer.Ordinal)
+            .Select(p => $"{p.Value} {p.Key}"));
+    }
+
+    static string FlowLine(VirtualInstanceRow row) {
+        if (row.DeviceId is not { Length: > 0 }) return "not registered";
+        if (row.Flows == 0) return "no flows yet";
+        return row.LastFlowAt is { Length: > 0 } at ? $"{row.Flows} flows, last {at}" : $"{row.Flows} flows";
+    }
+
+    protected override async Task OnApiReadyAsync() {
+        await Load();
+    }
+
+    async Task Load() {
+        if (Api is null) return;
+        var res = await Api.GetAsync("/api/devices/virtual");
+        if (!res.Ok) {
+            Say($"load failed: {res.Describe()}", StatusNoteKind.Error);
+            return;
+        }
+
+        _status = res.Json<VirtualDevicesStatus>();
+    }
+
+    async Task Create() {
+        if (Api is null || _busy) return;
+        _busy = true;
+        try {
+            var res = await Api.PostJsonAsync("/api/devices/virtual", new VirtualCreateRequest(null),
+                TimeSpan.FromMinutes(2));
+            var body = res.Json<VirtualActionResult>();
+            Say(res.Ok
+                    ? $"provisioned {body?.InstanceId ?? "instance"}, it boots in the background"
+                    : $"provision failed: {body?.Note ?? res.Describe()}",
+                res.Ok ? StatusNoteKind.Ok : StatusNoteKind.Error);
+        } finally {
+            _busy = false;
+        }
+
+        await Load();
+    }
+
+    async Task Destroy(string instanceId) {
+        if (Api is null || _busy) return;
+        _busy = true;
+        try {
+            var res = await Api.DeleteAsync($"/api/devices/virtual/{instanceId}");
+            var body = res.Json<VirtualActionResult>();
+            Say(res.Ok ? $"destroyed {instanceId}" : $"destroy refused: {body?.Note ?? res.Describe()}",
+                res.Ok ? StatusNoteKind.Ok : StatusNoteKind.Error);
+        } finally {
+            _busy = false;
+        }
+
+        await Load();
+    }
+
+    async Task Reconcile() {
+        if (Api is null || _busy) return;
+        _busy = true;
+        try {
+            var res = await Api.PostAsync("/api/devices/virtual/reconcile", TimeSpan.FromMinutes(2));
+            var body = res.Json<VirtualActionResult>();
+            Say(res.Ok ? body?.Note ?? "reconciled" : $"reconcile failed: {res.Describe()}",
+                res.Ok ? StatusNoteKind.Ok : StatusNoteKind.Error);
+        } finally {
+            _busy = false;
+        }
+
+        await Load();
+    }
+
+    void Say(string message, StatusNoteKind kind) {
+        _msg = message;
+        _msgKind = kind;
+    }
+
+    void Clear() {
+        _msg = null;
+    }
+
+}

@@ -11,7 +11,9 @@ public sealed class AdbCaInstaller(IProcessRunner runner, string? installScriptT
         "#!/system/bin/sh\n" +
         "MODID=eggincognito-ca\n" +
         "MOD=/data/adb/modules/$MODID\n" +
-        "mkdir -p $MOD/system/etc/security/cacerts || { echo 'diag module: mkdir FAILED (no /data/adb/modules - is this Magisk?)'; exit 0; }\n" +
+        "LIVE=/system/etc/security/cacerts/{hash}.0\n" +
+        "if [ -d /data/adb/modules ]; then\n" +
+        "mkdir -p $MOD/system/etc/security/cacerts\n" +
         "cat > $MOD/module.prop <<EOF\n" +
         "id=$MODID\n" +
         "name=EggIncognito Capture CA\n" +
@@ -25,8 +27,11 @@ public sealed class AdbCaInstaller(IProcessRunner runner, string? installScriptT
         "chcon u:object_r:system_security_cacerts_file:s0 $MOD/system/etc/security/cacerts/{hash}.0 2>/dev/null\n" +
         "rm -f $MOD/disable $MOD/remove 2>/dev/null\n" +
         "[ -f $MOD/system/etc/security/cacerts/{hash}.0 ] && echo 'diag module: written' || echo 'diag module: FAILED'\n" +
-        "LIVE=/system/etc/security/cacerts/{hash}.0\n" +
         "cp $MOD/system/etc/security/cacerts/{hash}.0 $LIVE 2>/dev/null && chown 0:0 $LIVE && chmod 644 $LIVE && chcon u:object_r:system_security_cacerts_file:s0 $LIVE 2>/dev/null && echo 'diag live: mounted into running cacerts' || echo 'diag live: copy FAILED (need su -mm global ns)'\n" +
+        "else\n" +
+        "echo 'diag module: skipped (no magisk, writing system store directly)'\n" +
+        "echo '{cert_b64}' | base64 -d > $LIVE && chown 0:0 $LIVE && chmod 644 $LIVE && chcon u:object_r:system_security_cacerts_file:s0 $LIVE 2>/dev/null && echo 'diag live: mounted into running cacerts' || echo 'diag live: direct write FAILED (is /system writable?)'\n" +
+        "fi\n" +
         "echo 'diag done {hash}.0'\n";
 
     public string Platform => "android";
@@ -68,9 +73,15 @@ public sealed class AdbCaInstaller(IProcessRunner runner, string? installScriptT
         }
 
 
-        var r = await Adb(device.Target, ["shell", "su", "-mm", "-c", $"sh {RemoteScript} 2>&1"], ct);
+        var suProbe = await Adb(device.Target, ["shell", "command -v su"], ct);
+        bool hasSu = suProbe.ExitCode == 0 && suProbe.Stdout.Trim().Length > 0;
+
+        var r = hasSu
+            ? await Adb(device.Target, ["shell", "su", "-mm", "-c", $"sh {RemoteScript} 2>&1"], ct)
+            : await Adb(device.Target, ["shell", $"sh {RemoteScript} 2>&1"], ct);
         string diag = DeviceParsing.TrimNote(r.Stdout + (r.Stderr.Length > 0 ? " | err: " + r.Stderr : ""));
-        if (string.IsNullOrWhiteSpace(diag)) diag = "(no script output - check su works)";
+        if (string.IsNullOrWhiteSpace(diag))
+            diag = hasSu ? "(no script output - check su works)" : "(no script output - adbd is not root)";
         if (r.ExitCode != 0) return (false, $"install rc={r.ExitCode}: {diag}");
 
         bool live = r.Stdout.Contains("live: mounted");

@@ -1,0 +1,553 @@
+@rendermode @(RenderMode.InteractiveServer)
+@inherits SelfCallComponentBase
+@inject ICurrentUser User
+@inject IJSRuntime JS
+@inject IWebHostEnvironment Env
+@inject ILogger<DeviceConsole> Logger
+@using System.Globalization
+@using System.Text.Json
+@using EggIdentity.UI
+@using EggIncognito.Models.Devices
+@implements IAsyncDisposable
+
+<WorkbenchModal Open="@(_open && _isAdmin)" Title="Device console" TitleId="deviceConsoleTitle"
+                Size="WorkbenchSize.Wide" CardClass="dcon-card" OnClose="CloseAsync">
+    <Notice>
+        @if (_notice is { } n) {
+            <StatusNote Severity="@n.Severity" OnDismiss="ClearNotice">@n.Text</StatusNote>
+        }
+        @if (_frameError is { } fe) {
+            <StatusNote Severity="StatusNoteKind.Error" OnDismiss="ClearFrameError">
+                <ChildContent>Screen polling stopped: @fe</ChildContent>
+                <Actions>
+                    <button type="button" class="btn-mini" @onclick="Resume">Try again</button>
+                </Actions>
+            </StatusNote>
+        }
+    </Notice>
+    <HeadTools>
+        <select class="field-input dcon-pick" aria-label="Device" value="@_deviceId" @onchange="PickDeviceAsync">
+            <option value="">Pick a device</option>
+            @foreach (var d in Ordered()) {
+                <option value="@d.Id">@DeviceLabel(d)</option>
+            }
+        </select>
+        <select class="field-input dcon-rate" aria-label="Screen refresh rate" @bind="_intervalMs">
+            <option value="200">5 fps</option>
+            <option value="250">4 fps</option>
+            <option value="333">3 fps</option>
+            <option value="500">2 fps</option>
+            <option value="1000">1 fps</option>
+            <option value="3000">every 3s</option>
+        </select>
+        <button type="button" class="btn-mini" disabled="@(_deviceId is null)" @onclick="TogglePollingAsync">
+            @(_polling ? "Pause" : "Resume")
+        </button>
+        <button type="button" class="btn-mini" disabled="@(_deviceId is null)" @onclick="GrabFrameAsync">
+            One frame
+        </button>
+    </HeadTools>
+    <ChildContent>
+        @if (_devices.Count == 0) {
+            <div class="wb-note">No enabled devices on this host.</div>
+        } else if (_deviceId is null) {
+            <div class="wb-note">Pick a device to open its screen.</div>
+        } else {
+            <div class="dcon-body">
+                <div class="dcon-left">
+                    <button type="button" class="dcon-stage" @onclick="StageClickAsync"
+                            aria-label="Device screen, click to tap">
+                        <img class="dcon-img" alt="" @ref="_img"/>
+                        @if (_selected is { HasBounds: true } hl && DeviceWidth > 0) {
+                            <span class="dcon-hl" style="@HighlightStyle(hl)"></span>
+                        }
+                        @if (!_hasFrame) {
+                            <span class="dcon-stage-empty">
+                                @(_polling ? "waiting for the first frame..." : "paused, no frame yet")
+                            </span>
+                        }
+                    </button>
+
+                    <div class="dcon-keys">
+                        <button type="button" class="btn-mini" @onclick="@(() => KeyAsync("back"))">Back</button>
+                        <button type="button" class="btn-mini" @onclick="@(() => KeyAsync("home"))">Home</button>
+                        <button type="button" class="btn-mini" @onclick="@(() => KeyAsync("recents"))">Recents</button>
+                        <button type="button" class="btn-mini" @onclick="@(() => KeyAsync("enter"))">Enter</button>
+                        <button type="button" class="btn-mini" @onclick="@(() => KeyAsync("wake"))">Wake</button>
+                    </div>
+
+                    <div class="dcon-typing">
+                        <input class="field-input font-mono" placeholder="text for the focused field"
+                               aria-label="Text to send" @bind="_text" @bind:event="oninput"/>
+                        <button type="button" class="btn-mini" disabled="@(_text.Length == 0)" @onclick="SendTextAsync">
+                            Send text
+                        </button>
+                    </div>
+
+                    <div class="dcon-facts">
+                        <span class="dcon-fact">screen @Dim(_pngW, _pngH) px</span>
+                        <span class="dcon-fact">tap space @Dim(DeviceWidth, DeviceHeight) @SpaceSource</span>
+                        <span class="dcon-fact">rendered @Dim(_renderW, _renderH) css px</span>
+                        @if (_lastTap is { } lt) {
+                            <span class="dcon-fact">last tap @lt</span>
+                        }
+                    </div>
+                </div>
+
+                <div class="dcon-right">
+                    <div class="dcon-tree-bar">
+                        <input class="field-input" type="search" placeholder="filter nodes"
+                               aria-label="Filter ui nodes" value="@_filter" @oninput="FilterChanged"/>
+                        <label class="dcon-check">
+                            <input type="checkbox" checked="@_clickableOnly" @onchange="ClickableChanged"/>
+                            clickable only
+                        </label>
+                        <button type="button" class="btn-mini" disabled="@_dumpBusy" @onclick="LoadDumpAsync">
+                            @(_dumpBusy ? "Reading..." : "Read UI tree")
+                        </button>
+                    </div>
+
+                    @if (_dumpError is { } de) {
+                        <div class="dcon-tree-note text-err">@de</div>
+                    } else if (_dump is null) {
+                        <div class="dcon-tree-note">No UI tree read yet.</div>
+                    } else {
+                        <div class="dcon-tree-note">
+                            @_rows.Count of @_dump.Count nodes
+                        </div>
+                        <div class="dcon-tree">
+                            @foreach (var node in _rows) {
+                                <button type="button" @key="node.Id"
+                                        class="dcon-node @(_selected?.Id == node.Id ? "dcon-node-on" : "")"
+                                        style="@IndentStyle(node)" @onclick="@(() => SelectNode(node))">
+                                    <span class="dcon-node-kind">@node.Kind</span>
+                                    <span class="dcon-node-label">@node.Label</span>
+                                    @if (node.Clickable) {
+                                        <span class="dcon-node-tap">tap</span>
+                                    }
+                                </button>
+                            }
+                        </div>
+                    }
+
+                    @if (_selected is { } sel) {
+                        <div class="dcon-sel">
+                            <div class="dcon-sel-head">
+                                <span class="font-mono text-xs">@(sel.ClassName ?? sel.Kind)</span>
+                                <span class="text-muted text-xs">
+                                    @sel.Left,@sel.Top @sel.Width x @sel.Height
+                                </span>
+                                <button type="button" class="btn-mini" @onclick="TapSelectedAsync">Tap node</button>
+                            </div>
+
+                            @if (sel.Selectors.Count == 0) {
+                                <div class="dcon-sel-empty">
+                                    Nothing selectable on this node. Tap it by point instead.
+                                </div>
+                                <div class="dcon-snip-row">
+                                    <code class="dcon-snip">@PointStep(sel)</code>
+                                    <CopyButton Text="@PointStep(sel)" AriaLabel="Copy tap-point step"/>
+                                </div>
+                            } else {
+                                @foreach (var hint in sel.Selectors) {
+                                    <div class="dcon-snip-row @(hint == sel.Selectors[0] ? "dcon-snip-best" : "")">
+                                        <span class="dcon-snip-by">@HintLabel(hint)</span>
+                                        <code class="dcon-snip">@hint.Snippet</code>
+                                        <CopyButton Text="@hint.Snippet" AriaLabel="Copy selector"/>
+                                    </div>
+                                }
+                                <div class="dcon-sel-steps">
+                                    <div class="dcon-snip-row">
+                                        <span class="dcon-snip-by">tap step</span>
+                                        <code class="dcon-snip">@TapStep(sel)</code>
+                                        <CopyButton Text="@TapStep(sel)" AriaLabel="Copy tap step"/>
+                                    </div>
+                                    <div class="dcon-snip-row">
+                                        <span class="dcon-snip-by">wait step</span>
+                                        <code class="dcon-snip">@WaitStep(sel)</code>
+                                        <CopyButton Text="@WaitStep(sel)" AriaLabel="Copy wait step"/>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </ChildContent>
+</WorkbenchModal>
+
+@code {
+
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    bool _open;
+    bool _isAdmin;
+    bool _disposed;
+    bool _polling = true;
+    bool _hasFrame;
+    bool _dumpBusy;
+    bool _clickableOnly;
+    int _intervalMs = 333;
+    int _pngW;
+    int _pngH;
+    int _renderW;
+    int _renderH;
+    string _filter = "";
+    string _text = "";
+    string _streamKey = "";
+    string? _deviceId;
+    string? _frameError;
+    string? _dumpError;
+    string? _lastTap;
+    (string Text, StatusNoteKind Severity)? _notice;
+
+    List<DeviceRow> _devices = [];
+    List<UiNodeRow> _rows = [];
+    UiDumpResult? _dump;
+    UiNodeRow? _selected;
+
+    ElementReference _img;
+    IJSObjectReference? _module;
+    DotNetObjectReference<DeviceConsole>? _self;
+
+    int DeviceWidth => _dump is { Width: > 0 } d ? d.Width : _pngW;
+    int DeviceHeight => _dump is { Height: > 0 } d ? d.Height : _pngH;
+    string SpaceSource => _dump is { Width: > 0 } ? "from the ui tree" : "from the screenshot";
+
+    protected override void OnInitialized() {
+        base.OnInitialized();
+        _isAdmin = User.IsAtLeast(UserRole.Admin);
+    }
+
+    public async Task Open(string? deviceId = null) {
+        if (!_isAdmin) return;
+        _open = true;
+        _devices = await Client().ListAsync<DeviceRow>("/api/devices/status", Logger);
+        await SelectDeviceAsync(deviceId ?? _deviceId ?? Ordered().FirstOrDefault()?.Id);
+        _frameError = null;
+        _polling = _deviceId is not null;
+        StateHasChanged();
+    }
+
+    async Task CloseAsync() {
+        await StopStreamAsync();
+        _open = false;
+        StateHasChanged();
+    }
+
+    async Task PickDeviceAsync(ChangeEventArgs e) {
+        await SelectDeviceAsync(e.Value?.ToString());
+    }
+
+    async Task SelectDeviceAsync(string? id) {
+        string? next = string.IsNullOrEmpty(id) ? null : id;
+        if (next == _deviceId) return;
+
+        await StopStreamAsync();
+        if (_module is { } module) {
+            await SafeAsync(() => module.InvokeVoidAsync("clear", _img).AsTask());
+        }
+
+        _deviceId = next;
+        _dump = null;
+        _rows = [];
+        _selected = null;
+        _dumpError = null;
+        _frameError = null;
+        _notice = null;
+        _lastTap = null;
+        _hasFrame = false;
+        _pngW = _pngH = _renderW = _renderH = 0;
+        _polling = next is not null;
+        if (OnChanged.HasDelegate) await OnChanged.InvokeAsync();
+    }
+
+    async Task TogglePollingAsync() {
+        _polling = !_polling;
+        if (_polling) _frameError = null;
+        if (!_polling) await StopStreamAsync();
+    }
+
+    void Resume() {
+        _frameError = null;
+        _polling = true;
+    }
+
+    async Task GrabFrameAsync() {
+        if (_deviceId is null) return;
+        var module = await ModuleAsync();
+        if (module is null) return;
+        _frameError = null;
+        await SafeAsync(() => module.InvokeAsync<bool>("once", _img, ScreenshotUrl(), Ref()).AsTask());
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender) {
+        if (_disposed || !_open || !_isAdmin) return;
+
+        string desired = _polling && _deviceId is not null && _frameError is null
+            ? $"{_deviceId}|{_intervalMs}"
+            : "";
+        if (desired == _streamKey) return;
+
+        var module = await ModuleAsync();
+        if (module is null) return;
+
+        await SafeAsync(() => module.InvokeVoidAsync("stop", _img).AsTask());
+        _streamKey = desired;
+        if (desired.Length == 0) return;
+
+        await SafeAsync(() =>
+            module.InvokeAsync<bool>("start", _img, ScreenshotUrl(), _intervalMs, Ref()).AsTask());
+    }
+
+    async Task StopStreamAsync() {
+        _streamKey = "";
+        if (_module is not { } module) return;
+        await SafeAsync(() => module.InvokeVoidAsync("stop", _img).AsTask());
+    }
+
+    async Task<IJSObjectReference?> ModuleAsync() {
+        if (_module is not null) return _module;
+        try {
+            _module = await JS.InvokeAsync<IJSObjectReference>(
+                "import", InteropAsset.Url(Env, "./interop/deviceConsole.js"));
+            return _module;
+        } catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
+            Logger.LogDebug(ex, "device console module import failed");
+            return null;
+        }
+    }
+
+    DotNetObjectReference<DeviceConsole> Ref() {
+        _self ??= DotNetObjectReference.Create(this);
+        return _self;
+    }
+
+    string ScreenshotUrl() => $"/api/devices/{_deviceId}/ui/screenshot";
+
+    [JSInvokable]
+    public Task OnFrameSize(int naturalW, int naturalH, int renderW, int renderH) {
+        _pngW = naturalW;
+        _pngH = naturalH;
+        _renderW = renderW;
+        _renderH = renderH;
+        _hasFrame = naturalW > 0;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public Task OnFrameFailed(int status, string note) {
+        _streamKey = "";
+        _polling = false;
+        _frameError = status > 0 ? $"{note} [http {status}]" : note;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    async Task StageClickAsync(MouseEventArgs e) {
+        if (_deviceId is null) return;
+        int width = DeviceWidth;
+        int height = DeviceHeight;
+        if (width <= 0 || height <= 0) {
+            Note("No frame yet, so a click cannot be mapped to device pixels.", false);
+            return;
+        }
+
+        int renderW = _renderW;
+        int renderH = _renderH;
+        if (await ModuleAsync() is { } module) {
+            int[]? size = await SafeValueAsync(() => module.InvokeAsync<int[]>("measure", _img).AsTask());
+            if (size is { Length: 4 } && size[2] > 0 && size[3] > 0) {
+                _pngW = size[0];
+                _pngH = size[1];
+                renderW = _renderW = size[2];
+                renderH = _renderH = size[3];
+                width = DeviceWidth;
+                height = DeviceHeight;
+            }
+        }
+
+        if (renderW <= 0 || renderH <= 0) {
+            Note("The screen has no rendered size yet.", false);
+            return;
+        }
+
+        int x = Scale(e.OffsetX, renderW, width);
+        int y = Scale(e.OffsetY, renderH, height);
+        await TapAsync(x, y);
+    }
+
+    static int Scale(double offset, int rendered, int device) {
+        int value = (int)Math.Round(offset / rendered * device, MidpointRounding.AwayFromZero);
+        return Math.Clamp(value, 0, device - 1);
+    }
+
+    async Task TapAsync(int x, int y) {
+        var res = await Client().PostAsJsonAsync($"/api/devices/{_deviceId}/ui/tap",
+            new UiTapRequest(x, y), SelfCallJson.Web);
+        _lastTap = $"{x},{y}";
+        Note(res.IsSuccessStatusCode ? $"tapped {x},{y}" : await ReadError(res), res.IsSuccessStatusCode);
+    }
+
+    Task TapSelectedAsync() =>
+        _selected is { } sel ? TapAsync(sel.CenterX, sel.CenterY) : Task.CompletedTask;
+
+    async Task SendTextAsync() {
+        if (_deviceId is null || _text.Length == 0) return;
+        var res = await Client().PostAsJsonAsync($"/api/devices/{_deviceId}/ui/text",
+            new UiTextRequest(_text), SelfCallJson.Web);
+        Note(res.IsSuccessStatusCode ? "text sent" : await ReadError(res), res.IsSuccessStatusCode);
+    }
+
+    async Task KeyAsync(string key) {
+        if (_deviceId is null) return;
+        var res = await Client().PostAsJsonAsync($"/api/devices/{_deviceId}/ui/key",
+            new UiKeyRequest(key), SelfCallJson.Web);
+        Note(res.IsSuccessStatusCode ? $"{key} sent" : await ReadError(res), res.IsSuccessStatusCode);
+    }
+
+    async Task LoadDumpAsync() {
+        if (_deviceId is null) return;
+        _dumpBusy = true;
+        _dumpError = null;
+        StateHasChanged();
+        try {
+            var res = await Client().GetAsync($"/api/devices/{_deviceId}/ui/dump");
+            if (!res.IsSuccessStatusCode) {
+                _dumpError = await ReadError(res);
+                _dump = null;
+                _rows = [];
+                _selected = null;
+                return;
+            }
+
+            _dump = await res.Content.ReadFromJsonAsync<UiDumpResult>(SelfCallJson.Web);
+            _selected = null;
+            ApplyFilter();
+        } catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException) {
+            Logger.LogDebug(ex, "ui dump read failed");
+            _dumpError = ex.Message;
+            _dump = null;
+            _rows = [];
+        } finally {
+            _dumpBusy = false;
+        }
+    }
+
+    void FilterChanged(ChangeEventArgs e) {
+        _filter = e.Value?.ToString() ?? "";
+        ApplyFilter();
+    }
+
+    void ClickableChanged(ChangeEventArgs e) {
+        _clickableOnly = e.Value is true;
+        ApplyFilter();
+    }
+
+    void ApplyFilter() {
+        if (_dump is null) {
+            _rows = [];
+            return;
+        }
+
+        IEnumerable<UiNodeRow> query = _dump.Nodes;
+        if (_clickableOnly) query = query.Where(n => n.Clickable);
+        string needle = _filter.Trim();
+        if (needle.Length > 0) {
+            query = query.Where(n => Has(n.Label, needle) || Has(n.ResourceId, needle) || Has(n.Text, needle)
+                                     || Has(n.ContentDesc, needle) || Has(n.ClassName, needle));
+        }
+
+        _rows = [.. query];
+    }
+
+    static bool Has(string? value, string needle) =>
+        value is not null && value.Contains(needle, StringComparison.OrdinalIgnoreCase);
+
+    void SelectNode(UiNodeRow node) {
+        _selected = _selected?.Id == node.Id ? null : node;
+    }
+
+    string HighlightStyle(UiNodeRow node) {
+        int width = DeviceWidth;
+        int height = DeviceHeight;
+        if (width <= 0 || height <= 0) return "display:none";
+        return string.Create(CultureInfo.InvariantCulture,
+            $"left:{100.0 * node.Left / width:0.###}%;top:{100.0 * node.Top / height:0.###}%;width:{100.0 * node.Width / width:0.###}%;height:{100.0 * node.Height / height:0.###}%");
+    }
+
+    static string IndentStyle(UiNodeRow node) =>
+        string.Create(CultureInfo.InvariantCulture, $"--dcon-indent:{Math.Min(node.Depth, 12)}");
+
+    static string HintLabel(UiSelectorHint hint) =>
+        hint.Unique ? hint.Label : $"{hint.Label} {hint.Index + 1} of {hint.Matches}";
+
+    static string TapStep(UiNodeRow node) => $"DeviceFlowSteps.Tap({node.Selectors[0].Snippet})";
+
+    static string WaitStep(UiNodeRow node) => $"DeviceFlowSteps.WaitForSelector({node.Selectors[0].Snippet})";
+
+    static string PointStep(UiNodeRow node) => $"DeviceFlowSteps.TapPoint({node.CenterX}, {node.CenterY})";
+
+    static string Dim(int w, int h) => w > 0 && h > 0 ? $"{w} x {h}" : "unknown";
+
+    static string DeviceLabel(DeviceRow d) =>
+        d.Reachable ? $"{d.Label} - {d.Platform}" : $"{d.Label} - {d.Platform} - unreachable";
+
+    IEnumerable<DeviceRow> Ordered() =>
+        _devices
+            .OrderBy(d => d.Platform == "ios" ? 0 : d.Platform == "android" ? 1 : 2)
+            .ThenBy(d => d.Label, StringComparer.OrdinalIgnoreCase);
+
+    void ClearNotice() {
+        _notice = null;
+    }
+
+    void ClearFrameError() {
+        _frameError = null;
+    }
+
+    void Note(string text, bool ok) {
+        _notice = (text, ok ? StatusNoteKind.Ok : StatusNoteKind.Error);
+    }
+
+    async Task SafeAsync(Func<Task> call) {
+        try {
+            await call();
+        } catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
+            Logger.LogDebug(ex, "device console interop call failed");
+        }
+    }
+
+    async Task<T?> SafeValueAsync<T>(Func<Task<T>> call) {
+        try {
+            return await call();
+        } catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
+            Logger.LogDebug(ex, "device console interop call failed");
+            return default;
+        }
+    }
+
+    static async Task<string> ReadError(HttpResponseMessage resp) {
+        try {
+            var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
+            if (body.ValueKind == JsonValueKind.Object && body.TryGetProperty("error", out var e))
+                return e.GetString() ?? $"failed [{(int)resp.StatusCode}]";
+        } catch (Exception ex) when (ex is JsonException or HttpRequestException or NotSupportedException) {
+            return $"failed [{(int)resp.StatusCode}]";
+        }
+
+        return $"failed [{(int)resp.StatusCode}]";
+    }
+
+    public async ValueTask DisposeAsync() {
+        _disposed = true;
+        if (_module is { } module) {
+            await SafeAsync(() => module.InvokeVoidAsync("clear", _img).AsTask());
+        }
+
+        await _module.DisposeModuleQuietAsync(logger: Logger);
+        _self?.Dispose();
+        _self = null;
+    }
+
+}

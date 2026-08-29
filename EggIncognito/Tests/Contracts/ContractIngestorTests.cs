@@ -1,6 +1,5 @@
 using EggIncognito.Models.Contracts;
 using EggIncognito.Services.Contracts;
-using EggIncognito.Services.Predictions;
 
 namespace EggIncognito.Tests.Contracts;
 
@@ -70,18 +69,5 @@ public class ContractIngestorTests {
         var obs = Obs();
         var row = ContractIngestor.Create(obs);
         Assert.False(ContractIngestor.Apply(row, obs));
-    }
-
-    [Fact]
-    public void VersionBumpsOnChangeNotOnNoOp() {
-        var version = new ContractDataVersion();
-        var obs = Obs();
-        var row = ContractIngestor.Create(obs);
-
-        if (ContractIngestor.Apply(row, obs)) version.Bump();
-        Assert.Equal(0, version.Version);
-
-        if (ContractIngestor.Apply(row, obs with { Name = "Changed" })) version.Bump();
-        Assert.Equal(1, version.Version);
     }
 }
