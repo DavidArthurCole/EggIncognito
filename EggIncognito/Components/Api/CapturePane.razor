@@ -67,7 +67,7 @@
                 <p class="text-muted text-sm mt-0 mb-3">Log in to start a hosted capture session.</p>
                 <LoginButton Label="Log in"/>
             </div>
-        } else if (!_isSupporter) {
+        } else if (!(_isSupporter || _isAdmin)) {
             <div class="panel" id="hostedPitch">
                 <p class="text-muted text-sm mt-0 mb-3">Hosted capture is a supporter perk.</p>
                 <a class="btn-primary inline-block w-fit no-underline" href="/#support">Become a supporter</a>
@@ -122,6 +122,7 @@
     string? _rotatedHost;
     bool _isAuthenticated;
     bool _isSupporter;
+    bool _isAdmin;
     string? _userId;
 
     protected override void OnInitialized() {
@@ -129,6 +130,7 @@
 
         _isAuthenticated = User.IsAuthenticated;
         _isSupporter = User.IsSupporter;
+        _isAdmin = User.IsAtLeast(UserRole.Admin);
         _userId = User.DiscordId;
 
         ResolveSession();
@@ -147,7 +149,7 @@
             return;
         }
 
-        if (!AppMode.HostedCaptureEnabled || !_isAuthenticated || !_isSupporter || string.IsNullOrEmpty(_userId))
+        if (!AppMode.HostedCaptureEnabled || !_isAuthenticated || !(_isSupporter || _isAdmin) || string.IsNullOrEmpty(_userId))
             return;
         _hosted = true;
         try {

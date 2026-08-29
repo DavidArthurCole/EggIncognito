@@ -1,3 +1,9 @@
 namespace EggIncognito.Services.Api;
 
-public sealed record ApiSelectionMemory(ApiSelectionKind Kind, string Group, string Id, string? Sub);
+public sealed record ApiSelectionMemory(
+    ApiSelectionKind Kind,
+    string Group,
+    string Id,
+    string? Sub,
+    string? DocsKind = null,
+    string? DocsKey = null);

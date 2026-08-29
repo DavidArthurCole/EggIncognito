@@ -84,18 +84,11 @@
 }
 
 @code {
+    [Parameter] public DataSourceRow? Current { get; set; }
+
     string _origin = "https://eggincognito.davidarthurcole.me";
 
-    DataSourceRow? Current {
-        get {
-            var root = State.Sources?.FirstOrDefault(s => s.Group == State.Group && s.Id == State.Id);
-            if (root is null) return null;
-            if (State.Sub is not { Length: > 0 } sub) return root;
-            return root.Children?.FirstOrDefault(c => c.Id == sub);
-        }
-    }
-
-    static string ProvenanceLabel(string raw) {
+    internal static string ProvenanceLabel(string raw) {
         return raw switch {
             "WireFixture" => "wire fixture",
             "DerivedExtract" => "derived extract",
@@ -105,7 +98,7 @@
         };
     }
 
-    static string AccessLabel(string raw) {
+    internal static string AccessLabel(string raw) {
         return string.Equals(raw, "Authenticated", StringComparison.Ordinal) ? "account or API key" : "public";
     }
 

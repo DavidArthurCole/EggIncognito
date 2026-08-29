@@ -5,6 +5,7 @@
 @using System.Text.Json.Nodes
 @using EggIncognito.Components.Inspector
 @using EggIncognito.Components.Shared.Workbench
+@using EggIncognito.Core
 @using EggIncognito.Models.Data
 @using EggIncognito.Models.Inspector
 @using EggIncognito.Services.Api
@@ -27,9 +28,13 @@
                         Label="Workbench mode"/>
     </HeadTools>
     <Rail>
-        @if (State.Mode == ApiWorkbenchState.ModeApis) {
+        @if (State.Mode == ApiWorkbenchState.ModeDocs) {
             <WorkbenchRail>
-                <InspectorRail OnSelectEndpoint="SelectEndpointFromRail" OnSelectObject="SelectObjectFromRail"
+                <DocsRail OnSelectSubject="SelectDocsSubject"/>
+            </WorkbenchRail>
+        } else if (State.Mode == ApiWorkbenchState.ModeApis) {
+            <WorkbenchRail Class="awb-rail-apis">
+                <InspectorRail OnSelectEndpoint="SelectEndpointFromRail"
                                OnOpenSalt="OpenSalt" OnOpenSettings="@(() => _settingsOpen = true)"
                                OnOpenStatus="OpenStatus" StatusLoading="_statusLoading"
                                OnRestoreHistory="RestoreHistory" OnDeleteHistory="DeleteHistory"
@@ -54,14 +59,14 @@
                                                 Selected="@(State.Kind == ApiSelectionKind.Dataset && State.Sub is null && State.Group == root.Group && State.Id == root.Id)"
                                                 OnClick="@(_ => SelectDataset(root, null))">
                                     <Name>@root.DisplayName</Name>
-                                    <MetaLine>@root.Id</MetaLine>
+                                    <MetaLine>@RowMeta(root)</MetaLine>
                                 </WorkbenchEntry>
                                 @foreach (var child in root.Children ?? []) {
                                     <WorkbenchEntry @key="child.Url" Class="ds-sub"
                                                     Selected="@(State.Kind == ApiSelectionKind.Dataset && State.Sub == child.Id && State.Group == root.Group && State.Id == root.Id)"
                                                     OnClick="@(_ => SelectDataset(root, child))">
                                         <Name>@child.DisplayName</Name>
-                                        <MetaLine>@child.Id</MetaLine>
+                                        <MetaLine>@RowMeta(child)</MetaLine>
                                     </WorkbenchEntry>
                                 }
                             }
@@ -87,8 +92,11 @@
     </Rail>
     <ChildContent>
         @switch (State.Kind) {
+            case ApiSelectionKind.Docs:
+                <DocsPane OnSelectSubject="SelectDocsSubject"/>
+                break;
             case ApiSelectionKind.Dataset:
-                <DatasetPane/>
+                <DatasetPane Current="@State.CurrentDataset()"/>
                 break;
             case ApiSelectionKind.Keys:
                 <KeysPane AllScope="false"/>
@@ -137,7 +145,7 @@
                                             <span class="muted">no request body, identity via URL path param</span>
                                         } else if (sel.Request is not null) {
                                             <button type="button" class="doc-type-link"
-                                                    @onclick="@(() => SelectObjectFromReader(sel.Request!))">
+                                                    @onclick="@(() => SelectDocsSubject((DocSubjectKinds.Message, sel.Request!)))">
                                                 @sel.Request
                                             </button>
                                             @if (sel.RequestWrapped) {
@@ -151,7 +159,7 @@
                                         <span class="insp-typing-sep">-&gt;</span>
                                         @if (sel.Response is not null) {
                                             <button type="button" class="doc-type-link"
-                                                    @onclick="@(() => SelectObjectFromReader(sel.Response!))">
+                                                    @onclick="@(() => SelectDocsSubject((DocSubjectKinds.Message, sel.Response!)))">
                                                 @sel.Response
                                             </button>
                                         } else {
@@ -163,7 +171,7 @@
                                 <span class="text-xs text-muted">Pick an endpoint to see its transaction here.</span>
                             }
                             <button type="button" class="btn-mini insp-docs-btn" disabled="@(State.Selected is null)"
-                                    @onclick="OpenDocs">
+                                    @onclick="@(() => SelectDocsSubject((DocSubjectKinds.Endpoint, State.Selected!.Path)))">
                                 <Icon Name="log" Class="icon-sm"/> Docs
                             </button>
                         </div>
@@ -181,8 +189,6 @@
     </ChildContent>
 </WorkbenchModal>
 
-<DocsDialog Open="_docsOpen" ObjectName="@State.SelectedObject" Route="State.Selected"
-            OnClose="CloseDocs" OnSelectObject="SelectObjectFromReader" OnSelectEndpoint="SelectEndpointFromReader"/>
 <SaltDialog Open="_saltOpen" OnSave="SaveSalt" OnClose="@(() => _saltOpen = false)"/>
 <LiveConsentDialog Open="_liveConsentOpen" OnAccept="AcceptLiveConsent" OnClose="@(() => _liveConsentOpen = false)"/>
 <InspectorSettingsDialog Open="_settingsOpen" HistoryEnabled="State.HistoryEnabled"
@@ -198,7 +204,6 @@
     bool _open;
     bool _storeLoaded;
     bool _hashWired;
-    bool _docsOpen;
     bool _saltOpen;
     bool _liveConsentOpen;
     bool _settingsOpen;
@@ -267,7 +272,6 @@
     public async Task Open() {
         await LoadStore();
         _open = true;
-        _docsOpen = false;
         await LoadSources();
         await WriteHash(true);
         StateHasChanged();
@@ -276,7 +280,6 @@
     public async Task OpenCapture() {
         await LoadStore();
         _open = true;
-        _docsOpen = false;
         await LoadSources();
         State.Kind = ApiSelectionKind.Capture;
         await WriteHash(true);
@@ -306,9 +309,15 @@
     }
 
     async Task SelectSection(ApiSelectionKind kind) {
-        _docsOpen = false;
         State.Kind = kind;
         await WriteHash();
+    }
+
+    async Task SelectDocsSubject((string Kind, string Key) subject) {
+        State.DocsKind = subject.Kind;
+        State.DocsKey = subject.Key;
+        State.Kind = ApiSelectionKind.Docs;
+        await WriteHash(true);
     }
 
     bool ModeDisabled(string key) {
@@ -318,7 +327,6 @@
     async Task SetMode(string key) {
         var mode = State.NormalizeMode(key);
         if (mode == State.Mode || ModeDisabled(mode)) return;
-        _docsOpen = false;
         State.RememberSelection();
         if (!State.RestoreSelection(mode)) ApplyModeDefault(mode);
         await WriteHash();
@@ -327,6 +335,11 @@
     void ApplyModeDefault(string mode) {
         if (mode == ApiWorkbenchState.ModeCapture) {
             State.Kind = ApiSelectionKind.Capture;
+            return;
+        }
+
+        if (mode == ApiWorkbenchState.ModeDocs) {
+            State.Kind = ApiSelectionKind.Docs;
             return;
         }
 
@@ -355,6 +368,12 @@
 
     static List<DataSourceRow> DataRootsOf(IReadOnlyCollection<DataSourceRow> sources, string group) {
         return [.. sources.Where(s => string.Equals(s.Group, group, StringComparison.Ordinal))];
+    }
+
+    static string RowMeta(DataSourceRow r) {
+        var bits = new List<string> { DatasetPane.ProvenanceLabel(r.Provenance), DatasetPane.AccessLabel(r.Access) };
+        if (r.Bytes is { } bytes) bits.Add(ByteFormat.Compact(bytes));
+        return string.Join(" | ", bits);
     }
 
     static string TitleCase(string raw) {
@@ -396,45 +415,8 @@
     }
 
     async Task SelectEndpointFromRail(RouteInfo e) {
-        _docsOpen = false;
-        State.SelectedObject = null;
         await SelectEndpoint(e);
         await WriteHash(true);
-    }
-
-    async Task SelectObjectFromRail(string name) {
-        State.Kind = ApiSelectionKind.Endpoint;
-        State.SelectedObject = name;
-        _docsOpen = true;
-        await WriteHash(true);
-    }
-
-    async Task SelectObjectFromReader(string name) {
-        State.Kind = ApiSelectionKind.Endpoint;
-        State.RailList = InspectorRailList.Objects;
-        State.SelectedObject = name;
-        _docsOpen = true;
-        await WriteHash(true);
-    }
-
-    async Task SelectEndpointFromReader(RouteInfo e) {
-        _docsOpen = false;
-        State.RailList = InspectorRailList.Endpoints;
-        State.SelectedObject = null;
-        await SelectEndpoint(e);
-        await WriteHash(true);
-    }
-
-    void OpenDocs() {
-        if (State.Selected is null && State.SelectedObject is null) return;
-        _docsOpen = true;
-    }
-
-    async Task CloseDocs() {
-        _docsOpen = false;
-        if (State.SelectedObject is null) return;
-        State.SelectedObject = null;
-        await WriteHash();
     }
 
     async Task SelectEndpoint(RouteInfo e) {
@@ -754,9 +736,6 @@
             return;
         }
 
-        State.RailList = InspectorRailList.Endpoints;
-        State.SelectedObject = null;
-        _docsOpen = false;
         await SelectEndpoint(route);
 
         foreach (var row in State.EnvRows) {
@@ -1037,9 +1016,9 @@
             if (Reflection.Schema(name) is null) {
                 State.Notice = $"The link points at message type {name}, which this build does not know.";
             } else {
-                State.SelectedObject = name;
-                State.RailList = InspectorRailList.Objects;
-                _docsOpen = true;
+                State.DocsKind = DocSubjectKinds.Message;
+                State.DocsKey = name;
+                State.Kind = ApiSelectionKind.Docs;
             }
         }
 

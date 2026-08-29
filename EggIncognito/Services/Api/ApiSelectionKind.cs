@@ -6,5 +6,6 @@ public enum ApiSelectionKind {
     Keys,
     AllKeys,
     Routes,
-    Capture
+    Capture,
+    Docs
 }

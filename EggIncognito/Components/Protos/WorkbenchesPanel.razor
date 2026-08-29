@@ -1,5 +1,4 @@
 @using EggIncognito.Models.Periodicals
-
 <section class="panel pd-w-workbench">
     <div class="flex items-center justify-between mb-3 gap-2">
         <h3 class="text-sm font-semibold m-0">Workbenches</h3>
@@ -36,6 +35,7 @@
                 }
             </div>
         }
+
         <div class="wbx-foot">
             @if (ExtractVersion(s) is { Length: > 0 } bin) {
                 <VersionLine App="@bin"/>

@@ -44,18 +44,31 @@ public sealed class PeriodicalsController(
     private ObjectResult? RequireAuthenticated() =>
         currentUser.IsAuthenticated ? null : StatusCode(401, new { error = "authentication required" });
 
+    private static readonly (string DocId, Func<EffectDataFile, IEffectFamily> Factory)[] SummaryFamilies = [
+        ("boosts", f => new BoostFamily(f)),
+        ("research", f => new ResearchFamily(f)),
+        ("habs", f => new HabFamily(f)),
+        ("artifacts", f => new ArtifactFamily(f))
+    ];
+
     [HttpGet("summary")]
     public IActionResult Summary() {
         var extracted = new List<object>();
         object? colleggtibles = null;
-        if (services.GetService(typeof(GameDataStore)) is GameDataStore gdStore && gdStore.Provider is { } provider) {
-            foreach (var f in provider.Families) {
-                extracted.Add(new {
-                    key = f.Key,
-                    count = f.Effects.Count,
-                    binaryVersion = f.BinaryVersion,
-                    provenance = JsonSerializer.Serialize(f.Provenance, ProvenanceJson)
-                });
+        if (services.GetService(typeof(GameDataStore)) is GameDataStore gdStore) {
+            foreach (var (docId, factory) in SummaryFamilies) {
+                if (gdStore.Doc(docId) is not { } json) continue;
+                try {
+                    var f = factory(EffectDataLoader.Parse(json));
+                    extracted.Add(new {
+                        key = f.Key,
+                        count = f.Effects.Count,
+                        binaryVersion = f.BinaryVersion,
+                        provenance = JsonSerializer.Serialize(f.Provenance, ProvenanceJson)
+                    });
+                } catch (GameDataSchemaException ex) {
+                    logger.LogWarning(ex, "periodicals summary: {DocId} document failed schema validation", docId);
+                }
             }
         }
 

@@ -51,7 +51,9 @@ public sealed class CaptureController(
             return StatusCode(401, new { error = "log in to use hosted capture" });
         if (!currentUser.UserId.HasValue)
             return StatusCode(401, new { error = "log in to use hosted capture" });
-        return !currentUser.IsSupporter ? StatusCode(403, new { error = "supporter_required" }) : null;
+        return !currentUser.IsSupporter && !currentUser.IsAtLeast(UserRole.Admin)
+            ? StatusCode(403, new { error = "supporter_required" })
+            : null;
     }
 
     [HttpGet("stream")]
@@ -133,7 +135,8 @@ public sealed class CaptureController(
         if (!currentUser.UserId.HasValue)
             return StatusCode(401, new { error = "log in to use hosted capture" });
 
-        if (!currentUser.IsSupporter) return StatusCode(403, new { error = "supporter_required" });
+        if (!currentUser.IsSupporter && !currentUser.IsAtLeast(UserRole.Admin))
+            return StatusCode(403, new { error = "supporter_required" });
 
         CaptureSession session;
         try {

@@ -35,29 +35,43 @@
         <ChildContent>
             <div class="modal-body evcal-body">
                 <div class="evcal-filters">
-                    <div class="settings-seg" role="radiogroup" aria-label="Ultra filter">
-                        <button type="button" class="seg-btn @(_ultra == UltraAll ? "active" : "")"
-                                @onclick="@(() => SetUltra(UltraAll))">
-                            All
-                        </button>
-                        <button type="button" class="seg-btn @(_ultra == UltraStandard ? "active" : "")"
-                                @onclick="@(() => SetUltra(UltraStandard))">
-                            Standard
-                        </button>
-                        <button type="button" class="seg-btn @(_ultra == UltraOnly ? "active" : "")"
-                                @onclick="@(() => SetUltra(UltraOnly))">
-                            Ultra
-                        </button>
-                    </div>
-                    <select class="evcal-type" aria-label="Event type" value="@_type" @onchange="SetType">
-                        <option value="">All types</option>
-                        @foreach (var type in TypesPresent) {
-                            <option value="@type">@Pretty(type)</option>
-                        }
-                    </select>
-                    @if (Filtering) {
-                        <button type="button" class="btn-mini" @onclick="ClearFilters">Clear filters</button>
-                    }
+                    <details class="evcal-filter-disclosure">
+                        <summary class="evcal-filter-summary">
+                            Filters
+                            @if (Filtering) {
+                                <span class="evcal-filter-active">active</span>
+                            }
+                        </summary>
+                        <div class="evcal-filter-panel">
+                            <div class="evcal-filter-actions">
+                                <button type="button" class="btn-mini" @onclick="SelectAllFilters">Select all</button>
+                                <button type="button" class="btn-mini" @onclick="DeselectAllFilters">Deselect all</button>
+                            </div>
+                            <div class="evcal-filter-group">
+                                <span class="evcal-filter-group-label">Tier</span>
+                                <label class="evcal-check">
+                                    <input type="checkbox" checked="@_showStandard"
+                                           @onchange="@(e => SetTier(false, e))"/>
+                                    <span>Standard</span>
+                                </label>
+                                <label class="evcal-check">
+                                    <input type="checkbox" checked="@_showUltra"
+                                           @onchange="@(e => SetTier(true, e))"/>
+                                    <span>Ultra</span>
+                                </label>
+                            </div>
+                            <div class="evcal-filter-group">
+                                <span class="evcal-filter-group-label">Type</span>
+                                @foreach (var type in TypesPresent) {
+                                    <label class="evcal-check">
+                                        <input type="checkbox" checked="@TypeSelected(type)"
+                                               @onchange="@(e => ToggleType(type, e))"/>
+                                        <span>@Pretty(type)</span>
+                                    </label>
+                                }
+                            </div>
+                        </div>
+                    </details>
                     <span class="evcal-count">@VisibleCount of @_events.Count</span>
                 </div>
                 @if (Note is { Length: > 0 } note) {
@@ -153,9 +167,6 @@
 @code {
     const int FetchLimit = 1000;
     const double OverlapLookbackSeconds = 7 * 24 * 60 * 60;
-    const string UltraAll = "all";
-    const string UltraStandard = "standard";
-    const string UltraOnly = "ultra";
 
     static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
     static readonly string[] WeekdayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -175,10 +186,11 @@
     bool _covered;
     int _pickedRow = -1;
     string? _pickedId;
-    string _ultra = UltraAll;
-    string _type = "";
+    HashSet<string>? _typeFilter;
+    bool _showStandard = true;
+    bool _showUltra = true;
 
-    bool Filtering => _ultra != UltraAll || _type.Length > 0;
+    bool Filtering => _typeFilter is not null || !_showStandard || !_showUltra;
 
     int VisibleCount => _events.Values.Count(Match);
 
@@ -190,25 +202,38 @@
             .OrderBy(t => t, StringComparer.Ordinal);
 
     bool Match(GameEventDto e) {
-        if (_ultra == UltraStandard && e.Ultra) return false;
-        if (_ultra == UltraOnly && !e.Ultra) return false;
-        return _type.Length == 0 || string.Equals(e.Type, _type, StringComparison.OrdinalIgnoreCase);
+        if (e.Ultra ? !_showUltra : !_showStandard) return false;
+        return _typeFilter is null || _typeFilter.Contains(e.Type);
     }
 
-    void SetUltra(string ultra) {
-        if (_ultra == ultra) return;
-        _ultra = ultra;
+    bool TypeSelected(string type) => _typeFilter is null || _typeFilter.Contains(type);
+
+    void ToggleType(string type, ChangeEventArgs e) {
+        var set = _typeFilter is null
+            ? new HashSet<string>(TypesPresent, StringComparer.OrdinalIgnoreCase)
+            : new HashSet<string>(_typeFilter, StringComparer.OrdinalIgnoreCase);
+        if (e.Value is true) set.Add(type); else set.Remove(type);
+        _typeFilter = set;
         ApplyFilters();
     }
 
-    void SetType(ChangeEventArgs e) {
-        _type = e.Value?.ToString() ?? "";
+    void SetTier(bool ultra, ChangeEventArgs e) {
+        var on = e.Value is true;
+        if (ultra) _showUltra = on; else _showStandard = on;
         ApplyFilters();
     }
 
-    void ClearFilters() {
-        _ultra = UltraAll;
-        _type = "";
+    void SelectAllFilters() {
+        _typeFilter = null;
+        _showStandard = true;
+        _showUltra = true;
+        ApplyFilters();
+    }
+
+    void DeselectAllFilters() {
+        _typeFilter = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        _showStandard = false;
+        _showUltra = false;
         ApplyFilters();
     }
 

@@ -7,7 +7,7 @@ public abstract class WorkbenchStateBase {
 
     public abstract IReadOnlyList<WorkbenchMode> Modes { get; }
 
-    public string DefaultMode => Modes.Count > 0 ? Modes[0].Key : "";
+    public virtual string DefaultMode => Modes.Count > 0 ? Modes[0].Key : "";
 
     public string Mode {
         get => _mode ?? DefaultMode;

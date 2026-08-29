@@ -5,23 +5,42 @@
 @inject ILogger<RouteCatalogPane> Logger
 
 <div class="awb-pane">
-    <h4 class="awb-pane-title">Route catalog</h4>
+    <div class="flex items-center justify-between gap-2">
+        <h4 class="awb-pane-title">Route catalog</h4>
+        @if (_binary is not null) {
+            <button type="button" class="btn-mini" disabled="@_refreshing" @onclick="RefreshBinary">@(_refreshing ? "Refreshing..." : "Refresh now")</button>
+        }
+    </div>
     @if (_binaryUnavailable) {
         <p class="text-muted text-xs m-0 mb-2">Binary route status unavailable (no database).</p>
     } else if (_binary is not null) {
         <div class="routes-binary-status">
-            <span class="text-muted">
-                last refresh @(_binary.LastRefresh is { } lr ? lr.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") : "never")
-                &middot;
+            <div class="routes-binary-meta">
+                @if (_binary.LastRefresh is { } lr) {
+                    <span class="text-muted">last refresh <TimeAgo Value="@lr"/></span>
+                } else {
+                    <span class="text-muted">never refreshed</span>
+                }
                 @if (!string.IsNullOrWhiteSpace(_binary.BinaryVersion)) {
-                    <text>binary </text>
                     <VersionLine App="@_binary.BinaryVersion"/>
                 } else {
-                    <text>binary unknown</text>
+                    <span class="text-muted">binary unknown</span>
                 }
-                &middot; @_binary.Discovered discovered / @_binary.NewCount new / @_binary.DriftCount drift
-            </span>
-            <button type="button" class="btn-mini" disabled="@_refreshing" @onclick="RefreshBinary">@(_refreshing ? "Refreshing..." : "Refresh now")</button>
+            </div>
+            <div class="wbx-kpis routes-binary-kpis">
+                <div class="wbx-kpi">
+                    <span class="wbx-kpi-n">@_binary.Discovered</span>
+                    <span class="wbx-kpi-k">discovered</span>
+                </div>
+                <div class="wbx-kpi @(_binary.NewCount > 0 ? "wbx-kpi-warn" : "")">
+                    <span class="wbx-kpi-n">@_binary.NewCount</span>
+                    <span class="wbx-kpi-k">new</span>
+                </div>
+                <div class="wbx-kpi @(_binary.DriftCount > 0 ? "wbx-kpi-warn" : "")">
+                    <span class="wbx-kpi-n">@_binary.DriftCount</span>
+                    <span class="wbx-kpi-k">drift</span>
+                </div>
+            </div>
         </div>
     }
 

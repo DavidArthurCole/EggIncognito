@@ -83,9 +83,8 @@ public static class EventCalendarLayout {
         double span = windowEnd - windowStart;
         var hits = events
             .Where(e => e.EndTimestamp > windowStart && e.StartTimestamp < windowEnd)
-            .OrderBy(StartDay)
+            .OrderBy(e => e.StartTimestamp)
             .ThenByDescending(e => e.EndTimestamp - e.StartTimestamp)
-            .ThenBy(e => e.StartTimestamp)
             .ThenBy(e => e.Id, StringComparer.Ordinal)
             .ToList();
         double laneGap = DayGapFraction / Math.Max(1, (end - start).TotalDays);
@@ -107,8 +106,6 @@ public static class EventCalendarLayout {
 
         return bars;
     }
-
-    private static DateTime StartDay(GameEventDto e) => UnixSeconds.ToTime(e.StartTimestamp).ToLocalTime().Date;
 
     private static List<IReadOnlyList<EventCalendarBar>> Lanes(List<EventCalendarBar> bars) {
         var lanes = new List<IReadOnlyList<EventCalendarBar>>();

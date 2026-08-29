@@ -94,11 +94,11 @@ public class ApiWorkbenchDatasetHashTests {
     }
 
     [Fact]
-    public void TheApiWorkbenchOffersThreeModes() {
+    public void TheApiWorkbenchOffersFourModes() {
         var state = new ApiWorkbenchState();
 
-        Assert.Equal(["apis", "data", "capture"], state.Modes.Select(m => m.Key));
-        Assert.Equal(["APIs", "Data", "Capture"], state.Modes.Select(m => m.Label));
+        Assert.Equal(["docs", "apis", "data", "capture"], state.Modes.Select(m => m.Key));
+        Assert.Equal(["Docs", "APIs", "Data", "Capture"], state.Modes.Select(m => m.Label));
         Assert.Equal("apis", state.DefaultMode);
     }
 
@@ -109,7 +109,37 @@ public class ApiWorkbenchDatasetHashTests {
     [InlineData(ApiSelectionKind.Keys, "data")]
     [InlineData(ApiSelectionKind.AllKeys, "data")]
     [InlineData(ApiSelectionKind.Capture, "capture")]
+    [InlineData(ApiSelectionKind.Docs, "docs")]
     public void ModeFor_MapsEveryKindToItsMode(ApiSelectionKind kind, string mode) => Assert.Equal(mode, ApiWorkbenchState.ModeFor(kind));
+
+    [Fact]
+    public void Hash_RoundTripsADocsSubject() {
+        var state = new ApiWorkbenchState();
+        state.DocsKind = "message";
+        state.DocsKey = "ContractsResponse";
+        state.Kind = ApiSelectionKind.Docs;
+
+        Assert.Equal("api/docs/message/ContractsResponse", state.Hash());
+
+        var fresh = new ApiWorkbenchState();
+        Assert.True(fresh.ApplyHash(state.Hash()));
+        Assert.Equal(ApiSelectionKind.Docs, fresh.Kind);
+        Assert.Equal("message", fresh.DocsKind);
+        Assert.Equal("ContractsResponse", fresh.DocsKey);
+    }
+
+    [Fact]
+    public void Hash_RoundTripsADocsEndpointSubjectWithSlashes() {
+        var state = new ApiWorkbenchState();
+        state.DocsKind = "endpoint";
+        state.DocsKey = "ei/get_periodicals";
+        state.Kind = ApiSelectionKind.Docs;
+
+        var fresh = new ApiWorkbenchState();
+        Assert.True(fresh.ApplyHash(state.Hash()));
+        Assert.Equal("endpoint", fresh.DocsKind);
+        Assert.Equal("ei/get_periodicals", fresh.DocsKey);
+    }
 
     [Theory]
     [InlineData("#api/routes", "apis")]

@@ -1,0 +1,80 @@
+@using EggIncognito.Components.Shared.Workbench
+@using EggIncognito.Models.Inspector
+@using EggIncognito.Services.Api
+@using Microsoft.AspNetCore.Components.Web.Virtualization
+@inject IDocRegistry Registry
+@inject ApiWorkbenchState State
+
+<FilterInput Class="insp-filter" AriaLabel="Filter documentation"
+             Value="@_filter" ValueChanged="OnFilterChanged"/>
+
+<div class="awb-rail-list">
+    <WorkbenchSection Label="@($"Subjects ({TotalCount()})")" Scroll="true">
+        <div class="insp-list">
+            <Virtualize Items="Rows()" Context="row" ItemSize="24" OverscanCount="12">
+                @if (row.Leaf is null) {
+                    <div class="ep-ns" @onclick="@(() => ToggleGroup(row.GroupTitle))">
+                        <span class="ep-caret @(_collapsed.Contains(row.GroupTitle) ? "" : "ep-caret-open")"></span>@(row.GroupTitle)
+                    </div>
+                } else {
+                    <div class="ep @(IsActive(row.Leaf) ? "active" : "")"
+                         @onclick="@(() => OnSelectSubject.InvokeAsync((row.Leaf.Kind, row.Leaf.Key)))">
+                        <span class="ep-name">@row.Leaf.Title</span>
+                    </div>
+                }
+            </Virtualize>
+        </div>
+    </WorkbenchSection>
+</div>
+
+@code {
+    [Parameter] public EventCallback<(string Kind, string Key)> OnSelectSubject { get; set; }
+
+    readonly HashSet<string> _collapsed = [];
+
+    string _filter = "";
+    List<DocRailRow>? _rows;
+    string? _rowsKey;
+
+    void OnFilterChanged(string value) {
+        _filter = value;
+        _rowsKey = null;
+    }
+
+    void ToggleGroup(string title) {
+        if (!_collapsed.Remove(title)) _collapsed.Add(title);
+        _rowsKey = null;
+    }
+
+    bool IsActive(DocSubject leaf) =>
+        State.Kind == ApiSelectionKind.Docs && State.DocsKind == leaf.Kind && State.DocsKey == leaf.Key;
+
+    int TotalCount() => Registry.Roots().Sum(r => r.Children.Count);
+
+    List<DocRailRow> Rows() {
+        var key = _filter.Trim();
+        if (_rowsKey == key && _rows is not null) return _rows;
+        _rowsKey = key;
+        _rows = Build(key);
+        return _rows;
+    }
+
+    List<DocRailRow> Build(string needle) {
+        var rows = new List<DocRailRow>();
+        foreach (var root in Registry.Roots()) {
+            var children = needle.Length == 0
+                ? root.Children
+                : root.Children
+                    .Where(c => c.Title.Contains(needle, StringComparison.OrdinalIgnoreCase)
+                                || c.Key.Contains(needle, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+            if (children.Count == 0) continue;
+            rows.Add(new DocRailRow(root.Title, null));
+            if (_collapsed.Contains(root.Title)) continue;
+            foreach (var c in children) rows.Add(new DocRailRow(root.Title, c));
+        }
+
+        return rows;
+    }
+
+}

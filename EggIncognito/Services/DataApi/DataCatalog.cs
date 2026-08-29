@@ -139,7 +139,7 @@ public sealed class DataCatalog {
             "Observed byproduct frequencies and golden-egg returns from real consume and demote responses.",
             DataProvenance.Database, DataAccess.Authenticated,
             null, null, new DataRefresh(false), false,
-            ArtifactObservationSource.ProduceAsync),
+            ArtifactObservationSource.ProduceAsync, Listed: false),
 
         new("icon", "asset", "Game icon", "Boost/artifact icon PNG by asset name.",
             DataProvenance.Asset, DataAccess.Public, null, null, new DataRefresh(false), true, ProduceIcon),

@@ -8,18 +8,15 @@
 @inject IProtoReflection Reflection
 
 <div class="insp-rail-top">
-    <WorkbenchModes Modes="ListModes" Current="@ListKey" CurrentChanged="OnListChanged" Label="Left list"/>
-    <a class="icon-btn icon-btn-sm ml-auto" href="/api/tools/postman-collection" download
+    <a class="icon-btn icon-btn-sm" href="/api/tools/postman-collection" download
        aria-label="Download Postman collection">
         <Icon Name="postman"/>
     </a>
-    @if (State.RailList == InspectorRailList.Endpoints) {
-        <button type="button" class="icon-btn icon-btn-sm @(StatusLoading ? "spinning" : "")"
-                aria-label="Endpoint status" @onclick="OnOpenStatus">
-            <Icon Name="refresh"/>
-        </button>
-    }
-    <button type="button" class="icon-btn icon-btn-sm"
+    <button type="button" class="icon-btn icon-btn-sm @(StatusLoading ? "spinning" : "")"
+            aria-label="Endpoint status" @onclick="OnOpenStatus">
+        <Icon Name="refresh"/>
+    </button>
+    <button type="button" class="icon-btn icon-btn-sm ml-auto"
             aria-label="Inspector settings" @onclick="OnOpenSettings">
         <Icon Name="gear"/>
     </button>
@@ -34,11 +31,11 @@
     <StatusNote Severity="StatusNoteKind.Error">@State.Notice</StatusNote>
 }
 
-<FilterInput Class="insp-filter" AriaLabel="@FilterLabel"
+<FilterInput Class="insp-filter" AriaLabel="Filter routes"
              Value="@State.RailFilter" ValueChanged="OnFilterChanged"/>
 
-@if (State.RailList == InspectorRailList.Endpoints) {
-    <WorkbenchSection Label="Endpoints" Scroll="true" MaxHeight="@ListMaxHeight">
+<div class="awb-rail-list">
+    <WorkbenchSection Label="@EndpointsLabel" Scroll="true">
         <div class="insp-list">
             <Virtualize Items="EndpointRows()" Context="row" ItemSize="24" OverscanCount="12">
                 @if (row.Route is null) {
@@ -59,30 +56,20 @@
             </Virtualize>
         </div>
     </WorkbenchSection>
-} else {
-    <WorkbenchSection Label="Objects" Scroll="true" MaxHeight="@ListMaxHeight">
-        <div class="insp-list">
-            <Virtualize Items="ObjectRows()" Context="name" ItemSize="24" OverscanCount="12">
-                <div class="ep obj-row @(State.SelectedObject == name ? "active" : "")"
-                     @onclick="@(() => OnSelectObject.InvokeAsync(name))">
-                    <span class="obj-name">@name</span>
-                </div>
-            </Virtualize>
-        </div>
-    </WorkbenchSection>
-}
+</div>
 
-<WorkbenchSection Label="History">
-    <HistoryPanel HistoryEnabled="State.HistoryEnabled" History="State.History"
-                  OnRestoreHistory="OnRestoreHistory" OnDeleteHistory="OnDeleteHistory"
-                  OnClearHistory="OnClearHistory"/>
-</WorkbenchSection>
+<div class="awb-rail-hist">
+    <WorkbenchSection Label="@HistoryLabel" Scroll="true">
+        <HistoryPanel HistoryEnabled="State.HistoryEnabled" History="State.History"
+                      OnRestoreHistory="OnRestoreHistory" OnDeleteHistory="OnDeleteHistory"
+                      OnClearHistory="OnClearHistory"/>
+    </WorkbenchSection>
+</div>
 
 @code {
     [Inject] public ApiWorkbenchState State { get; set; } = default!;
 
     [Parameter] public EventCallback<RouteInfo> OnSelectEndpoint { get; set; }
-    [Parameter] public EventCallback<string> OnSelectObject { get; set; }
     [Parameter] public EventCallback OnOpenSalt { get; set; }
     [Parameter] public EventCallback OnOpenSettings { get; set; }
     [Parameter] public EventCallback OnOpenStatus { get; set; }
@@ -91,30 +78,16 @@
     [Parameter] public EventCallback<string> OnDeleteHistory { get; set; }
     [Parameter] public EventCallback OnClearHistory { get; set; }
 
-    const string EndpointsKey = "endpoints";
-    const string ObjectsKey = "objects";
-    const string ListMaxHeight = "60vh";
-
-    static readonly WorkbenchMode[] ListModes = [
-        new(EndpointsKey, "Endpoints"),
-        new(ObjectsKey, "Objects")
-    ];
-
     readonly HashSet<string> _collapsed = [];
 
     List<RouteInfo>? _routes;
-    List<string>? _messages;
     List<RailRow>? _rows;
     string? _rowsKey;
 
-    string ListKey => State.RailList == InspectorRailList.Objects ? ObjectsKey : EndpointsKey;
+    string EndpointsLabel => $"Endpoints ({Routes().Count})";
+    string HistoryLabel => State.History.Count > 0 ? $"History ({State.History.Count})" : "History";
 
-    string FilterLabel =>
-        State.RailList == InspectorRailList.Objects ? "Filter objects" : "Filter routes";
-
-    void OnListChanged(string key) {
-        State.RailList = key == ObjectsKey ? InspectorRailList.Objects : InspectorRailList.Endpoints;
-    }
+    List<RouteInfo> Routes() => _routes ??= Catalog.All().ToList();
 
     void OnFilterChanged(string value) {
         State.RailFilter = value;
@@ -135,10 +108,10 @@
     }
 
     List<RailRow> BuildEndpointRows(string needle) {
-        _routes ??= Catalog.All().ToList();
+        var routes = Routes();
         var source = needle.Length == 0
-            ? _routes
-            : _routes.Where(e => e.Path.Contains(needle, StringComparison.OrdinalIgnoreCase)).ToList();
+            ? routes
+            : routes.Where(e => e.Path.Contains(needle, StringComparison.OrdinalIgnoreCase)).ToList();
 
         var rows = new List<RailRow>();
         foreach (var group in source.GroupBy(e => e.Path.Split('/')[0]).OrderBy(g => g.Key, StringComparer.Ordinal)) {
@@ -149,14 +122,6 @@
         }
 
         return rows;
-    }
-
-    List<string> ObjectRows() {
-        _messages ??= Reflection.AllMessageTypeNames().ToList();
-        var needle = State.RailFilter.Trim();
-        return needle.Length == 0
-            ? _messages
-            : _messages.Where(n => n.Contains(needle, StringComparison.OrdinalIgnoreCase)).ToList();
     }
 
 }

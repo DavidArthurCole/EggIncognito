@@ -9,6 +9,7 @@ using Google.Protobuf.Reflection;
 namespace EggIncognito.Services.Api;
 
 public sealed class ApiWorkbenchState : WorkbenchStateBase {
+    public const string ModeDocs = "docs";
     public const string ModeApis = "apis";
     public const string ModeData = "data";
     public const string ModeCapture = "capture";
@@ -20,23 +21,26 @@ public sealed class ApiWorkbenchState : WorkbenchStateBase {
     ];
 
     public override IReadOnlyList<WorkbenchMode> Modes { get; } = [
+        new(ModeDocs, "Docs"),
         new(ModeApis, "APIs"),
         new(ModeData, "Data"),
         new(ModeCapture, "Capture")
     ];
 
+    public override string DefaultMode => ModeApis;
+
     public static string ModeFor(ApiSelectionKind kind) {
         return kind switch {
             ApiSelectionKind.Dataset or ApiSelectionKind.Keys or ApiSelectionKind.AllKeys => ModeData,
             ApiSelectionKind.Capture => ModeCapture,
+            ApiSelectionKind.Docs => ModeDocs,
             _ => ModeApis
         };
     }
 
-    public InspectorRailList RailList { get; set; } = InspectorRailList.Endpoints;
-
     public RouteInfo? Selected { get; set; }
-    public string? SelectedObject { get; set; }
+    public string DocsKind { get; set; } = DocSubjectKinds.Message;
+    public string? DocsKey { get; set; }
 
     public List<EnvRow> EnvRows { get; set; } = [];
     public bool EnvOpen { get; set; } = true;
@@ -78,7 +82,7 @@ public sealed class ApiWorkbenchState : WorkbenchStateBase {
     public bool CanBuild => Selected is not null && !Busy;
     public bool CanSend => LastBuild is not null && !Busy;
 
-    public InspectorRef Ref() => new(Selected?.Path, SelectedObject);
+    public InspectorRef Ref() => new(Selected?.Path, null);
 
     public void ClearTransaction() {
         LastBuild = null;
@@ -177,13 +181,22 @@ public sealed class ApiWorkbenchState : WorkbenchStateBase {
         }
     } = ApiSelectionKind.Endpoint;
 
-    public void RememberSelection() => _memory[ModeFor(Kind)] = new ApiSelectionMemory(Kind, Group, Id, Sub);
+    public void RememberSelection() =>
+        _memory[ModeFor(Kind)] = new ApiSelectionMemory(Kind, Group, Id, Sub, DocsKind, DocsKey);
 
     public bool RestoreSelection(string mode) {
         if (!_memory.TryGetValue(mode, out var memory)) return false;
         if (memory.Kind == ApiSelectionKind.Dataset) {
             if (memory.Group.Length == 0 || memory.Id.Length == 0) return false;
             SelectDataset(memory.Group, memory.Id, memory.Sub);
+            return true;
+        }
+
+        if (memory.Kind == ApiSelectionKind.Docs) {
+            if (memory.DocsKey is not { Length: > 0 } key) return false;
+            DocsKind = memory.DocsKind ?? DocSubjectKinds.Message;
+            DocsKey = key;
+            Kind = ApiSelectionKind.Docs;
             return true;
         }
 
@@ -211,6 +224,12 @@ public sealed class ApiWorkbenchState : WorkbenchStateBase {
 
     public string NameFor(string key) => Names.GetValueOrDefault(key, "");
 
+    public DataSourceRow? CurrentDataset() {
+        var root = Sources?.FirstOrDefault(s => s.Group == Group && s.Id == Id);
+        if (root is null) return null;
+        return Sub is not { Length: > 0 } sub ? root : root.Children?.FirstOrDefault(c => c.Id == sub);
+    }
+
     public void SelectDataset(string group, string id, string? sub) {
         Kind = ApiSelectionKind.Dataset;
         Group = group;
@@ -228,6 +247,8 @@ public sealed class ApiWorkbenchState : WorkbenchStateBase {
             ApiSelectionKind.AllKeys => "api/keys/all",
             ApiSelectionKind.Routes => "api/routes",
             ApiSelectionKind.Capture => "api/capture",
+            ApiSelectionKind.Docs =>
+                DocsKey is { Length: > 0 } key ? $"api/docs/{DocsKind}/{key}" : "api/docs",
             _ => MockHash()
         };
     }
@@ -248,6 +269,23 @@ public sealed class ApiWorkbenchState : WorkbenchStateBase {
             string[] parts = rest["data/".Length..].Split('/');
             if (parts.Length is < 2 or > 3 || parts.Any(p => p.Length == 0 || p.Contains('.', StringComparison.Ordinal))) return false;
             SelectDataset(parts[0], parts[1], parts.Length == 3 ? parts[2] : null);
+            return true;
+        }
+
+        if (rest == "docs") {
+            Kind = ApiSelectionKind.Docs;
+            return true;
+        }
+
+        if (rest.StartsWith("docs/", StringComparison.Ordinal)) {
+            string tail = rest["docs/".Length..];
+            int slash = tail.IndexOf('/');
+            if (slash <= 0 || slash == tail.Length - 1) return false;
+            string kind = tail[..slash];
+            string key = tail[(slash + 1)..];
+            DocsKind = kind;
+            DocsKey = key;
+            Kind = ApiSelectionKind.Docs;
             return true;
         }
 

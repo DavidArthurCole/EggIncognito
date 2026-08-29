@@ -1,6 +1,6 @@
 @page "/"
 @page "/protos"
-@page "/protos/{Platform}/{Build}"
+@page "/protos/{*Path}"
 @page "/data"
 @page "/periodicals"
 @rendermode @(RenderMode.InteractiveServer)
@@ -10,6 +10,7 @@
 @inject IWebHostEnvironment Env
 @inject ILogger<Protos> Logger
 @inject ProtoWorkbenchState State
+@inject NavigationManager Nav
 @using System.Text.Json
 @using EggIncognito.Components.Api
 @using EggIncognito.Components.Protos
@@ -370,55 +371,42 @@
 
     bool _loginErrorDismissed;
 
-    [Parameter] public string? Platform { get; set; }
+    [Parameter] public string? Path { get; set; }
 
-    [Parameter] public string? Build { get; set; }
-
-    IJSObjectReference? _hashnav;
-    IJSObjectReference? _hashListener;
-    DotNetObjectReference<Protos>? _selfRef;
-
-    bool HasVersionRoute {
-        get {
-            if (string.IsNullOrWhiteSpace(Platform) || string.IsNullOrWhiteSpace(Build)) return false;
-            if (Platform.Equals("subscribe", StringComparison.OrdinalIgnoreCase)) return false;
-            return !Platform.Equals("sources", StringComparison.OrdinalIgnoreCase);
-        }
-    }
+    EggIdentity.UI.PathRouteSync? _routeSync;
 
     static string VersionHref(ProtoRegistryRow r) {
         return $"/protos/{r.Platform}/{Uri.EscapeDataString(r.Build)}";
     }
 
-    async Task OpenVersion(ProtoRegistryRow r) {
+    Task OpenVersion(ProtoRegistryRow r) {
         var value = new ProtoRef(ProtoRefSource.Registry, r.Platform, r.Build, null);
         _workbench?.OpenAt(value, null, null);
-        await PushHash(value.Format());
+        _routeSync?.Push($"/protos/{r.Platform}/{Uri.EscapeDataString(r.Build)}");
+        return Task.CompletedTask;
     }
 
     Task OnWorkbenchRef(WorkbenchRef value) {
-        return WriteHash(ProtoRefParser.Format(value));
+        _routeSync?.Replace(value.A is null ? "/protos" : "/protos/" + ProtoRefParser.Format(value));
+        return Task.CompletedTask;
     }
 
-    bool _closingFromHash;
+    bool _closingFromRoute;
 
     Task OnWorkbenchClosed() {
-        return _closingFromHash ? Task.CompletedTask : PushHash("");
-    }
-
-    [JSInvokable]
-    public Task OnHashChanged(string hash) {
-        return InvokeAsync(() => ApplyRef(ProtoRefParser.Parse(hash)));
+        if (_closingFromRoute) return Task.CompletedTask;
+        _routeSync?.Push("/protos");
+        return Task.CompletedTask;
     }
 
     void ApplyRef(WorkbenchRef value) {
         if (value.A is null) {
-            _closingFromHash = true;
+            _closingFromRoute = true;
             try {
                 _workbench?.Close();
             }
             finally {
-                _closingFromHash = false;
+                _closingFromRoute = false;
             }
 
             return;
@@ -427,47 +415,47 @@
         _workbench?.OpenAt(value.A, value.B, value.Mode);
     }
 
-    async Task StartHashNav() {
-        try {
-            _hashnav ??= await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/hashnav.js"));
-            _selfRef ??= DotNetObjectReference.Create(this);
-            _hashListener ??= await _hashnav.InvokeAsync<IJSObjectReference>("listen", _selfRef);
-            if (HasVersionRoute) {
-                var build = Uri.UnescapeDataString(Build!);
-                _workbench?.OpenAt(new ProtoRef(ProtoRefSource.Registry, Platform!, build, null), null, null);
-                await _hashnav.InvokeVoidAsync("replacePath", "/protos", $"{Platform}_{build}");
+    void ApplyPath() {
+        var segments = _routeSync!.Segments;
+        var tail = segments.Count > 0 && segments[0] == "protos" ? string.Join("/", segments.Skip(1)) : "";
+
+        if (tail.Length == 0) {
+            ApplyRef(new WorkbenchRef(null, null, null));
+            return;
+        }
+
+        var parts = tail.Split('/');
+        if (parts.Length >= 2 && parts[1].Length > 0
+            && ProtoRefParser.Known.Any(p => p.Equals(parts[0], StringComparison.OrdinalIgnoreCase))) {
+            var build = Uri.UnescapeDataString(parts[1]);
+            _workbench?.OpenAt(new ProtoRef(ProtoRefSource.Registry, parts[0], build, null), null, null);
+            return;
+        }
+
+        if (parts.Length == 1) {
+            var seg = parts[0];
+            var isRouteAction = seg.Equals("terms", StringComparison.OrdinalIgnoreCase)
+                                 || seg.Equals("privacy", StringComparison.OrdinalIgnoreCase)
+                                 || seg.Equals("support", StringComparison.OrdinalIgnoreCase)
+                                 || seg.Equals("add", StringComparison.OrdinalIgnoreCase);
+            if (isRouteAction) {
+                _closingFromRoute = true;
+                try {
+                    _workbench?.Close();
+                }
+                finally {
+                    _closingFromRoute = false;
+                }
+
+                if (seg.Equals("terms", StringComparison.OrdinalIgnoreCase)) OpenTerms();
+                else if (seg.Equals("privacy", StringComparison.OrdinalIgnoreCase)) OpenPrivacy();
+                else if (seg.Equals("support", StringComparison.OrdinalIgnoreCase)) OpenSupport();
+                else _workbench?.OpenAdd();
                 return;
             }
-
-            var hash = await _hashnav.InvokeAsync<string>("read");
-            var fragment = hash?.TrimStart('#');
-            if (string.Equals(fragment, "support", StringComparison.Ordinal)) OpenSupport();
-            else if (string.Equals(fragment, "terms", StringComparison.Ordinal)) OpenTerms();
-            else if (string.Equals(fragment, "privacy", StringComparison.Ordinal)) OpenPrivacy();
-            else if (string.Equals(fragment, "add", StringComparison.Ordinal)) _workbench?.OpenAdd();
-            else ApplyRef(ProtoRefParser.Parse(hash));
         }
-        catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
-            Logger.LogDebug(ex, "hash navigation could not be wired");
-        }
-    }
 
-    async Task WriteHash(string hash) {
-        await CallHashNav("write", hash);
-    }
-
-    async Task PushHash(string hash) {
-        await CallHashNav("push", hash);
-    }
-
-    async Task CallHashNav(string fn, string hash) {
-        if (_hashnav is null) return;
-        try {
-            await _hashnav.InvokeVoidAsync(fn, hash);
-        }
-        catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
-            Logger.LogDebug(ex, "the workbench hash could not be updated");
-        }
+        ApplyRef(ProtoRefParser.Parse(tail));
     }
 
 
@@ -684,7 +672,12 @@
             Logger.LogDebug(ex, "proto drop zone not wired, the circuit is already gone");
         }
 
-        await StartHashNav();
+        _routeSync = new EggIdentity.UI.PathRouteSync(Nav);
+        _routeSync.Changed += () => InvokeAsync(() => {
+            ApplyPath();
+            StateHasChanged();
+        });
+        ApplyPath();
     }
 
     Timer? _refresh;
@@ -754,9 +747,10 @@
         }
     }
 
-    async Task OpenAddVersion() {
+    Task OpenAddVersion() {
         _workbench?.OpenAdd();
-        await PushHash("add");
+        _routeSync?.Push("/protos/add");
+        return Task.CompletedTask;
     }
 
     async Task OnMutated() {
@@ -814,9 +808,7 @@
         if (_refresh is not null) await _refresh.DisposeAsync();
         if (_vis is not null) await _vis.DisposeAsync();
         await _protoDrop.DisposeModuleAsync(logger: Logger);
-        await _hashListener.DisposeModuleAsync("dispose", Logger);
-        await _hashnav.DisposeModuleAsync(logger: Logger);
-        _selfRef?.Dispose();
+        _routeSync?.Dispose();
     }
 
     static long ReleaseKey(ProtoRegistryRow r) {

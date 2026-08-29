@@ -1,4 +1,4 @@
-<aside class="wb-rail" style="@RailStyle">
+<aside class="@Css" style="@RailStyle">
     @if (HasFilter) {
         <FilterInput ShowIcon="true" WrapClass="wb-rail-filter-bar" Class="wb-bar-input wb-rail-filter"
                      AriaLabel="@FilterLabel" Value="@(Filter ?? "")" ValueChanged="FilterChanged"/>
@@ -12,8 +12,11 @@
     [Parameter] public EventCallback<string> FilterChanged { get; set; }
     [Parameter] public string? FilterLabel { get; set; }
     [Parameter] public string? Width { get; set; }
+    [Parameter] public string? Class { get; set; }
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
     string? RailStyle => string.IsNullOrWhiteSpace(Width) ? null : $"--wb-rail-w: {Width}";
+
+    string Css => string.IsNullOrWhiteSpace(Class) ? "wb-rail" : $"wb-rail {Class}";
 
 }

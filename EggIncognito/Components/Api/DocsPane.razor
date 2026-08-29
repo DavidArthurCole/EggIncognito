@@ -1,0 +1,50 @@
+@using EggIncognito.Components.Inspector
+@using EggIncognito.Services.Api
+@using EggIncognito.Services.Inspector
+@inject ApiWorkbenchState State
+@inject IDocRegistry Registry
+@inject IRouteCatalog Catalog
+
+@switch (State.DocsKind) {
+    case DocSubjectKinds.Message:
+        <ObjectReference Name="@State.DocsKey" OnSelectEndpoint="OnJumpEndpoint"/>
+        break;
+    case DocSubjectKinds.Endpoint:
+        <EndpointReference Route="@ResolvedRoute" OnSelectObject="OnJumpMessage"/>
+        break;
+    default:
+        @if (Subject() is { } subject) {
+            <DocSubjectView Kind="@ParsedKind" Key="@subject.Key" Title="@subject.Title">
+                <Aside>
+                    @if (!string.IsNullOrEmpty(subject.Summary)) {
+                        <p class="text-xs text-muted">@subject.Summary</p>
+                    }
+                </Aside>
+            </DocSubjectView>
+        } else {
+            <div class="empty-state">
+                No subject selected.
+                <div class="empty-hint">
+                    Pick a message, endpoint, config option or control in the rail to read and edit its
+                    documentation.
+                </div>
+            </div>
+        }
+        break;
+}
+
+@code {
+    [Parameter] public EventCallback<(string Kind, string Key)> OnSelectSubject { get; set; }
+
+    RouteInfo? ResolvedRoute =>
+        string.IsNullOrEmpty(State.DocsKey) ? null : Catalog.Resolve(State.DocsKey) ?? Catalog.All().FirstOrDefault(r => r.Path == State.DocsKey);
+
+    DocSubjectKind ParsedKind => DocSubjectKinds.Parse(State.DocsKind);
+
+    DocSubject? Subject() => string.IsNullOrEmpty(State.DocsKey) ? null : Registry.Find(State.DocsKind, State.DocsKey);
+
+    Task OnJumpEndpoint(RouteInfo e) => OnSelectSubject.InvokeAsync((DocSubjectKinds.Endpoint, e.Path));
+
+    Task OnJumpMessage(string name) => OnSelectSubject.InvokeAsync((DocSubjectKinds.Message, name));
+
+}
