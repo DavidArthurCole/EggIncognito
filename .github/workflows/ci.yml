@@ -16,7 +16,6 @@ jobs:
       solution: EggIncognito.slnx
       packages-auth: true
       format-gate: true
-      razor-include: "EggIncognito/**/*.razor"
     secrets:
       PACKAGES_PAT: ${{ secrets.PACKAGES_PAT }}
 
