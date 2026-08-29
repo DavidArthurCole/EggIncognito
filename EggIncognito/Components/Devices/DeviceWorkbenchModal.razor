@@ -8,17 +8,20 @@
 @using System.Net
 @using System.Text.Json
 @using System.Threading.Channels
+@using EggIdentity.UI
 @using EggIncognito.Capture
 @using EggIncognito.Components.Capture
-@using EggIncognito.Components.Shared.Workbench
 @using EggIncognito.Core
 @using EggIncognito.Models.Devices
 @using EggIncognito.Services.Devices
-@using EggIncognito.Services.Workbench
 @implements IDisposable
 
-<WorkbenchModal Open="@(_open && _isAdmin)" Title="Devices" TitleId="deviceWorkbenchTitle"
-                Notice="@_notice" NoticeDismissed="ClearNotice" OnClose="CloseModal">
+<WorkbenchModal Open="@(_open && _isAdmin)" Title="Devices" TitleId="deviceWorkbenchTitle" OnClose="CloseModal">
+    <Notice>
+        @if (_notice is { } n) {
+            <StatusNote Severity="@n.Severity" OnDismiss="ClearNotice">@n.Text</StatusNote>
+        }
+    </Notice>
     <HeadTools>
         <button type="button" class="btn-mini" disabled="@_bulkBusy" @onclick="ProbeAll">Probe all</button>
         <button type="button" class="btn-mini" disabled="@_bulkBusy" @onclick="PokeAll">Poke all</button>
@@ -239,7 +242,7 @@
     bool _isAdmin;
     bool _bulkBusy;
     bool _disposed;
-    WorkbenchNotice? _notice;
+    (string Text, StatusNoteKind Severity)? _notice;
     Timer? _timer;
 
     List<DeviceRow> _devices = [];
@@ -268,8 +271,8 @@
         return _live.FirstOrDefault(j => j.Device == id);
     }
 
-    IReadOnlyList<WorkbenchMode> Tabs() {
-        return [.. State.Modes.Select(m => m with { Count = TabCount(m.Key) })];
+    IReadOnlyList<(string Key, string Label, int? Count)> Tabs() {
+        return [.. State.Modes.Select(m => (m.Key, m.Label, (int?)TabCount(m.Key)))];
     }
 
     int TabCount(string key) {
@@ -407,7 +410,7 @@
     }
 
     void Note(string text, bool ok) {
-        _notice = new WorkbenchNotice(text, ok ? StatusNoteKind.Ok : StatusNoteKind.Error);
+        _notice = (text, ok ? StatusNoteKind.Ok : StatusNoteKind.Error);
     }
 
     async Task Act(string url, string ok) {

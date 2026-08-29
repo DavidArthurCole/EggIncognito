@@ -28,7 +28,7 @@ public sealed class CaptureSessionManagerTests : IDisposable {
 
     private CaptureSessionManager NewManager(int maxSessions = 10, int poolBase = 24000) =>
         new(HostedCaptureOptions.Defaults() with { MaxConcurrentSessions = maxSessions, PortPoolBase = poolBase },
-            (key, basePort) => NewSession(_tmp, key == CaptureSessionManager.LocalKey ? 18080 : basePort));
+            (key, basePort, _) => NewSession(_tmp, key == CaptureSessionManager.LocalKey ? 18080 : basePort));
 
     [Fact]
     public void TwoKeys_GetDistinctSessions_WithDistinctPorts() {

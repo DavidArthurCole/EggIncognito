@@ -1,3 +1,4 @@
+using EggIdentity.UI;
 using EggIncognito.Services.Workbench;
 
 namespace EggIncognito.Services.Theme;
@@ -80,12 +81,15 @@ public sealed class ThemeWorkbenchState : WorkbenchStateBase {
     public const string ModeCss = "css";
     public const string ModeJson = "json";
 
-    public override IReadOnlyList<WorkbenchMode> Modes { get; } = [
+    private static readonly IReadOnlyList<WorkbenchMode> RawModes = [
         new(ModeTokens, "Tokens"),
         new(ModeChroma, "Chroma"),
         new(ModeCss, "Custom CSS"),
         new(ModeJson, "JSON")
     ];
+
+    public override IReadOnlyList<(string Key, string Label, int? Count)> Modes { get; } =
+        [.. RawModes.Select(m => (m.Key, m.Label, m.Count))];
 
     public ThemeDraft Draft { get; } = new();
     public string? SelectedSlug { get; set; }

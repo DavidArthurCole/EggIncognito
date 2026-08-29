@@ -1,3 +1,4 @@
+using EggIncognito.Data.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace EggIncognito.Data.Services;
@@ -9,13 +10,19 @@ public static class DeviceSeeder {
         CancellationToken ct = default) {
         var declared = new HashSet<string>();
         foreach ((string Id, string Platform, string Label, string Target, string Package) in devices) {
-            await store.UpsertDeviceAsync(Id, Platform, Label, Target, Package, ct);
+            await store.UpsertDeviceAsync(Id, Platform, Label, Target, Package, DeviceOrigins.Config, ct);
             declared.Add(Id);
         }
 
         if (declared.Count == 0) return;
-        var stale = await db.Devices.Where(x => x.Enabled && !declared.Contains(x.Id)).ToListAsync(ct);
+        var enabled = await db.Devices.Where(x => x.Enabled).ToListAsync(ct);
+        var stale = enabled.Where(x => IsStale(x, declared)).ToList();
         foreach (var s in stale) s.Enabled = false;
         if (stale.Count > 0) await db.SaveChangesAsync(ct);
     }
+
+    public static bool IsStale(Device row, IReadOnlySet<string> declared) =>
+        row.Enabled
+        && string.Equals(row.Origin, DeviceOrigins.Config, StringComparison.Ordinal)
+        && !declared.Contains(row.Id);
 }

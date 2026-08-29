@@ -1,3 +1,4 @@
+using EggIdentity.UI;
 using EggIncognito.Components.Capture;
 using EggIncognito.Services.Workbench;
 
@@ -8,11 +9,14 @@ public sealed class DeviceWorkbenchState : WorkbenchStateBase {
     public const string TabCapture = "capture";
     public const string TabBinaries = "binaries";
 
-    public override IReadOnlyList<WorkbenchMode> Modes { get; } = [
+    private static readonly IReadOnlyList<WorkbenchMode> RawModes = [
         new(TabJobs, "Jobs"),
         new(TabCapture, "Capture"),
         new(TabBinaries, "Binaries")
     ];
+
+    public override IReadOnlyList<(string Key, string Label, int? Count)> Modes { get; } =
+        [.. RawModes.Select(m => (m.Key, m.Label, m.Count))];
 
     public string? SelectedId { get; set; }
     public HashSet<long> Expanded { get; } = [];

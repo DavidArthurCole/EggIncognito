@@ -4,6 +4,7 @@ using EggIncognito.Capture;
 using EggIncognito.Core.Services;
 using EggIncognito.Data.Services;
 using EggIncognito.Services;
+using EggIncognito.Services.Contributions;
 using EggIncognito.Services.DataApi;
 using EggIncognito.Services.Feed;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -34,7 +35,7 @@ public static class CaptureServices {
         var config = sp.GetRequiredService<IConfiguration>();
         string contentRoot = ContentRoot.Resolve(config["ContentRoot"]);
         var routeCatalog = sp.GetRequiredService<IRouteCatalog>();
-        return new CaptureSessionManager(boot.HostedCapture, (key, basePort) => {
+        return new CaptureSessionManager(boot.HostedCapture, (key, basePort, tier) => {
             var liveRoutes = sp.GetRequiredService<DataCatalog>().WireRoutes();
             var writeObserver = sp.GetService<ConfigChangeNotifier>();
             if (key == CaptureSessionManager.LocalKey) {
@@ -53,12 +54,19 @@ public static class CaptureServices {
             }
 
             string dir = Path.Combine(Path.GetTempPath(), "eggincognito-hosted-capture", key);
+            var kinds = sp.GetRequiredService<ICaptureContributionKinds>();
+            var recorder = sp.GetService<ContributionRecorder>();
             var hostedOpts = new CaptureSessionOptions(
                 basePort, null, null, false,
                 config.GetValue("CaptureVerbose", false),
                 dir, Path.Combine(dir, "ca.cer"),
                 false,
-                writeObserver) { LiveRoutes = liveRoutes };
+                writeObserver) {
+                LiveRoutes = liveRoutes,
+                Tier = tier,
+                FullDetailRoutes = kinds.AllRoutes,
+                OnContribution = recorder is null ? null : recorder.Record
+            };
             return new CaptureSession(contentRoot, hostedOpts,
                 verbose => new NativeCaptureProxy(verbose) {
                     LanForwarderEnabled = false,

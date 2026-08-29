@@ -32,7 +32,8 @@ public sealed class CapturePipeline {
         Action<CapturedFlow>? onDequeued,
         Action<RinfoHarvester.ObservedVersion>? onObserved,
         Action<DashboardFlow>? onProcessed,
-        CancellationToken ct) =>
+        CancellationToken ct,
+        Func<DashboardFlow, DashboardFlow>? projectForHub = null) =>
         Task.Run(async () => {
             await foreach (var flow in Queue.Reader.ReadAllAsync()) {
                 onDequeued?.Invoke(flow);
@@ -40,7 +41,7 @@ public sealed class CapturePipeline {
                     var dash = Processor.Process(flow);
                     if (dash.Observed is { } obs) onObserved?.Invoke(obs);
                     onProcessed?.Invoke(dash);
-                    hub.Publish(dash, now());
+                    hub.Publish(projectForHub is null ? dash : projectForHub(dash), now());
                 } catch (Exception ex) {
                     CaptureDiagnostics.Failed("pump", flow.Url, ex);
                 }

@@ -1,4 +1,5 @@
 using EggIncognito.Core.Services.Devices;
+using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using EggIncognito.Models.Devices;
 using EggIncognito.Services.Devices;
@@ -163,6 +164,93 @@ public class DeviceRecertServiceTests {
 
         Assert.False(result.Ok);
         Assert.Contains(result.Log, l => l.Contains("KsuWebUiPackage", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task RecertAsync_DeviceOnlyInStore_ResolvesFromTheStore() {
+        var store = new FakeStatusStore(new Device {
+            Id = "i1",
+            Platform = Platforms.Ios,
+            Label = "iPhone",
+            Target = "u",
+            Package = "p"
+        });
+        var service = new DeviceRecertService(
+            [], new DeviceConfig(), BaseConfig(), DummyJobStore(), new FakeConnections(new RefusingProcessRunner()),
+            NullLogger<DeviceRecertService>.Instance, store);
+
+        var result = await service.RecertAsync("i1", "manual", CancellationToken.None);
+
+        Assert.False(result.Ok);
+        Assert.Contains(result.Log, l => l.Contains("android-only", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task RecertAsync_StoreRowWinsOverTheConfigEntry() {
+        var deviceConfig = new DeviceConfig {
+            Devices = [new DeviceEntry("d1", Platforms.Android, "Pixel", "s", "com.auxbrain.egginc")]
+        };
+        var store = new FakeStatusStore(new Device {
+            Id = "d1",
+            Platform = Platforms.Ios,
+            Label = "iPhone",
+            Target = "u",
+            Package = "p"
+        });
+        var service = new DeviceRecertService(
+            [], deviceConfig, BaseConfig(), DummyJobStore(), new FakeConnections(new RefusingProcessRunner()),
+            NullLogger<DeviceRecertService>.Instance, store);
+
+        var result = await service.RecertAsync("d1", "manual", CancellationToken.None);
+
+        Assert.Contains(result.Log, l => l.Contains("android-only", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task RecertAsync_StoreRowDisabled_RefusesInsteadOfFallingBackToConfig() {
+        var deviceConfig = new DeviceConfig {
+            Devices = [new DeviceEntry("d1", Platforms.Android, "Pixel", "s", "com.auxbrain.egginc")]
+        };
+        var store = new FakeStatusStore(new Device {
+            Id = "d1",
+            Platform = Platforms.Android,
+            Label = "Pixel",
+            Target = "s",
+            Package = "com.auxbrain.egginc",
+            Enabled = false
+        });
+        var service = new DeviceRecertService(
+            [], deviceConfig, BaseConfig(), DummyJobStore(), new FakeConnections(new RefusingProcessRunner()),
+            NullLogger<DeviceRecertService>.Instance, store);
+
+        var result = await service.RecertAsync("d1", "manual", CancellationToken.None);
+
+        Assert.False(result.Ok);
+        Assert.Equal("lookup", result.FailedStep);
+        Assert.Contains(result.Log, l => l.Contains("unknown device", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task RecertAsync_StoreHasNoRow_FallsBackToConfig() {
+        var deviceConfig = new DeviceConfig { Devices = [new DeviceEntry("i1", Platforms.Ios, "iPhone", "u", "p")] };
+        var service = new DeviceRecertService(
+            [], deviceConfig, BaseConfig(), DummyJobStore(), new FakeConnections(new RefusingProcessRunner()),
+            NullLogger<DeviceRecertService>.Instance, new FakeStatusStore(null));
+
+        var result = await service.RecertAsync("i1", "manual", CancellationToken.None);
+
+        Assert.Contains(result.Log, l => l.Contains("android-only", StringComparison.Ordinal));
+    }
+
+    private sealed class FakeStatusStore(Device? row) : IDeviceStatusStore {
+        public Task UpsertDeviceAsync(string id, string platform, string label, string target, string package,
+            string origin = DeviceOrigins.Runtime, CancellationToken ct = default) => Task.CompletedTask;
+
+        public Task<List<Device>> EnabledDevicesAsync(CancellationToken ct = default) =>
+            Task.FromResult(row is { Enabled: true } ? [row] : new List<Device>());
+
+        public Task<Device?> GetAsync(string id, CancellationToken ct = default) =>
+            Task.FromResult(row is not null && row.Id == id ? row : null);
     }
 
     private sealed class FakeUiDriver : IDeviceUiDriver {

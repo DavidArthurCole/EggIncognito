@@ -6,16 +6,20 @@
 @inject NotificationsWorkbenchState State
 @inject ILogger<NotificationsWorkbenchModal> Logger
 @using System.Text.Json
+@using EggIdentity.UI
 @using EggIncognito.Components.Shared.Editor
-@using EggIncognito.Components.Shared.Workbench
 @using EggIncognito.Models.Notifications
 @using EggIncognito.Services.Feed
 @using EggIncognito.Services.Notifications
-@using EggIncognito.Services.Workbench
 @implements IAsyncDisposable
 
 <WorkbenchModal Open="_open" Title="Notifications" TitleId="notificationsWorkbenchTitle" CardClass="nwb-card"
-                Notice="_notice" NoticeDismissed="DismissNotice" OnClose="CloseAsync">
+                OnClose="CloseAsync">
+    <Notice>
+        @if (_notice is { } n) {
+            <StatusNote Severity="@n.Severity" OnDismiss="DismissNotice">@n.Text</StatusNote>
+        }
+    </Notice>
     <HeadTools>
         @if (AdminScope) {
             @if (_admin is { } summary) {
@@ -118,7 +122,7 @@
     bool _armed;
     bool _json;
     bool _hashWired;
-    WorkbenchNotice? _notice;
+    (string Text, StatusNoteKind Severity)? _notice;
 
     AdminFeedListResponse? _admin;
     int? _adminSelectedId;
@@ -464,7 +468,7 @@
     }
 
     void Note(string text, bool ok) {
-        _notice = new WorkbenchNotice(text, ok ? StatusNoteKind.Ok : StatusNoteKind.Error);
+        _notice = (text, ok ? StatusNoteKind.Ok : StatusNoteKind.Error);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender) {

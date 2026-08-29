@@ -64,7 +64,7 @@ public class ProxyFrontDoorTests {
             int poolBase = 24100, Func<IPAddress, Task<string?>>? addrToUser = null) {
             var opts = HostedCaptureOptions.Defaults() with { FrontDoorPort = 0, PortPoolBase = poolBase };
             var manager = new CaptureSessionManager(opts,
-                (_, basePort) => CaptureSessionManagerTests.NewSession(_tmp, basePort));
+                (_, basePort, _) => CaptureSessionManagerTests.NewSession(_tmp, basePort));
             addrToUser ??= _ => Task.FromResult<string?>(UserId);
             var door = new ProxyFrontDoor(opts, manager, addrToUser);
             await door.StartAsync(CancellationToken.None);

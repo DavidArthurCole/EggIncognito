@@ -3,7 +3,6 @@
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env
 @using System.Globalization
-@using EggIncognito.Models.Registry
 @implements IDisposable
 
 <div class="@(string.IsNullOrEmpty(Class) ? "panel pd-devices" : $"panel pd-devices {Class}")">
@@ -53,16 +52,16 @@
 
     [Parameter] public EventCallback<string?> OnManage { get; set; }
 
-    List<DeviceStatus> _devices = [];
+    List<Models.Registry.DeviceStatus> _devices = [];
 
-    static (string Icon, string Color)? DataChip(DeviceStatus d) {
+    static (string Icon, string Color)? DataChip(Models.Registry.DeviceStatus d) {
         if (!d.Reachable) return null;
         var icon = d.ClientVersion is null ? "info" : "check";
         if (d.Result == "new_version") return (icon, "text-accent");
         return d.ClientVersion is null ? (icon, "text-muted") : (icon, "text-ok");
     }
 
-    static string? ClientText(DeviceStatus d) {
+    static string? ClientText(Models.Registry.DeviceStatus d) {
         return d.ClientVersion?.ToString(CultureInfo.InvariantCulture);
     }
 
@@ -95,7 +94,7 @@
 
     public async Task LoadAsync() {
         try {
-            var rows = await Client().GetFromJsonAsync<List<DeviceStatus>>("/api/devices/status");
+            var rows = await Client().GetFromJsonAsync<List<Models.Registry.DeviceStatus>>("/api/devices/status");
             _devices = rows ?? [];
             StateHasChanged();
         }
@@ -127,7 +126,7 @@
                 }
             }
 
-            var rows = await Client().GetFromJsonAsync<List<DeviceStatus>>("/api/devices/status");
+            var rows = await Client().GetFromJsonAsync<List<Models.Registry.DeviceStatus>>("/api/devices/status");
             if (rows is not null) {
                 _devices = rows;
                 await InvokeAsync(StateHasChanged);

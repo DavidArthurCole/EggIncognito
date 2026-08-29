@@ -24,7 +24,7 @@ public sealed class CaptureCaNotifierTests : IDisposable {
     }
 
     private CaptureSessionManager FreshCaManager() =>
-        new(HostedCaptureOptions.Defaults(), (_, _) => FreshCaSession());
+        new(HostedCaptureOptions.Defaults(), (_, _, _) => FreshCaSession());
 
     private static IConfiguration Config(Dictionary<string, string?> values) =>
         new ConfigurationBuilder().AddInMemoryCollection(values).Build();

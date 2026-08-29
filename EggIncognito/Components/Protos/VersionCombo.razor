@@ -1,3 +1,4 @@
+@using EggIdentity.UI
 @using EggIncognito.Models.Registry
 @using Microsoft.AspNetCore.Components.Web.Virtualization
 @inject IJSRuntime JS
@@ -41,7 +42,7 @@
         @if (AllowClear && Selected is { Length: > 0 }) {
             <button type="button" class="pwb-combo-clear"
                     aria-label="@($"Clear {Label}")" @onclick="Clear">
-                <Icon Name="x" Class="icon-sm"/>
+                <EggIncognito.Components.Shared.Icon Name="x" Class="icon-sm"/>
             </button>
         }
     }

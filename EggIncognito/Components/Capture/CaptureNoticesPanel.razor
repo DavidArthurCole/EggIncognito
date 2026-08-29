@@ -1,4 +1,3 @@
-@using EggIncognito.Models.Capture
 <div class="settings-wrap">
     @if (_open) {
         <div class="popover-backdrop" @onclick="@(() => _open = false)"></div>
@@ -41,7 +40,7 @@
 </div>
 
 @code {
-    [Parameter] public IReadOnlyList<NoticeItem> Notices { get; set; } = [];
+    [Parameter] public IReadOnlyList<Models.Capture.NoticeItem> Notices { get; set; } = [];
     [Parameter] public int Unread { get; set; }
     [Parameter] public EventCallback<int> OnDismissNotice { get; set; }
     [Parameter] public EventCallback OnClearNotices { get; set; }

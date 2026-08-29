@@ -1,10 +1,12 @@
 using EggIncognito.Core.Services;
 using EggIncognito.Data.Services;
 using EggIncognito.Services;
+using EggIncognito.Services.Contracts;
 using EggIncognito.Services.DataApi;
 using EggIncognito.Services.Devices;
 using EggIncognito.Services.Events;
 using EggIncognito.Services.Feed;
+using EggIncognito.Services.Predictions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 
@@ -88,6 +90,14 @@ public static class DataServices {
         builder.Services.AddScoped<FeedDispatcher>();
         builder.Services.AddScoped<GameEventIngestor>();
         builder.Services.AddScoped<GameEventBackfill>();
+        builder.Services.AddScoped<EventPredictor>();
+        builder.Services.AddSingleton<EventPredictionCache>();
+        builder.Services.AddScoped<ContractPredictor>();
+        builder.Services.AddSingleton<ContractPredictionCache>();
+        builder.Services.AddScoped<ContractIngestor>();
+        builder.Services.AddScoped<ContractBackfill>();
+        builder.Services.AddSingleton<EventDataVersion>();
+        builder.Services.AddSingleton<ContractDataVersion>();
         builder.Services.AddScoped<IProtoUpsertObserver, ProtoUpsertNotifier>();
         builder.Services.AddScoped<ApiKeyStore>();
         builder.Services.AddScoped<UserThemeStore>();

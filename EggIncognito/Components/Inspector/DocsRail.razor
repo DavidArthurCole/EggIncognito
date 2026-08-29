@@ -1,4 +1,4 @@
-@using EggIncognito.Components.Shared.Workbench
+@using EggIdentity.UI
 @using EggIncognito.Models.Inspector
 @using EggIncognito.Services.Api
 @using Microsoft.AspNetCore.Components.Web.Virtualization
@@ -46,10 +46,13 @@
         _rowsKey = null;
     }
 
-    bool IsActive(DocSubject leaf) =>
-        State.Kind == ApiSelectionKind.Docs && State.DocsKind == leaf.Kind && State.DocsKey == leaf.Key;
+    bool IsActive(DocSubject leaf) {
+        return State.Kind == ApiSelectionKind.Docs && State.DocsKind == leaf.Kind && State.DocsKey == leaf.Key;
+    }
 
-    int TotalCount() => Registry.Roots().Sum(r => r.Children.Count);
+    int TotalCount() {
+        return Registry.Roots().Sum(r => r.Children.Count);
+    }
 
     List<DocRailRow> Rows() {
         var key = _filter.Trim();

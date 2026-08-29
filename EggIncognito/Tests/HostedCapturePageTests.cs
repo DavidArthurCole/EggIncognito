@@ -9,7 +9,6 @@ using EggIncognito.Models.Capture;
 using EggIncognito.Services;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,7 +18,7 @@ namespace EggIncognito.Tests;
 public class HostedCapturePageTests {
     private static CaptureSessionManager NewManager(TempDir tmp) =>
         new(HostedCaptureOptions.Defaults(),
-            (key, basePort) => CaptureSessionManagerTests.NewSession(tmp,
+            (key, basePort, _) => CaptureSessionManagerTests.NewSession(tmp,
                 key == CaptureSessionManager.LocalKey ? 18080 : basePort));
 
     private sealed class FakeAppMode(bool canCapture, bool hostedEnabled) : IAppMode {
@@ -99,6 +98,7 @@ public class HostedCapturePageTests {
             Services.AddSingleton<IWebHostEnvironment>(new FakeWebHostEnvironment());
             Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
             Services.AddSingleton(new AuthState(false));
+            Services.AddSingleton<ICaptureContributionKinds>(new CaptureContributionKinds([]));
             Services.AddHttpClient();
         }
 
@@ -112,13 +112,12 @@ public class HostedCapturePageTests {
         }
 
         [Fact]
-        public void NonSupporter_ShowsPitchWithSupportLink() {
+        public void NonSupporter_ShowsSetupCard_AndDashboard() {
             using var tmp = new TempDir();
             Wire(tmp, true, false);
             var cut = Render<CapturePane>();
-            Assert.NotNull(cut.Find("#hostedPitch"));
-            Assert.Contains("href=\"/#support\"", cut.Markup);
-            Assert.Empty(cut.FindAll("#hostedSetupCard"));
+            Assert.NotNull(cut.Find("#hostedSetupCard"));
+            Assert.NotNull(cut.Find("#statsPanel"));
         }
 
         [Fact]
@@ -180,10 +179,14 @@ public class HostedCapturePageTests {
         }
 
         [Fact]
-        public async Task Start_NonSupporter_Is403SupporterRequired() {
-            var r = await Controller(NewManager(_tmp), new FakeUser(true, false)).Start(CancellationToken.None);
-            Assert.Equal(403, ((IStatusCodeActionResult)r).StatusCode);
-            Assert.Contains("supporter_required", ((ObjectResult)r).Value!.ToString());
+        public async Task Start_NonSupporter_StartsLimitedSession() {
+            var manager = NewManager(_tmp);
+            var r = await Controller(manager, new FakeUser(true, false)).Start(CancellationToken.None);
+            Assert.Equal(200, ((IStatusCodeActionResult)r).StatusCode);
+            var session = manager.Get("tester");
+            Assert.NotNull(session);
+            Assert.Equal(CaptureState.Running, session.State);
+            await session.StopAsync();
         }
 
         [Fact]
@@ -198,10 +201,10 @@ public class HostedCapturePageTests {
         }
 
         [Fact]
-        public async Task ProxyAddress_NonSupporter_Is403() {
+        public async Task ProxyAddress_NonSupporter_ReachesDbCheck() {
             var r = await Controller(NewManager(_tmp), new FakeUser(true, false))
                 .ProxyAddress(CancellationToken.None);
-            Assert.Equal(403, ((IStatusCodeActionResult)r).StatusCode);
+            Assert.Equal(503, ((IStatusCodeActionResult)r).StatusCode);
         }
     }
 

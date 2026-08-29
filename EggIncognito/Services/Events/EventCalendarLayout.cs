@@ -27,14 +27,14 @@ public static class EventCalendarLayout {
     }
 
     public static IReadOnlyList<EventCalendarRow> Rows(
-        IReadOnlyList<GameEventDto> events,
+        IReadOnlyList<CalendarItem> items,
         DateTimeOffset visibleStart,
         DateTimeOffset visibleEnd,
         EventCalendarZoom zoom,
         DateTimeOffset now) {
         int? primaryMonth = zoom == EventCalendarZoom.Month ? visibleStart.ToLocalTime().Month : null;
         return RowSpans(visibleStart, visibleEnd, zoom)
-            .Select(span => BuildRow(events, span.Start, span.End, now, primaryMonth))
+            .Select(span => BuildRow(items, span.Start, span.End, now, primaryMonth))
             .ToList();
     }
 
@@ -52,7 +52,7 @@ public static class EventCalendarLayout {
     }
 
     private static EventCalendarRow BuildRow(
-        IReadOnlyList<GameEventDto> events,
+        IReadOnlyList<CalendarItem> items,
         DateTimeOffset start,
         DateTimeOffset end,
         DateTimeOffset now,
@@ -60,7 +60,7 @@ public static class EventCalendarLayout {
         double? nowPercent = now > start && now < end
             ? (now - start).TotalSeconds / (end - start).TotalSeconds * 100
             : null;
-        return new EventCalendarRow(start, end, DayCells(start, end, primaryMonth), Lanes(Bars(events, start, end, now)), nowPercent);
+        return new EventCalendarRow(start, end, DayCells(start, end, primaryMonth), Lanes(Bars(items, start, end, now)), nowPercent);
     }
 
     private static List<EventCalendarCell> DayCells(DateTimeOffset start, DateTimeOffset end, int? primaryMonth) {
@@ -76,32 +76,32 @@ public static class EventCalendarLayout {
     }
 
     private static List<EventCalendarBar> Bars(
-        IReadOnlyList<GameEventDto> events, DateTimeOffset start, DateTimeOffset end, DateTimeOffset now) {
+        IReadOnlyList<CalendarItem> items, DateTimeOffset start, DateTimeOffset end, DateTimeOffset now) {
         double windowStart = UnixSeconds.FromTime(start);
         double windowEnd = UnixSeconds.FromTime(end);
         double nowUnix = UnixSeconds.FromTime(now);
         double span = windowEnd - windowStart;
-        var hits = events
-            .Where(e => e.EndTimestamp > windowStart && e.StartTimestamp < windowEnd)
-            .OrderBy(e => e.StartTimestamp)
-            .ThenByDescending(e => e.EndTimestamp - e.StartTimestamp)
-            .ThenBy(e => e.Id, StringComparer.Ordinal)
+        var hits = items
+            .Where(i => i.End > windowStart && i.Start < windowEnd)
+            .OrderBy(i => i.Start)
+            .ThenByDescending(i => i.End - i.Start)
+            .ThenBy(i => i.Key, StringComparer.Ordinal)
             .ToList();
         double laneGap = DayGapFraction / Math.Max(1, (end - start).TotalDays);
         var laneRights = new List<double>();
         var bars = new List<EventCalendarBar>(hits.Count);
-        foreach (var e in hits) {
-            var (left, width) = Clip(e.StartTimestamp, e.EndTimestamp, windowStart, span);
-            bool past = e.EndTimestamp <= nowUnix;
+        foreach (var item in hits) {
+            var (left, width) = Clip(item.Start, item.End, windowStart, span);
+            bool past = item.End <= nowUnix;
             bars.Add(new EventCalendarBar(
-                e,
+                item,
                 AssignLane(laneRights, left, left + width, laneGap),
                 left * 100,
                 width * 100,
-                !past && e.StartTimestamp <= nowUnix,
+                !past && item.Start <= nowUnix,
                 past,
-                e.StartTimestamp < windowStart,
-                e.EndTimestamp > windowEnd));
+                item.Start < windowStart,
+                item.End > windowEnd));
         }
 
         return bars;

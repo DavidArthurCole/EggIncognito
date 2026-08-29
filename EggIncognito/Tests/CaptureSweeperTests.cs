@@ -13,7 +13,7 @@ public sealed class CaptureSweeperTests : IDisposable {
     private (CaptureSweeper Sweeper, CaptureSessionManager Manager) New() {
         var opts = HostedCaptureOptions.Defaults();
         var manager = new CaptureSessionManager(opts,
-            (key, basePort) => CaptureSessionManagerTests.NewSession(_tmp,
+            (key, basePort, _) => CaptureSessionManagerTests.NewSession(_tmp,
                 key == CaptureSessionManager.LocalKey ? 18080 : basePort));
         var sweeper = new CaptureSweeper(manager, opts, TimeProvider.System,
             NullLogger<CaptureSweeper>.Instance);

@@ -95,7 +95,7 @@ public sealed partial class AdminController(ICurrentUser currentUser, IServicePr
 
     [HttpGet("sessions")]
     [EnableRateLimiting("read")]
-    public IActionResult Sessions() {
+    public async Task<IActionResult> Sessions(CancellationToken ct) {
         if (RequireAdmin() is { } no) return no;
         var rows = new List<object>();
 
@@ -119,9 +119,9 @@ public sealed partial class AdminController(ICurrentUser currentUser, IServicePr
 
         if (services.GetService(typeof(DeviceCaptureManager))
                 is DeviceCaptureManager dcm
-            && services.GetService(typeof(DeviceConfig))
-                is DeviceConfig devCfg)
-            rows.AddRange(devCfg.Devices.Select(d => {
+            && services.GetService(typeof(IDeviceFleet))
+                is IDeviceFleet fleet)
+            rows.AddRange((await fleet.EnabledAsync(ct)).Select(d => {
                 var diag = dcm.DiagFor(d.Id);
                 int port = dcm.PortFor(d.Id);
                 return (object)new {

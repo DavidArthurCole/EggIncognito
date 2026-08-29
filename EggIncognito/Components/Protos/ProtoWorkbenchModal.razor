@@ -9,12 +9,11 @@
 @using System.Globalization
 @using System.Text
 @using System.Text.Json
-@using EggIncognito.Components.Shared.Workbench
+@using EggIdentity.UI
 @using EggIncognito.Core
-@using EggIncognito.Models.Registry
 @using EggIncognito.Core.Services.ProtoExtract
+@using EggIncognito.Models.Registry
 @using EggIncognito.Services.Protos
-@using EggIncognito.Services.Workbench
 @using Microsoft.AspNetCore.Components.Web.Virtualization
 @implements IAsyncDisposable
 
@@ -25,7 +24,12 @@
     var offerAllCount = groups.Count(CanOffer);
     var counterparts = CounterpartLinks();
     <WorkbenchModal Open="true" Title="Proto workbench" Size="WorkbenchSize.Wide" CardClass="pwb-card"
-                    BodyId="wbDrop" Notice="@Notice" NoticeDismissed="DismissNotice" OnClose="Close">
+                    BodyId="wbDrop" OnClose="Close">
+    <Notice>
+        @if (_notice is { } n) {
+            <StatusNote Severity="@n.Severity" OnDismiss="DismissNotice">@n.Text</StatusNote>
+        }
+    </Notice>
     <HeadTools>
         @if (User.IsAtLeast(UserRole.Contributor)) {
             <button type="button" class="btn-mini @(_adminOpen ? "active" : "")"
@@ -35,7 +39,7 @@
         }
         @if (offerAllCount > 0) {
             <button type="button" class="btn-mini" disabled="@_offerBusy" @onclick="@(() => OfferAll(groups))">
-                <Icon Name="arrow-up" Class="icon-sm"/> Offer all (@offerAllCount)
+                <EggIncognito.Components.Shared.Icon Name="arrow-up" Class="icon-sm"/> Offer all (@offerAllCount)
             </button>
         }
     </HeadTools>
@@ -72,7 +76,7 @@
                                     aria-label="Conditions"
                                     aria-expanded="@(_filterOpen ? "true" : "false")"
                                     @onclick="@(() => _filterOpen = !_filterOpen)">
-                                <Icon Name="filter" Class="icon-sm"/>
+                                <EggIncognito.Components.Shared.Icon Name="filter" Class="icon-sm"/>
                             </button>
                         </div>
                         @if (_filterOpen) {
@@ -88,7 +92,7 @@
                                         <span class="pwb-cond-text">@line.Text</span>
                                         <button type="button" class="wb-x" aria-label="Remove condition"
                                                 @onclick="@(() => RemoveCondition(line.Group, line.Index))">
-                                            <Icon Name="x" Class="icon-sm"/>
+                                            <EggIncognito.Components.Shared.Icon Name="x" Class="icon-sm"/>
                                         </button>
                                     </div>
                                 }
@@ -133,7 +137,7 @@
                                     <VersionLine App="@g.AppVersion" Build="@g.Build" Client="@g.ClientVersionText"/>
                                     @if (g is { Conflict: false, Status.Offerable: true }) {
                                         <span>
-                                            <Icon Name="arrow-up" Class="icon-sm wb-st-offer"/>
+                                            <EggIncognito.Components.Shared.Icon Name="arrow-up" Class="icon-sm wb-st-offer"/>
                                         </span>
                                     } else {
                                         <span class="pwb-note-inline @GroupStatusTone(g)">@GroupStatusText(g)</span>
@@ -141,7 +145,7 @@
                                     @if (g.Status is { Failed: true }) {
                                         <button type="button" class="btn-mini ml-auto" aria-label="Retry check"
                                                 @onclick="@(() => RetryCheck(g))">
-                                            <Icon Name="refresh" Class="icon-sm"/> Retry
+                                            <EggIncognito.Components.Shared.Icon Name="refresh" Class="icon-sm"/> Retry
                                         </button>
                                     }
                                 </div>
@@ -179,7 +183,7 @@
             </div>
             <button type="button" class="pwb-swap" aria-label="Swap A and B"
                     disabled="@(State.B is null)" @onclick="SwapRefs">
-                <Icon Name="swap" Class="icon-sm"/>
+                <EggIncognito.Components.Shared.Icon Name="swap" Class="icon-sm"/>
             </button>
             <div class="@SlotClass(State.B)">
                 <VersionCombo Label="B" Items="ComboItems(State.A)" Selected="@State.B?.Format()"
@@ -234,7 +238,7 @@
                         <span class="pwb-note-inline pwb-err">check failed</span>
                         <button type="button" class="btn-mini" aria-label="Retry check"
                                 @onclick="@(() => RetryCheck(selGroup))">
-                            <Icon Name="refresh" Class="icon-sm"/> Retry
+                            <EggIncognito.Components.Shared.Icon Name="refresh" Class="icon-sm"/> Retry
                         </button>
                     } else if (selGroup?.Status is { Pending: true } or { Offered: true }) {
                         <span class="pwb-note-inline pwb-warn">pending review</span>
@@ -249,7 +253,7 @@
                     @if (selGroup is { } sg && CanOffer(sg)) {
                         <button type="button" class="btn-mini" disabled="@_offerBusy"
                                 @onclick="@(() => Offer(sg))">
-                            <Icon Name="arrow-up" Class="icon-sm"/> Offer
+                            <EggIncognito.Components.Shared.Icon Name="arrow-up" Class="icon-sm"/> Offer
                         </button>
                     }
                 }
@@ -259,11 +263,11 @@
             <WorkbenchModes Modes="State.Modes" Current="@State.Mode" CurrentChanged="SetMode" Disabled="ModeDisabled"/>
             <button type="button" class="btn-mini" aria-label="Older version"
                     disabled="@(StepRef(1) is null)" @onclick="@(() => SetA(StepRef(1)))">
-                <Icon Name="chevronLeft" Class="icon-sm"/>
+                <EggIncognito.Components.Shared.Icon Name="chevronLeft" Class="icon-sm"/>
             </button>
             <button type="button" class="btn-mini" aria-label="Newer version"
                     disabled="@(StepRef(-1) is null)" @onclick="@(() => SetA(StepRef(-1)))">
-                <Icon Name="chevronRight" Class="icon-sm"/>
+                <EggIncognito.Components.Shared.Icon Name="chevronRight" Class="icon-sm"/>
             </button>
             <div class="pwb-menu-wrap">
                 <button type="button" class="pwb-menu-btn" aria-haspopup="true" disabled="@(State.A is null)"
@@ -454,12 +458,10 @@
     bool _degraded;
     int _context = DefaultContext;
     int _hunk;
-    string? _notice;
+    (string Text, StatusNoteKind Severity)? _notice;
     List<int> _unifiedHunks = [];
 
     StagedEntry? Selected => State.Find(State.SelectedId);
-
-    WorkbenchNotice? Notice => _notice is { Length: > 0 } text ? new WorkbenchNotice(text) : null;
 
     RenderFragment Card(StagedEntry e, OfferGroup? g, bool grouped) => @<WorkbenchEntry @key="e.Id"
                                                                                         Selected="@(State.SelectedId == e.Id || RefMark(SessionRef(e)) == "A")"
@@ -486,7 +488,7 @@
                                                                                <button type="button" class="wb-x" aria-label="Remove"
                                                                                        @onclick:stopPropagation="true" @onkeydown:stopPropagation="true"
                                                                                        @onclick="@(() => Remove(e))">
-                                                                                   <Icon Name="x" Class="icon-sm"/>
+                                                                                   <EggIncognito.Components.Shared.Icon Name="x" Class="icon-sm"/>
                                                                                </button>
                                                                            </Trail>
                                                                            <MetaLine>
@@ -507,10 +509,10 @@
                                                                                }
                                                                                @if (!grouped && g is { Conflict: false, Status.Offerable: true }) {
                                                                                    <span>
-                                                                                       <Icon Name="arrow-up" Class="icon-sm wb-st-offer"/>
+                                                                                       <EggIncognito.Components.Shared.Icon Name="arrow-up" Class="icon-sm wb-st-offer"/>
                                                                                    </span>
                                                                                }
-                                                                               <Icon Name="clock" Class="icon-sm"/>
+                                                                               <EggIncognito.Components.Shared.Icon Name="clock" Class="icon-sm"/>
                                                                                <PlatformIcon Platform="@e.Platform"/>
                                                                            </Foot>
                                                                        </WorkbenchEntry>;
@@ -1153,13 +1155,13 @@
 
     async Task FallbackMissing() {
         if (State.B is { } b && IsUnknown(b)) {
-            _notice = $"{RefLabel(b)} is not available.";
+            _notice = ($"{RefLabel(b)} is not available.", StatusNoteKind.Info);
             State.B = null;
             State.Mode = "text";
         }
 
         if (State.A is not { } a || !IsUnknown(a)) return;
-        _notice = $"{RefLabel(a)} is not available.";
+        _notice = ($"{RefLabel(a)} is not available.", StatusNoteKind.Info);
         State.A = FallbackFor(a);
         if (State.A is not null) await ResolveText(State.A);
     }
@@ -1441,8 +1443,9 @@
     async Task SetCounterpart(ProtoCounterpart? link) {
         if (link is null) return;
         if (link.Row is not { } row) {
-            _notice = $"No {link.Platform} counterpart for {RefLabel(State.A)}. "
-                      + $"Nothing stored for {link.Platform} shares its release, proto sha, app version or client version.";
+            _notice = ($"No {link.Platform} counterpart for {RefLabel(State.A)}. "
+                       + $"Nothing stored for {link.Platform} shares its release, proto sha, app version or client version.",
+                StatusNoteKind.Info);
             return;
         }
 

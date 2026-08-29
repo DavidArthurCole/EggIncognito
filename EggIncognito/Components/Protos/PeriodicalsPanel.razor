@@ -204,7 +204,7 @@
 
     bool _loaded;
     PeriodicalsSummary? _summary;
-    List<Season>? _seasons;
+    List<Models.Periodicals.Season>? _seasons;
     int _seasonIx;
     IJSObjectReference? _images;
 
@@ -253,27 +253,27 @@
         _seasonIx = Math.Clamp(_seasonIx + delta, 0, _seasons.Count - 1);
     }
 
-    static DateTimeOffset StartDate(Season s) {
+    static DateTimeOffset StartDate(Models.Periodicals.Season s) {
         return DateTimeOffset.FromUnixTimeSeconds((long)s.StartTime);
     }
 
-    static string StartLabel(Season s) {
+    static string StartLabel(Models.Periodicals.Season s) {
         var d = StartDate(s);
         var verb = d <= DateTimeOffset.UtcNow ? "Started" : "Starts";
         var derived = s.StartDerived ? " (derived)" : "";
         return $"{verb} {d.ToString("MMMM d, yyyy")}{derived}";
     }
 
-    static bool IsActive(Season s) {
+    static bool IsActive(Models.Periodicals.Season s) {
         var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         return s.StartTime <= now && now < s.NextStartTime;
     }
 
-    static string NextStartLabel(Season s) {
+    static string NextStartLabel(Models.Periodicals.Season s) {
         return DateTimeOffset.FromUnixTimeSeconds((long)s.NextStartTime).ToLocalTime().ToString("MMMM d");
     }
 
-    static string ContractsLeftLabel(Season s) {
+    static string ContractsLeftLabel(Models.Periodicals.Season s) {
         var nextLocal = DateTimeOffset.FromUnixTimeSeconds((long)s.NextStartTime).ToLocalTime();
         var mondays = MondaysBetween(DateTimeOffset.UtcNow.ToLocalTime(), nextLocal);
         return $"{mondays} {(mondays == 1 ? "contract" : "contracts")} left";
@@ -321,7 +321,7 @@
         };
     }
 
-    readonly Dictionary<string, BoostMeta> _boosts = new(StringComparer.Ordinal);
+    readonly Dictionary<string, Models.Periodicals.BoostMeta> _boosts = new(StringComparer.Ordinal);
 
     BoostMeta? BoostInfo(GoalRow g) {
         if (g.RewardType != "Boost" || string.IsNullOrEmpty(g.RewardSubType)) return null;

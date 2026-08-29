@@ -4,7 +4,6 @@
    token to the value instead of wrapping the selection. *@
 @using System.Net.Http.Headers
 @using System.Text.Json
-@using EggIncognito.Models.Docs
 @inherits SelfCallComponentBase
 @inject ICurrentUser User
 
@@ -135,7 +134,7 @@
             content.Add(part, "file", file.Name);
             var res = await Client().PostAsync("/api/docs/image", content);
             if (res.IsSuccessStatusCode) {
-                var data = await res.Content.ReadFromJsonAsync<ImageResult>(JsonOpts);
+                var data = await res.Content.ReadFromJsonAsync<Models.Docs.ImageResult>(JsonOpts);
                 _value += $"\n![{file.Name}]({data?.Url})\n";
                 SetStatus("Image inserted.", StatusNoteKind.Ok);
             } else {

@@ -3,6 +3,7 @@ using EggIncognito.Data.Services;
 using EggIncognito.Models.Events;
 using EggIncognito.Services.Auth;
 using EggIncognito.Services.Events;
+using EggIncognito.Services.Predictions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -14,6 +15,7 @@ namespace EggIncognito.Controllers;
 [ApiAccess(ApiAccessLevel.Public)]
 public sealed class EventsController(IServiceProvider services) : ControllerBase {
     private EggIncognitoDbContext? Db => services.GetService(typeof(EggIncognitoDbContext)) as EggIncognitoDbContext;
+    private EventPredictor? Predictor => services.GetService(typeof(EventPredictor)) as EventPredictor;
 
     [HttpGet]
     [EnableRateLimiting("read")]
@@ -57,6 +59,15 @@ public sealed class EventsController(IServiceProvider services) : ControllerBase
         var rows = await q.OrderByDescending(e => e.StartTime).ThenByDescending(e => e.Id)
             .Skip(offset).Take(limit).ToListAsync(ct);
         return Ok(new GameEventListResponse(total, rows.Select(ToDto).ToList()));
+    }
+
+    [HttpGet("predictions")]
+    [EnableRateLimiting("read")]
+    [ApiAccess(ApiAccessLevel.Admin)]
+    public async Task<IActionResult> Predictions(CancellationToken ct) {
+        var predictor = Predictor;
+        if (predictor is null) return StatusCode(503, new { error = "no database configured" });
+        return Ok(await predictor.GetAsync(ct));
     }
 
     internal static GameEventDto ToDto(GameEvent e) => new(

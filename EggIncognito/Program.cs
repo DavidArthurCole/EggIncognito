@@ -40,6 +40,7 @@ builder.AddIdentityServices(boot);
 builder.AddBotServices(boot);
 builder.AddSyncIngest(boot);
 builder.AddDatabaseStores(boot);
+builder.AddContributionServices(boot);
 builder.AddCaptureServices(boot);
 builder.AddDeviceServices(boot);
 

@@ -1,0 +1,62 @@
+@rendermode @(RenderMode.InteractiveServer)
+@using EggIncognito.Models.Contributions
+@inherits BrowserApiComponentBase
+
+<AdminCard Title="Contributions" Stat="@StatText" OnOpened="Load">
+    <Summary>
+        @if (_counts is null) {
+            <div class="text-xs text-muted">no data</div>
+        } else {
+            <div class="text-xs text-muted">
+                @_counts.Approved.ToString("N0") accepted &middot; @_counts.Rejected.ToString("N0") rejected
+            </div>
+            <div class="admin-card-extra text-xs text-muted">
+                @Contributors contributor@(Contributors == 1 ? "" : "s") waiting
+            </div>
+            @foreach (var t in _tallies.Take(3)) {
+                <div class="admin-card-extra text-xs text-muted">
+                    <span class="truncate">@Short(t.ContributorUserId) &middot; @t.Kind</span>
+                    <span>@t.Submitted.ToString("N0")</span>
+                </div>
+            }
+
+            @if (Oldest is { } oldest) {
+                <div class="admin-card-extra text-xs text-muted">oldest <TimeAgo Value="@oldest" Hover="false"/></div>
+            }
+        }
+    </Summary>
+    <Detail>
+        <ContributionReviewPanel @ref="_review" OnChanged="Load"/>
+    </Detail>
+</AdminCard>
+
+@code {
+    ContributionCountsDto? _counts;
+    List<ContributionTallyDto> _tallies = [];
+    ContributionReviewPanel? _review;
+
+    string StatText => (_counts?.Submitted ?? 0).ToString();
+
+    int Contributors => _tallies.Select(t => t.ContributorUserId).Distinct().Count();
+
+    DateTimeOffset? Oldest => _tallies.Count == 0 ? null : _tallies.Min(t => t.Oldest);
+
+    static string Short(Guid id) {
+        return id.ToString("N")[..8];
+    }
+
+    protected override async Task OnApiReadyAsync() {
+        await Load();
+    }
+
+    async Task Load() {
+        if (Api is null) return;
+        var res = await Api.GetAsync("/api/contributions/tallies");
+        if (!res.Ok) return;
+        var dto = res.Json<ContributionTalliesDto>();
+        if (dto is null) return;
+        _counts = dto.Counts;
+        _tallies = [.. dto.Tallies];
+    }
+
+}

@@ -34,25 +34,26 @@
                             @foreach (var lane in row.Lanes) {
                                 <div class="evcal-lane">
                                     @foreach (var bar in lane) {
+                                        var e = bar.Item.Event!;
                                         <Tooltip Class="evcal-bar-tip" Style="@BarStyle(bar)">
                                             <ChildContent>
                                                 <button type="button" class="@BarCss(bar)"
                                                         @onclick="@(() => OnOpen.InvokeAsync())">
-                                                    @if (EventPalette.IconUrl(bar.Event.Type, bar.Event.Ultra) is { } iconUrl) {
+                                                    @if (EventPalette.IconUrl(e.Type, e.Ultra) is { } iconUrl) {
                                                         <img class="evcal-bar-icon" src="@iconUrl" alt="" loading="lazy"
                                                              data-fallback/>
                                                     }
 
-                                                    <span class="evcal-bar-label">@EventMagnitude.Scalar(bar.Event)</span>
+                                                    <span class="evcal-bar-label">@EventMagnitude.Scalar(e)</span>
                                                 </button>
                                             </ChildContent>
                                             <Tip>
-                                                <span class="tt-title">@Label(bar.Event)</span>
-                                                @if (bar.Event.Ultra) {
+                                                <span class="tt-title">@Label(e)</span>
+                                                @if (e.Ultra) {
                                                     <span class="tt-ultra">ULTRA ONLY</span>
                                                 }
 
-                                                <span class="tt-line">@Countdown(bar.Event)</span>
+                                                <span class="tt-line">@Countdown(e)</span>
                                             </Tip>
                                         </Tooltip>
                                     }
@@ -120,7 +121,7 @@
             return;
         }
 
-        _rows = EventCalendarLayout.Rows(events, _start, _end, EventCalendarZoom.Week, now);
+        _rows = EventCalendarLayout.Rows([.. events.Select(Item)], _start, _end, EventCalendarZoom.Week, now);
         _days = _rows.Count > 0 ? _rows[0].Cells : [];
         if (_rows.All(r => r.Lanes.Count == 0)) _note = "No events in the last three weeks.";
     }
@@ -157,8 +158,21 @@
     }
 
     static string BarStyle(EventCalendarBar bar) {
+        var e = bar.Item.Event!;
         return FormattableString.Invariant($"--bar-start:{bar.LeftPercent:0.###};--bar-size:{bar.WidthPercent:0.###};")
-               + EventPalette.BarStyle(bar.Event.Type, bar.Event.Ultra);
+               + EventPalette.BarStyle(e.Type, e.Ultra);
+    }
+
+    static CalendarItem Item(GameEventDto e) {
+        return new CalendarItem(
+            FormattableString.Invariant($"{e.Id}@{e.StartTimestamp:0}"),
+            e.StartTimestamp,
+            e.EndTimestamp,
+            CalendarItemKind.Event,
+            e,
+            null,
+            null,
+            null);
     }
 
     static string TickStyle(double leftPercent) {

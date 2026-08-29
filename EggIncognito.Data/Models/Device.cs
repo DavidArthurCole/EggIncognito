@@ -10,5 +10,6 @@ public sealed class Device {
     [Column("target")] public string Target { get; set; } = "";
     [Column("package")] public string Package { get; set; } = "com.auxbrain.egginc";
     [Column("enabled")] public bool Enabled { get; set; } = true;
+    [Column("origin")] public string Origin { get; set; } = DeviceOrigins.Runtime;
     [Column("created_at")] public DateTimeOffset CreatedAt { get; set; }
 }

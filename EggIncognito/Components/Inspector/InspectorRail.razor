@@ -1,8 +1,6 @@
-@using EggIncognito.Components.Shared.Workbench
+@using EggIdentity.UI
 @using EggIncognito.Models.Inspector
 @using EggIncognito.Services.Api
-@using EggIncognito.Services.Inspector
-@using EggIncognito.Services.Workbench
 @using Microsoft.AspNetCore.Components.Web.Virtualization
 @inject IRouteCatalog Catalog
 @inject IProtoReflection Reflection
@@ -10,15 +8,15 @@
 <div class="insp-rail-top">
     <a class="icon-btn icon-btn-sm" href="/api/tools/postman-collection" download
        aria-label="Download Postman collection">
-        <Icon Name="postman"/>
+        <EggIncognito.Components.Shared.Icon Name="postman"/>
     </a>
     <button type="button" class="icon-btn icon-btn-sm @(StatusLoading ? "spinning" : "")"
             aria-label="Endpoint status" @onclick="OnOpenStatus">
-        <Icon Name="refresh"/>
+        <EggIncognito.Components.Shared.Icon Name="refresh"/>
     </button>
     <button type="button" class="icon-btn icon-btn-sm ml-auto"
             aria-label="Inspector settings" @onclick="OnOpenSettings">
-        <Icon Name="gear"/>
+        <EggIncognito.Components.Shared.Icon Name="gear"/>
     </button>
 </div>
 
@@ -48,7 +46,7 @@
                         <span class="ep-name">@row.Label</span>
                         @if (row.Route.RequestWrapped) {
                             <span class="ep-signed">
-                                <Icon Name="lock" Class="icon-sm"/>
+                                <EggIncognito.Components.Shared.Icon Name="lock" Class="icon-sm"/>
                             </span>
                         }
                     </div>
@@ -87,7 +85,9 @@
     string EndpointsLabel => $"Endpoints ({Routes().Count})";
     string HistoryLabel => State.History.Count > 0 ? $"History ({State.History.Count})" : "History";
 
-    List<RouteInfo> Routes() => _routes ??= Catalog.All().ToList();
+    List<RouteInfo> Routes() {
+        return _routes ??= Catalog.All().ToList();
+    }
 
     void OnFilterChanged(string value) {
         State.RailFilter = value;

@@ -1,6 +1,7 @@
 @* The middle flow list: row construction (time, path, known dot, outcome tag, status badge, type
    chips), filters (group/path/type), select, and device-aware empty state. *@
 @using System.Globalization
+@using EggIdentity.UI
 @using EggIncognito.Capture
 @implements IAsyncDisposable
 @inject IJSRuntime JS
@@ -52,7 +53,7 @@
                 }
             </div>
             <button type="button" class="icon-btn icon-btn-sm" aria-label="Reset all filters" @onclick="ClearFilters">
-                <Icon Name="x"/>
+                <EggIncognito.Components.Shared.Icon Name="x"/>
             </button>
         </div>
     </div>
@@ -100,6 +101,7 @@
     [Parameter] public bool Connected { get; set; }
     [Parameter] public CaptureViewState View { get; set; } = new();
     [Parameter] public EventCallback<long> OnSelect { get; set; }
+    [Parameter] public Func<DashboardFlow, bool>? CanSelect { get; set; }
 
     static readonly TimeSpan BurstGap = TimeSpan.FromSeconds(3);
 
@@ -215,34 +217,45 @@
         return true;
     }
 
-    RenderFragment Row(DashboardFlow flow) => @<div class="flow-row @(SelectedId == flow.Id ? "active" : "") @(Matches(flow) ? "" : "filtered-out")"
-                                                    @onclick="@(() => OnSelect.InvokeAsync(flow.Id))">
-                                                  @{
-                                                      var noReqBody = string.IsNullOrEmpty(flow.RequestDataB64);
-                                                      var outcome = View.CompareToKnown ? CaptureHelpers.Outcome(flow.Outcome) : null;
-                                                      var reqType = flow.RequestType ?? (noReqBody ? "(none)" : "(unknown)");
-                                                      var respType = flow.ResponseType ?? "(unknown)";
-                                                  }
-                                                  <span class="fseq">#@flow.Id</span>
-                                                  <span class="ftime">@flow.Timestamp</span>
-                                                  <span class="fpath">@flow.Path</span>
-                                                  <span class="ftypes">
-                                                      <span class="@(flow.RequestType is null ? "unknown" : "")">@reqType</span>
-                                                      <span class="type-arrow">›</span>
-                                                      <span class="@(flow.ResponseType is null ? "unknown" : "")">@respType</span>
-                                                  </span>
-                                                  @if (flow.Known || flow.Saved) {
-                                                      <span class="known-dot"></span>
-                                                  }
-                                                  @if (outcome is not null) {
-                                                      @OutcomeTag(flow, outcome)
-                                                  }
-                                                  @if (flow.Status is >= 200 and < 300) {
-                                                      <span class="status-dot"></span>
-                                                  } else {
-                                                      <span class="status-badge @CaptureHelpers.StatusClass(flow.Status)">@flow.Status</span>
-                                                  }
-                                              </div>;
+    RenderFragment Row(DashboardFlow flow) => Selectable(flow)
+        ? @<div class="flow-row @(SelectedId == flow.Id ? "active" : "") @(Matches(flow) ? "" : "filtered-out")"
+                @onclick="@(() => OnSelect.InvokeAsync(flow.Id))">
+              @RowBody(flow)
+          </div>
+        : @<div class="flow-row flow-row-locked @(Matches(flow) ? "" : "filtered-out")"
+                title="Detail for this request is not available in limited capture.">
+              @RowBody(flow)
+          </div>;
+
+    bool Selectable(DashboardFlow flow) => CanSelect is null || CanSelect(flow);
+
+    RenderFragment RowBody(DashboardFlow flow) => @<text>
+                                                       @{
+                                                           var noReqBody = string.IsNullOrEmpty(flow.RequestDataB64);
+                                                           var outcome = View.CompareToKnown ? CaptureHelpers.Outcome(flow.Outcome) : null;
+                                                           var reqType = flow.RequestType ?? (noReqBody ? "(none)" : "(unknown)");
+                                                           var respType = flow.ResponseType ?? "(unknown)";
+                                                       }
+                                                       <span class="fseq">#@flow.Id</span>
+                                                       <span class="ftime">@flow.Timestamp</span>
+                                                       <span class="fpath">@flow.Path</span>
+                                                       <span class="ftypes">
+                                                           <span class="@(flow.RequestType is null ? "unknown" : "")">@reqType</span>
+                                                           <span class="type-arrow">›</span>
+                                                           <span class="@(flow.ResponseType is null ? "unknown" : "")">@respType</span>
+                                                       </span>
+                                                       @if (flow.Known || flow.Saved) {
+                                                           <span class="known-dot"></span>
+                                                       }
+                                                       @if (outcome is not null) {
+                                                           @OutcomeTag(flow, outcome)
+                                                       }
+                                                       @if (flow.Status is >= 200 and < 300) {
+                                                           <span class="status-dot"></span>
+                                                       } else {
+                                                           <span class="status-badge @CaptureHelpers.StatusClass(flow.Status)">@flow.Status</span>
+                                                       }
+                                                   </text>;
 
     RenderFragment OutcomeTag(DashboardFlow flow, CaptureHelpers.OutcomeMeta meta) => builder => {
         var seq = 0;

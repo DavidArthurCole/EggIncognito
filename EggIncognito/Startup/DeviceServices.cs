@@ -16,6 +16,9 @@ public static class DeviceServices {
         builder.Services.AddSingleton(boot.DeviceRecertConfig);
         builder.Services.AddSingleton(boot.DeviceCaptureConfig);
         builder.Services.AddSingleton(boot.DeviceTransportConfig);
+        builder.Services.AddSingleton<IDeviceFleet>(sp => new DeviceFleet(
+            sp.GetRequiredService<IServiceScopeFactory>(), boot.DeviceConfig,
+            boot.DbEnabled && !boot.FakeDevices));
         if (boot.DbEnabled) builder.Services.AddScoped<DeviceRecertService>();
 
         int probeTimeoutSeconds = config.GetValue("DeviceProbe:TimeoutSeconds", 0);
@@ -35,8 +38,7 @@ public static class DeviceServices {
             builder.Services.AddHttpClient<IDeviceAgentClient, DeviceAgentClient>();
         }
 
-        if (boot.DeviceConfig.Enabled && boot.DeviceConfig.Devices.Count > 0)
-            builder.Services.AddHostedService<DeviceMaintenanceService>();
+        if (boot.DeviceConfig.Enabled) builder.Services.AddHostedService<DeviceMaintenanceService>();
 
         builder.Services.AddSingleton<DeviceClaimRegistry>();
         builder.Services.AddHttpClient();
@@ -87,7 +89,8 @@ public static class DeviceServices {
                 ? sp.GetRequiredService<FakeCaptureProxyFactory>().Create
                 : null;
             return new DeviceCaptureManager(
-                boot.DeviceCaptureConfig, boot.DeviceConfig, capturePath, caPath, proxyFactory, contentRoot,
+                boot.DeviceCaptureConfig, sp.GetRequiredService<IDeviceFleet>(), capturePath, caPath, proxyFactory,
+                contentRoot,
                 sp.GetRequiredService<ILogger<DeviceCaptureManager>>(),
                 sp.GetServices<IDeviceCaInstaller>(),
 #pragma warning disable IDE0028
@@ -100,7 +103,7 @@ public static class DeviceServices {
                 sp.GetService<ConsumeObservationRecorder>());
         });
         builder.Services.AddSingleton<DeviceProxyPusher>();
-        if (boot.DeviceCaptureConfig.Enabled && boot.DeviceConfig.Devices.Count > 0)
+        if (boot.DeviceCaptureConfig.Enabled)
             builder.Services.AddHostedService(sp => sp.GetRequiredService<DeviceCaptureManager>());
     }
 

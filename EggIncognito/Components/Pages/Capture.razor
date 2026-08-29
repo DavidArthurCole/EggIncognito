@@ -86,7 +86,7 @@
     readonly CaptureViewState _view = new();
 
     readonly List<NoticeItem> _notices = [];
-    readonly List<ToastItem> _toasts = [];
+    readonly List<Models.Capture.ToastItem> _toasts = [];
     int _unread;
     int _nextNoticeId = 1;
     int _nextToastId = 1;
@@ -102,12 +102,10 @@
 
     [Parameter] public string? DeviceId { get; set; }
 
-    protected override void OnInitialized() {
-        base.OnInitialized();
-
+    protected override async Task OnInitializedAsync() {
         if (string.IsNullOrEmpty(DeviceId)) return;
 
-        ResolveDeviceSession();
+        await ResolveDeviceSessionAsync();
         if (_hub is null) return;
 
         foreach (var f in _hub.Snapshot()) AddOrUpdateFlow(f);
@@ -116,14 +114,19 @@
         foreach (var k in CaptureController_SensitiveKeys()) _view.SensitiveKeys.Add(k);
     }
 
-    void ResolveDeviceSession() {
+    async Task ResolveDeviceSessionAsync() {
         if (!User.IsAtLeast(UserRole.Admin)) return;
         var dcm = Services.GetService(typeof(DeviceCaptureManager)) as DeviceCaptureManager;
         var hub = dcm?.HubFor(DeviceId!);
         if (hub is null) return;
         _hub = hub;
-        var cfg = Services.GetService(typeof(DeviceConfig)) as DeviceConfig;
-        _deviceLabel = cfg?.Devices.FirstOrDefault(d => d.Id == DeviceId)?.Label ?? DeviceId;
+        _deviceLabel = await DeviceLabelAsync() ?? DeviceId;
+    }
+
+    async Task<string?> DeviceLabelAsync() {
+        if (Services.GetService(typeof(IDeviceFleet)) is not IDeviceFleet fleet) return null;
+        var devices = await fleet.EnabledAsync(CancellationToken.None);
+        return devices.FirstOrDefault(d => d.Id == DeviceId)?.Label;
     }
 
     static IEnumerable<string> CaptureController_SensitiveKeys() {

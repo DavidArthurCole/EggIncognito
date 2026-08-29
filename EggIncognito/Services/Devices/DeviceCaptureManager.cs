@@ -9,7 +9,7 @@ namespace EggIncognito.Services.Devices;
 
 public sealed class DeviceCaptureManager(
     DeviceCaptureConfig config,
-    DeviceConfig devices,
+    IDeviceFleet fleet,
     string capturePath,
     string caPath,
     Func<bool, ICaptureProxy>? proxyFactory,
@@ -22,17 +22,21 @@ public sealed class DeviceCaptureManager(
     IProcessedFlowObserver? flowObserver = null) : IHostedService, IDisposable {
     public const int PortsPerDevice = 3;
 
+    private static readonly TimeSpan RescanInterval = TimeSpan.FromMinutes(1);
+
     private readonly Dictionary<string, IDeviceCaInstaller> _caInstallers =
         (caInstallers ?? []).GroupBy(c => c.Platform, StringComparer.OrdinalIgnoreCase)
         .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 
     private readonly ConcurrentDictionary<string, DeviceCapture> _captures = new();
     private readonly ConcurrentDictionary<string, DeviceCaptureDiag> _diag = new();
+    private readonly SemaphoreSlim _ensureGate = new(1, 1);
 
     private readonly Func<bool, ICaptureProxy> _proxyFactory =
         proxyFactory ?? (verbose => new NativeCaptureProxy(verbose));
 
     private CancellationTokenSource? _cts;
+    private Task? _rescan;
     public DeviceRinfoStore Rinfo { get; } = new(capturePath);
 
     public async Task StartAsync(CancellationToken cancellationToken) {
@@ -41,23 +45,52 @@ public sealed class DeviceCaptureManager(
             return;
         }
 
-        if (devices.Devices.Count == 0) {
-            logger.LogInformation("device capture: no devices declared");
-            return;
+        _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        try {
+            await EnsureAsync(_cts.Token);
+        } catch (OperationCanceledException) {
+            throw;
+        } catch (Exception ex) {
+            logger.LogWarning(ex, "device capture: initial device scan failed, the rescan loop will retry");
         }
 
-        _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        await EnsureAsync(_cts.Token);
+        _rescan = RescanLoopAsync(_cts.Token);
     }
 
     public async Task StopAsync(CancellationToken cancellationToken) {
-        _cts?.Cancel();
+        if (_cts is not null) await _cts.CancelAsync();
+        if (_rescan is not null) {
+            try {
+                await _rescan;
+            } catch (Exception ex) {
+                logger.LogDebug(ex, "device capture: rescan loop faulted during shutdown");
+            }
+        }
+
         foreach (string id in _captures.Keys.ToList()) await TeardownAsync(id);
     }
 
     public void Dispose() {
         _cts?.Dispose();
         _cts = null;
+        _ensureGate.Dispose();
+    }
+
+    private async Task RescanLoopAsync(CancellationToken ct) {
+        using var timer = new PeriodicTimer(RescanInterval);
+        try {
+            while (await timer.WaitForNextTickAsync(ct)) {
+                try {
+                    await EnsureAsync(ct);
+                } catch (OperationCanceledException) {
+                    throw;
+                } catch (Exception ex) {
+                    logger.LogWarning(ex, "device capture: device rescan pass failed, retrying next tick");
+                }
+            }
+        } catch (OperationCanceledException ex) {
+            logger.LogDebug(ex, "device capture: device rescan loop cancelled");
+        }
     }
 
     public int PortFor(string deviceId) => _captures.TryGetValue(deviceId, out var c) ? c.Port : 0;
@@ -73,11 +106,22 @@ public sealed class DeviceCaptureManager(
 
     public async Task EnsureAsync(CancellationToken ct) {
         if (!config.Enabled) return;
-        for (int i = 0; i < devices.Devices.Count; i++) {
-            var d = devices.Devices[i];
-            if (_captures.ContainsKey(d.Id)) continue;
-            await StartOneAsync(d, PortForIndex(config.BasePort, i), ct);
+        await _ensureGate.WaitAsync(ct);
+        try {
+            var taken = _captures.Values.Select(c => c.Port).ToHashSet();
+            foreach (var d in await fleet.EnabledAsync(ct)) {
+                if (_captures.ContainsKey(d.Id)) continue;
+                await StartOneAsync(d, TakePort(taken), ct);
+            }
+        } finally {
+            _ensureGate.Release();
         }
+    }
+
+    private int TakePort(HashSet<int> taken) {
+        int index = 0;
+        while (!taken.Add(PortForIndex(config.BasePort, index))) index++;
+        return PortForIndex(config.BasePort, index);
     }
 
     private async Task StartOneAsync(DeviceEntry d, int port, CancellationToken ct) {

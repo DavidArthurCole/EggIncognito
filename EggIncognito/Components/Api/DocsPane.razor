@@ -30,6 +30,7 @@
                 </div>
             </div>
         }
+
         break;
 }
 
@@ -41,10 +42,16 @@
 
     DocSubjectKind ParsedKind => DocSubjectKinds.Parse(State.DocsKind);
 
-    DocSubject? Subject() => string.IsNullOrEmpty(State.DocsKey) ? null : Registry.Find(State.DocsKind, State.DocsKey);
+    DocSubject? Subject() {
+        return string.IsNullOrEmpty(State.DocsKey) ? null : Registry.Find(State.DocsKind, State.DocsKey);
+    }
 
-    Task OnJumpEndpoint(RouteInfo e) => OnSelectSubject.InvokeAsync((DocSubjectKinds.Endpoint, e.Path));
+    Task OnJumpEndpoint(RouteInfo e) {
+        return OnSelectSubject.InvokeAsync((DocSubjectKinds.Endpoint, e.Path));
+    }
 
-    Task OnJumpMessage(string name) => OnSelectSubject.InvokeAsync((DocSubjectKinds.Message, name));
+    Task OnJumpMessage(string name) {
+        return OnSelectSubject.InvokeAsync((DocSubjectKinds.Message, name));
+    }
 
 }

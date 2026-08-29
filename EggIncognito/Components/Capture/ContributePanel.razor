@@ -1,0 +1,101 @@
+@using EggIncognito.Models.Contributions
+@inject ILogger<ContributePanel> Logger
+
+<section class="panel contribute-panel">
+    <div class="contribute-head">
+        <h2>Contribute</h2>
+        <span class="contribute-counts">
+            <span class="contribute-stat"><b>@_recorded</b> recorded</span>
+            <span class="contribute-stat"><b>@_submitted</b> awaiting review</span>
+            <span class="contribute-stat"><b>@_approved</b> accepted</span>
+        </span>
+    </div>
+
+    <p class="text-muted text-sm mt-0 mb-3">
+        Craft, consume and demote results are recorded locally to your account. Nothing is shared until you send it.
+        Sent rows are anonymous: the artifact, the outcome and the game version, with no player identifier.
+    </p>
+
+    @if (_note is not null) {
+        <div class="contribute-note" role="status">
+            <span>@_note</span>
+            <button type="button" class="icon-btn icon-btn-sm" aria-label="Dismiss" @onclick="@(() => _note = null)">
+                <Icon Name="x"/>
+            </button>
+        </div>
+    }
+
+    <div class="contribute-actions">
+        <button type="button" class="btn-primary" disabled="@(_busy || _recorded == 0)" @onclick="Send">
+            @(_busy ? "Sending..." : $"Send {_recorded} for review")
+        </button>
+        <button type="button" class="btn-secondary" disabled="@(_busy || _recorded == 0)" @onclick="Discard">
+            Discard
+        </button>
+    </div>
+</section>
+
+@code {
+    [Parameter] public Func<HttpClient> ClientFactory { get; set; } = () => new HttpClient();
+
+    int _recorded;
+    int _submitted;
+    int _approved;
+    bool _busy;
+    string? _note;
+
+    protected override async Task OnInitializedAsync() {
+        await RefreshAsync();
+    }
+
+    public async Task RefreshAsync() {
+        try {
+            var summary = await ClientFactory().GetFromJsonAsync<ContributionSummaryDto>("/api/contributions/summary");
+            if (summary is null) return;
+            _recorded = summary.Recorded;
+            _submitted = summary.Submitted;
+            _approved = summary.Approved;
+            StateHasChanged();
+        }
+        catch (Exception ex) {
+            Logger.LogDebug(ex, "contribution summary refresh failed");
+        }
+    }
+
+    async Task Send() {
+        _busy = true;
+        try {
+            var res = await ClientFactory().PostAsync("/api/contributions/submit", null);
+            _note = res.IsSuccessStatusCode
+                ? $"Sent {_recorded} observations for review. Thank you."
+                : "Could not send right now. Your recordings are still saved.";
+            await RefreshAsync();
+        }
+        catch (Exception ex) {
+            Logger.LogWarning(ex, "submitting contributions failed");
+            _note = "Could not send right now. Your recordings are still saved.";
+        }
+        finally {
+            _busy = false;
+            StateHasChanged();
+        }
+    }
+
+    async Task Discard() {
+        _busy = true;
+        try {
+            await ClientFactory().PostAsync("/api/contributions/discard", null);
+            _note = "Discarded your unsent recordings.";
+            await RefreshAsync();
+        }
+        catch (Exception ex) {
+            Logger.LogWarning(ex, "discarding contributions failed");
+            _note = "Could not discard right now.";
+        }
+        finally {
+            _busy = false;
+            StateHasChanged();
+        }
+    }
+
+}

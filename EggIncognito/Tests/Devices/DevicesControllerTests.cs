@@ -1,5 +1,6 @@
 using EggIdentity.Contract;
 using EggIncognito.Controllers;
+using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using EggIncognito.Services;
@@ -147,6 +148,45 @@ public class DevicesControllerTests {
         Assert.NotNull(ok.Value);
     }
 
+    [Fact]
+    public async Task TransportClaim_DeviceKnownOnlyToTheFleet_Claims() {
+        var claims = new DeviceClaimRegistry(TimeProvider.System);
+        var sp = new ServiceCollection()
+            .AddSingleton(new DeviceTransportConfig { BridgeEnabled = true })
+            .AddSingleton(claims)
+            .AddSingleton<IDeviceFleet>(new FakeFleet("runtime-1"))
+            .BuildServiceProvider();
+        var c = Make(UserRole.Admin, sp);
+
+        var r = await c.TransportClaim("runtime-1", null);
+
+        Assert.IsType<OkObjectResult>(r);
+        Assert.True(claims.IsHeld("runtime-1"));
+    }
+
+    [Fact]
+    public void TransportRelease_DeviceNoLongerInTheFleet_StillReleasesTheClaim() {
+        var claims = new DeviceClaimRegistry(TimeProvider.System);
+        claims.Claim("retired-1", TimeSpan.FromMinutes(5));
+        var sp = new ServiceCollection()
+            .AddSingleton(new DeviceTransportConfig { BridgeEnabled = true })
+            .AddSingleton(claims)
+            .AddSingleton<IDeviceFleet>(new FakeFleet("runtime-1"))
+            .BuildServiceProvider();
+        var c = Make(UserRole.Admin, sp);
+
+        var r = c.TransportRelease("retired-1");
+
+        Assert.IsType<OkObjectResult>(r);
+        Assert.False(claims.IsHeld("retired-1"));
+    }
+
+    private sealed class FakeFleet(params string[] ids) : IDeviceFleet {
+        public Task<IReadOnlyList<DeviceEntry>> EnabledAsync(CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<DeviceEntry>>(
+                [.. ids.Select(id => new DeviceEntry(id, "android", id, "serial", "com.auxbrain.egginc"))]);
+    }
+
     private sealed class FakeAgent(bool enabled = true) : IDeviceAgentClient {
         public bool Enabled => enabled;
 
@@ -161,7 +201,7 @@ public class DevicesControllerTests {
 
     private sealed class FakeDeviceStore : IDeviceStatusStore {
         public Task UpsertDeviceAsync(string id, string platform, string label, string target, string package,
-            CancellationToken ct = default) => Task.CompletedTask;
+            string origin = DeviceOrigins.Runtime, CancellationToken ct = default) => Task.CompletedTask;
 
         public Task<List<Device>> EnabledDevicesAsync(CancellationToken ct = default) =>
             Task.FromResult(new List<Device>());

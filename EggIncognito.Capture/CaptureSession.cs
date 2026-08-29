@@ -17,7 +17,9 @@ public sealed record CaptureSessionStatus(
     int Port,
     int ActiveClients,
     string? RootThumbprint,
-    bool CaDmFailed = false);
+    bool CaDmFailed = false,
+    CaptureTier Tier = CaptureTier.Full,
+    IReadOnlyList<string>? FullDetailRoutes = null);
 
 public sealed class CaptureSession(
     string contentRoot,
@@ -53,7 +55,8 @@ public sealed class CaptureSession(
     public bool CaDmFailed { get; set; }
 
     public CaptureSessionStatus Status =>
-        new(State == CaptureState.Running, opts.Port, _activeClients, _proxy?.RootThumbprint, CaDmFailed);
+        new(State == CaptureState.Running, opts.Port, _activeClients, _proxy?.RootThumbprint, CaDmFailed,
+            opts.Tier, [.. opts.FullDetailRoutes.OrderBy(r => r, StringComparer.Ordinal)]);
 
     public async Task<CaptureStartResult> StartAsync(CancellationToken ct) {
         lock (_gate) {
@@ -90,8 +93,11 @@ public sealed class CaptureSession(
             _consumer = pipeline.StartPump(Hub, Now,
                 _ => LastFlowUtc = DateTimeOffset.UtcNow,
                 obs => liveVersions.Observe(obs, DateTimeOffset.UtcNow.ToString("O")),
-                null,
-                ct);
+                ContributionSink(),
+                ct,
+                opts.Tier == CaptureTier.Limited
+                    ? flow => LimitedFlowProjector.Project(flow, opts.FullDetailRoutes)
+                    : null);
 
             await proxy.StartAsync(opts.Port, opts.CaPath, ct);
             lock (_gate) State = CaptureState.Running;
@@ -173,6 +179,21 @@ public sealed class CaptureSession(
         }
     }
 
+
+    public CaptureTier Tier => opts.Tier;
+
+    public bool AllowsDetail(string path) =>
+        opts.Tier == CaptureTier.Full || opts.FullDetailRoutes.Contains(path);
+
+    public Guid? ContributorUserId { get; set; }
+
+    private Action<DashboardFlow>? ContributionSink() {
+        if (opts.OnContribution is not { } sink) return null;
+        return flow => {
+            if (ContributorUserId is not { } userId) return;
+            if (opts.FullDetailRoutes.Contains(flow.Path)) sink(userId, flow);
+        };
+    }
 
     public (string? Json, string? Type, bool Known) Decode(string path, string responseB64) {
         var decoder = catalog is null ? new FlowDecoder(contentRoot) : new FlowDecoder(catalog);

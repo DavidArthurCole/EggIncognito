@@ -1,4 +1,4 @@
-using EggIncognito.Services.Workbench;
+using EggIdentity.UI;
 
 namespace EggIncognito.Services.Notifications;
 
@@ -14,7 +14,7 @@ public sealed class NotificationDraft {
 }
 
 public sealed class NotificationsWorkbenchState : WorkbenchStateBase {
-    public override IReadOnlyList<WorkbenchMode> Modes { get; } = [];
+    public override IReadOnlyList<(string Key, string Label, int? Count)> Modes { get; } = [];
 
     public override string HashPrefix => "notify";
 

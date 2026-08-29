@@ -1,7 +1,7 @@
 namespace EggIncognito.Models.Events;
 
 public sealed record EventCalendarBar(
-    GameEventDto Event,
+    CalendarItem Item,
     int Lane,
     double LeftPercent,
     double WidthPercent,

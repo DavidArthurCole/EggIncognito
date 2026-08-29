@@ -37,7 +37,9 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
     public DbSet<PeriodicalsSnapshot> PeriodicalsSnapshots => Set<PeriodicalsSnapshot>();
 
     public DbSet<ArtifactConsumeObservation> ArtifactConsumeObservations => Set<ArtifactConsumeObservation>();
+    public DbSet<ContributedCapture> ContributedCaptures => Set<ContributedCapture>();
     public DbSet<GameEvent> GameEvents => Set<GameEvent>();
+    public DbSet<ContractRelease> ContractReleases => Set<ContractRelease>();
     public DbSet<GameDataDocument> GameDataDocuments => Set<GameDataDocument>();
     public DbSet<StoredBinary> StoredBinaries => Set<StoredBinary>();
     public DbSet<SymbolizedBinary> SymbolizedBinaries => Set<SymbolizedBinary>();
@@ -64,6 +66,15 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
             o.Property(x => x.OtherRewards).HasColumnType("jsonb").HasDefaultValueSql("'[]'");
             o.Property(x => x.ObservedAt).HasDefaultValueSql("now()");
             o.HasIndex(x => new { x.SpecName, x.SpecLevel, x.SpecRarity, x.Action });
+        });
+        modelBuilder.Entity<ContributedCapture>(c => {
+            c.HasKey(x => x.Id);
+            c.Property(x => x.Payload).HasColumnType("jsonb").HasDefaultValueSql("'{}'");
+            c.Property(x => x.RecordedAt).HasDefaultValueSql("now()");
+            c.HasIndex(x => new { x.ContributorUserId, x.Status });
+            c.HasIndex(x => new { x.Status, x.RecordedAt });
+            c.HasIndex(x => x.Kind);
+            c.HasIndex(x => new { x.ContributorUserId, x.DedupeHash }).IsUnique();
         });
         modelBuilder.Entity<RouteOverride>(r => r.HasKey(x => x.Path));
         modelBuilder.Entity<RouteBinaryCatalog>(r => r.HasKey(x => x.Path));
@@ -131,6 +142,7 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
         modelBuilder.Entity<Device>(e => {
             e.HasKey(x => x.Id);
             e.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
+            e.Property(x => x.Origin).HasDefaultValue(DeviceOrigins.Runtime);
         });
         modelBuilder.Entity<DeviceJob>(e => {
             e.HasKey(x => x.Id);
@@ -195,6 +207,12 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
             e.HasIndex(x => x.StartTime);
             e.HasIndex(x => new { x.EventType, x.StartTime });
             e.HasIndex(x => x.EventId);
+        });
+        modelBuilder.Entity<ContractRelease>(e => {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.ContractId);
+            e.HasIndex(x => x.StartTime);
+            e.HasIndex(x => new { x.ContractId, x.StartTime }).IsUnique();
         });
         modelBuilder.Entity<GameDataDocument>(e => {
             e.HasKey(x => x.Id);

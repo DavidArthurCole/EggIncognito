@@ -330,6 +330,183 @@ namespace EggIncognito.Data.Migrations
                     b.ToTable("capture_user_cas");
                 });
 
+            modelBuilder.Entity("EggIncognito.Data.Models.ContractRelease", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("ContractId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("contract_id");
+
+                    b.Property<bool>("CoopAllowed")
+                        .HasColumnType("boolean")
+                        .HasColumnName("coop_allowed");
+
+                    b.Property<string>("CustomEggId")
+                        .HasColumnType("text")
+                        .HasColumnName("custom_egg_id");
+
+                    b.Property<int>("Egg")
+                        .HasColumnType("integer")
+                        .HasColumnName("egg");
+
+                    b.Property<DateTimeOffset>("EndTime")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("end_time");
+
+                    b.Property<DateTimeOffset?>("FirstSeenAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("first_seen_at");
+
+                    b.Property<DateTimeOffset?>("LastSeenAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_seen_at");
+
+                    b.Property<bool>("Leggacy")
+                        .HasColumnType("boolean")
+                        .HasColumnName("leggacy");
+
+                    b.Property<double>("LengthSeconds")
+                        .HasColumnType("double precision")
+                        .HasColumnName("length_seconds");
+
+                    b.Property<int>("MaxCoopSize")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_coop_size");
+
+                    b.Property<double>("MinutesPerToken")
+                        .HasColumnType("double precision")
+                        .HasColumnName("minutes_per_token");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<int>("ProphecyEggs")
+                        .HasColumnType("integer")
+                        .HasColumnName("prophecy_eggs");
+
+                    b.Property<byte[]>("Proto")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("proto");
+
+                    b.Property<string>("SeasonId")
+                        .HasColumnType("text")
+                        .HasColumnName("season_id");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("source");
+
+                    b.Property<DateTimeOffset>("StartTime")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("start_time");
+
+                    b.Property<bool>("UltraOnly")
+                        .HasColumnType("boolean")
+                        .HasColumnName("ultra_only");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContractId");
+
+                    b.HasIndex("StartTime");
+
+                    b.HasIndex("ContractId", "StartTime")
+                        .IsUnique();
+
+                    b.ToTable("contract_releases");
+                });
+
+            modelBuilder.Entity("EggIncognito.Data.Models.ContributedCapture", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("ClientVersion")
+                        .HasColumnType("text")
+                        .HasColumnName("client_version");
+
+                    b.Property<Guid>("ContributorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("contributor_user_id");
+
+                    b.Property<string>("DedupeHash")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("dedupe_hash");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("payload")
+                        .HasDefaultValueSql("'{}'");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recorded_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("ReviewNote")
+                        .HasColumnType("text")
+                        .HasColumnName("review_note");
+
+                    b.Property<DateTimeOffset?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reviewed_at");
+
+                    b.Property<string>("ReviewedBy")
+                        .HasColumnType("text")
+                        .HasColumnName("reviewed_by");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("status");
+
+                    b.Property<DateTimeOffset?>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("submitted_at");
+
+                    b.Property<string>("Summary")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("summary");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Kind");
+
+                    b.HasIndex("ContributorUserId", "DedupeHash")
+                        .IsUnique();
+
+                    b.HasIndex("ContributorUserId", "Status");
+
+                    b.HasIndex("Status", "RecordedAt");
+
+                    b.ToTable("contributed_captures");
+                });
+
             modelBuilder.Entity("EggIncognito.Data.Models.Device", b =>
                 {
                     b.Property<string>("Id")
@@ -350,6 +527,13 @@ namespace EggIncognito.Data.Migrations
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("label");
+
+                    b.Property<string>("Origin")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("runtime")
+                        .HasColumnName("origin");
 
                     b.Property<string>("Package")
                         .IsRequired()

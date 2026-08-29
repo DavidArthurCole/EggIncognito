@@ -1,4 +1,5 @@
 using System.Reflection;
+using EggIdentity.UI;
 using EggIncognito.Components.Capture;
 using EggIncognito.Components.Inspector;
 using EggIncognito.Core.Services;
@@ -21,12 +22,15 @@ public sealed class ApiWorkbenchState : WorkbenchStateBase {
             .Select(f => f.GetCustomAttribute<OriginalNameAttribute>()?.Name ?? f.Name)
     ];
 
-    public override IReadOnlyList<WorkbenchMode> Modes { get; } = [
+    private static readonly IReadOnlyList<WorkbenchMode> RawModes = [
         new(ModeDocs, "Docs"),
         new(ModeApis, "APIs"),
         new(ModeData, "Data"),
         new(ModeCapture, "Capture")
     ];
+
+    public override IReadOnlyList<(string Key, string Label, int? Count)> Modes { get; } =
+        [.. RawModes.Select(m => (m.Key, m.Label, m.Count))];
 
     public override string DefaultMode => ModeApis;
 

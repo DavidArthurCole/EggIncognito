@@ -11,12 +11,20 @@ public sealed class DeviceRecertService(
     DeviceRecertConfig config,
     DeviceJobStore jobs,
     IDeviceConnectionFactory connections,
-    ILogger<DeviceRecertService> logger) {
+    ILogger<DeviceRecertService> logger,
+    IDeviceStatusStore? devices = null) {
     private readonly IDeviceUiDriver? _ui =
         uiDrivers.FirstOrDefault(u => Platforms.Matches(u.Platform, Platforms.Android));
 
+    private async Task<DeviceEntry?> FindAsync(string deviceId, CancellationToken ct) {
+        if (devices is null) return deviceConfig.Devices.FirstOrDefault(d => d.Id == deviceId);
+        if (await devices.GetAsync(deviceId, ct) is not { } row)
+            return deviceConfig.Devices.FirstOrDefault(d => d.Id == deviceId);
+        return row.Enabled ? new DeviceEntry(row.Id, row.Platform, row.Label, row.Target, row.Package) : null;
+    }
+
     public async Task<DeviceFlowResult> RecertAsync(string deviceId, string trigger, CancellationToken ct) {
-        var device = deviceConfig.Devices.FirstOrDefault(d => d.Id == deviceId);
+        var device = await FindAsync(deviceId, ct);
         if (device is null) return Refused("unknown device", "lookup");
         if (!Platforms.Matches(device.Platform, Platforms.Android)) return Refused("recert is android-only", "lookup");
 
@@ -56,7 +64,7 @@ public sealed class DeviceRecertService(
     }
 
     public async Task<string?> ReadExpiryAsync(string deviceId, CancellationToken ct) {
-        var device = deviceConfig.Devices.FirstOrDefault(d => d.Id == deviceId);
+        var device = await FindAsync(deviceId, ct);
         if (device is null || !Platforms.Matches(device.Platform, Platforms.Android)) return null;
         if (string.IsNullOrEmpty(config.KsuWebUiPackage)) return null;
 

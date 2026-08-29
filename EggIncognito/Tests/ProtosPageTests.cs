@@ -5,6 +5,7 @@ using EggIncognito.Core.Services;
 using EggIncognito.Services;
 using EggIncognito.Services.Api;
 using EggIncognito.Services.Devices;
+using EggIncognito.Services.Events;
 using EggIncognito.Services.Notifications;
 using EggIncognito.Services.Protos;
 using Microsoft.AspNetCore.Hosting;
@@ -57,6 +58,7 @@ public class ProtosPageTests {
             Services.AddScoped<DeviceWorkbenchState>();
             Services.AddScoped<NotificationsWorkbenchState>();
             Services.AddScoped<ApiWorkbenchState>();
+            Services.AddScoped<EventsWorkbenchState>();
             Services.AddHttpClient();
 
             JSInterop.Mode = JSRuntimeMode.Loose;

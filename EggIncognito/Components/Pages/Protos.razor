@@ -12,10 +12,12 @@
 @inject ProtoWorkbenchState State
 @inject NavigationManager Nav
 @using System.Text.Json
+@using EggIdentity.UI
 @using EggIncognito.Components.Api
+@using EggIncognito.Components.Events
 @using EggIncognito.Components.Protos
-@using EggIncognito.Models.Registry
 @using EggIncognito.Core.Services.ProtoExtract
+@using EggIncognito.Models.Registry
 @using EggIncognito.Services.Protos
 @implements IAsyncDisposable
 
@@ -89,12 +91,12 @@
                             <button type="button" class="reg-filter-clear" aria-label="Clear filters" @onclick="ClearFilters">×</button>
                         }
                         <label id="protoPageDrop" class="reg-drop" for="wbFile">
-                            <Icon Name="arrow-up" Class="icon-sm"/>
+                            <EggIncognito.Components.Shared.Icon Name="arrow-up" Class="icon-sm"/>
                             <span>Drop a build</span>
                         </label>
                         <button type="button" class="reg-intake"
                                 aria-label="Open the proto workbench" @onclick="@(() => _workbench?.Open())">
-                            <Icon Name="chevronRight" Class="icon-sm"/>
+                            <EggIncognito.Components.Shared.Icon Name="chevronRight" Class="icon-sm"/>
                         </button>
                         @if (_isAdmin) {
                             <button type="button" class="reg-add-toggle" aria-label="Add a version in the proto workbench"
@@ -297,7 +299,7 @@
 <ProtoWorkbenchModal @ref="_workbench" OnChanged="OnMutated" OnRefChanged="OnWorkbenchRef" OnClosed="OnWorkbenchClosed"/>
 <DeviceWorkbenchModal @ref="_deviceWorkbench" OnChanged="OnMutated"/>
 <ApiWorkbenchModal @ref="_apiWorkbench"/>
-<EventsCalendarModal @ref="_eventsModal"/>
+<EventsWorkbenchModal @ref="_eventsModal"/>
 <SupportModal @ref="_supportModal"/>
 <TermsModal @ref="_termsModal"/>
 <PrivacyModal @ref="_privacyModal"/>
@@ -306,7 +308,7 @@
     ProtoWorkbenchModal? _workbench;
     DeviceWorkbenchModal? _deviceWorkbench;
     ApiWorkbenchModal? _apiWorkbench;
-    EventsCalendarModal? _eventsModal;
+    EventsWorkbenchModal? _eventsModal;
     SupportModal? _supportModal;
     TermsModal? _termsModal;
     PrivacyModal? _privacyModal;
@@ -358,7 +360,7 @@
     bool _sortDesc = true;
 
     readonly List<SelectionKey> _selected = [];
-    List<MergeSuggestion> _suggestions = [];
+    List<Models.Registry.MergeSuggestion> _suggestions = [];
     StagedReviewPanel? _stagedPanel;
     NotificationsWorkbenchModal? _notificationsModal;
 
@@ -373,7 +375,7 @@
 
     [Parameter] public string? Path { get; set; }
 
-    EggIdentity.UI.PathRouteSync? _routeSync;
+    PathRouteSync? _routeSync;
 
     static string VersionHref(ProtoRegistryRow r) {
         return $"/protos/{r.Platform}/{Uri.EscapeDataString(r.Build)}";
@@ -426,7 +428,7 @@
 
         var parts = tail.Split('/');
         if (parts.Length >= 2 && parts[1].Length > 0
-            && ProtoRefParser.Known.Any(p => p.Equals(parts[0], StringComparison.OrdinalIgnoreCase))) {
+                              && ProtoRefParser.Known.Any(p => p.Equals(parts[0], StringComparison.OrdinalIgnoreCase))) {
             var build = Uri.UnescapeDataString(parts[1]);
             _workbench?.OpenAt(new ProtoRef(ProtoRefSource.Registry, parts[0], build, null), null, null);
             return;
@@ -435,9 +437,9 @@
         if (parts.Length == 1) {
             var seg = parts[0];
             var isRouteAction = seg.Equals("terms", StringComparison.OrdinalIgnoreCase)
-                                 || seg.Equals("privacy", StringComparison.OrdinalIgnoreCase)
-                                 || seg.Equals("support", StringComparison.OrdinalIgnoreCase)
-                                 || seg.Equals("add", StringComparison.OrdinalIgnoreCase);
+                                || seg.Equals("privacy", StringComparison.OrdinalIgnoreCase)
+                                || seg.Equals("support", StringComparison.OrdinalIgnoreCase)
+                                || seg.Equals("add", StringComparison.OrdinalIgnoreCase);
             if (isRouteAction) {
                 _closingFromRoute = true;
                 try {
@@ -512,7 +514,7 @@
     }
 
 
-    static List<Release> ReleasesOf(IEnumerable<ProtoRegistryRow> rows) {
+    static List<Models.Registry.Release> ReleasesOf(IEnumerable<ProtoRegistryRow> rows) {
         var byKey = new Dictionary<long, List<ProtoRegistryRow>>();
         foreach (var r in rows) {
             var key = ReleaseKey(r);
@@ -530,9 +532,9 @@
             .ToList();
     }
 
-    List<Release> AllReleases => ReleasesOf(_rows);
+    List<Models.Registry.Release> AllReleases => ReleasesOf(_rows);
 
-    List<Release> SortedReleases {
+    List<Models.Registry.Release> SortedReleases {
         get {
             var releases = ReleasesOf(Filtered);
             var cmp = RowComparison;
@@ -672,7 +674,7 @@
             Logger.LogDebug(ex, "proto drop zone not wired, the circuit is already gone");
         }
 
-        _routeSync = new EggIdentity.UI.PathRouteSync(Nav);
+        _routeSync = new PathRouteSync(Nav);
         _routeSync.Changed += () => InvokeAsync(() => {
             ApplyPath();
             StateHasChanged();

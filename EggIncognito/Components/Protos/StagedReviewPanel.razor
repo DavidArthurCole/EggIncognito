@@ -119,7 +119,7 @@
 @code {
     static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
-    List<StagedRow> _rows = [];
+    List<Models.Staging.StagedRow> _rows = [];
     readonly HashSet<int> _selected = [];
     bool _busy;
     StagedReviewStatus? _status;
@@ -136,7 +136,7 @@
 
     public async Task Load() {
         try {
-            _rows = await Client().GetFromJsonAsync<List<StagedRow>>("/api/protos/staged", JsonOpts) ?? [];
+            _rows = await Client().GetFromJsonAsync<List<Models.Staging.StagedRow>>("/api/protos/staged", JsonOpts) ?? [];
         }
         catch {
             _rows = [];
@@ -175,11 +175,11 @@
         };
     }
 
-    static object ApproveBody(StagedRow r) {
+    static object ApproveBody(Models.Staging.StagedRow r) {
         return new { platform = r.Platform, appVersion = r.AppVersion, build = r.Build, clientVersion = r.ClientVersion };
     }
 
-    async Task Approve(StagedRow r) {
+    async Task Approve(Models.Staging.StagedRow r) {
         _busy = true;
         _status = null;
         try {
@@ -197,7 +197,7 @@
         await OnChanged.InvokeAsync();
     }
 
-    async Task Reject(StagedRow r) {
+    async Task Reject(Models.Staging.StagedRow r) {
         _busy = true;
         _status = null;
         try {
@@ -270,7 +270,7 @@
     IJSObjectReference? _copy;
 
 
-    static string MissingReport(IEnumerable<StagedRow> rows) {
+    static string MissingReport(IEnumerable<Models.Staging.StagedRow> rows) {
         var sb = new StringBuilder();
         sb.AppendLine("# Staged proto rows with missing version info");
         sb.AppendLine();
@@ -291,7 +291,7 @@
     }
 
 
-    async Task CopyAndClear(IReadOnlyList<StagedRow> rows) {
+    async Task CopyAndClear(IReadOnlyList<Models.Staging.StagedRow> rows) {
         if (rows.Count == 0) return;
         _busy = true;
         _status = null;
@@ -328,7 +328,7 @@
         return CopyAndClear(_rows.Where(r => r.IsIncomplete).ToList());
     }
 
-    Task CopyOne(StagedRow r) {
+    Task CopyOne(Models.Staging.StagedRow r) {
         return CopyAndClear([r]);
     }
 

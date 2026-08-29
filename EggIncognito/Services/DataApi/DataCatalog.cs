@@ -137,7 +137,7 @@ public sealed class DataCatalog {
             (ctx, _) => Task.FromResult(ResearchPayload(ctx.Services, epic: true))),
 
         new("artifact-consume", "observation", "Artifact consume observations",
-            "Observed byproduct frequencies and golden-egg returns from real consume and demote responses.",
+            "Observed byproduct frequencies, golden-egg returns and craft rarity outcomes. Device harvest under groups, reviewed community captures under contributedGroups.",
             DataProvenance.Database, DataAccess.Authenticated,
             null, null, new DataRefresh(false), false,
             ArtifactObservationSource.ProduceAsync, Listed: false),

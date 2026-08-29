@@ -30,6 +30,9 @@ public sealed class DevicesController(
     private ObjectResult? RequireAdmin() =>
         currentUser.IsAtLeast(UserRole.Admin) ? null : StatusCode(403, new { error = "admin role required" });
 
+    private static async Task<DeviceEntry?> FleetEntryAsync(IDeviceFleet fleet, string id, CancellationToken ct) =>
+        (await fleet.EnabledAsync(ct)).FirstOrDefault(d => d.Id == id);
+
     private static string DeviceKey(string realId) =>
         Hashes.Sha256HexShort(realId, 16);
 
@@ -517,12 +520,12 @@ public sealed class DevicesController(
         if (RequireAdmin() is { } no) return no;
         if (services.GetService(typeof(DeviceProxyPusher))
                 is not DeviceProxyPusher pusher
-            || services.GetService(typeof(DeviceConfig))
-                is not DeviceConfig devCfg)
+            || services.GetService(typeof(IDeviceFleet))
+                is not IDeviceFleet fleet)
             return StatusCode(503, new { error = "device capture not configured" });
 
-        var entry = devCfg.Devices.FirstOrDefault(d => d.Id == id);
-        if (entry is null) return NotFound(new { error = "unknown device" });
+        if (await FleetEntryAsync(fleet, id, HttpContext.RequestAborted) is not { } entry)
+            return NotFound(new { error = "unknown device" });
 
         (bool ok, string? note) = await pusher.RestartAppAsync(entry, HttpContext.RequestAborted);
         return ok ? Ok(new { restarted = true, note }) : StatusCode(502, new { error = note ?? "restart failed" });
@@ -565,21 +568,20 @@ public sealed class DevicesController(
         return StatusCode(403, new { error = "forbidden" });
     }
 
-    private IActionResult? ResolveTransport(string id, out IDeviceConnection connection) {
-        connection = null!;
-        if (services.GetService(typeof(DeviceConfig)) is not DeviceConfig devCfg)
-            return StatusCode(503, new { error = "device config not available" });
-        var entry = devCfg.Devices.FirstOrDefault(d => d.Id == id);
-        if (entry is null) return NotFound(new { error = "unknown device" });
+    private async Task<(IActionResult? Error, IDeviceConnection Connection)> ResolveTransportAsync(
+        string id, CancellationToken ct) {
+        if (services.GetService(typeof(IDeviceFleet)) is not IDeviceFleet fleet)
+            return (StatusCode(503, new { error = "device config not available" }), null!);
+        if (await FleetEntryAsync(fleet, id, ct) is not { } entry)
+            return (NotFound(new { error = "unknown device" }), null!);
         var target = new DeviceTarget(entry.Id, entry.Platform, entry.Target, entry.Package);
 
         if (services.GetService(typeof(IDeviceConnectionFactory)) is not IDeviceConnectionFactory factory)
-            return StatusCode(503, new { error = "device transport not configured" });
+            return (StatusCode(503, new { error = "device transport not configured" }), null!);
         var conn = factory.For(target);
-        if (conn is null) return StatusCode(502, new { error = "no connection for device" });
+        if (conn is null) return (StatusCode(502, new { error = "no connection for device" }), null!);
 
-        connection = conn;
-        return null;
+        return (null, conn);
     }
 
     [HttpPost("{id}/transport/shell")]
@@ -589,7 +591,8 @@ public sealed class DevicesController(
         if (RequireAdmin() is { } no) return no;
         if (BridgeGate() is { } gate) return gate;
         if (string.IsNullOrEmpty(req.Cmd)) return BadRequest(new { error = "cmd required" });
-        if (ResolveTransport(id, out var conn) is { } err) return err;
+        (IActionResult? err, var conn) = await ResolveTransportAsync(id, HttpContext.RequestAborted);
+        if (err is not null) return err;
 
         var r = await conn.ShellAsync(req.Cmd, HttpContext.RequestAborted);
         return Ok(new TransportShellResult(r.ExitCode, r.Stdout, r.Stderr));
@@ -602,7 +605,8 @@ public sealed class DevicesController(
         if (RequireAdmin() is { } no) return no;
         if (BridgeGate() is { } gate) return gate;
         if (string.IsNullOrEmpty(req.Path)) return BadRequest(new { error = "path required" });
-        if (ResolveTransport(id, out var conn) is { } err) return err;
+        (IActionResult? err, var conn) = await ResolveTransportAsync(id, HttpContext.RequestAborted);
+        if (err is not null) return err;
 
         byte[]? bytes = await conn.PullBytesAsync(req.Path, HttpContext.RequestAborted);
         return bytes is null ? NotFound() : File(bytes, "application/octet-stream");
@@ -624,7 +628,8 @@ public sealed class DevicesController(
             return BadRequest(new { error = "malformed base64" });
         }
 
-        if (ResolveTransport(id, out var conn) is { } err) return err;
+        (IActionResult? err, var conn) = await ResolveTransportAsync(id, HttpContext.RequestAborted);
+        if (err is not null) return err;
 
         string tempPath = DeviceShell.NewTempPath(".bin");
         try {
@@ -639,16 +644,16 @@ public sealed class DevicesController(
     [HttpPost("{id}/transport/claim")]
     [ApiAccess(ApiAccessLevel.Admin)]
     [EnableRateLimiting("write")]
-    public IActionResult TransportClaim(string id, [FromBody] TransportClaimRequest? req) {
+    public async Task<IActionResult> TransportClaim(string id, [FromBody] TransportClaimRequest? req) {
         if (RequireAdmin() is { } no) return no;
         if (BridgeGate() is { } gate) return gate;
-        if (services.GetService(typeof(DeviceConfig)) is not DeviceConfig devCfg
+        if (services.GetService(typeof(IDeviceFleet)) is not IDeviceFleet fleet
             || services.GetService(typeof(DeviceTransportConfig)) is not DeviceTransportConfig cfg
             || services.GetService(typeof(DeviceClaimRegistry)) is not DeviceClaimRegistry claims)
             return StatusCode(503, new { error = "device transport not configured" });
 
-        var entry = devCfg.Devices.FirstOrDefault(d => d.Id == id);
-        if (entry is null) return NotFound(new { error = "unknown device" });
+        if (await FleetEntryAsync(fleet, id, HttpContext.RequestAborted) is null)
+            return NotFound(new { error = "unknown device" });
 
         var ttl = TimeSpan.FromSeconds(req?.TtlSeconds ?? cfg.ClaimTtlSeconds);
         var expires = claims.Claim(id, ttl);
@@ -661,12 +666,8 @@ public sealed class DevicesController(
     public IActionResult TransportRelease(string id) {
         if (RequireAdmin() is { } no) return no;
         if (BridgeGate() is { } gate) return gate;
-        if (services.GetService(typeof(DeviceConfig)) is not DeviceConfig devCfg
-            || services.GetService(typeof(DeviceClaimRegistry)) is not DeviceClaimRegistry claims)
+        if (services.GetService(typeof(DeviceClaimRegistry)) is not DeviceClaimRegistry claims)
             return StatusCode(503, new { error = "device transport not configured" });
-
-        var entry = devCfg.Devices.FirstOrDefault(d => d.Id == id);
-        if (entry is null) return NotFound(new { error = "unknown device" });
 
         claims.Release(id);
         return Ok(new { ok = true });

@@ -1,7 +1,6 @@
 @using System.Text.Json
 @using EggIncognito.Capture
 @using EggIncognito.Core
-@using EggIncognito.Models.Capture
 @* The detail pane: header (path + status), the known-endpoint card or save-as-endpoint bar + type
    lines, then the Request and Response panes carrying the body (CodeFormats), URL params, and optional headers. *@
 
@@ -80,7 +79,7 @@
         StateHasChanged();
         try {
             var res = await ClientFactory().PostAsJsonAsync("/api/capture/save-endpoint", new { id = Flow.Id }, JsonOpts);
-            var data = await res.Content.ReadFromJsonAsync<SaveResult>(JsonOpts);
+            var data = await res.Content.ReadFromJsonAsync<Models.Capture.SaveResult>(JsonOpts);
             if (res.IsSuccessStatusCode && data?.Saved is not null) {
                 _saveCls = "ok";
                 _saveMsg = "Saved " + data.Saved;

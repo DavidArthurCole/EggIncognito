@@ -1,3 +1,4 @@
+using EggIdentity.UI;
 using EggIncognito.Core.Services.ProtoExtract;
 using EggIncognito.Services.Workbench;
 
@@ -49,8 +50,8 @@ public sealed record DiffBundle(
     ProtoDiffSummary Summary);
 
 public sealed class ProtoWorkbenchState : WorkbenchStateBase {
-    public override IReadOnlyList<WorkbenchMode> Modes { get; } =
-        [.. ProtoRefParser.Modes.Select(m => new WorkbenchMode(m, m))];
+    public override IReadOnlyList<(string Key, string Label, int? Count)> Modes { get; } =
+        [.. ProtoRefParser.Modes.Select(m => new WorkbenchMode(m, m)).Select(m => (m.Key, m.Label, m.Count))];
 
     public List<StagedEntry> Entries { get; } = [];
     public Guid? SelectedId { get; set; }

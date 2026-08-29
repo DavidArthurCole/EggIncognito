@@ -15,6 +15,12 @@ public sealed partial record CaptureSessionOptions(
     IEndpointWriteObserver? WriteObserver = null) {
     public IReadOnlyCollection<string> LiveRoutes { get; init; } = [];
 
+    public CaptureTier Tier { get; init; } = CaptureTier.Full;
+
+    public IReadOnlySet<string> FullDetailRoutes { get; init; } = new HashSet<string>(StringComparer.Ordinal);
+
+    public Action<Guid, DashboardFlow>? OnContribution { get; init; }
+
     public string HarFileName() {
         string name = "session";
         if (!string.IsNullOrEmpty(Label))

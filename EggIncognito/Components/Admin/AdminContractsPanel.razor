@@ -1,0 +1,115 @@
+@rendermode @(RenderMode.InteractiveServer)
+@using EggIncognito.Models.Contracts
+@using EggIncognito.Services.Events
+@inherits BrowserApiComponentBase
+
+<AdminCard Title="Contracts" Stat="@StatText" OnOpened="Load">
+    <Summary>
+        @if (_stats is null || _stats.Total == 0) {
+            <div class="text-sm text-muted">
+                <span>no contract releases stored</span>
+            </div>
+        } else {
+            <div class="text-xs text-muted">@TotalsBySource()</div>
+            @if (_stats.Latest is { } latest) {
+                <div class="admin-card-extra text-xs text-muted">latest release, @FormatStart(latest)</div>
+            }
+        }
+    </Summary>
+    <Detail>
+        <div class="sub-section-head">Store</div>
+        <div class="reg-wrap">
+            <table class="data-table">
+                <tbody>
+                <tr>
+                    <td>total</td><td class="mono">@(_stats?.Total ?? 0)</td>
+                </tr>
+                <tr>
+                    <td>device</td><td class="mono">@(_stats?.Device ?? 0)</td>
+                </tr>
+                <tr>
+                    <td>carpet</td><td class="mono">@(_stats?.Carpet ?? 0)</td>
+                </tr>
+                <tr>
+                    <td>latest</td><td class="mono">@(_stats?.Latest is { } l ? FormatStart(l) : "-")</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="sub-section-head">Backfill</div>
+        <div class="flex gap-1 items-center">
+            <button type="button" class="btn-mini" disabled="@_busy" @onclick="SweepSnapshots">Sweep snapshots</button>
+        </div>
+        <div class="flex gap-1 items-center flex-wrap">
+            <input class="reg-filter-input w-auto" placeholder="@CarpetPlaceholder" @bind="_carpetUrl"/>
+            <button type="button" class="btn-mini" disabled="@_busy" @onclick="ImportCarpet">Import carpet</button>
+        </div>
+        <div class="text-xs text-muted">Historical data courtesy of carpetsage/egg.</div>
+        @if (_msg is not null) {
+            <StatusNote>@_msg</StatusNote>
+        }
+    </Detail>
+</AdminCard>
+
+@code {
+    ContractStatsResponse? _stats;
+    bool _busy;
+    string _carpetUrl = "";
+    string? _msg;
+
+    string StatText => _stats?.Total.ToString() ?? "";
+
+    static string CarpetPlaceholder =>
+        "https://raw.githubusercontent.com/carpetsage/egg/master/periodicals/data/contracts.json";
+
+    string TotalsBySource() {
+        return _stats is null ? "" : $"{_stats.Total} total, {_stats.Device} device, {_stats.Carpet} carpet";
+    }
+
+    static string FormatStart(double startTimestamp) {
+        return UnixSeconds.ToTime(startTimestamp).ToLocalTime().ToString("yyyy-MM-dd");
+    }
+
+    protected override async Task OnApiReadyAsync() {
+        await Load();
+    }
+
+    async Task Load() {
+        if (Api is null) return;
+        var res = await Api.GetAsync("/api/admin/contracts/stats");
+        if (!res.Ok) {
+            _msg = $"load failed: {res.Describe()}";
+            return;
+        }
+
+        _stats = res.Json<ContractStatsResponse>();
+    }
+
+    async Task SweepSnapshots() {
+        if (Api is null) return;
+        _busy = true;
+        _msg = null;
+        var res = await Api.PostAsync("/api/admin/contracts/sweep-snapshots", TimeSpan.FromMinutes(10));
+        _msg = res.Ok ? SweepResultText(res.Json<ContractBackfillResult>()) : $"sweep failed: {res.Describe()}";
+        await Load();
+        _busy = false;
+    }
+
+    async Task ImportCarpet() {
+        if (Api is null) return;
+        _busy = true;
+        _msg = null;
+        var res = await Api.PostJsonAsync(
+            "/api/admin/contracts/import-carpet", new ContractCarpetImportRequest(_carpetUrl), TimeSpan.FromMinutes(10));
+        _msg = res.Ok ? SweepResultText(res.Json<ContractBackfillResult>()) : $"import failed: {res.Describe()}";
+        await Load();
+        _busy = false;
+    }
+
+    static string SweepResultText(ContractBackfillResult? r) {
+        return r is null
+            ? "ok"
+            : $"scanned {r.Scanned}, inserted {r.Inserted}, updated {r.Updated}, skipped {r.Skipped}";
+    }
+
+}

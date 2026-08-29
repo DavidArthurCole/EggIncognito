@@ -1,10 +1,11 @@
 using EggIncognito.Data.Services;
 using EggIncognito.Models.Events;
+using EggIncognito.Services.Predictions;
 using Microsoft.EntityFrameworkCore;
 
 namespace EggIncognito.Services.Events;
 
-public sealed class GameEventIngestor(EggIncognitoDbContext db) {
+public sealed class GameEventIngestor(EggIncognitoDbContext db, EventDataVersion version) {
     private const long IngestLockKey = 872634001;
 
     public async Task<GameEventIngestResult> IngestAsync(
@@ -31,6 +32,7 @@ public sealed class GameEventIngestor(EggIncognitoDbContext db) {
         }
         if (inserted > 0 || updated > 0) await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
+        if (inserted > 0 || updated > 0) version.Bump();
         return new GameEventIngestResult(inserted, updated);
     }
 }

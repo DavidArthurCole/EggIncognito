@@ -3,8 +3,8 @@
 @using System.Net
 @using System.Text.Json
 @using System.Text.Json.Nodes
+@using EggIdentity.UI
 @using EggIncognito.Components.Inspector
-@using EggIncognito.Components.Shared.Workbench
 @using EggIncognito.Core
 @using EggIncognito.Models.Data
 @using EggIncognito.Models.Inspector
@@ -22,7 +22,12 @@
 @inject ILogger<ApiWorkbenchModal> Logger
 
 <WorkbenchModal Open="_open" Title="@("API & Data")" TitleId="apiWorkbenchTitle" Size="WorkbenchSize.Wide"
-                CardClass="awb-card" Notice="_wbNotice" NoticeDismissed="ClearNotice" OnClose="CloseAsync">
+                CardClass="awb-card" OnClose="CloseAsync">
+    <Notice>
+        @if (_wbNotice is { } n) {
+            <StatusNote Severity="@n.Severity" OnDismiss="ClearNotice">@n.Text</StatusNote>
+        }
+    </Notice>
     <HeadTools>
         <WorkbenchModes Modes="State.Modes" Current="@State.Mode" CurrentChanged="SetMode" Disabled="ModeDisabled"
                         Label="Workbench mode"/>
@@ -150,7 +155,7 @@
                                             </button>
                                             @if (sel.RequestWrapped) {
                                                 <span class="ep-signed">
-                                                    <Icon Name="lock" Class="icon-sm"/>
+                                                    <EggIncognito.Components.Shared.Icon Name="lock" Class="icon-sm"/>
                                                 </span>
                                             }
                                         } else {
@@ -172,7 +177,7 @@
                             }
                             <button type="button" class="btn-mini insp-docs-btn" disabled="@(State.Selected is null)"
                                     @onclick="@(() => SelectDocsSubject((DocSubjectKinds.Endpoint, State.Selected!.Path)))">
-                                <Icon Name="log" Class="icon-sm"/> Docs
+                                <EggIncognito.Components.Shared.Icon Name="log" Class="icon-sm"/> Docs
                             </button>
                         </div>
                         <div class="insp-reader-body">
@@ -212,7 +217,7 @@
     bool _fixWrappedBusy;
     string _statusOut = "";
     string _statusSummary = "";
-    WorkbenchNotice? _wbNotice;
+    (string Text, StatusNoteKind Severity)? _wbNotice;
 
     IJSObjectReference? _store;
     IJSObjectReference? _nav;
@@ -300,7 +305,7 @@
         if (State.Sources is not null) return;
         var index = await Client().OneAsync<DataIndex>("/api/v1/data", Logger);
         State.Sources = index?.Sources ?? [];
-        if (State.Sources.Count == 0) _wbNotice = new WorkbenchNotice("The source catalog could not be read.", StatusNoteKind.Error);
+        if (State.Sources.Count == 0) _wbNotice = ("The source catalog could not be read.", StatusNoteKind.Error);
     }
 
     async Task SelectDataset(DataSourceRow root, DataSourceRow? child) {

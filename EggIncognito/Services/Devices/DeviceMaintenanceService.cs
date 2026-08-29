@@ -9,6 +9,7 @@ namespace EggIncognito.Services.Devices;
 
 public sealed class DeviceMaintenanceService(
     IServiceScopeFactory scopeFactory,
+    IDeviceFleet fleet,
     DeviceConfig config,
     DeviceRecertConfig recertConfig,
     TimeProvider time,
@@ -49,28 +50,35 @@ public sealed class DeviceMaintenanceService(
 #pragma warning restore IDE0028
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken) {
-        if (!config.Enabled || config.Devices.Count == 0) {
-            logger.LogInformation("device maintenance disabled or no devices declared");
+        if (!config.Enabled) {
+            logger.LogInformation("device maintenance disabled");
             return;
         }
 
         using var timer = new PeriodicTimer(TimeSpan.FromMinutes(Math.Max(1, config.IntervalMinutes)), time);
         try {
-            await StartupHarvestAsync(stoppingToken);
-            await StoreSyncAllAsync(stoppingToken);
-            await RecertSyncAsync(stoppingToken);
-            while (await timer.WaitForNextTickAsync(stoppingToken)) {
-                await RefreshCapturesAsync(stoppingToken);
-                await StoreSyncAllAsync(stoppingToken);
-                await RecertSyncAsync(stoppingToken);
-            }
+            await RunCycleAsync(true, stoppingToken);
+            while (await timer.WaitForNextTickAsync(stoppingToken)) await RunCycleAsync(false, stoppingToken);
         } catch (OperationCanceledException) {
             /* shutdown */
         }
     }
 
+    private async Task RunCycleAsync(bool startup, CancellationToken ct) {
+        try {
+            if (startup) await StartupHarvestAsync(ct);
+            else await RefreshCapturesAsync(ct);
+            await StoreSyncAllAsync(ct);
+            await RecertSyncAsync(ct);
+        } catch (OperationCanceledException) {
+            throw;
+        } catch (Exception ex) {
+            logger.LogWarning(ex, "device maintenance: cycle failed, skipping to the next tick");
+        }
+    }
+
     private async Task StartupHarvestAsync(CancellationToken ct) {
-        foreach (var d in config.Devices) {
+        foreach (var d in await fleet.EnabledAsync(ct)) {
             if (claims.IsHeld(d.Id)) {
                 logger.LogDebug("device {Id} held by remote bridge, skipping maintenance", d.Id);
                 continue;
@@ -90,7 +98,7 @@ public sealed class DeviceMaintenanceService(
 
     internal async Task RefreshCapturesAsync(CancellationToken ct) {
         if (_refreshInterval <= TimeSpan.Zero) return;
-        foreach (var d in config.Devices) {
+        foreach (var d in await fleet.EnabledAsync(ct)) {
             if (claims.IsHeld(d.Id)) {
                 logger.LogDebug("device {Id} held by remote bridge, skipping maintenance", d.Id);
                 continue;
@@ -137,11 +145,12 @@ public sealed class DeviceMaintenanceService(
         var db = (EggIncognitoDbContext)sp.GetRequiredService(typeof(EggIncognitoDbContext));
         var jobs = (DeviceJobStore)sp.GetRequiredService(typeof(DeviceJobStore));
 
+        var devices = await fleet.EnabledAsync(ct);
         var latest = (await jobs.LatestPerDeviceAsync(DeviceJobKinds.Probe, ct))
             .GroupBy(p => p.DeviceId, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 
-        if (_syncEnabled) await RefreshStoreCatalogAsync(ct);
+        if (_syncEnabled) await RefreshStoreCatalogAsync(devices, ct);
 
         foreach (var d in await store.EnabledDevicesAsync(ct)) {
             if (claims.IsHeld(d.Id)) {
@@ -158,22 +167,23 @@ public sealed class DeviceMaintenanceService(
         }
 
         try {
-            await proxyPusher.PushAllAsync(config.Devices, ct);
+            await proxyPusher.PushAllAsync(devices, ct);
         } catch (Exception ex) {
             logger.LogWarning(ex, "device capture: proxy push tick failed");
         }
 
-        await HarvestClimbedDevicesAsync(latest, sp, ct);
+        await HarvestClimbedDevicesAsync(devices, latest, sp, ct);
         await EnsureBinaryStoredAsync(sp, ct);
-        await AutoPublishAsync(sp, ct);
+        await AutoPublishAsync(devices, sp, ct);
     }
 
-    private async Task AutoPublishAsync(IServiceProvider sp, CancellationToken ct) {
+    private async Task AutoPublishAsync(
+        IReadOnlyList<DeviceEntry> devices, IServiceProvider sp, CancellationToken ct) {
         if (!_autoPublish) return;
         if (sp.GetService(typeof(DeviceRegistryPublisher)) is not DeviceRegistryPublisher publisher) return;
         if (sp.GetService(typeof(DeviceStateStore)) is not DeviceStateStore states) return;
 
-        foreach (var d in config.Devices) {
+        foreach (var d in devices) {
             try {
                 var state = await states.GetAsync(d.Id, ct);
                 if (state?.Build is not { Length: > 0 } build) continue;
@@ -204,7 +214,7 @@ public sealed class DeviceMaintenanceService(
         }
     }
 
-    private async Task RefreshStoreCatalogAsync(CancellationToken ct) {
+    private async Task RefreshStoreCatalogAsync(IReadOnlyList<DeviceEntry> devices, CancellationToken ct) {
         try {
             string appId = appConfig["DeviceUpdate:Ios:AppId"] ?? "993492744";
             string? country = appConfig["DeviceUpdate:Ios:LookupCountry"];
@@ -216,7 +226,7 @@ public sealed class DeviceMaintenanceService(
         }
 
         try {
-            string? package = config.Devices
+            string? package = devices
                 .FirstOrDefault(d => Platforms.Matches(d.Platform, Platforms.Android))?.Package;
             if (package is null) return;
             string? playLatest = await androidCatalog.LatestVersionAsync(
@@ -230,8 +240,9 @@ public sealed class DeviceMaintenanceService(
     }
 
     private async Task HarvestClimbedDevicesAsync(
-        Dictionary<string, DeviceJobRow> latest, IServiceProvider sp, CancellationToken ct) {
-        foreach (var d in config.Devices) {
+        IReadOnlyList<DeviceEntry> devices, Dictionary<string, DeviceJobRow> latest, IServiceProvider sp,
+        CancellationToken ct) {
+        foreach (var d in devices) {
             if (claims.IsHeld(d.Id)) {
                 logger.LogDebug("device {Id} held by remote bridge, skipping maintenance", d.Id);
                 continue;
@@ -367,7 +378,7 @@ public sealed class DeviceMaintenanceService(
         using var scope = scopeFactory.CreateScope();
         if (scope.ServiceProvider.GetService(typeof(DeviceRecertService)) is not DeviceRecertService recert) return;
 
-        foreach (var d in config.Devices) {
+        foreach (var d in await fleet.EnabledAsync(ct)) {
             if (claims.IsHeld(d.Id)) {
                 logger.LogDebug("device {Id} held by remote bridge, skipping maintenance", d.Id);
                 continue;

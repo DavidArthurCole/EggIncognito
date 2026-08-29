@@ -45,17 +45,25 @@ public sealed class CaptureController(
             : (session, null);
     }
 
-    private ObjectResult? RequireHostedSupporter() {
+    private ObjectResult? RequireHostedUser() {
         if (!appMode.HostedCaptureEnabled)
             return StatusCode(403, new { error = "hosted capture is not enabled" });
         if (!currentUser.IsAuthenticated || string.IsNullOrEmpty(currentUser.DiscordId))
             return StatusCode(401, new { error = "log in to use hosted capture" });
-        if (!currentUser.UserId.HasValue)
-            return StatusCode(401, new { error = "log in to use hosted capture" });
-        return !currentUser.IsSupporter && !currentUser.IsAtLeast(UserRole.Admin)
-            ? StatusCode(403, new { error = "supporter_required" })
+        return !currentUser.UserId.HasValue
+            ? StatusCode(401, new { error = "log in to use hosted capture" })
             : null;
     }
+
+    private CaptureTier TierFor() =>
+        currentUser.IsSupporter || currentUser.IsAtLeast(UserRole.Admin)
+            ? CaptureTier.Full
+            : CaptureTier.Limited;
+
+    private ObjectResult? RequireFullTier(CaptureSession session) =>
+        session.Tier == CaptureTier.Full
+            ? null
+            : StatusCode(403, new { error = "limited_capture", detail = "this action needs full capture access" });
 
     [HttpGet("stream")]
     public async Task Stream(CancellationToken ct) {
@@ -136,15 +144,14 @@ public sealed class CaptureController(
         if (!currentUser.UserId.HasValue)
             return StatusCode(401, new { error = "log in to use hosted capture" });
 
-        if (!currentUser.IsSupporter && !currentUser.IsAtLeast(UserRole.Admin))
-            return StatusCode(403, new { error = "supporter_required" });
-
         CaptureSession session;
         try {
-            session = manager.GetOrCreate(currentUser.DiscordId);
+            session = manager.GetOrCreate(currentUser.DiscordId, TierFor());
         } catch (CaptureCapacityException) {
             return StatusCode(503, new { error = "capture capacity reached; try again later" });
         }
+
+        session.ContributorUserId = currentUser.UserId.Value;
 
         var store = Credentials;
         await RestoreCaAsync(session, store, currentUser.UserId.Value, ct);
@@ -265,6 +272,7 @@ public sealed class CaptureController(
         [FromServices] IRouteCatalog routes) {
         var (session, error) = Resolve();
         if (session is null) return error!;
+        if (RequireFullTier(session) is { } no) return no;
         var flow = session.Hub.Find(body.Id);
         if (flow is null) return NotFound(new { error = $"flow {body.Id} not in buffer" });
 
@@ -315,6 +323,7 @@ public sealed class CaptureController(
     public IActionResult Har() {
         var (session, error) = Resolve();
         if (session is null) return error!;
+        if (RequireFullTier(session) is { } no) return no;
         byte[] bytes = Encoding.UTF8.GetBytes(session.CurrentHar());
         return File(bytes, "application/json", "capture-session.har");
     }
@@ -323,13 +332,15 @@ public sealed class CaptureController(
     public IActionResult Decode([FromQuery] string path, [FromQuery] string responseB64) {
         var (session, error) = Resolve();
         if (session is null) return error!;
+        if (!session.AllowsDetail(path))
+            return StatusCode(403, new { error = "limited_capture", detail = $"{path} is not decodable here" });
         var r = session.Decode(path, responseB64);
         return Ok(new { responseJson = r.Json, responseType = r.Type, known = r.Known });
     }
 
     [HttpGet("proxy-address")]
     public async Task<IActionResult> ProxyAddress(CancellationToken ct) {
-        if (RequireHostedSupporter() is { } no) return no;
+        if (RequireHostedUser() is { } no) return no;
         if (services.GetService(typeof(CaptureAddressStore)) is not CaptureAddressStore store)
             return StatusCode(503, new { error = "no database configured" });
         var addr = await store.AddrForUserAsync(hostedOptions.Ipv6Prefix, currentUser.UserId!.Value, ct);
@@ -338,7 +349,7 @@ public sealed class CaptureController(
 
     [HttpPost("proxy-address/rotate")]
     public async Task<IActionResult> RotateProxyAddress(CancellationToken ct) {
-        if (RequireHostedSupporter() is { } no) return no;
+        if (RequireHostedUser() is { } no) return no;
         if (services.GetService(typeof(CaptureAddressStore)) is not CaptureAddressStore store)
             return StatusCode(503, new { error = "no database configured" });
         var addr = await store.RotateAsync(hostedOptions.Ipv6Prefix, currentUser.UserId!.Value, ct);
@@ -347,7 +358,7 @@ public sealed class CaptureController(
 
     [HttpGet("ca.cer")]
     public async Task<IActionResult> DownloadCa(CancellationToken ct) {
-        if (RequireHostedSupporter() is { } no) return no;
+        if (RequireHostedUser() is { } no) return no;
         var session = manager.Get(currentUser.DiscordId!);
         if (session is not null && System.IO.File.Exists(session.CaPath)) {
             byte[] cer = await System.IO.File.ReadAllBytesAsync(session.CaPath, ct);

@@ -12,7 +12,8 @@ public sealed record HostedCaptureOptions(
     IReadOnlyList<string> ExtraAllowedHosts,
     string PublicHost,
     string Ipv6Prefix,
-    string AddressSecret) {
+    string AddressSecret,
+    int MaxLimitedSessions = 50) {
     public static HostedCaptureOptions Defaults() => new(
         8443,
         24000,
@@ -40,7 +41,8 @@ public sealed record HostedCaptureOptions(
                 .ToArray(),
             s["PublicHost"] ?? d.PublicHost,
             s["Ipv6Prefix"] ?? d.Ipv6Prefix,
-            s["AddressSecret"] ?? d.AddressSecret);
+            s["AddressSecret"] ?? d.AddressSecret,
+            Int(s["MaxLimitedSessions"], d.MaxLimitedSessions));
     }
 
     private static int Int(string? raw, int fallback) =>

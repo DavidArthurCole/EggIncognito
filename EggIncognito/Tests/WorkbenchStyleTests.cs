@@ -8,9 +8,9 @@ public partial class WorkbenchStyleTests(SharedAppFactory f) {
     public async Task WbCard_DeclaresTheCardSizeTokens() {
         string css = await SheetAsync();
 
-        Assert.Contains("width: var(--wb-card-w, 92vw)", css);
-        Assert.Contains("height: var(--wb-card-h, 88vh)", css);
-        Assert.Contains("max-width: var(--wb-card-max, 80rem)", css);
+        Assert.Contains("width: var(--wb-card-w,92vw)", css);
+        Assert.Contains("height: var(--wb-card-h,88vh)", css);
+        Assert.Contains("max-width: var(--wb-card-max,80rem)", css);
     }
 
     [Fact]
@@ -26,7 +26,7 @@ public partial class WorkbenchStyleTests(SharedAppFactory f) {
     public async Task RailWidth_IsATokenNotAFixedUtility() {
         string css = await SheetAsync();
 
-        Assert.Contains("width: var(--wb-rail-w, 18rem)", css);
+        Assert.Contains("width: var(--wb-rail-w,18rem)", css);
     }
 
     [Fact]
@@ -93,7 +93,7 @@ public partial class WorkbenchStyleTests(SharedAppFactory f) {
         foreach (string cls in new[] {
                      ".wb-card", ".wb-card-wide", ".wb-notice", ".wb-rail-filter",
                      ".wb-sec", ".wb-sec-head", ".wb-sec-tools", ".wb-sec-body", ".wb-scroll",
-                     ".wb-entry-head", ".wb-seg", ".wb-seg-btn", ".wb-note", ".wb-st-muted",
+                     ".wb-entry-head", ".wb-note", ".wb-st-muted",
                      ".modal-card-sm", ".modal-card-lg"
                  }) {
             Assert.Contains(cls, css, StringComparison.Ordinal);

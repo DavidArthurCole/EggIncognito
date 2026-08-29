@@ -2,6 +2,7 @@ using EggIncognito.Core;
 using EggIncognito.Core.Services;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
+using EggIncognito.Services.Contracts;
 using EggIncognito.Services.DataApi;
 using EggIncognito.Services.Events;
 using Ei;
@@ -105,7 +106,8 @@ public sealed class ConfigChangeNotifier(
                     StringComparison.Ordinal))
                 return;
             if (sp.GetService<EggIncognitoDbContext>() is not { } db) return;
-            await IngestEventsAsync(sp, json);
+            var response = await IngestEventsAsync(sp, json);
+            await IngestContractsAsync(sp, json, response);
             if (await db.PeriodicalsSnapshots.AnyAsync(s => s.Sha == sha)) return;
             db.PeriodicalsSnapshots.Add(new PeriodicalsSnapshot {
                 CapturedAt = DateTimeOffset.UtcNow,
@@ -118,14 +120,28 @@ public sealed class ConfigChangeNotifier(
         }
     }
 
-    private async Task IngestEventsAsync(IServiceProvider sp, string json) {
+    private async Task<PeriodicalsResponse?> IngestEventsAsync(IServiceProvider sp, string json) {
         try {
-            if (sp.GetService<GameEventIngestor>() is not { } ingestor) return;
             var response = (PeriodicalsResponse)JsonParser.Default.Parse(json, PeriodicalsResponse.Descriptor);
-            var observations = GameEventMapper.FromPeriodicals(response, DateTimeOffset.UtcNow);
-            if (observations.Count > 0) await ingestor.IngestAsync(observations);
+            if (sp.GetService<GameEventIngestor>() is { } ingestor) {
+                var observations = GameEventMapper.FromPeriodicals(response, DateTimeOffset.UtcNow);
+                if (observations.Count > 0) await ingestor.IngestAsync(observations);
+            }
+            return response;
         } catch (Exception ex) {
             logger.LogWarning(ex, "game event ingest from periodicals snapshot failed");
+            return null;
+        }
+    }
+
+    private async Task IngestContractsAsync(IServiceProvider sp, string json, PeriodicalsResponse? response) {
+        try {
+            if (sp.GetService<ContractIngestor>() is not { } ingestor) return;
+            response ??= (PeriodicalsResponse)JsonParser.Default.Parse(json, PeriodicalsResponse.Descriptor);
+            var observations = ContractMapper.FromPeriodicals(response, DateTimeOffset.UtcNow);
+            if (observations.Count > 0) await ingestor.IngestAsync(observations);
+        } catch (Exception ex) {
+            logger.LogWarning(ex, "contract ingest from periodicals snapshot failed");
         }
     }
 }

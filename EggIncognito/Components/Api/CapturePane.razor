@@ -11,6 +11,7 @@
 @inject IConfiguration Config
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env
+@inject ICaptureContributionKinds Kinds
 @inject ILogger<CapturePane> Logger
 
 @if (_hub is not null) {
@@ -39,8 +40,24 @@
             <StatsPanel Stats="_stats" FlowCount="_flows.Count" Running="_running" Port="_port"/>
         </section>
 
+        @if (_limited) {
+            <section class="panel capture-limited-banner">
+                <h2>Limited capture</h2>
+                <p class="text-muted text-sm mt-0 mb-0">
+                    Crafting, consume and demote requests open in full. Every other request is listed for context only:
+                    its route and message types are shown, its contents are never sent to this page.
+                    <a href="/#support">Supporters</a> get full capture.
+                </p>
+            </section>
+        }
+
+        @if (_hosted) {
+            <ContributePanel @ref="_contribute" ClientFactory="Client"/>
+        }
+
         <div class="capture-body grid gap-3 min-h-0">
-            <FlowList Flows="_flows" SelectedId="_selectedId" Connected="_connected" View="_view" OnSelect="SelectFlow"/>
+            <FlowList Flows="_flows" SelectedId="_selectedId" Connected="_connected" View="_view" OnSelect="SelectFlow"
+                      CanSelect="CanSelectFlow"/>
 
             <section id="detailPanel" class="panel">
                 <h2>Detail</h2>
@@ -64,15 +81,12 @@
         <h4 class="awb-pane-title">Live capture</h4>
         @if (!_isAuthenticated) {
             <div class="panel" id="hostedLogin">
-                <p class="text-muted text-sm mt-0 mb-3">Log in to start a hosted capture session.</p>
+                <p class="text-muted text-sm mt-0 mb-3">
+                    Log in to start a capture session. Any account can record crafting, consume and demote
+                    results; supporters get full capture.
+                </p>
                 <LoginButton Label="Log in"/>
             </div>
-        } else if (!(_isSupporter || _isAdmin)) {
-            <div class="panel" id="hostedPitch">
-                <p class="text-muted text-sm mt-0 mb-3">Hosted capture is a supporter perk.</p>
-                <a class="btn-primary inline-block w-fit no-underline" href="/#support">Become a supporter</a>
-            </div>
-            <LocalCaptureGuide/>
         } else {
             <div class="panel" id="hostedCapacity">
                 <p class="text-muted text-sm my-0">
@@ -124,6 +138,9 @@
     bool _isSupporter;
     bool _isAdmin;
     string? _userId;
+    bool _limited;
+    IReadOnlySet<string> _fullDetailRoutes = new HashSet<string>(StringComparer.Ordinal);
+    ContributePanel? _contribute;
 
     protected override void OnInitialized() {
         base.OnInitialized();
@@ -149,16 +166,23 @@
             return;
         }
 
-        if (!AppMode.HostedCaptureEnabled || !_isAuthenticated || !(_isSupporter || _isAdmin) || string.IsNullOrEmpty(_userId))
-            return;
+        if (!AppMode.HostedCaptureEnabled || !_isAuthenticated || string.IsNullOrEmpty(_userId)) return;
         _hosted = true;
+        var tier = _isSupporter || _isAdmin ? CaptureTier.Full : CaptureTier.Limited;
         try {
-            _session = Manager.GetOrCreate(_userId);
+            _session = Manager.GetOrCreate(_userId, tier);
+            _session.ContributorUserId = User.UserId;
             _hub = _session.Hub;
+            _limited = _session.Tier == CaptureTier.Limited;
+            _fullDetailRoutes = Kinds.AllRoutes;
         }
         catch (CaptureCapacityException) {
             _session = null;
         }
+    }
+
+    bool CanSelectFlow(DashboardFlow flow) {
+        return !_limited || _fullDetailRoutes.Contains(flow.Path);
     }
 
     static IEnumerable<string> CaptureController_SensitiveKeys() {
@@ -212,6 +236,7 @@
         switch (env.Kind) {
             case "flow" when env.Flow is not null:
                 AddOrUpdateFlow(env.Flow);
+                if (_hosted && _fullDetailRoutes.Contains(env.Flow.Path)) _ = RefreshContributionsAsync();
                 break;
             case "stats" when env.Stats is not null:
                 ApplyStats(env.Stats);
@@ -243,8 +268,23 @@
     }
 
     void SelectFlow(long id) {
+        var flow = _flowIndex.TryGetValue(id, out var idx) ? _flows[idx] : null;
+        if (flow is null || !CanSelectFlow(flow)) return;
         _selectedId = id;
-        _selectedFlow = _flowIndex.TryGetValue(id, out var idx) ? _flows[idx] : null;
+        _selectedFlow = flow;
+    }
+
+    async Task RefreshContributionsAsync() {
+        if (_contribute is null) return;
+        try {
+            await InvokeAsync(async () => {
+                await _contribute.RefreshAsync();
+                StateHasChanged();
+            });
+        }
+        catch (Exception ex) {
+            Logger.LogDebug(ex, "contribution panel refresh failed");
+        }
     }
 
     async Task ToggleCapture() {

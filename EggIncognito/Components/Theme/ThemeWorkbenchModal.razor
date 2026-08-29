@@ -7,13 +7,26 @@
 @using System.Globalization
 @using System.Text
 @using System.Text.Json
-@using EggIncognito.Components.Shared.Workbench
+@using EggIdentity.UI
 @using EggIncognito.Models.Theme
 @using EggIncognito.Services.Theme
 @implements IAsyncDisposable
 
-<WorkbenchModal Open="Open" Title="Theme workbench" TitleId="themeWbTitle" Size="WorkbenchSize.Wide"
-                Notice="_notice" NoticeDismissed="ClearNotice" OnClose="CloseAsync">
+<WorkbenchModal Open="Open" Title="Theme workbench" TitleId="themeWbTitle" Size="WorkbenchSize.Wide" OnClose="CloseAsync">
+    <Notice>
+        @if (_notice is { } n) {
+            <StatusNote Severity="@n.Severity" OnDismiss="ClearNotice">
+                <ChildContent>
+                    @n.Text
+                </ChildContent>
+                <Actions>
+                    @if (n.NeedsReload) {
+                        <ReloadButton/>
+                    }
+                </Actions>
+            </StatusNote>
+        }
+    </Notice>
     <Rail>
         <WorkbenchRail>
             @if (User.IsAuthenticated) {
@@ -213,7 +226,7 @@
     ContrastResult? _contrast;
     IReadOnlyList<CssError> _cssErrors = [];
     bool _cssEligible;
-    WorkbenchNotice? _notice;
+    (string Text, StatusNoteKind Severity, bool NeedsReload)? _notice;
     string _importJson = "";
     string? _nonce;
     bool _loaded;
@@ -502,7 +515,7 @@
     }
 
     void SetStatus(string message, bool ok, bool needsReload = false) {
-        _notice = new WorkbenchNotice(message, ok ? StatusNoteKind.Ok : StatusNoteKind.Error, needsReload);
+        _notice = (message, ok ? StatusNoteKind.Ok : StatusNoteKind.Error, needsReload);
     }
 
     static async Task<string> Describe(HttpResponseMessage resp) {
