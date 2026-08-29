@@ -15,6 +15,8 @@ public sealed class RedroidProvisioner(
 
     private const string OwnerFilter = OwnerLabel + "=1";
 
+    private string? _network;
+
     public static readonly string[] BootArgs = [
         "androidboot.redroid_width=720",
         "androidboot.redroid_height=1280",
@@ -32,6 +34,24 @@ public sealed class RedroidProvisioner(
 
     public static string VolumeFor(string instanceId) => $"{instanceId}-data";
 
+    private static bool IsHostMode(string network) =>
+        string.Equals(network, DockerEngineClient.HostNetwork, StringComparison.OrdinalIgnoreCase);
+
+    private static string? SerialFor(string name, string? ip, bool hostMode) =>
+        hostMode ? ip is { Length: > 0 } ? $"{ip}:{AdbPort}" : null : TargetFor(name);
+
+    private async Task<DeviceResult<string>> NetworkAsync(CancellationToken ct) {
+        if (_network is { } cached) return DeviceResult<string>.Success(cached);
+        var res = await docker.SelfNetworkAsync(ct);
+        if (res.Ok && res.Value is { } net) _network = net;
+        return res;
+    }
+
+    private async Task<bool> HostModeAsync(CancellationToken ct) {
+        var net = await NetworkAsync(ct);
+        return net.Ok && net.Value is { } n && IsHostMode(n);
+    }
+
     public async Task<DeviceResult<ProvisionedInstance>> CreateAsync(ProvisionSpec spec, CancellationToken ct) {
         var ping = await docker.PingAsync(ct);
         if (!ping.Ok) return DeviceResult<ProvisionedInstance>.Unsupported(ping.Note);
@@ -43,9 +63,10 @@ public sealed class RedroidProvisioner(
                 $"virtual device cap reached ({live.Count}/{config.MaxInstances}); destroy one before creating another");
         }
 
-        var network = await docker.SelfNetworkAsync(ct);
+        var network = await NetworkAsync(ct);
         if (!network.Ok || network.Value is not { } net)
             return DeviceResult<ProvisionedInstance>.Error(network.Note ?? "could not discover the app docker network");
+        bool hostMode = IsHostMode(net);
 
         string name = NewName();
         string image = string.IsNullOrWhiteSpace(spec.Image) ? config.Image : spec.Image;
@@ -57,7 +78,8 @@ public sealed class RedroidProvisioner(
         if (!string.IsNullOrWhiteSpace(spec.Label)) labels["egi.label"] = spec.Label;
 
         var created = await docker.CreateAsync(
-            new DockerCreateSpec(name, image, BootArgs, [$"{VolumeFor(name)}:/data"], net, labels), ct);
+            new DockerCreateSpec(name, image, BootArgs, [$"{VolumeFor(name)}:/data"], hostMode ? null : net, labels),
+            ct);
         if (!created.Ok || created.Value is not { } id)
             return DeviceResult<ProvisionedInstance>.Error(created.Note ?? "container create failed");
 
@@ -68,12 +90,19 @@ public sealed class RedroidProvisioner(
             return DeviceResult<ProvisionedInstance>.Error(started.Note ?? "container start failed");
         }
 
-        logger.LogInformation("virtual device: created {Name} from {Image} on docker network {Network}",
-            name, image, net);
+        string? ip = null;
+        if (hostMode) {
+            var inspect = await docker.InspectAsync(id, ct);
+            ip = inspect.Value?.IpAddress;
+        }
+
+        string where = hostMode
+            ? ip is { Length: > 0 } ? $"reachable at {ip} from the host network" : "waiting for a bridge address"
+            : $"attached to docker network {net}";
+        logger.LogInformation("virtual device: created {Name} from {Image}, {Where}", name, image, where);
 
         return DeviceResult<ProvisionedInstance>.Success(new ProvisionedInstance(
-            name, Kind, image, ProvisionStates.Creating, TargetFor(name), id, time.GetUtcNow(),
-            $"attached to docker network {net}"));
+            name, Kind, image, ProvisionStates.Creating, SerialFor(name, ip, hostMode), id, time.GetUtcNow(), where));
     }
 
     public async Task<DeviceResult> StartAsync(string instanceId, CancellationToken ct) {
@@ -107,10 +136,12 @@ public sealed class RedroidProvisioner(
         if (!listed.Ok || listed.Value is not { } rows)
             return new DeviceResult<IReadOnlyList<ProvisionedInstance>>(listed.Outcome, null, listed.Note);
 
+        bool hostMode = await HostModeAsync(ct);
         var mapped = rows
             .Where(c => c.Name.StartsWith(NamePrefix, StringComparison.Ordinal))
             .Select(c => new ProvisionedInstance(
-                c.Name, Kind, c.Image, StateOf(c.State), TargetFor(c.Name), c.Id, c.CreatedAt, c.Status))
+                c.Name, Kind, c.Image, StateOf(c.State), SerialFor(c.Name, c.IpAddress, hostMode), c.Id, c.CreatedAt,
+                c.Status))
             .ToList();
         return DeviceResult<IReadOnlyList<ProvisionedInstance>>.Success(mapped);
     }

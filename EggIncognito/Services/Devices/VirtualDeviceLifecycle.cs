@@ -137,7 +137,7 @@ public sealed class VirtualDeviceLifecycle(
                 continue;
             }
 
-            await store.TouchAsync(row.InstanceId, container.HostRef, ct);
+            await store.TouchAsync(row.InstanceId, container.HostRef, container.AdbSerial, ct);
             touched++;
 
             if (container.State == ProvisionStates.Stopped) {
@@ -146,7 +146,13 @@ public sealed class VirtualDeviceLifecycle(
                 continue;
             }
 
-            string serial = row.AdbSerial ?? RedroidProvisioner.TargetFor(row.InstanceId);
+            if ((container.AdbSerial ?? row.AdbSerial) is not { Length: > 0 } serial) {
+                if (row.State != ProvisionStates.Booting)
+                    await store.SetStateAsync(row.InstanceId, ProvisionStates.Booting,
+                        "waiting for the container to get an address", ct);
+                continue;
+            }
+
             if (!await BootCompletedAsync(serial, ct)) {
                 if (row.State == ProvisionStates.Creating)
                     await store.SetStateAsync(row.InstanceId, ProvisionStates.Booting,
@@ -231,12 +237,25 @@ public sealed class VirtualDeviceLifecycle(
             DeviceShell.TryDelete(armPath);
         }
 
-        await Adb(["-s", serial, "shell", $"monkey -p {Package} -c android.intent.category.LAUNCHER 1"],
-            AdbTimeout, ct);
+        string launched = await LaunchAsync(serial, ct) ? "and launched" : "but could not be launched";
         await store.SetStateAsync(instanceId, ProvisionStates.Ready,
-            $"egg inc installed from {source.Id} and launched", ct);
+            $"egg inc installed from {source.Id} {launched}", ct);
         logger.LogInformation("virtual devices: {Id} installed egg inc from {Source} and launched it on {Device}",
             instanceId, source.Id, deviceId);
+    }
+
+    private async Task<bool> LaunchAsync(string serial, CancellationToken ct) {
+        var resolve = await Adb(
+            ["-s", serial, "shell", $"cmd package resolve-activity --brief {Package} | tail -1"], AdbTimeout, ct);
+        string component = resolve.Stdout.Trim();
+        if (resolve.ExitCode != 0 || !component.Contains('/', StringComparison.Ordinal)) {
+            logger.LogWarning("virtual devices: could not resolve a launch activity for {Pkg} on {Serial}: {Out}",
+                Package, serial, DeviceParsing.TrimNote(resolve.Stdout + resolve.Stderr));
+            return false;
+        }
+
+        var start = await Adb(["-s", serial, "shell", $"am start -n {component}"], AdbTimeout, ct);
+        return start.ExitCode == 0 && !start.Stdout.Contains("Error", StringComparison.Ordinal);
     }
 
     private async Task<bool> BootCompletedAsync(string serial, CancellationToken ct) {

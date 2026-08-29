@@ -15,7 +15,8 @@ public sealed record DockerContainer(
     string State,
     string Status,
     DateTimeOffset CreatedAt,
-    IReadOnlyDictionary<string, string> Labels);
+    IReadOnlyDictionary<string, string> Labels,
+    string? IpAddress = null);
 
 public sealed record DockerInspect(
     string Id,
@@ -25,7 +26,8 @@ public sealed record DockerInspect(
     string Status,
     DateTimeOffset? StartedAt,
     IReadOnlyList<string> Networks,
-    IReadOnlyDictionary<string, string> Labels);
+    IReadOnlyDictionary<string, string> Labels,
+    string? IpAddress = null);
 
 public sealed record DockerCreateSpec(
     string Name,
@@ -38,6 +40,7 @@ public sealed record DockerCreateSpec(
     string RestartPolicy = "unless-stopped");
 
 public sealed partial class DockerEngineClient : IDisposable {
+    public const string HostNetwork = "host";
     private static readonly string[] ReservedNetworks = ["bridge", "host", "none"];
     private readonly HttpClient _http;
     private readonly SocketsHttpHandler _handler;
@@ -169,15 +172,18 @@ public sealed partial class DockerEngineClient : IDisposable {
                 .FirstOrDefault(n => !ReservedNetworks.Contains(n, StringComparer.OrdinalIgnoreCase));
             if (network is not null) return DeviceResult<string>.Success(network);
 
+            if (self.Networks.Contains(HostNetwork, StringComparer.OrdinalIgnoreCase))
+                return DeviceResult<string>.Success(HostNetwork);
+
             return DeviceResult<string>.Error(
-                $"this container is only on {string.Join(", ", self.Networks)}; a user-defined docker network is " +
-                "required so virtual devices resolve by container name");
+                $"this container is only on {string.Join(", ", self.Networks)}; attach it to a user-defined docker " +
+                "network or run it with network_mode: host");
         }
 
         return DeviceResult<string>.Error(
             "could not identify this container from the docker daemon " +
             $"(tried {(tried.Count == 0 ? "no candidates" : string.Join(", ", tried))}); " +
-            "the app must run as a container on a user-defined network");
+            "the app must run as a container for virtual devices to work");
     }
 
     private static IEnumerable<string> SelfIdCandidates() {
@@ -216,7 +222,22 @@ public sealed partial class DockerEngineClient : IDisposable {
             Str(el, "State"),
             Str(el, "Status"),
             DateTimeOffset.FromUnixTimeSeconds(created),
-            Labels(el.TryGetProperty("Labels", out var lb) ? lb : default));
+            Labels(el.TryGetProperty("Labels", out var lb) ? lb : default),
+            FirstIp(el));
+    }
+
+    private static string? FirstIp(JsonElement root) {
+        if (!root.TryGetProperty("NetworkSettings", out var ns)
+            || !ns.TryGetProperty("Networks", out var nets)
+            || nets.ValueKind != JsonValueKind.Object)
+            return null;
+
+        foreach (var n in nets.EnumerateObject()) {
+            string ip = Str(n.Value, "IPAddress");
+            if (ip.Length > 0) return ip;
+        }
+
+        return null;
     }
 
     private static DockerInspect ReadInspect(JsonElement root) {
@@ -251,7 +272,8 @@ public sealed partial class DockerEngineClient : IDisposable {
             networks,
             Labels(config.ValueKind == JsonValueKind.Object && config.TryGetProperty("Labels", out var lb)
                 ? lb
-                : default));
+                : default),
+            FirstIp(root));
     }
 
     private static string Str(JsonElement el, string name) =>

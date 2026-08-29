@@ -57,11 +57,13 @@ public sealed class ProvisionedInstanceStore(EggIncognitoDbContext db, TimeProvi
         await db.SaveChangesAsync(ct);
     }
 
-    public async Task TouchAsync(string instanceId, string? hostRef, CancellationToken ct = default) {
+    public async Task TouchAsync(
+        string instanceId, string? hostRef, string? adbSerial = null, CancellationToken ct = default) {
         var row = await db.ProvisionedInstances.FirstOrDefaultAsync(x => x.InstanceId == instanceId, ct);
         if (row is null) return;
         row.LastSeenAt = time.GetUtcNow();
         if (!string.IsNullOrEmpty(hostRef)) row.HostRef = hostRef;
+        if (!string.IsNullOrEmpty(adbSerial)) row.AdbSerial = adbSerial;
         await db.SaveChangesAsync(ct);
     }
 
