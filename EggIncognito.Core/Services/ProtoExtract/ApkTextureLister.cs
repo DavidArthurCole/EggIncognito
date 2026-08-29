@@ -1,6 +1,6 @@
 using System.IO.Compression;
 
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public static class ApkTextureLister {
     public const string TextureDir = "assets/textures-etc1png-med/";

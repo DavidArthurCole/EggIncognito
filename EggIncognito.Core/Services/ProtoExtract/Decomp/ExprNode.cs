@@ -1,6 +1,6 @@
 using System.Text.Json.Nodes;
 
-namespace EggIncognito.Services.ProtoExtract.Decomp;
+namespace EggIncognito.Core.Services.ProtoExtract.Decomp;
 
 public enum UnOp {
     Neg,

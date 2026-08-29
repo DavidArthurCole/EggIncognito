@@ -1,6 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
     <IsPackable>true</IsPackable>
     <PackageId>EggIncognito.GameData</PackageId>
     <Description>ID-keyed game-effect magnitudes for Egg Inc (boosts, research, habs, artifacts) as a self-building descriptor registry.</Description>

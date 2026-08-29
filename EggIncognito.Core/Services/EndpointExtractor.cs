@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 using Ei;
 using Google.Protobuf;
 
-namespace EggIncognito.Services;
+namespace EggIncognito.Core.Services;
 
 public sealed partial class EndpointExtractor(HarDirs dirs, string? eid, string eidPlaceholder, bool overwrite) {
     private static readonly UTF8Encoding Utf8NoBom = new(false);

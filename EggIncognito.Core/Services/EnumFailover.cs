@@ -5,7 +5,7 @@ using Google.Protobuf;
 using Google.Protobuf.Reflection;
 using Microsoft.Extensions.Logging;
 
-namespace EggIncognito.Services;
+namespace EggIncognito.Core.Services;
 
 public sealed record LatestProtoText(string Platform, string Build, string ProtoText);
 

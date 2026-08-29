@@ -1,11 +1,11 @@
 using System.Data.Common;
 using System.Text;
 using EggIncognito.Capture;
+using EggIncognito.Core.Services;
+using EggIncognito.Core.Services.ProtoExtract;
 using EggIncognito.Data.Services;
 using EggIncognito.Models.Tools;
-using EggIncognito.Services;
 using EggIncognito.Services.Auth;
-using EggIncognito.Services.ProtoExtract;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
@@ -33,7 +33,7 @@ public sealed class ToolsController(
 
     [HttpGet("postman-collection")]
     public IActionResult PostmanCollection() {
-        string json = Services.PostmanBundle.BuildJson(YamlPath);
+        string json = PostmanBundle.BuildJson(YamlPath);
         return File(Encoding.UTF8.GetBytes(json), "application/json", "EggIncognito.postman_collection.json");
     }
 

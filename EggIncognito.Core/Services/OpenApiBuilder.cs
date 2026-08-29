@@ -2,7 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Google.Protobuf.Reflection;
 
-namespace EggIncognito.Services;
+namespace EggIncognito.Core.Services;
 
 public static class OpenApiBuilder {
     private const string InfoDescription =

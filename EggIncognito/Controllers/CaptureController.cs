@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using EggIdentity.Contract;
 using EggIncognito.Capture;
+using EggIncognito.Core.Services;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using EggIncognito.Models.Capture;

@@ -1,6 +1,6 @@
 using EggIncognito.Core;
-using EggIncognito.Services.Assets;
-using EggIncognito.Services.ProtoExtract;
+using EggIncognito.Core.Services.Assets;
+using EggIncognito.Core.Services.ProtoExtract;
 
 namespace EggIncognito.Services;
 

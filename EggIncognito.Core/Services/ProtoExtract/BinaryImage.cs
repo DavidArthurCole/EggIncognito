@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public interface IBinaryImage {
     byte[] Bytes { get; }

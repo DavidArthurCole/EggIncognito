@@ -5,7 +5,7 @@ using Google.Protobuf.Reflection;
 using FieldLabel = Google.Protobuf.Reflection.FieldDescriptorProto.Types.Label;
 using FieldType = Google.Protobuf.Reflection.FieldDescriptorProto.Types.Type;
 
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public static partial class ProtoTextCompiler {
     private const string DescriptorFileName = "ei.proto";

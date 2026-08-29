@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Text;
 using Google.Protobuf.Reflection;
 
-namespace EggIncognito.Services;
+namespace EggIncognito.Core.Services;
 
 public static class WireForensics {
     private const int MaxDepth = 64;

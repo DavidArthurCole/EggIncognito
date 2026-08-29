@@ -1,4 +1,4 @@
-using EggIncognito.Services.Syntax;
+using EggIncognito.Core.Services.Syntax;
 
 namespace EggIncognito.Tests;
 

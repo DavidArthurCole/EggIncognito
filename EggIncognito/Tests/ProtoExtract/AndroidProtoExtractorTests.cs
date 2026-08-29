@@ -1,4 +1,4 @@
-using EggIncognito.Services.ProtoExtract;
+using EggIncognito.Core.Services.ProtoExtract;
 using Google.Protobuf;
 using Google.Protobuf.Reflection;
 

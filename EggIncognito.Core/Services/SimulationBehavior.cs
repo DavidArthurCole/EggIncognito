@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace EggIncognito.Services;
+namespace EggIncognito.Core.Services;
 
 public record SimulationBehavior(
     string Name,

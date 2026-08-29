@@ -1,6 +1,6 @@
-using EggIncognito.Services.Syntax.Tokenizers;
+using EggIncognito.Core.Services.Syntax.Tokenizers;
 
-namespace EggIncognito.Services.Syntax;
+namespace EggIncognito.Core.Services.Syntax;
 
 public readonly record struct LanguageOption(string Id, string Label);
 

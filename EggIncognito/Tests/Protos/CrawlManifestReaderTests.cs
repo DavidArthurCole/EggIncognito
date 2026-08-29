@@ -2,7 +2,7 @@ using System.IO.Compression;
 using System.Text.Json;
 using EggIncognito.Core.Services.Protos;
 
-namespace EggIncognito.Tests.ProtoStaging;
+namespace EggIncognito.Tests.Protos;
 
 public class CrawlManifestReaderTests {
     private static byte[] BuildZip((string name, string content)[] entries) {

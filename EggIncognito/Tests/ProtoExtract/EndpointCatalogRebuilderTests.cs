@@ -1,6 +1,6 @@
-using EggIncognito.Services;
+using EggIncognito.Core.Services;
+using EggIncognito.Core.Services.ProtoExtract;
 using EggIncognito.Services.DataApi;
-using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Tests.ProtoExtract;
 

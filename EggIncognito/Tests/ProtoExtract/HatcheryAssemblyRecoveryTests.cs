@@ -1,4 +1,4 @@
-using EggIncognito.Services.ProtoExtract.Decomp;
+using EggIncognito.Core.Services.ProtoExtract.Decomp;
 
 namespace EggIncognito.Tests.ProtoExtract;
 

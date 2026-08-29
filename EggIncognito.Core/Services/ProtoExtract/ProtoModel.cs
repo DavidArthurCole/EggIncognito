@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public sealed record ProtoField(string Label, string Type, string Name, int Number, string Raw);
 

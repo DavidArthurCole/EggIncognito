@@ -2,7 +2,7 @@ using System.Collections;
 using Google.Protobuf;
 using Google.Protobuf.Reflection;
 
-namespace EggIncognito.Services;
+namespace EggIncognito.Core.Services;
 
 public static class ProtoVolatileScrub {
     private static readonly HashSet<string> Countdowns = new([

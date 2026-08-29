@@ -1,6 +1,6 @@
 using System.IO.Compression;
-using EggIncognito.Services.Assets;
-using EggIncognito.Services.ProtoExtract;
+using EggIncognito.Core.Services.Assets;
+using EggIncognito.Core.Services.ProtoExtract;
 using SharpGLTF.Schema2;
 
 namespace EggIncognito.Tests.ProtoExtract;

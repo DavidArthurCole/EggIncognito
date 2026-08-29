@@ -1,4 +1,4 @@
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public static class FunctionConstantExtractor {
     public static ExtractResult Extract(byte[] bin, string[] nameNeedles) {

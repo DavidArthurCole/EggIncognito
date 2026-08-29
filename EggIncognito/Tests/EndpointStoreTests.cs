@@ -1,4 +1,4 @@
-using EggIncognito.Services;
+using EggIncognito.Core.Services;
 using Ei;
 using Microsoft.Extensions.Logging.Abstractions;
 

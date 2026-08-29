@@ -1,4 +1,4 @@
-namespace EggIncognito.Services;
+namespace EggIncognito.Core.Services;
 
 public enum AuxbrainStatus {
     Ok,

@@ -1,6 +1,7 @@
 using System.Net;
 using EggIdentity.Client;
 using EggIncognito.Capture;
+using EggIncognito.Core.Services;
 using EggIncognito.Data.Services;
 using EggIncognito.Services;
 using EggIncognito.Services.DataApi;

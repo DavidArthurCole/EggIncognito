@@ -1,5 +1,5 @@
+using EggIncognito.Core.Services;
 using EggIncognito.Data.Models;
-using EggIncognito.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 

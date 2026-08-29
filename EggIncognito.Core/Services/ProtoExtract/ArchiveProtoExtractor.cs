@@ -1,6 +1,6 @@
 using System.IO.Compression;
 
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public static class ArchiveProtoExtractor {
     private const long MaxEntryBytes = 300_000_000L;

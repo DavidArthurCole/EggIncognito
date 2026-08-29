@@ -1,6 +1,6 @@
 using System.IO.Compression;
 
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public sealed class ApkPureDownloader(HttpClient http) {
     private const string Package = "com.auxbrain.egginc";

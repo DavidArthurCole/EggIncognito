@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.IO.Compression;
 
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public sealed class SymbolizedBinaryStore(string ipaDir, Func<byte[], bool>? isSymbolized = null) {
     private readonly Func<byte[], bool> _isSymbolized = isSymbolized ?? (b => MachoSymbols.Read(b).Count > 50_000);

@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public static class Elf64 {
     public static Section? FindSection(byte[] elf, string name) {

@@ -1,4 +1,4 @@
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public static class AndroidProtoExtractor {
     public static DescriptorProtoCarver.ExtractResult Extract(byte[] apkOrSoBytes) =>

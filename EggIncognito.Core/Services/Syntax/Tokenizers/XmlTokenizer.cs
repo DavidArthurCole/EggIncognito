@@ -1,4 +1,4 @@
-namespace EggIncognito.Services.Syntax.Tokenizers;
+namespace EggIncognito.Core.Services.Syntax.Tokenizers;
 
 public sealed class XmlTokenizer : ISyntaxTokenizer {
     private const byte Text = 0;

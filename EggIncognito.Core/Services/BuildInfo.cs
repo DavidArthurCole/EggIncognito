@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Reflection;
 
-namespace EggIncognito.Services;
+namespace EggIncognito.Core.Services;
 
 public sealed record BuildInfo(string Version, string Sha, string ShortSha, string BuildDate, string RepoUrl) {
     public string CommitUrl =>

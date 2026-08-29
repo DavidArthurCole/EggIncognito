@@ -1,6 +1,6 @@
 using Discord;
 using EggIdentity.Bot;
-using EggIncognito.Services;
+using EggIncognito.Core.Services;
 using Microsoft.Extensions.Logging;
 
 namespace EggIncognito.Bot;

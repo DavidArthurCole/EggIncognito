@@ -1,5 +1,6 @@
 using EggIdentity.Contract;
 using EggIncognito.Controllers;
+using EggIncognito.Core.Services;
 using EggIncognito.Models.Endpoints;
 using EggIncognito.Services;
 using Microsoft.AspNetCore.Mvc.Infrastructure;

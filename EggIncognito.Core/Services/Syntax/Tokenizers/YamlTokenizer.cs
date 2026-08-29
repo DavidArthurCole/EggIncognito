@@ -1,4 +1,4 @@
-namespace EggIncognito.Services.Syntax.Tokenizers;
+namespace EggIncognito.Core.Services.Syntax.Tokenizers;
 
 public sealed class YamlTokenizer : ISyntaxTokenizer {
     private static readonly string[] BoolWords = ["true", "false", "yes", "no", "on", "off"];

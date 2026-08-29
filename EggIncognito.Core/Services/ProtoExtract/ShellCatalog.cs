@@ -1,6 +1,6 @@
 using Ei;
 
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public static class ShellCatalog {
     private const string CdnBase = AuxbrainHosts.Origin + "/dlc";

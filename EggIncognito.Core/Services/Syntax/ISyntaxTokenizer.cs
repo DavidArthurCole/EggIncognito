@@ -1,4 +1,4 @@
-namespace EggIncognito.Services.Syntax;
+namespace EggIncognito.Core.Services.Syntax;
 
 public readonly record struct Token(int Start, int Length, TokenKind Kind);
 

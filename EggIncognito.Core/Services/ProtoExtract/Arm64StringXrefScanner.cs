@@ -1,4 +1,4 @@
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public static class Arm64StringXrefScanner {
     public readonly record struct XrefSite(ulong Va, string Via, string Symbol, ulong SymbolOffset);

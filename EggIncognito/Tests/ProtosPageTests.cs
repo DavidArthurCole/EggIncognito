@@ -1,7 +1,7 @@
 using System.Net;
 using Bunit;
 using EggIdentity.Contract;
-using EggIncognito.Components.Pages;
+using EggIncognito.Core.Services;
 using EggIncognito.Services;
 using EggIncognito.Services.Api;
 using EggIncognito.Services.Devices;
@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using ProtosPage = EggIncognito.Components.Pages.Protos;
 
 namespace EggIncognito.Tests;
 
@@ -64,7 +65,7 @@ public class ProtosPageTests {
         [Fact]
         public void EmptyRegistry_ShowsEmptyState() {
             Wire(UserRole.Viewer);
-            var cut = Render<Protos>();
+            var cut = Render<ProtosPage>();
 
             Assert.Contains("No proto versions yet.", cut.Markup);
         }
@@ -72,7 +73,7 @@ public class ProtosPageTests {
         [Fact]
         public void SideColumn_LeadsWithDevicesThenWorkbenches_AndHasNoDataWidget() {
             Wire(UserRole.Viewer);
-            var cut = Render<Protos>();
+            var cut = Render<ProtosPage>();
 
             Assert.Contains("pd-w-devices", cut.Markup);
             Assert.Contains("pd-w-workbench", cut.Markup);

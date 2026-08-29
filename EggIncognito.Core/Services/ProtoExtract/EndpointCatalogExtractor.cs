@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public sealed partial class EndpointCatalogExtractor {
     private const string MethodPrefix = "_ZN10HttpHelper";

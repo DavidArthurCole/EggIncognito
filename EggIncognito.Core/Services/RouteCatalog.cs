@@ -1,7 +1,7 @@
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Configuration;
 
-namespace EggIncognito.Services;
+namespace EggIncognito.Core.Services;
 
 public sealed record RouteInfo(
     string Path,

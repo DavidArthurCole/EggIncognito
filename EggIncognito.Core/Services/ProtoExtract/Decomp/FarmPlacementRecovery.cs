@@ -1,6 +1,6 @@
 using System.Text.Json.Nodes;
 
-namespace EggIncognito.Services.ProtoExtract.Decomp;
+namespace EggIncognito.Core.Services.ProtoExtract.Decomp;
 
 public static class FarmPlacementRecovery {
     private static readonly long[] BuildingExtentFields = [0x3d0, 0x3d4, 0x3d8];

@@ -1,7 +1,7 @@
 using EggIncognito.Capture;
+using EggIncognito.Core.Services;
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Services;
-using EggIncognito.Services;
 using EggIncognito.Services.DataApi;
 using EggIncognito.Services.Devices;
 using EggIncognito.Services.Devices.Fake;

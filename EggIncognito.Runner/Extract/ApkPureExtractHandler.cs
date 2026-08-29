@@ -1,6 +1,6 @@
 using EggIdentity.Contract;
 using EggIncognito.Core.Services.Devices;
-using EggIncognito.Services.ProtoExtract;
+using EggIncognito.Core.Services.ProtoExtract;
 
 namespace EggIncognito.Runner.Extract;
 

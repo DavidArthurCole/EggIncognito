@@ -1,7 +1,7 @@
 using Ei;
 using Google.Protobuf;
 
-namespace EggIncognito.Services;
+namespace EggIncognito.Core.Services;
 
 public static class ProtoTypeResolver {
     private static readonly Lazy<IReadOnlyDictionary<string, Type>> ByName = new(() => {

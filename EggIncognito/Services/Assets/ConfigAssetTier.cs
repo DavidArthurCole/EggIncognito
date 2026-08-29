@@ -1,5 +1,4 @@
 using EggIncognito.Core.Services.Assets;
-
 namespace EggIncognito.Services.Assets;
 
 public sealed class ConfigDiskTier(IConfiguration config) : IGameAssetTier {

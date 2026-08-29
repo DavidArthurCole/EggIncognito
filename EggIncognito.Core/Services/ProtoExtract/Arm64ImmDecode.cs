@@ -1,4 +1,4 @@
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public sealed class Arm64Image(byte[] bin, IBinaryImage img) {
     public bool TryByte(ulong va, out byte value) {

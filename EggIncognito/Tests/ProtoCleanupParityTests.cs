@@ -1,6 +1,6 @@
 using System.Text;
 using EggIncognito.Core;
-using EggIncognito.Services.ProtoExtract;
+using EggIncognito.Core.Services.ProtoExtract;
 
 namespace EggIncognito.Tests;
 

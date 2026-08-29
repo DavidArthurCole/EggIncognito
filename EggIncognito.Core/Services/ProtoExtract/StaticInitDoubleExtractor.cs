@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public static class StaticInitDoubleExtractor {
     public static Result Extract(byte[] bin, string symbol, int maxInsns = 6000)

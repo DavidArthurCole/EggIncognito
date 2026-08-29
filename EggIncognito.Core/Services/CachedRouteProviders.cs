@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 
-namespace EggIncognito.Services;
+namespace EggIncognito.Core.Services;
 
 internal sealed class TtlSnapshotCache<T>(
     Func<IReadOnlyList<T>> fetch,

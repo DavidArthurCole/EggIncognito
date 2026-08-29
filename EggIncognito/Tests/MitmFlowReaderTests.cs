@@ -1,5 +1,5 @@
 using System.Text;
-using EggIncognito.Services;
+using EggIncognito.Core.Services;
 
 namespace EggIncognito.Tests;
 

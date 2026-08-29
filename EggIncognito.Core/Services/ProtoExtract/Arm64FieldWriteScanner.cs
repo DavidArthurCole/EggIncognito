@@ -1,4 +1,4 @@
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public static class Arm64FieldWriteScanner {
     public readonly record struct Write(ulong Va, string Mnemonic, string BaseReg, long Offset, string Symbol);

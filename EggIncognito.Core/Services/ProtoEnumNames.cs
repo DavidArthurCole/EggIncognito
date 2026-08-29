@@ -2,7 +2,7 @@ using System.Globalization;
 using Ei;
 using Google.Protobuf.Reflection;
 
-namespace EggIncognito.Services;
+namespace EggIncognito.Core.Services;
 
 public static class ProtoEnumNames {
     private static readonly EnumDescriptor ArtifactName = Nested("Name");

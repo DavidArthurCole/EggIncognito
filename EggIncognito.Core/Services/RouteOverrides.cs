@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 
-namespace EggIncognito.Services;
+namespace EggIncognito.Core.Services;
 
 public sealed record RouteOverrideInfo(
     string Path,

@@ -1,5 +1,5 @@
 using System.Threading.Channels;
-using EggIncognito.Services;
+using EggIncognito.Core.Services;
 
 namespace EggIncognito.Capture;
 

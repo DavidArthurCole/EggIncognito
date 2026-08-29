@@ -1,7 +1,7 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
-using EggIncognito.Services;
+using EggIncognito.Core.Services;
 using Microsoft.Extensions.Hosting;
 
 namespace EggIncognito.Capture;

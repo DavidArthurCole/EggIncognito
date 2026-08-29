@@ -1,3 +1,4 @@
+using EggIncognito.Core.Services;
 namespace EggIncognito.Services;
 
 public sealed record DocSubject(

@@ -1,4 +1,4 @@
-namespace EggIncognito.Services.Syntax.Tokenizers;
+namespace EggIncognito.Core.Services.Syntax.Tokenizers;
 
 public sealed class BinTokenizer : ISyntaxTokenizer {
     public string Id => "bin";

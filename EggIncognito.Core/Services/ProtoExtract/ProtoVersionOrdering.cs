@@ -1,7 +1,7 @@
 using System.Globalization;
 using EggIncognito.Core.Services.Devices;
 
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public sealed record VersionKey(
     string Platform, string? AppVersion, string? Build, string? ClientVersion,

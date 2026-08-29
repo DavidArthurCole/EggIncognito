@@ -2,7 +2,7 @@ using System.Numerics;
 using SharpGLTF.Schema2;
 using SharpGLTF.Transforms;
 
-namespace EggIncognito.Services.Assets;
+namespace EggIncognito.Core.Services.Assets;
 
 public static class GltfAnimator {
     public enum AnimationKind {

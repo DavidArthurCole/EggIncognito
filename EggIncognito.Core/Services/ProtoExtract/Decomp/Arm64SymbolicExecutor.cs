@@ -1,6 +1,6 @@
 using Gee.External.Capstone.Arm64;
 
-namespace EggIncognito.Services.ProtoExtract.Decomp;
+namespace EggIncognito.Core.Services.ProtoExtract.Decomp;
 
 public static class Arm64SymbolicExecutor {
     private const int InstrBudget = 5000;

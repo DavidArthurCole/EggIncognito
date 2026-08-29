@@ -1,4 +1,4 @@
-using Svc = EggIncognito.Services;
+using Svc = EggIncognito.Core.Services;
 
 namespace EggIncognito.Tests;
 

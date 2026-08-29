@@ -1,7 +1,7 @@
 using System.Text;
 using Ei;
 
-namespace EggIncognito.Services;
+namespace EggIncognito.Core.Services;
 
 public sealed record ProvenanceSource(string Origin, string? Locator = null, string? Method = null);
 

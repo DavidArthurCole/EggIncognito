@@ -2,7 +2,6 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
     <Description>Build-time CSS compiler for EggIncognito: scans .razor/.html/.js/.cs content for utility/component class tokens and compiles wwwroot/styles.css via MonorailCss + EggIdentity.Styles.</Description>
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>

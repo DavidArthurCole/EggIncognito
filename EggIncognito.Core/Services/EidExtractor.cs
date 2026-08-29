@@ -1,6 +1,6 @@
 using Ei;
 
-namespace EggIncognito.Services;
+namespace EggIncognito.Core.Services;
 
 public static class EidExtractor {
     public static string? FromData(string? data) {

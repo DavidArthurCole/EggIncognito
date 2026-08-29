@@ -1,3 +1,4 @@
+using EggIncognito.Core.Services;
 using EggIncognito.Services;
 
 namespace EggIncognito.Tests;

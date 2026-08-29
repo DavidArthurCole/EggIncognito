@@ -1,4 +1,4 @@
-namespace EggIncognito.Services.ProtoExtract.Decomp;
+namespace EggIncognito.Core.Services.ProtoExtract.Decomp;
 
 public static class KnownCallModels {
     public static ExprNode? Resolve(string mangled, ExprNode[] args) {

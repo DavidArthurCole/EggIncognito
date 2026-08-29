@@ -1,7 +1,7 @@
 using System.Net;
 using System.Text;
 
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public static class AppMetaReader {
     public static (string? AppVersion, string? Build) Read(byte[]? meta) {

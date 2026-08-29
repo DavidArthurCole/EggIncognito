@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using EggIdentity.Client;
 using EggIdentity.Contract;
 using EggIncognito.Capture;
+using EggIncognito.Core.Services;
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;

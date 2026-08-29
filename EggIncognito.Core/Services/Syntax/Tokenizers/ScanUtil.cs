@@ -1,4 +1,4 @@
-namespace EggIncognito.Services.Syntax.Tokenizers;
+namespace EggIncognito.Core.Services.Syntax.Tokenizers;
 
 internal static class ScanUtil {
     public static int SkipQuoted(ReadOnlySpan<char> line, int start) {

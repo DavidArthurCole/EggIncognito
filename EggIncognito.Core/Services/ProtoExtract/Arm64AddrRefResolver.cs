@@ -1,6 +1,6 @@
 using Gee.External.Capstone.Arm64;
 
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public static class Arm64AddrRefResolver {
     public static IReadOnlyList<Ref> FindReferrers(byte[] bin, ulong targetVa) {

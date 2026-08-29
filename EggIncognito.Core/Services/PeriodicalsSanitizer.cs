@@ -1,7 +1,7 @@
 using Ei;
 using Google.Protobuf;
 
-namespace EggIncognito.Services;
+namespace EggIncognito.Core.Services;
 
 public static class PeriodicalsSanitizer {
     public static string ScrubPlayerScope(string? responseType, string json) {

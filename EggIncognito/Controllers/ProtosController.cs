@@ -1,7 +1,7 @@
 using System.Text;
+using EggIncognito.Core.Services.ProtoExtract;
 using EggIncognito.Data.Services;
 using EggIncognito.Services.Auth;
-using EggIncognito.Services.ProtoExtract;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 

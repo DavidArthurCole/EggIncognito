@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public static partial class MissionCatalogExtractor {
     public const string InitSymbol = "__GLOBAL__sub_I_missiondata";

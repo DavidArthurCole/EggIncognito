@@ -1,7 +1,7 @@
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using EggIncognito.Core;
-using EggIncognito.Services;
+using EggIncognito.Core.Services;
 
 namespace EggIncognito.Components.Capture;
 

@@ -1,4 +1,4 @@
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public enum VersionLinkKind { None, Canonical, ProtoSha, AppVersion, ClientVersion }
 

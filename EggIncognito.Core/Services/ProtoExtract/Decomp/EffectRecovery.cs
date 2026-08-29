@@ -1,6 +1,6 @@
 using System.Text.Json.Nodes;
 
-namespace EggIncognito.Services.ProtoExtract.Decomp;
+namespace EggIncognito.Core.Services.ProtoExtract.Decomp;
 
 public static class EffectRecovery {
     public static EffectModel Recover(byte[] bin, string updateNeedle, ExprNode? count) {

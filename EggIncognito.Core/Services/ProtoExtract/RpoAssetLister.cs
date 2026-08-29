@@ -1,6 +1,6 @@
 using System.IO.Compression;
 
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public static class RpoAssetLister {
     private const long MaxEntryBytes = 50_000_000L;

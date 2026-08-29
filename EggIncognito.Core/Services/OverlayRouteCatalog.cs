@@ -1,4 +1,4 @@
-namespace EggIncognito.Services;
+namespace EggIncognito.Core.Services;
 
 public sealed class OverlayRouteCatalog(IRouteCatalog inner, IRouteOverrideProvider? overrides) : IRouteCatalog {
     public RouteInfo? Resolve(string path) {

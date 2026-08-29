@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Threading.Channels;
 using EggIncognito.Capture;
+using EggIncognito.Core.Services;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using EggIncognito.Models.Observations;

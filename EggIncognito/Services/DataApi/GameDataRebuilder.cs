@@ -1,11 +1,12 @@
 using System.Text;
 using System.Text.Json.Nodes;
 using EggIncognito.Core;
+using EggIncognito.Core.Services;
+using EggIncognito.Core.Services.ProtoExtract;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using EggIncognito.GameData;
 using EggIncognito.Services.Feed;
-using EggIncognito.Services.ProtoExtract;
 using Microsoft.EntityFrameworkCore;
 
 namespace EggIncognito.Services.DataApi;

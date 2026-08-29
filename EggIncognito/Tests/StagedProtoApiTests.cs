@@ -1,7 +1,7 @@
 using EggIncognito.Data.Services;
 using EggIncognito.Services.Protos;
 
-namespace EggIncognito.Tests.ProtoStaging;
+namespace EggIncognito.Tests;
 
 public class StagedProtoApiTests {
     [Fact]

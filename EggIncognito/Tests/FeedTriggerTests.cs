@@ -1,5 +1,5 @@
+using EggIncognito.Core.Services.ProtoExtract;
 using EggIncognito.Services.Feed;
-using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Tests;
 

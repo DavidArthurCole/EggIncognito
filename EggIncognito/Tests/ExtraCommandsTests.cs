@@ -1,5 +1,5 @@
 using EggIncognito.Bot;
-using EggIncognito.Services;
+using EggIncognito.Core.Services;
 using Google.Protobuf;
 using Google.Protobuf.Reflection;
 

@@ -1,5 +1,5 @@
+using EggIncognito.Core.Services.ProtoExtract;
 using EggIncognito.Runner.Extract;
-using EggIncognito.Services.ProtoExtract;
 using Xunit;
 
 namespace EggIncognito.Runner.Tests;

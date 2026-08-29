@@ -1,4 +1,5 @@
 using EggIdentity.Contract;
+using EggIncognito.Core.Services;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using EggIncognito.Models.Endpoints;

@@ -1,4 +1,4 @@
-namespace EggIncognito.Services.Syntax;
+namespace EggIncognito.Core.Services.Syntax;
 
 public sealed class HighlightedText {
     private static readonly Token[] NoTokens = [];

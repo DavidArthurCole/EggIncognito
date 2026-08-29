@@ -1,10 +1,10 @@
 using System.Globalization;
 using EggIncognito.Core;
 using EggIncognito.Core.Services.Devices;
+using EggIncognito.Core.Services.ProtoExtract;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using EggIncognito.Services.Devices;
-using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Services;
 

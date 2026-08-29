@@ -1,6 +1,7 @@
+using EggIncognito.Core.Services;
+using EggIncognito.Core.Services.ProtoExtract;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
-using EggIncognito.Services.ProtoExtract;
 using Microsoft.EntityFrameworkCore;
 
 namespace EggIncognito.Services.DataApi;

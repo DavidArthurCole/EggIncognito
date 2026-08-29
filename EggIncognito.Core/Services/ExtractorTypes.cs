@@ -1,7 +1,7 @@
 using System.Reflection;
 using Ei;
 
-namespace EggIncognito.Services;
+namespace EggIncognito.Core.Services;
 
 public sealed class HarCounts {
     public int Wrote { get; set; }

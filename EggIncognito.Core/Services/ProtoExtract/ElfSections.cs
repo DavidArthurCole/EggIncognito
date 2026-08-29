@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public static class ElfSections {
     private const uint PtLoad = 1;

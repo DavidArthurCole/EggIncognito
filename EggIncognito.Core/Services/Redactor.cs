@@ -1,7 +1,6 @@
 using System.Text.RegularExpressions;
-using EggIncognito.Core;
 
-namespace EggIncognito.Services;
+namespace EggIncognito.Core.Services;
 
 public static partial class Redactor {
     [GeneratedRegex(@"EI(?!0{15}\d)\d{16}", RegexOptions.Compiled)]

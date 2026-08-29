@@ -4,6 +4,7 @@ using EggIdentity.Contract;
 using EggIncognito.Capture;
 using EggIncognito.Components.Api;
 using EggIncognito.Controllers;
+using EggIncognito.Core.Services;
 using EggIncognito.Models.Capture;
 using EggIncognito.Services;
 using Microsoft.AspNetCore.Hosting;

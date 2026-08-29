@@ -1,6 +1,6 @@
 using Gee.External.Capstone.Arm64;
 
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public static class Arm64DataTableReader {
     public static ListResult List(byte[] bin, string[] nameNeedles, int maxInstructions = 512)

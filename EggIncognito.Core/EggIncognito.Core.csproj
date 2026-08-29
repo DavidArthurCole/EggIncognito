@@ -1,6 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
     <IsPackable>true</IsPackable>
     <PackageId>EggIncognito.Core</PackageId>
     <Description>Core services + Ei.* proto types for EggIncognito (auxbrain transport, proto reflection, asset extraction).</Description>

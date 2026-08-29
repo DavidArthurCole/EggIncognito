@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace EggIncognito.Services.Syntax;
+namespace EggIncognito.Core.Services.Syntax;
 
 public sealed class SyntaxCache {
     public const int DefaultMaxEntries = 64;

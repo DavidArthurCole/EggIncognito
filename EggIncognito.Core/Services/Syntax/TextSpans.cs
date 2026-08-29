@@ -1,4 +1,4 @@
-namespace EggIncognito.Services.Syntax;
+namespace EggIncognito.Core.Services.Syntax;
 
 public readonly record struct Span(int Start, int Length, string Class);
 

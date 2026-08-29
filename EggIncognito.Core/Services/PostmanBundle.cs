@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-namespace EggIncognito.Services;
+namespace EggIncognito.Core.Services;
 
 public static class PostmanBundle {
     private static readonly JsonSerializerOptions IndentedJson = new() { WriteIndented = true };

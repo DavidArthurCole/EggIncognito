@@ -2,7 +2,7 @@ using System.IO.Compression;
 using Ei;
 using Google.Protobuf;
 
-namespace EggIncognito.Services;
+namespace EggIncognito.Core.Services;
 
 public static class ProtoFraming {
     public static byte[] FromBase64Loose(string s) {

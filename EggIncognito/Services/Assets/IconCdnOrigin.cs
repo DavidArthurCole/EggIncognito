@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using EggIncognito.Core.Services;
 using EggIncognito.Core.Services.Assets;
 
 namespace EggIncognito.Services.Assets;

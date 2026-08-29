@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text;
 
-namespace EggIncognito.Services;
+namespace EggIncognito.Core.Services;
 
 public static class TnetString {
     public static (object? value, int next) Decode(byte[] data, int offset) {

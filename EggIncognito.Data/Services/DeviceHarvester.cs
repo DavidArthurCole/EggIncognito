@@ -1,8 +1,8 @@
 using System.Text;
 using EggIncognito.Core;
 using EggIncognito.Core.Services.Devices;
+using EggIncognito.Core.Services.ProtoExtract;
 using EggIncognito.Data.Models;
-using EggIncognito.Services.ProtoExtract;
 using Microsoft.Extensions.Logging;
 
 namespace EggIncognito.Data.Services;

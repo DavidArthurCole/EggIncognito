@@ -4,7 +4,7 @@ using Ei;
 using Google.Protobuf;
 using Google.Protobuf.Reflection;
 
-namespace EggIncognito.Services;
+namespace EggIncognito.Core.Services;
 
 public sealed record SchemaEnumValue(string Name, int Number);
 

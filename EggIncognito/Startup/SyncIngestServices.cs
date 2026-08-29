@@ -3,6 +3,8 @@ using System.Text.Json;
 using EggIdentity.Contract;
 using EggIncognito.Bot;
 using EggIncognito.Core;
+using EggIncognito.Core.Services;
+using EggIncognito.Core.Services.ProtoExtract;
 using EggIncognito.Data.Services;
 using EggIncognito.Services;
 
@@ -37,7 +39,7 @@ public static class SyncIngestServices {
                 : Encoding.UTF8.GetString(Convert.FromBase64String(evt.ProtoTextB64));
             string protoSha = evt.ProtoSha;
             if (protoText is not null) {
-                var norm = Services.ProtoExtract.ProtoCanonicalForm.Normalize(protoText);
+                var norm = ProtoCanonicalForm.Normalize(protoText);
                 if (norm.Ok) {
                     protoText = norm.Text!;
                     protoSha = norm.Sha!;

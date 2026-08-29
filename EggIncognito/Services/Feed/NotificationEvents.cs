@@ -1,7 +1,7 @@
 using System.Globalization;
+using EggIncognito.Core.Services.ProtoExtract;
 using EggIncognito.Data.Models;
 using EggIncognito.Services.DataApi;
-using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Services.Feed;
 

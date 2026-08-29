@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public sealed record CarvedManifest(int V, string FileSha, int? ClientVersion, string Ei, string? Common,
     string? AppVersion, string? Build) {

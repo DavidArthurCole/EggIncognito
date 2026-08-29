@@ -1,5 +1,6 @@
 using System.Text;
 using EggIdentity.Contract;
+using EggIncognito.Core.Services;
 using EggIncognito.Models.Config;
 using EggIncognito.Services;
 using EggIncognito.Services.Auth;

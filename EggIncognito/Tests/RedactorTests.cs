@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 using Ei;
 using Google.Protobuf;
 using Google.Protobuf.Reflection;
-using Svc = EggIncognito.Services;
+using Svc = EggIncognito.Core.Services;
 
 namespace EggIncognito.Tests;
 

@@ -114,10 +114,11 @@ public class ApiWorkbenchDatasetHashTests {
 
     [Fact]
     public void Hash_RoundTripsADocsSubject() {
-        var state = new ApiWorkbenchState();
-        state.DocsKind = "message";
-        state.DocsKey = "ContractsResponse";
-        state.Kind = ApiSelectionKind.Docs;
+        var state = new ApiWorkbenchState {
+            DocsKind = "message",
+            DocsKey = "ContractsResponse",
+            Kind = ApiSelectionKind.Docs
+        };
 
         Assert.Equal("api/docs/message/ContractsResponse", state.Hash());
 
@@ -130,10 +131,11 @@ public class ApiWorkbenchDatasetHashTests {
 
     [Fact]
     public void Hash_RoundTripsADocsEndpointSubjectWithSlashes() {
-        var state = new ApiWorkbenchState();
-        state.DocsKind = "endpoint";
-        state.DocsKey = "ei/get_periodicals";
-        state.Kind = ApiSelectionKind.Docs;
+        var state = new ApiWorkbenchState {
+            DocsKind = "endpoint",
+            DocsKey = "ei/get_periodicals",
+            Kind = ApiSelectionKind.Docs
+        };
 
         var fresh = new ApiWorkbenchState();
         Assert.True(fresh.ApplyHash(state.Hash()));

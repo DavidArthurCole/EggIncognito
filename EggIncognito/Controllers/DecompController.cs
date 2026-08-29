@@ -3,13 +3,13 @@ using System.Text.Json.Nodes;
 using EggIdentity.Contract;
 using EggIncognito.Core;
 using EggIncognito.Core.Services.Devices;
+using EggIncognito.Core.Services.ProtoExtract;
+using EggIncognito.Core.Services.ProtoExtract.Decomp;
 using EggIncognito.Data.Services;
 using EggIncognito.DeviceTools;
 using EggIncognito.Services;
 using EggIncognito.Services.Auth;
 using EggIncognito.Services.Devices;
-using EggIncognito.Services.ProtoExtract;
-using EggIncognito.Services.ProtoExtract.Decomp;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 

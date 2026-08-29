@@ -1,6 +1,6 @@
 using Google.Protobuf;
 
-namespace EggIncognito.Services;
+namespace EggIncognito.Core.Services;
 
 public interface IEndpointStore {
     TRes Fetch<TRes>(string path, string? eid = null) where TRes : IMessage<TRes>, new();

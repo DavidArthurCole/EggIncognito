@@ -3,7 +3,7 @@ using Google.Protobuf;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace EggIncognito.Services;
+namespace EggIncognito.Core.Services;
 
 public sealed class EndpointStore(
     IEndpointSource fileSource,

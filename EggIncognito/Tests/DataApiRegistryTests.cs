@@ -46,7 +46,7 @@ public class DataApiRegistryTests {
         Assert.False(s.Listed);
         Assert.Equal("season-infos", s.Feed);
         Assert.True(s.Refresh.Egress);
-        Assert.All(c.Sources.Where(x => x.Id != "season-infos"), x => Assert.True(x.Listed));
+        Assert.All(c.Sources.Where(x => x.Id is not "season-infos" and not "artifact-consume"), x => Assert.True(x.Listed));
     }
 
     [Fact]

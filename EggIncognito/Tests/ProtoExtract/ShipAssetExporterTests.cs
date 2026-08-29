@@ -1,6 +1,6 @@
 using System.IO.Compression;
+using EggIncognito.Core.Services.ProtoExtract;
 using EggIncognito.Services;
-using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Tests.ProtoExtract;
 

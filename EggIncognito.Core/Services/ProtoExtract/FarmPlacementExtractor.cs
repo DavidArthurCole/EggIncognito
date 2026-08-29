@@ -1,6 +1,6 @@
 using EggIncognito.Core.Services.Farm;
 
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public static class FarmPlacementExtractor {
     public const string HabLocator = "GameController::getHabPosition 0x10040593c";

@@ -1,4 +1,4 @@
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public static class ElfText {
     public static bool TryFindText(byte[] bin, out int fileOff, out int size, out ulong vmAddr) {

@@ -1,6 +1,6 @@
 using Ei;
 
-namespace EggIncognito.Services;
+namespace EggIncognito.Core.Services;
 
 public static class DlcArtifactIcons {
     public static IReadOnlyDictionary<string, string> FromConfigJson(string json) =>

@@ -1,5 +1,4 @@
 using System.Globalization;
-
 namespace EggIncognito.Services.Events;
 
 public static class EventCountdown {

@@ -1,7 +1,7 @@
 using EggIdentity.Contract;
 using EggIncognito.Core;
+using EggIncognito.Core.Services.ProtoExtract;
 using EggIncognito.Runner.State;
-using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Runner.Runners;
 

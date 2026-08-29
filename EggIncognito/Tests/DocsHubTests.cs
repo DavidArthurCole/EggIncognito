@@ -1,6 +1,7 @@
 using System.Net;
 using Bunit;
 using EggIncognito.Components.Shared;
+using EggIncognito.Core.Services;
 using EggIncognito.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;

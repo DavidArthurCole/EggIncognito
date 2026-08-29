@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public static class ArtifactMultiplierExtractor {
     public static readonly double[] TierMultipliers =

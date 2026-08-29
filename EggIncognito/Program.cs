@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using EggIncognito.Build;
 using EggIncognito.Capture;
-using EggIncognito.Services;
+using EggIncognito.Core.Services;
 using EggIncognito.Startup;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;

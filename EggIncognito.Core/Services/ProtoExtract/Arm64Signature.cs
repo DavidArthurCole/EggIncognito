@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text;
 
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public static class Arm64Signature {
     public static Pattern Build(byte[] bin, ulong startVa, ulong endVa, ulong textVmAddr, int textFileOff,

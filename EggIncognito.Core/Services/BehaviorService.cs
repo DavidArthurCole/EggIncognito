@@ -2,7 +2,7 @@ using System.Text;
 using Ei;
 using Google.Protobuf;
 
-namespace EggIncognito.Services;
+namespace EggIncognito.Core.Services;
 
 public sealed class BehaviorService : IBehaviorService {
     private readonly IReadOnlyList<SimulationBehavior> _behaviors;

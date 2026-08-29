@@ -1,6 +1,5 @@
 using System.Text.Json;
-using EggIncognito.Services;
-
+using EggIncognito.Core.Services;
 namespace EggIncognito.Components.Inspector;
 
 public sealed record BuildResponse(

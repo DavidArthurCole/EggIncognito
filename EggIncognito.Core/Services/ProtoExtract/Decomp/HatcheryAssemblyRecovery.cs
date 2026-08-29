@@ -1,6 +1,6 @@
 using System.Text.Json.Nodes;
 
-namespace EggIncognito.Services.ProtoExtract.Decomp;
+namespace EggIncognito.Core.Services.ProtoExtract.Decomp;
 
 public static class HatcheryAssemblyRecovery {
     private static readonly IReadOnlyDictionary<string, double> Empty = new Dictionary<string, double>();

@@ -1,6 +1,5 @@
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Runner.Devices;
-using EggIncognito.Runner.Extract;
 using EggIncognito.Runner.Runners;
 using Xunit;
 

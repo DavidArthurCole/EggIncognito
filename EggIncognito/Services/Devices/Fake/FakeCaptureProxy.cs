@@ -1,4 +1,5 @@
 using EggIncognito.Capture;
+using EggIncognito.Core.Services;
 using EggIncognito.Services.DataApi;
 using Ei;
 using Google.Protobuf;

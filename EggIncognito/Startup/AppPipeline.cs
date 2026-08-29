@@ -5,6 +5,7 @@ using EggIdentity.Fallback;
 using EggIdentity.Metrics;
 using EggIncognito.Bot;
 using EggIncognito.Components;
+using EggIncognito.Core.Services;
 using EggIncognito.Data.Services;
 using EggIncognito.Services;
 using EggIncognito.Services.Auth;

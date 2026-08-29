@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 
-namespace EggIncognito.Services;
+namespace EggIncognito.Core.Services;
 
 public sealed class FileEndpointSource : IEndpointSource {
     private readonly Dictionary<string, byte[]> _endpoints = [with(StringComparer.OrdinalIgnoreCase)];

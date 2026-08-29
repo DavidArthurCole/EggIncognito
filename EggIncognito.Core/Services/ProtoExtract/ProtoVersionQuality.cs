@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public static class ProtoVersionQuality {
     public static bool IsAndroidStyleBuild(string? build) =>

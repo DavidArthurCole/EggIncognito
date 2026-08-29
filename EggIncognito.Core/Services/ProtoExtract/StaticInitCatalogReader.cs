@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public static class StaticInitCatalogReader {
     public static Result Read(byte[] bin, string initSymbol, Func<string, bool> isId) {

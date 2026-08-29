@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace EggIncognito.Services;
+namespace EggIncognito.Core.Services;
 
 public sealed partial class RoutesYamlEditor {
     private const string NoneMarker = "# none - empty body";

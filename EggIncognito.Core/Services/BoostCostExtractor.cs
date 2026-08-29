@@ -1,6 +1,6 @@
 using Ei;
 
-namespace EggIncognito.Services;
+namespace EggIncognito.Core.Services;
 
 public readonly record struct BoostCost(int Price, int TokenPrice, double SeRequired);
 

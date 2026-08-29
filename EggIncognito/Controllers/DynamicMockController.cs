@@ -1,3 +1,4 @@
+using EggIncognito.Core.Services;
 using EggIncognito.Services;
 using EggIncognito.Services.Auth;
 using Google.Protobuf;

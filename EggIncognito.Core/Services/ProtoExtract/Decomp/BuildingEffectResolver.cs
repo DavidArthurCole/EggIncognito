@@ -1,4 +1,4 @@
-namespace EggIncognito.Services.ProtoExtract.Decomp;
+namespace EggIncognito.Core.Services.ProtoExtract.Decomp;
 
 public static class BuildingEffectResolver {
     public static IReadOnlyList<EffectRecovery.EffectModel> Resolve(byte[] bin, string stem) {

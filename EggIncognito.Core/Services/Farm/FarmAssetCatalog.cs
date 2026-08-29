@@ -1,5 +1,5 @@
 using System.Runtime.CompilerServices;
-using EggIncognito.Services.ProtoExtract;
+using EggIncognito.Core.Services.ProtoExtract;
 using Ei;
 using AssetType = Ei.ShellSpec.Types.AssetType;
 using FarmElement = Ei.ShellDB.Types.FarmElement;

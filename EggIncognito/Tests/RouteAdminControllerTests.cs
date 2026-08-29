@@ -1,6 +1,7 @@
 using System.Text.Json;
 using EggIdentity.Contract;
 using EggIncognito.Controllers;
+using EggIncognito.Core.Services;
 using EggIncognito.Models.Routes;
 using EggIncognito.Services;
 using Microsoft.AspNetCore.Mvc;

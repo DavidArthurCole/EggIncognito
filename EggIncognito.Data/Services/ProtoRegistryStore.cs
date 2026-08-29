@@ -1,8 +1,8 @@
 using System.Text.Json;
 using EggIncognito.Core;
+using EggIncognito.Core.Services;
+using EggIncognito.Core.Services.ProtoExtract;
 using EggIncognito.Data.Models;
-using EggIncognito.Services;
-using EggIncognito.Services.ProtoExtract;
 using Microsoft.EntityFrameworkCore;
 
 namespace EggIncognito.Data.Services;

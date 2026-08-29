@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public static class EggCatalogExtractor {
     public const string SignatureString = "A regular egg. Edible and incredible.";

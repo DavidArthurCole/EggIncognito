@@ -1,6 +1,6 @@
 using Ei;
 
-namespace EggIncognito.Services;
+namespace EggIncognito.Core.Services;
 
 public sealed record ColleggtibleDef(string Identifier, int Dimension, IReadOnlyList<double> TierValues);
 

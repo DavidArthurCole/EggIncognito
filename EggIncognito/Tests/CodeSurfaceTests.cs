@@ -1,7 +1,7 @@
 using Bunit;
 using EggIncognito.Components.Shared.Code;
-using EggIncognito.Services.ProtoExtract;
-using EggIncognito.Services.Syntax;
+using EggIncognito.Core.Services.ProtoExtract;
+using EggIncognito.Core.Services.Syntax;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 

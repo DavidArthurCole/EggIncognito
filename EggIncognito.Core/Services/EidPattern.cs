@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace EggIncognito.Services;
+namespace EggIncognito.Core.Services;
 
 public static partial class EidPattern {
     public const string DigitRun = @"EI\d{10,}";

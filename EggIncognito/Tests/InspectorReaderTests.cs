@@ -1,6 +1,6 @@
 using Bunit;
 using EggIncognito.Components.Inspector;
-using EggIncognito.Services;
+using EggIncognito.Core.Services;
 using EggIncognito.Services.Api;
 using EggIncognito.Services.Inspector;
 using Microsoft.Extensions.DependencyInjection;

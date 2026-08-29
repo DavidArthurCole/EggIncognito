@@ -1,5 +1,5 @@
 using System.Net;
-using EggIncognito.Services;
+using EggIncognito.Core.Services;
 using Ei;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;

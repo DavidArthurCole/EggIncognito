@@ -1,6 +1,6 @@
 using EggIncognito.Core.Services.Devices;
 
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public enum ProtoRefSource { Registry, Session }
 

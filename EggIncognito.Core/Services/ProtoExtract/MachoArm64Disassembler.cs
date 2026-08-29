@@ -1,6 +1,6 @@
 using Gee.External.Capstone.Arm64;
 
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public static class MachoArm64Disassembler {
     public static AnalysisResult Analyze(byte[] bin, ulong startVa, ulong endVa, ulong textVmAddr, int textFileOff) {

@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public static class StringLocator {
     public readonly record struct StringHit(ulong Va, int FileOff, string Section, string Neighbors);

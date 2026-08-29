@@ -1,7 +1,7 @@
 using System.IO.Compression;
 using System.Text;
 using EggIncognito.Core;
-using EggIncognito.Services;
+using EggIncognito.Core.Services;
 using Ei;
 using Google.Protobuf;
 using Microsoft.Extensions.Configuration;

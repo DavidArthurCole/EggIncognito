@@ -1,9 +1,9 @@
 using System.Net;
+using EggIncognito.Core.Services.ProtoExtract;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using EggIncognito.Services.DataApi;
 using EggIncognito.Services.Feed;
-using EggIncognito.Services.ProtoExtract;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace EggIncognito.Tests;

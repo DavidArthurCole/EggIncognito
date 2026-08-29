@@ -3,7 +3,7 @@ using Bunit;
 using EggIncognito.Capture;
 using EggIncognito.Components.Capture;
 using EggIncognito.Components.Shared.Code;
-using EggIncognito.Services.Syntax;
+using EggIncognito.Core.Services.Syntax;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;

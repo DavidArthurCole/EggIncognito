@@ -1,6 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk.Web" InitialTargets="BuildStyles">
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
     <UserSecretsId>e7aa6a77-af5b-41a6-90e6-4d9b1e792645</UserSecretsId>
     <DefaultItemExcludes>$(DefaultItemExcludes);Tests\**</DefaultItemExcludes>
   </PropertyGroup>

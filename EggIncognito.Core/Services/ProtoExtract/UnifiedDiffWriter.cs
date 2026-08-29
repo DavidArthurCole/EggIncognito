@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public sealed record UnifiedDiffOptions(
     int Context = 3,

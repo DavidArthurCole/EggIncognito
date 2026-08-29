@@ -1,6 +1,7 @@
 using System.Reflection;
 using EggIncognito.Components.Capture;
 using EggIncognito.Components.Inspector;
+using EggIncognito.Core.Services;
 using EggIncognito.Models.Data;
 using EggIncognito.Services.Inspector;
 using EggIncognito.Services.Workbench;

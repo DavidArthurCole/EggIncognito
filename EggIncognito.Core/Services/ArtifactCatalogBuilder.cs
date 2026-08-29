@@ -3,7 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Ei;
 
-namespace EggIncognito.Services;
+namespace EggIncognito.Core.Services;
 
 public static class ArtifactCatalogBuilder {
     public static readonly JsonSerializerOptions CamelJson = new() {

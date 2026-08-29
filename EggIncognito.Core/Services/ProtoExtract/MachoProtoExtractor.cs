@@ -1,4 +1,4 @@
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public static class MachoProtoExtractor {
     public static IReadOnlyList<CarvedDescriptor> CarveAll(byte[] macho) =>

@@ -1,8 +1,8 @@
 using System.Text.Json;
 using EggIncognito.Core.Services.Farm;
-using EggIncognito.Services.ProtoExtract;
+using EggIncognito.Core.Services.ProtoExtract;
 
-namespace EggIncognito.Services;
+namespace EggIncognito.Core.Services;
 
 public static class GameDataDocBuilders {
     private static readonly JsonSerializerOptions CamelJson = BoostCatalogBuilder.CamelJson;

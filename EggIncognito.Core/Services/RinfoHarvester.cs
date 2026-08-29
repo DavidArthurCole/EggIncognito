@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 
-namespace EggIncognito.Services;
+namespace EggIncognito.Core.Services;
 
 public static class RinfoHarvester {
     public static ObservedVersion? TryHarvest(string? requestJson) {

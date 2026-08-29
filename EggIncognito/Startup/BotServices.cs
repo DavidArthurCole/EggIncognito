@@ -2,6 +2,7 @@ using System.Globalization;
 using EggIdentity.Bot;
 using EggIdentity.Contract;
 using EggIncognito.Bot;
+using EggIncognito.Core.Services;
 using EggIncognito.Services;
 
 namespace EggIncognito.Startup;

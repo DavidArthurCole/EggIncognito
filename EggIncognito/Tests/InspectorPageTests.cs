@@ -2,7 +2,7 @@ using System.Net;
 using System.Text.Json.Nodes;
 using Bunit;
 using EggIncognito.Components.Inspector;
-using EggIncognito.Services;
+using EggIncognito.Core.Services;
 using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace EggIncognito.Tests;

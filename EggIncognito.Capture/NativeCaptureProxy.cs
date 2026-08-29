@@ -8,7 +8,7 @@ using System.Security.Authentication;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
-using EggIncognito.Services;
+using EggIncognito.Core.Services;
 
 namespace EggIncognito.Capture;
 

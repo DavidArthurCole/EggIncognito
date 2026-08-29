@@ -1,7 +1,7 @@
 using System.Text;
 using Google.Protobuf.Reflection;
 
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public static class DescriptorProtoCarver {
     private static readonly string[] DescriptorFiles = ["ei.proto", "common.proto", "abb.proto"];

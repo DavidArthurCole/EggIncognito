@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using EggIncognito.Bot;
 using EggIncognito.Capture;
+using EggIncognito.Core.Services;
 
 namespace EggIncognito.Services;
 

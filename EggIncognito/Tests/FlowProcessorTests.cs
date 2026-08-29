@@ -1,6 +1,6 @@
 using System.Text;
 using EggIncognito.Capture;
-using EggIncognito.Services;
+using EggIncognito.Core.Services;
 using Ei;
 using Google.Protobuf;
 

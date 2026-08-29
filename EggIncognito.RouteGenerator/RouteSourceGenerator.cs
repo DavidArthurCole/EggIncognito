@@ -65,7 +65,7 @@ public sealed class RouteSourceGenerator : IIncrementalGenerator {
             "#nullable enable\n" +
             "\n" +
             "using Microsoft.AspNetCore.Mvc;\n" +
-            "using EggIncognito.Services;\n" +
+            "using EggIncognito.Core.Services;\n" +
             "\n" +
             "namespace EggIncognito.Controllers;\n" +
             "\n" +

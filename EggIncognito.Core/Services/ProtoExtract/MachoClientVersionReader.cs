@@ -1,4 +1,4 @@
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public static class MachoClientVersionReader {
     public static ClientVersionResult Read(byte[] macho, int? previousClientVersion) {

@@ -1,5 +1,5 @@
+using EggIncognito.Core.Services.ProtoExtract;
 using EggIncognito.Services.DataApi;
-using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Services.Feed;
 

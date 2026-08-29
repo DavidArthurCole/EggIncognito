@@ -2,7 +2,7 @@ using System.Globalization;
 using System.IO.Compression;
 using System.Text;
 
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public static class ApkVersionCode {
     private const ushort ResXmlType = 0x0003;

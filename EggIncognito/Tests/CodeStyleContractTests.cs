@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 using EggIncognito.Components.Shared.Code;
-using EggIncognito.Services.Syntax;
+using EggIncognito.Core.Services.Syntax;
 
 namespace EggIncognito.Tests;
 

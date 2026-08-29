@@ -1,4 +1,5 @@
 using EggIncognito.Core.Services.Devices;
+using EggIncognito.Core.Services.ProtoExtract;
 using EggIncognito.Data.Services;
 using EggIncognito.Runner.Adb;
 using EggIncognito.Runner.Data;
@@ -9,7 +10,6 @@ using EggIncognito.Runner.Posting;
 using EggIncognito.Runner.Runners;
 using EggIncognito.Runner.State;
 using EggIncognito.Runner.Trigger;
-using EggIncognito.Services.ProtoExtract;
 
 namespace EggIncognito.Runner;
 

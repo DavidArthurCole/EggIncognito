@@ -1,10 +1,9 @@
 using System.Text;
-using EggIncognito.Core;
 using Ei;
 using Google.Protobuf;
 using Microsoft.Extensions.Configuration;
 
-namespace EggIncognito.Services;
+namespace EggIncognito.Core.Services;
 
 public sealed record TransportStage(
     string Name,

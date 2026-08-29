@@ -1,4 +1,4 @@
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public static class ProtoCanonicalForm {
     public static NormalizeResult Normalize(string protoText) {

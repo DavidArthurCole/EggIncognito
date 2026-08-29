@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace EggIncognito.Services;
+namespace EggIncognito.Core.Services;
 
 public static partial class ProtoJson {
     public static string NormalizeFloats(string json) =>

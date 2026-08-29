@@ -1,8 +1,8 @@
 using System.Globalization;
 using System.Text;
-using static EggIncognito.Services.ProtoExtract.Arm64Operands;
+using static EggIncognito.Core.Services.ProtoExtract.Arm64Operands;
 
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public static class StructInitReader {
     private static readonly HashSet<string> TrackedProducers =

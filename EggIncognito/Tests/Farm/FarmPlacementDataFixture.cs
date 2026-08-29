@@ -1,5 +1,4 @@
 using EggIncognito.Core.Services.Farm;
-
 namespace EggIncognito.Tests.Farm;
 
 internal static class FarmPlacementDataFixture {

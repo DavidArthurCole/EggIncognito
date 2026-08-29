@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace EggIncognito.Services.ProtoExtract;
+namespace EggIncognito.Core.Services.ProtoExtract;
 
 public static class HabCatalogExtractor {
     public const string InitSymbol = "__GLOBAL__sub_I_habdata";

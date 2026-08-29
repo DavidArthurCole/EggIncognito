@@ -1,6 +1,6 @@
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
-using EggIncognito.Services;
+using EggIncognito.Core.Services;
 using EggIncognito.Services.Inspector;
 
 namespace EggIncognito.Components.Inspector;

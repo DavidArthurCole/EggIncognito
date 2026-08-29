@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Text;
-using EggIncognito.Services.ProtoExtract;
-
+using EggIncognito.Core.Services.ProtoExtract;
 namespace EggIncognito.Services.Protos;
 
 public enum FilterValueKind {

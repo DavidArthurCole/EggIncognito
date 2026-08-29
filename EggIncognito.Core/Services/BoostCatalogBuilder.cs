@@ -1,9 +1,9 @@
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using EggIncognito.Services.ProtoExtract;
+using EggIncognito.Core.Services.ProtoExtract;
 
-namespace EggIncognito.Services;
+namespace EggIncognito.Core.Services;
 
 public static class BoostCatalogBuilder {
     public static readonly JsonSerializerOptions CamelJson = new() {

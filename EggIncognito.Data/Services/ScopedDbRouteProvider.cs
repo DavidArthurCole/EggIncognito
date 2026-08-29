@@ -1,4 +1,4 @@
-using EggIncognito.Services;
+using EggIncognito.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace EggIncognito.Data.Services;
