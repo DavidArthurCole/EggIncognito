@@ -32,7 +32,11 @@
         "Devices__Fake__Enabled": "true",
         "DeviceCapture__Enabled": "true",
         "Auth__LocalIdentity__Enabled": "true",
-        "Auth__LocalIdentity__Role": "Admin"
+        "Auth__LocalIdentity__Role": "Admin",
+        "Devices__Virtual__Enabled": "true",
+        "Devices__Virtual__Kind": "remote",
+        "DeviceTransport__Mode": "Remote",
+        "DeviceTransport__RemoteBaseUrl": "http://192.168.1.66:8085"
       }
     }
   }

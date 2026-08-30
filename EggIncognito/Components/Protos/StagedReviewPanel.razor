@@ -1,7 +1,7 @@
 @* Contributor+ review queue for staged proto submissions (public offers + admin crawl imports). Select rows,
    bulk approve/reject, and inline-edit version fields to fix a crawled null before approving. Approve promotes
    to the live registry; reject hides + blocks re-offer of that sha. *@
-@rendermode @(RenderMode.InteractiveServer)
+@rendermode @(RenderModes.InteractiveServer)
 @inherits SelfCallComponentBase
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env

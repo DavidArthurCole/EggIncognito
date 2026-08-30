@@ -86,10 +86,19 @@ public sealed class RemoteDeviceProvisioner(IHttpClientFactory httpFactory, Devi
             var parsed = await resp.Content.ReadFromJsonAsync<T>(JsonOptions, ct);
             return parsed is null ? (default, $"provisioner bridge {verb} empty response") : (parsed, null);
         } catch (Exception ex) when (ex is not OperationCanceledException) {
-            return (default, $"provisioner bridge {verb} error: {ex.Message}");
+            return (default, $"provisioner bridge {verb} error: {Describe(ex)}");
         } catch (OperationCanceledException ex) when (!ct.IsCancellationRequested) {
-            return (default, $"provisioner bridge {verb} error: {ex.Message}");
+            return (default, $"provisioner bridge {verb} error: {Describe(ex)}");
         }
+    }
+
+    private static string Describe(Exception ex) {
+        var parts = new List<string>();
+        for (var e = ex; e is not null && parts.Count < 4; e = e.InnerException) {
+            if (!string.IsNullOrWhiteSpace(e.Message)) parts.Add(e.Message);
+        }
+
+        return string.Join(" -> ", parts);
     }
 
     private HttpRequestMessage BuildRequest(HttpMethod method, string verb) {

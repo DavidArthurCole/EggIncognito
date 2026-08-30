@@ -3,7 +3,7 @@
    which returns the browser to this exact page with ?code appended. No popup, no iframe, no app-side
    return-path handling: EggIdentity round-trips the full returnUrl. The menu is fixed-positioned by
    loginMenu.js so it escapes any overflow-clipped container (e.g. the /protos modal). *@
-@rendermode @(RenderMode.InteractiveServer)
+@rendermode @(RenderModes.InteractiveServer)
 @inject AuthState Auth
 @inject NavigationManager Nav
 @inject IdentityApiClient Identity

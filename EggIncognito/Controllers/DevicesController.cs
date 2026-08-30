@@ -567,9 +567,25 @@ public sealed class DevicesController(
             return NotFound();
 
         var denied = StatusCode(403, new { error = "forbidden" });
-        if (!CallerInAllowedRange(cfg)) return denied;
-        return BridgeSecretPresented(cfg) || currentUser.IsAtLeast(UserRole.Admin) ? null : denied;
+        if (!CallerInAllowedRange(cfg)) {
+            BridgeLog($"caller {HttpContext.Connection.RemoteIpAddress} is outside DeviceTransport:AllowedCidrs "
+                      + $"[{string.Join(", ", cfg.AllowedCidrs)}]");
+            return denied;
+        }
+
+        if (BridgeSecretPresented(cfg) || currentUser.IsAtLeast(UserRole.Admin)) return null;
+
+        BridgeLog(string.IsNullOrEmpty(cfg.ApiKey)
+            ? "DeviceTransport:ApiKey is not set on this host, so the bridge authorizes nobody by key"
+            : Request.Headers.ContainsKey(BridgeSecretHeader)
+                ? $"the {BridgeSecretHeader} presented does not match DeviceTransport:ApiKey on this host"
+                : $"no {BridgeSecretHeader} header was presented and the caller is not an admin session");
+        return denied;
     }
+
+    private void BridgeLog(string reason) =>
+        (services.GetService(typeof(ILogger<DevicesController>)) as ILogger<DevicesController>)?
+        .LogWarning("device bridge refused {Path}: {Reason}", Request.Path.Value, reason);
 
     private bool CallerInAllowedRange(DeviceTransportConfig cfg) {
         if (cfg.AllowedCidrs.Length == 0) return true;

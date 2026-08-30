@@ -14,6 +14,9 @@ namespace EggIncognito.Startup;
 
 public static class HostSetup {
     public static FileLoggerProvider AddAppHosting(this WebApplicationBuilder builder) {
+        if (!builder.Environment.IsDevelopment() && !builder.Environment.IsProduction())
+            builder.Configuration.AddUserSecrets(typeof(HostSetup).Assembly, true);
+
         if (!builder.Environment.IsDevelopment()
             && File.Exists(Path.Combine(AppContext.BaseDirectory,
                 $"{builder.Environment.ApplicationName}.staticwebassets.runtime.json"))) {

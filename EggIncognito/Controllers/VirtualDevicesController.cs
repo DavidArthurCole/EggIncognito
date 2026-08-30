@@ -35,7 +35,13 @@ public sealed class VirtualDevicesController(
             rows = [.. containers.Values.Select(RemoteRow)];
         } else {
             var store = Store;
-            if (store is null) return StatusCode(503, new { error = "no database configured" });
+            if (store is null) {
+                return StatusCode(503, new {
+                    error = "local provisioning is not registered here; it needs a database and the real device stack, "
+                            + "or set Devices:Virtual:Kind to remote to provision on another host"
+                });
+            }
+
             rows = [.. (await store.AllAsync(ct)).Select(r => Row(r, containers))];
         }
 
