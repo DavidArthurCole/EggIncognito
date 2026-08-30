@@ -13,11 +13,14 @@ public sealed record CookbookRunStatus(
     public bool Finished =>
         !Running
         && (string.Equals(State, "succeeded", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(State, "failed", StringComparison.OrdinalIgnoreCase));
+            || string.Equals(State, "failed", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(State, "cancelled", StringComparison.OrdinalIgnoreCase));
 
     public bool Succeeded => string.Equals(State, "succeeded", StringComparison.OrdinalIgnoreCase);
 
+    public bool Cancelled => string.Equals(State, "cancelled", StringComparison.OrdinalIgnoreCase);
+
     public string? Note => Message;
 
-    public string? FailedStep => Succeeded ? null : Outcome;
+    public string? FailedStep => Succeeded || Cancelled ? null : Outcome;
 }

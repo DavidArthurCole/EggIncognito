@@ -152,6 +152,14 @@ public static class DeviceServices {
         builder.Services.AddSingleton<IosStoreCatalog>();
         builder.Services.AddSingleton<AndroidStoreCatalog>();
 
+        builder.Services.AddSingleton<IDeviceUiDriver, AndroidUiDriver>();
+        string iosUiNavTweakPath = config["DeviceCapture:Ios:UiNavTweakPath"]
+                                   ?? "/Library/MobileSubstrate/DynamicLibraries/egiuinav.dylib";
+        builder.Services.AddSingleton<IDeviceUiDriver>(sp => new IosUiDriver(
+            sp.GetRequiredService<IDeviceConnectionFactory>(), new IosUiDriver.Options(iosUiNavTweakPath)));
+
+        builder.Services.AddSingleton<AndroidPlatform>();
+
         if (boot.FakeDevices) {
             AddFakePlatform(builder, boot, Platforms.Ios);
             AddFakePlatform(builder, boot, Platforms.Android);
@@ -159,16 +167,10 @@ public static class DeviceServices {
         }
 
         builder.Services.AddSingleton<IDeviceStoreChecker>(sp => AndroidChecker(sp, config));
-        builder.Services.AddSingleton<IDeviceUiDriver, AndroidUiDriver>();
         builder.Services.AddSingleton<IDeviceStoreChecker>(sp => IosChecker(sp, config));
 
-        string iosUiNavTweakPath = config["DeviceCapture:Ios:UiNavTweakPath"]
-                                   ?? "/Library/MobileSubstrate/DynamicLibraries/egiuinav.dylib";
-        builder.Services.AddSingleton<IDeviceUiDriver>(sp => new IosUiDriver(
-            sp.GetRequiredService<IDeviceConnectionFactory>(), new IosUiDriver.Options(iosUiNavTweakPath)));
-
         builder.Services.AddSingleton<IDevicePlatform, IosPlatform>();
-        builder.Services.AddSingleton<IDevicePlatform, AndroidPlatform>();
+        builder.Services.AddSingleton<IDevicePlatform>(sp => sp.GetRequiredService<AndroidPlatform>());
     }
 
     private static void AddFakePlatform(WebApplicationBuilder builder, BootFlags boot, string platform) {

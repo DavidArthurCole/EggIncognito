@@ -58,6 +58,36 @@ public sealed class DeviceCookbooksController(
         };
     }
 
+    [HttpGet("{id}/cookbooks/running")]
+    public async Task<IActionResult> Running(string id, CancellationToken ct) {
+        if (RequireAdmin() is { } no) return no;
+        if (Runner is not { } runner) return StatusCode(503, new { error = "no database configured" });
+        if (Timeline is not { } timeline) return StatusCode(503, new { error = "no database configured" });
+
+        if (await runner.TargetAsync(id, ct) is null) return NotFound(new { error = "unknown device" });
+
+        var latest = await timeline.LatestAsync(id, DeviceJobKinds.Cookbook, ct);
+        bool running = latest is { State: DeviceJobStates.Running };
+        return Ok(new { running, jobId = running ? latest!.Id : (long?)null });
+    }
+
+    [HttpPost("{id}/cookbooks/stop")]
+    [EnableRateLimiting("write")]
+    public async Task<IActionResult> Stop(string id, CancellationToken ct) {
+        if (RequireAdmin() is { } no) return no;
+        if (Runner is not { } runner) return StatusCode(503, new { error = "no database configured" });
+        if (Timeline is not { } timeline) return StatusCode(503, new { error = "no database configured" });
+
+        if (await runner.TargetAsync(id, ct) is null) return NotFound(new { error = "unknown device" });
+
+        var latest = await timeline.LatestAsync(id, DeviceJobKinds.Cookbook, ct);
+        if (latest is not { State: DeviceJobStates.Running })
+            return StatusCode(409, new { error = "no cookbook is running on this device" });
+
+        if (!runner.TryCancel(id)) return StatusCode(409, new { error = "no cookbook is running on this device" });
+        return Ok(new { ok = true, jobId = latest.Id });
+    }
+
     [HttpGet("{id}/cookbooks/run/{jobId:long}")]
     public async Task<IActionResult> Run(string id, long jobId, CancellationToken ct) {
         if (RequireAdmin() is { } no) return no;

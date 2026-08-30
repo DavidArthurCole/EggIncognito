@@ -375,7 +375,7 @@
 
     [Parameter] public string? Path { get; set; }
 
-    PathRouteSync? _routeSync;
+    JsRouteSync? _routeSync;
 
     static string VersionHref(ProtoRegistryRow r) {
         return $"/protos/{r.Platform}/{Uri.EscapeDataString(r.Build)}";
@@ -674,11 +674,12 @@
             Logger.LogDebug(ex, "proto drop zone not wired, the circuit is already gone");
         }
 
-        _routeSync = new PathRouteSync(Nav);
+        _routeSync = new JsRouteSync(JS, Env, Nav, "/protos", Logger);
         _routeSync.Changed += () => InvokeAsync(() => {
             ApplyPath();
             StateHasChanged();
         });
+        await _routeSync.StartAsync();
         ApplyPath();
     }
 
@@ -810,7 +811,7 @@
         if (_refresh is not null) await _refresh.DisposeAsync();
         if (_vis is not null) await _vis.DisposeAsync();
         await _protoDrop.DisposeModuleAsync(logger: Logger);
-        _routeSync?.Dispose();
+        if (_routeSync is not null) await _routeSync.DisposeAsync();
     }
 
     static long ReleaseKey(ProtoRegistryRow r) {

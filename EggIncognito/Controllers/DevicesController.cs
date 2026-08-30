@@ -798,17 +798,21 @@ public sealed class DevicesController(
         if (services.GetService(typeof(IDeviceFleet)) is not IDeviceFleet fleet)
             return (StatusCode(503, new { error = "device config not available" }), null!, null!);
 
-        DeviceTarget? target = null;
-        if (await FleetEntryAsync(fleet, id, ct) is { } entry)
-            target = new DeviceTarget(entry.Id, entry.Platform, entry.Target, entry.Package);
-        else if (Provisioners is { } provisioners && VirtualConfig is { } virtualConfig)
-            target = await VirtualDeviceMirror.ResolveTargetAsync(provisioners, virtualConfig, id, ct);
+        if (await FleetEntryAsync(fleet, id, ct) is { } entry) {
+            var target = new DeviceTarget(entry.Id, entry.Platform, entry.Target, entry.Package);
+            if (services.GetService(typeof(IDevicePlatforms)) is not IDevicePlatforms platforms)
+                return (StatusCode(503, new { error = "device platforms not available" }), null!, null!);
+            return (null, platforms.For(target.Platform), target);
+        }
 
-        if (target is not { } resolved) return (NotFound(new { error = "unknown device" }), null!, null!);
-        if (services.GetService(typeof(IDevicePlatforms)) is not IDevicePlatforms platforms)
-            return (StatusCode(503, new { error = "device platforms not available" }), null!, null!);
+        if (Provisioners is { } provisioners && VirtualConfig is { } virtualConfig
+            && await VirtualDeviceMirror.ResolveTargetAsync(provisioners, virtualConfig, id, ct) is { } mirrored) {
+            if (services.GetService(typeof(AndroidPlatform)) is not AndroidPlatform androidPlatform)
+                return (StatusCode(503, new { error = "android platform not available" }), null!, null!);
+            return (null, androidPlatform, mirrored);
+        }
 
-        return (null, platforms.For(resolved.Platform), resolved);
+        return (NotFound(new { error = "unknown device" }), null!, null!);
     }
 
     private ObjectResult UiFailure(DeviceOutcome outcome, string? note) => outcome switch {

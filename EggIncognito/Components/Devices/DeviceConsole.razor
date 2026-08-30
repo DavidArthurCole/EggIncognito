@@ -103,6 +103,11 @@
                                 <span class="@WorkbenchStatus.Class(WorkbenchStatus.Parse(RunStateWord()))">
                                     @RunStateLine()
                                 </span>
+                                @if (_runJobId is not null && !_runDone) {
+                                    <button type="button" class="btn-mini" disabled="@_stopBusy" @onclick="StopRunAsync">
+                                        @(_stopBusy ? "Stopping..." : "Stop")
+                                    </button>
+                                }
                             </div>
                             @if (_runLog.Count == 0) {
                                 <div class="dcon-log-empty">No output yet.</div>
@@ -280,6 +285,8 @@
     bool _runBusy;
     bool _runDone;
     bool _runOk;
+    bool _runCancelled;
+    bool _stopBusy;
     int _fps = 3;
     int _shotW;
     int _shotH;
@@ -365,9 +372,14 @@
         _runJobId = null;
         _runLog = [];
         _runBusy = false;
+        _runDone = false;
+        _runOk = false;
+        _runCancelled = false;
+        _stopBusy = false;
         _streaming = next is not null;
 
         if (next is not null) await LoadCookbooksAsync();
+        if (next is not null) await CheckRunningAsync();
         if (OnChanged.HasDelegate) await OnChanged.InvokeAsync();
     }
 
@@ -495,6 +507,8 @@
         _runBusy = true;
         _runDone = false;
         _runOk = false;
+        _runCancelled = false;
+        _stopBusy = false;
         _runTitle = book.Title;
         _runJobId = null;
         _runNote = null;
@@ -526,6 +540,38 @@
         _runTimer = ComponentTimers.Every(TimeSpan.FromSeconds(1), () => InvokeAsync(PollRunAsync), Logger);
     }
 
+    async Task CheckRunningAsync() {
+        if (_deviceId is null) return;
+        var status = await Client().OneAsync<CookbookRunningInfo>(
+            $"/api/devices/{_deviceId}/cookbooks/running", Logger);
+        if (status is not { Running: true, JobId: { } jobId } || _deviceId is null) return;
+
+        StopRunTimer();
+        _runBusy = true;
+        _runDone = false;
+        _runOk = false;
+        _runCancelled = false;
+        _stopBusy = false;
+        _runTitle = "Cookbook run (resumed)";
+        _runJobId = jobId.ToString(CultureInfo.InvariantCulture);
+        _runNote = null;
+        _runFailedStep = null;
+        _runLog = [];
+        _runTimer = ComponentTimers.Every(TimeSpan.FromSeconds(1), () => InvokeAsync(PollRunAsync), Logger);
+        StateHasChanged();
+    }
+
+    async Task StopRunAsync() {
+        if (_deviceId is null || _runJobId is null || _stopBusy) return;
+        _stopBusy = true;
+        StateHasChanged();
+
+        var res = await Client().PostAsync($"/api/devices/{_deviceId}/cookbooks/stop", null);
+        _stopBusy = false;
+        Note(res.IsSuccessStatusCode ? "Stop requested." : await ReadError(res), res.IsSuccessStatusCode);
+        StateHasChanged();
+    }
+
     async Task PollRunAsync() {
         if (_disposed || _deviceId is null || _runJobId is null) {
             StopRunTimer();
@@ -542,6 +588,7 @@
         if (status.Finished) {
             _runDone = true;
             _runOk = status.Succeeded;
+            _runCancelled = status.Cancelled;
             _runBusy = false;
             StopRunTimer();
             await LoadCookbooksAsync();
@@ -555,10 +602,11 @@
         _runTimer = null;
     }
 
-    string RunStateWord() => !_runDone ? "running" : _runOk ? "succeeded" : "failed";
+    string RunStateWord() => !_runDone ? "running" : _runCancelled ? "cancelled" : _runOk ? "succeeded" : "failed";
 
     string RunStateLine() {
         if (!_runDone) return "running";
+        if (_runCancelled) return _runNote is { Length: > 0 } stopNote ? $"stopped, {stopNote}" : "stopped by an admin";
         if (_runOk) return _runNote is { Length: > 0 } ok ? $"done, {ok}" : "done";
         if (_runFailedStep is { Length: > 0 } step) return $"failed at {step}";
         return _runNote is { Length: > 0 } note ? $"failed, {note}" : "failed";

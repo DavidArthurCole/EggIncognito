@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
@@ -13,6 +14,15 @@ public sealed class DeviceCookbookRunner(
     DeviceJobStore jobs,
     IServiceScopeFactory scopeFactory,
     ILogger<DeviceCookbookRunner> logger) {
+    private readonly ConcurrentDictionary<string, CancellationTokenSource> _cancellations =
+        new(StringComparer.Ordinal);
+
+    public bool TryCancel(string deviceId) {
+        if (!_cancellations.TryGetValue(deviceId, out var cts)) return false;
+        cts.Cancel();
+        return true;
+    }
+
     public async Task<DeviceTarget?> TargetAsync(string deviceId, CancellationToken ct) {
         var entry = (await fleet.EnabledAsync(ct)).FirstOrDefault(d =>
             string.Equals(d.Id, deviceId, StringComparison.Ordinal));
@@ -49,19 +59,22 @@ public sealed class DeviceCookbookRunner(
                 Error: "another job is already running on this device");
         }
 
-        _ = Task.Run(() => RunDetachedAsync(job, target, request with { CookbookId = cookbook.Id }),
+        var cts = new CancellationTokenSource();
+        _cancellations[deviceId] = cts;
+        _ = Task.Run(() => RunDetachedAsync(job, target, request with { CookbookId = cookbook.Id }, cts),
             CancellationToken.None);
         return new DeviceCookbookStart(DeviceCookbookStartOutcome.Started, job.Id);
     }
 
-    private async Task RunDetachedAsync(JobRef job, DeviceTarget target, DeviceCookbookRequest request) {
+    private async Task RunDetachedAsync(JobRef job, DeviceTarget target, DeviceCookbookRequest request,
+        CancellationTokenSource cts) {
         using var scope = scopeFactory.CreateScope();
         var scoped = scope.ServiceProvider.GetRequiredService<DeviceJobStore>();
         try {
             var cookbook = cookbooks.Find(request.CookbookId)!;
             var context = new DeviceCookbookContext(target, request.Argument,
                 line => scoped.ProgressAsync(job, line).GetAwaiter().GetResult());
-            var run = await cookbook.RunAsync(context, CancellationToken.None);
+            var run = await cookbook.RunAsync(context, cts.Token);
 
             await scoped.FinishAsync(job, run.Ok ? DeviceOutcomes.Ok : DeviceOutcomes.Error, Summarize(run),
                 new DeviceJobFacts(Detail: new {
@@ -69,9 +82,16 @@ public sealed class DeviceCookbookRunner(
                     argument = request.Argument,
                     failedStep = run.FailedStep
                 }), CancellationToken.None);
+        } catch (OperationCanceledException) when (cts.IsCancellationRequested) {
+            logger.LogInformation("cookbook: {Cookbook} on {Device} was stopped by an admin",
+                request.CookbookId, job.DeviceId);
+            await scoped.CancelAsync(job, $"{request.CookbookId} stopped by an admin", CancellationToken.None);
         } catch (Exception ex) {
             logger.LogError(ex, "cookbook: {Cookbook} on {Device} threw", request.CookbookId, job.DeviceId);
             await scoped.FailAsync(job, ex.Message, CancellationToken.None);
+        } finally {
+            _cancellations.TryRemove(new KeyValuePair<string, CancellationTokenSource>(job.DeviceId, cts));
+            cts.Dispose();
         }
     }
 

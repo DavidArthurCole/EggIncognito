@@ -73,15 +73,23 @@ public sealed class AdbCaInstaller(IProcessRunner runner, string? installScriptT
         }
 
 
-        var suProbe = await Adb(device.Target, ["shell", "command -v su"], ct);
-        bool hasSu = suProbe.ExitCode == 0 && suProbe.Stdout.Trim().Length > 0;
+        var idProbe = await Adb(device.Target, ["shell", "id -u"], ct);
+        bool alreadyRoot = idProbe.ExitCode == 0 && idProbe.Stdout.Trim() == "0";
 
-        var r = hasSu
+        bool hasSu = false;
+        if (!alreadyRoot) {
+            var suProbe = await Adb(device.Target, ["shell", "command -v su"], ct);
+            hasSu = suProbe.ExitCode == 0 && suProbe.Stdout.Trim().Length > 0;
+        }
+
+        var r = !alreadyRoot && hasSu
             ? await Adb(device.Target, ["shell", "su", "-mm", "-c", $"sh {RemoteScript} 2>&1"], ct)
             : await Adb(device.Target, ["shell", $"sh {RemoteScript} 2>&1"], ct);
         string diag = DeviceParsing.TrimNote(r.Stdout + (r.Stderr.Length > 0 ? " | err: " + r.Stderr : ""));
-        if (string.IsNullOrWhiteSpace(diag))
-            diag = hasSu ? "(no script output - check su works)" : "(no script output - adbd is not root)";
+        if (string.IsNullOrWhiteSpace(diag)) {
+            diag = alreadyRoot ? "(no script output - check /system is writable)"
+                : hasSu ? "(no script output - check su works)" : "(no script output - adbd is not root)";
+        }
         if (r.ExitCode != 0) return (false, $"install rc={r.ExitCode}: {diag}");
 
         bool live = r.Stdout.Contains("live: mounted");
