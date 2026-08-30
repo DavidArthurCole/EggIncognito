@@ -573,7 +573,7 @@ public sealed class DevicesController(
             return denied;
         }
 
-        if (BridgeSecretPresented(cfg) || currentUser.IsAtLeast(UserRole.Admin)) return null;
+        if (BridgeAuthorized(cfg)) return null;
 
         BridgeLog(string.IsNullOrEmpty(cfg.ApiKey)
             ? "DeviceTransport:ApiKey is not set on this host, so the bridge authorizes nobody by key"
@@ -604,6 +604,9 @@ public sealed class DevicesController(
 
         return false;
     }
+
+    private bool BridgeAuthorized(DeviceTransportConfig cfg) =>
+        BridgeSecretPresented(cfg) || currentUser.IsAtLeast(UserRole.Admin);
 
     private bool BridgeSecretPresented(DeviceTransportConfig cfg) {
         if (string.IsNullOrEmpty(cfg.ApiKey)) return false;
