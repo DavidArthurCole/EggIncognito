@@ -30,6 +30,7 @@ public sealed record BootFlags {
     public required DeviceCaptureConfig DeviceCaptureConfig { get; init; }
     public required DeviceTransportConfig DeviceTransportConfig { get; init; }
     public required DeviceRecertConfig DeviceRecertConfig { get; init; }
+    public required GmsFirstRunConfig GmsFirstRunConfig { get; init; }
 
     public bool AuthEnabled => AuthState.Enabled;
     public bool BotEnabled => !string.IsNullOrWhiteSpace(BotToken);
@@ -81,7 +82,8 @@ public sealed record BootFlags {
             DeviceConfig = deviceConfig,
             DeviceCaptureConfig = DeviceCaptureConfig.Bind(config),
             DeviceTransportConfig = config.GetSection("DeviceTransport").Get<DeviceTransportConfig>() ?? new(),
-            DeviceRecertConfig = config.GetSection("DeviceRecert").Get<DeviceRecertConfig>() ?? new()
+            DeviceRecertConfig = config.GetSection("DeviceRecert").Get<DeviceRecertConfig>() ?? new(),
+            GmsFirstRunConfig = config.GetSection("GmsFirstRun").Get<GmsFirstRunConfig>() ?? new()
         };
     }
 }

@@ -1,13 +1,17 @@
 using EggIncognito.Core.Services.Devices;
+using EggIncognito.Models.Devices;
 
 namespace EggIncognito.Services.Devices.Cookbooks;
 
-public sealed class DismissFirstRunCookbook(IEnumerable<IDeviceUiDriver> uiDrivers) : IDeviceCookbook {
+public sealed class DismissFirstRunCookbook(
+    IEnumerable<IDeviceUiDriver> uiDrivers,
+    GmsFirstRunConfig gms) : IDeviceCookbook {
     public string Id => DeviceCookbookIds.DismissFirstRun;
     public string Title => "Dismiss first-run dialogs";
 
     public string Summary =>
-        "Clears the Google Play and first-run dialogs Egg Inc shows on a fresh install. A no-op when none are up.";
+        "Clears the Google Play, first-run and GMS setup-wizard dialogs Egg Inc shows on a fresh install. " +
+        "A no-op when none are up.";
 
     public Task<DeviceCookbookInfo> DescribeAsync(DeviceTarget target, CancellationToken ct) =>
         Task.FromResult(Driver(target.Platform) is null
@@ -20,7 +24,7 @@ public sealed class DismissFirstRunCookbook(IEnumerable<IDeviceUiDriver> uiDrive
             return log.Fail(Id, "ui-driver", $"no ui driver for platform '{context.Target.Platform}'");
 
         var runner = new DeviceFlowRunner(ui);
-        var result = await runner.RunAsync(context.Target, FirstRunDialogFlow.Build(), log.Add, ct);
+        var result = await runner.RunAsync(context.Target, FirstRunDialogFlow.Build(gms), log.Add, ct);
         return result.Ok
             ? log.Ok(Id, "first-run dialogs cleared or already absent")
             : new DeviceCookbookRun(false, Id, log.Lines, result.FailedStep, "first-run flow failed");

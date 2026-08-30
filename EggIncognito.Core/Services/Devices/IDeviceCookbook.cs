@@ -6,6 +6,7 @@ public static class DeviceCookbookIds {
     public const string LaunchApp = "launch-app";
     public const string DismissFirstRun = "dismiss-first-run";
     public const string BringUp = "bring-up";
+    public const string Recert = "recert";
 }
 
 public sealed record DeviceCookbookOption(string Value, string Label, bool Recommended = false);

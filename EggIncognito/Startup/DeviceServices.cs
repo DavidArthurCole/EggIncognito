@@ -15,6 +15,7 @@ public static class DeviceServices {
         var config = builder.Configuration;
         builder.Services.AddSingleton(boot.DeviceConfig);
         builder.Services.AddSingleton(boot.DeviceRecertConfig);
+        builder.Services.AddSingleton(boot.GmsFirstRunConfig);
         builder.Services.AddSingleton(boot.DeviceCaptureConfig);
         builder.Services.AddSingleton(boot.DeviceTransportConfig);
         builder.Services.AddSingleton<IDeviceFleet>(sp => new DeviceFleet(
@@ -57,11 +58,13 @@ public static class DeviceServices {
         builder.Services.AddSingleton<LaunchAppCookbook>();
         builder.Services.AddSingleton<DismissFirstRunCookbook>();
         builder.Services.AddSingleton<BringUpCookbook>();
+        builder.Services.AddSingleton<RecertCookbook>();
         builder.Services.AddSingleton<IDeviceCookbook>(sp => sp.GetRequiredService<InstallAppCookbook>());
         builder.Services.AddSingleton<IDeviceCookbook>(sp => sp.GetRequiredService<InstallCaCookbook>());
         builder.Services.AddSingleton<IDeviceCookbook>(sp => sp.GetRequiredService<LaunchAppCookbook>());
         builder.Services.AddSingleton<IDeviceCookbook>(sp => sp.GetRequiredService<DismissFirstRunCookbook>());
         builder.Services.AddSingleton<IDeviceCookbook>(sp => sp.GetRequiredService<BringUpCookbook>());
+        builder.Services.AddSingleton<IDeviceCookbook>(sp => sp.GetRequiredService<RecertCookbook>());
         builder.Services.AddSingleton<IDeviceAppLauncher>(sp => sp.GetRequiredService<LaunchAppCookbook>());
 
         var extensions = DeviceExtensionLoader.Load(

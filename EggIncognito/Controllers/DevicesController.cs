@@ -63,8 +63,15 @@ public sealed class DevicesController(
         var store = Store;
         if (store is null || Timeline is not { } timeline) return Ok(Array.Empty<object>());
         var devices = (await store.EnabledDevicesAsync()).ToDictionary(d => d.Id);
-        var ids = devices.Keys.ToList();
         var ct0 = HttpContext.RequestAborted;
+        var virtualLive = new HashSet<string>(StringComparer.Ordinal);
+        if (Provisioners is { } provisioners && VirtualConfig is { } virtualConfig) {
+            foreach (var d in await VirtualDeviceMirror.RemoteLiveDevicesAsync(provisioners, virtualConfig, ct0)) {
+                if (devices.TryAdd(d.Id, d)) virtualLive.Add(d.Id);
+            }
+        }
+
+        var ids = devices.Keys.ToList();
         var latest = await timeline.LatestPerDeviceAsync(ids, DeviceJobKinds.Probe, ct0);
         var updates = (await timeline.LatestPerDeviceAsync(ids, DeviceJobKinds.StoreCheck, ct0))
             .ToDictionary(u => u.DeviceId);
@@ -132,7 +139,7 @@ public sealed class DevicesController(
                 label = d.Label,
                 target = isAdmin ? d.Target : null,
                 package = isAdmin ? d.Package : null,
-                reachable = p?.Reachable == true,
+                reachable = p?.Reachable == true || virtualLive.Contains(d.Id),
                 installedAppVersion = p?.AppVersion,
                 installedBuild = p?.Build,
                 clientVersion = binaries?.CachedClientVersion(d.Platform, p?.AppVersion)
@@ -725,6 +732,12 @@ public sealed class DevicesController(
     private ProvisionedInstanceStore? Instances =>
         services.GetService(typeof(ProvisionedInstanceStore)) as ProvisionedInstanceStore;
 
+    private IDeviceProvisioners? Provisioners =>
+        services.GetService(typeof(IDeviceProvisioners)) as IDeviceProvisioners;
+
+    private VirtualDeviceConfig? VirtualConfig =>
+        services.GetService(typeof(VirtualDeviceConfig)) as VirtualDeviceConfig;
+
     private static VirtualBridgeInstance BridgeInstance(ProvisionedInstanceRow row) => new(
         row.InstanceId, row.Kind, row.Image, row.State, row.AdbSerial, row.HostRef, row.CreatedAt, row.Note,
         row.DeviceId);
@@ -784,12 +797,18 @@ public sealed class DevicesController(
         string id, CancellationToken ct) {
         if (services.GetService(typeof(IDeviceFleet)) is not IDeviceFleet fleet)
             return (StatusCode(503, new { error = "device config not available" }), null!, null!);
-        if (await FleetEntryAsync(fleet, id, ct) is not { } entry)
-            return (NotFound(new { error = "unknown device" }), null!, null!);
+
+        DeviceTarget? target = null;
+        if (await FleetEntryAsync(fleet, id, ct) is { } entry)
+            target = new DeviceTarget(entry.Id, entry.Platform, entry.Target, entry.Package);
+        else if (Provisioners is { } provisioners && VirtualConfig is { } virtualConfig)
+            target = await VirtualDeviceMirror.ResolveTargetAsync(provisioners, virtualConfig, id, ct);
+
+        if (target is not { } resolved) return (NotFound(new { error = "unknown device" }), null!, null!);
         if (services.GetService(typeof(IDevicePlatforms)) is not IDevicePlatforms platforms)
             return (StatusCode(503, new { error = "device platforms not available" }), null!, null!);
 
-        return (null, platforms.For(entry.Platform), new DeviceTarget(entry.Id, entry.Platform, entry.Target, entry.Package));
+        return (null, platforms.For(resolved.Platform), resolved);
     }
 
     private ObjectResult UiFailure(DeviceOutcome outcome, string? note) => outcome switch {
