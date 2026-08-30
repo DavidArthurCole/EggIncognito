@@ -633,7 +633,7 @@ public sealed class DevicesController(
     }
 
     [HttpPost("{id}/transport/shell")]
-    [ApiAccess(ApiAccessLevel.Admin)]
+    [ApiAccess(ApiAccessLevel.Public)]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> TransportShell(string id, [FromBody] TransportShellRequest req) {
         if (BridgeGate() is { } gate) return gate;
@@ -646,7 +646,7 @@ public sealed class DevicesController(
     }
 
     [HttpPost("{id}/transport/pull")]
-    [ApiAccess(ApiAccessLevel.Admin)]
+    [ApiAccess(ApiAccessLevel.Public)]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> TransportPull(string id, [FromBody] TransportPullRequest req) {
         if (BridgeGate() is { } gate) return gate;
@@ -659,7 +659,7 @@ public sealed class DevicesController(
     }
 
     [HttpPost("{id}/transport/push")]
-    [ApiAccess(ApiAccessLevel.Admin)]
+    [ApiAccess(ApiAccessLevel.Public)]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> TransportPush(string id, [FromBody] TransportPushRequest req) {
         if (BridgeGate() is { } gate) return gate;
@@ -687,7 +687,7 @@ public sealed class DevicesController(
     }
 
     [HttpPost("{id}/transport/claim")]
-    [ApiAccess(ApiAccessLevel.Admin)]
+    [ApiAccess(ApiAccessLevel.Public)]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> TransportClaim(string id, [FromBody] TransportClaimRequest? req) {
         if (BridgeGate() is { } gate) return gate;
@@ -705,7 +705,7 @@ public sealed class DevicesController(
     }
 
     [HttpPost("{id}/transport/release")]
-    [ApiAccess(ApiAccessLevel.Admin)]
+    [ApiAccess(ApiAccessLevel.Public)]
     [EnableRateLimiting("write")]
     public IActionResult TransportRelease(string id) {
         if (BridgeGate() is { } gate) return gate;
@@ -730,7 +730,7 @@ public sealed class DevicesController(
         instance.CreatedAt, instance.Note);
 
     [HttpGet("virtual/bridge/instances")]
-    [ApiAccess(ApiAccessLevel.Admin)]
+    [ApiAccess(ApiAccessLevel.Public)]
     [EnableRateLimiting("read")]
     public async Task<IActionResult> BridgeVirtualList(CancellationToken ct) {
         if (BridgeGate() is { } gate) return gate;
@@ -750,7 +750,7 @@ public sealed class DevicesController(
     }
 
     [HttpPost("virtual/bridge/create")]
-    [ApiAccess(ApiAccessLevel.Admin)]
+    [ApiAccess(ApiAccessLevel.Public)]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> BridgeVirtualCreate(
         [FromBody] VirtualCreateRequest? req, CancellationToken ct) {
@@ -765,7 +765,7 @@ public sealed class DevicesController(
     }
 
     [HttpPost("virtual/bridge/{instanceId}/destroy")]
-    [ApiAccess(ApiAccessLevel.Admin)]
+    [ApiAccess(ApiAccessLevel.Public)]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> BridgeVirtualDestroy(string instanceId, CancellationToken ct) {
         if (BridgeGate() is { } gate) return gate;
