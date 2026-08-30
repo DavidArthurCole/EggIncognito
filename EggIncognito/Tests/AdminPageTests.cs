@@ -18,16 +18,11 @@ public class AdminPageTests {
         private readonly WebApplicationFactory<Program> _f = f;
 
         [Fact]
-        public async Task Admin_Anonymous_RendersDeniedState() {
+        public async Task Admin_Anonymous_ServesTheShell() {
             var c = _f.CreateClient();
             var r = await c.GetAsync("/admin");
             Assert.Equal(HttpStatusCode.OK, r.StatusCode);
-            string html = await r.Content.ReadAsStringAsync();
-            Assert.Contains("adminMain", html);
-            Assert.Contains("id=\"denied\"", html);
-
-            Assert.Contains("Login is not configured.", html);
-            Assert.DoesNotContain("<h2>Users</h2>", html);
+            Assert.Contains("blazor.web.js", await r.Content.ReadAsStringAsync());
         }
     }
 
@@ -48,7 +43,9 @@ public class AdminPageTests {
         public void Anonymous_ShowsDenied_NotPanel() {
             Wire(UserRole.Viewer);
             var cut = Render<Admin>();
+            Assert.NotNull(cut.Find("#adminMain"));
             Assert.NotNull(cut.Find("#denied"));
+            Assert.Contains("Login is not configured.", cut.Markup);
             Assert.Empty(cut.FindAll("h2"));
         }
 

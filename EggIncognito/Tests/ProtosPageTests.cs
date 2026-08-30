@@ -22,15 +22,11 @@ public class ProtosPageTests {
         private readonly WebApplicationFactory<Program> _f = f;
 
         [Fact]
-        public async Task Protos_Anonymous_RendersTableShell_NoBackfillPanel() {
+        public async Task Protos_Anonymous_ServesTheShell() {
             var c = _f.CreateClient();
             var r = await c.GetAsync("/protos");
             Assert.Equal(HttpStatusCode.OK, r.StatusCode);
-            string html = await r.Content.ReadAsStringAsync();
-            Assert.Contains("pd-grid", html);
-            Assert.Contains("pd-band", html);
-
-            Assert.DoesNotContain("id=\"backfillPanel\"", html);
+            Assert.Contains("blazor.web.js", await r.Content.ReadAsStringAsync());
         }
 
 
@@ -70,6 +66,29 @@ public class ProtosPageTests {
             var cut = Render<ProtosPage>();
 
             Assert.Contains("No proto versions yet.", cut.Markup);
+        }
+
+        [Fact]
+        public void Anonymous_RendersTableShell_NoBackfillPanel() {
+            Wire(UserRole.Viewer);
+            var cut = Render<ProtosPage>();
+
+            Assert.Contains("pd-grid", cut.Markup);
+            Assert.Contains("pd-band", cut.Markup);
+            Assert.Contains("pd-w-support", cut.Markup);
+            Assert.DoesNotContain("id=\"backfillPanel\"", cut.Markup);
+        }
+
+        [Fact]
+        public void AboutWidget_CarriesTheIconRow_AndTheFloatingBubblesAreGone() {
+            Wire(UserRole.Viewer);
+            var cut = Render<ProtosPage>();
+
+            Assert.Contains("pd-brand-links", cut.Markup);
+            Assert.Contains("aria-label=\"EggIncognito on GitHub\"", cut.Markup);
+            Assert.Contains("aria-label=\"Support the project\"", cut.Markup);
+            Assert.DoesNotContain("gh-bubble", cut.Markup);
+            Assert.DoesNotContain("support-bubble", cut.Markup);
         }
 
         [Fact]
