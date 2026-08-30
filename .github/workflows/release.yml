@@ -5,19 +5,7 @@ on:
     tags: ["v*"]
 
 jobs:
-  ci:
-    uses: EggIncTools/EggIdentity/.github/workflows/dotnet-ci.yml@main
-    permissions:
-      contents: read
-      packages: read
-    with:
-      solution: EggIncognito.slnx
-      packages-auth: true
-    secrets:
-      PACKAGES_PAT: ${{ secrets.PACKAGES_PAT }}
-
   create-release:
-    needs: ci
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -27,7 +15,6 @@ jobs:
           generate_release_notes: true
 
   nuget:
-    needs: ci
     uses: EggIncTools/EggIdentity/.github/workflows/nuget-publish.yml@main
     permissions:
       contents: read
@@ -129,7 +116,6 @@ jobs:
           files: SHA256SUMS
 
   docker:
-    needs: ci
     uses: EggIncTools/EggIdentity/.github/workflows/docker-publish.yml@main
     permissions:
       contents: read
@@ -143,7 +129,6 @@ jobs:
       PACKAGES_PAT: ${{ secrets.PACKAGES_PAT }}
 
   docker-runner:
-    needs: ci
     uses: EggIncTools/EggIdentity/.github/workflows/docker-publish.yml@main
     permissions:
       contents: read

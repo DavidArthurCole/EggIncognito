@@ -3327,6 +3327,25 @@ a.dsc-embed-title:hover { text-decoration: underline; }
   @apply w-[22.5px] h-[22.5px] shrink-0 object-contain [filter:brightness(0)_invert(1)];
 }
 
+.vd-head { @apply flex flex-wrap items-center gap-x-3 gap-y-2; }
+.vd-head-meta { @apply flex flex-wrap items-center gap-x-3 gap-y-1; }
+.vd-head-actions { @apply flex items-center gap-2 ml-auto; }
+.vd-empty { @apply border border-border rounded-md bg-panel p-4; }
+.vd-grid { @apply grid grid-cols-1 lg:grid-cols-2 gap-3; }
+.vd-card { @apply flex flex-col gap-2 border border-border rounded-md bg-panel p-3; }
+.vd-card-head { @apply flex items-center gap-2; }
+.vd-dot { @apply w-2 h-2 rounded-full shrink-0; }
+.vd-dot-ready { background-color: var(--color-ok); }
+.vd-dot-busy { background-color: var(--color-accent); }
+.vd-dot-bad { background-color: var(--color-err); }
+.vd-id { @apply text-xs truncate; }
+.vd-state { @apply text-xs text-muted ml-auto shrink-0; }
+.vd-facts { @apply grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 m-0 text-xs; }
+.vd-facts dt { @apply text-muted; }
+.vd-facts dd { @apply m-0 text-fg truncate; }
+.vd-note { @apply border-t border-border pt-2; }
+.vd-card-actions { @apply flex items-center gap-2 mt-auto pt-1; }
+
 .sub-section-head { @apply text-sm font-semibold text-fg; }
 .sub-form { @apply flex flex-col gap-4; }
 .sub-field { @apply flex flex-col gap-1; }

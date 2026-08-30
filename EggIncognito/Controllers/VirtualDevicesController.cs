@@ -32,6 +32,7 @@ public sealed class VirtualDevicesController(
 
         List<VirtualInstanceRow> rows;
         if (lifecycle.RemoteOwned) {
+            await lifecycle.MirrorRemoteDevicesAsync(containers.Values, ct);
             rows = [.. containers.Values.Select(RemoteRow)];
         } else {
             var store = Store;
@@ -83,7 +84,7 @@ public sealed class VirtualDevicesController(
     }
 
     private static VirtualInstanceRow RemoteRow(ProvisionedInstance instance) => new(
-        instance.InstanceId, instance.Kind, instance.Image, instance.State, instance.AdbSerial, null,
+        instance.InstanceId, instance.Kind, instance.Image, instance.State, instance.AdbSerial, instance.DeviceId,
         instance.CreatedAt, null, instance.Note, true, instance.Note, 0, null);
 
     private VirtualInstanceRow Row(

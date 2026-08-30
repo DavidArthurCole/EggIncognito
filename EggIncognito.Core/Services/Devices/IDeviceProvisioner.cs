@@ -22,7 +22,8 @@ public sealed record ProvisionedInstance(
     string? AdbSerial = null,
     string? HostRef = null,
     DateTimeOffset CreatedAt = default,
-    string? Note = null);
+    string? Note = null,
+    string? DeviceId = null);
 
 [Flags]
 public enum ProvisionerCapabilities {

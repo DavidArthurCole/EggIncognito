@@ -20,77 +20,74 @@
         }
     </Summary>
     <Detail>
-        <div class="sub-section-head">Fleet</div>
-        <div class="text-xs text-muted">
-            kind @(_status?.Kind ?? "?"), image @(_status?.Image ?? "?"),
-            live @(_status?.LiveCount ?? 0) of @(_status?.MaxInstances ?? 0)
-        </div>
-
-        <div class="reg-wrap">
-            <table class="data-table">
-                <thead>
-                <tr>
-                    <th>instance</th>
-                    <th>state</th>
-                    <th>target</th>
-                    <th>image</th>
-                    <th>device</th>
-                    <th>uptime</th>
-                    <th>capture</th>
-                    <th></th>
-                </tr>
-                </thead>
-                <tbody>
-                @if (_status is null || _status.Instances.Count == 0) {
-                    <tr>
-                        <td colspan="8" class="text-muted">no instances provisioned</td>
-                    </tr>
-                } else {
-                    @foreach (var i in _status.Instances) {
-                        <tr>
-                            <td class="mono">@i.InstanceId</td>
-                            <td>@i.State@(i.ContainerPresent ? "" : " (no container)")</td>
-                            <td class="mono">@(i.Target ?? "-")</td>
-                            <td class="mono">@i.Image</td>
-                            <td class="mono">@(i.DeviceId ?? "-")</td>
-                            <td>
-                                <TimeAgo Value="@i.CreatedAt" Hover="false"/>
-                            </td>
-                            <td>@FlowLine(i)</td>
-                            <td>
-                                @if (i.DeviceId is { Length: > 0 } did) {
-                                    <button type="button" class="btn-mini" disabled="@_busy"
-                                            @onclick="() => OnConsole.InvokeAsync(did)">
-                                        console
-                                    </button>
-                                }
-                                <button type="button" class="btn-mini btn-danger" disabled="@_busy"
-                                        @onclick="() => Destroy(i.InstanceId)">
-                                    destroy
-                                </button>
-                            </td>
-                        </tr>
-                    }
-                }
-                </tbody>
-            </table>
+        <div class="vd-head">
+            <div class="sub-section-head">Fleet</div>
+            <div class="vd-head-meta text-xs text-muted">
+                <span>@(_status?.LiveCount ?? 0) of @(_status?.MaxInstances ?? 0) live</span>
+                <span class="mono">@(_status?.Kind ?? "?")</span>
+                <span class="mono">@(_status?.Image ?? "?")</span>
+            </div>
+            <div class="vd-head-actions">
+                <button type="button" class="btn-primary" disabled="@(_busy || _status?.Enabled != true)"
+                        @onclick="Create">
+                    Provision
+                </button>
+                <button type="button" class="btn-secondary" disabled="@_busy" @onclick="Reconcile">Reconcile</button>
+                <button type="button" class="btn-secondary" disabled="@_busy" @onclick="Load">Refresh</button>
+            </div>
         </div>
 
         @if (_status?.Note is { Length: > 0 } note) {
             <div class="text-xs text-muted">@note</div>
         }
 
-        <div class="flex items-center gap-2">
-            <button type="button" class="btn-primary" disabled="@(_busy || _status?.Enabled != true)"
-                    @onclick="Create">
-                Provision instance
-            </button>
-            <button type="button" class="btn-secondary" disabled="@_busy" @onclick="Reconcile">Reconcile</button>
-            <button type="button" class="btn-secondary" disabled="@_busy" @onclick="Load">Refresh</button>
-        </div>
-
         @if (_msg is { Length: > 0 }) {
             <StatusNote Severity="@_msgKind" OnDismiss="Clear">@_msg</StatusNote>
+        }
+
+        @if (_status is null || _status.Instances.Count == 0) {
+            <div class="vd-empty text-sm text-muted">
+                No instances provisioned. Provision one to get an Android container on the fleet host.
+            </div>
+        } else {
+            <div class="vd-grid">
+                @foreach (var i in _status.Instances) {
+                    <div class="vd-card">
+                        <div class="vd-card-head">
+                            <span class="vd-dot @DotCss(i)"></span>
+                            <span class="vd-id mono">@i.InstanceId</span>
+                            <span class="vd-state">@StateLabel(i)</span>
+                        </div>
+                        <dl class="vd-facts">
+                            <dt>target</dt>
+                            <dd class="mono">@(i.Target ?? "no address yet")</dd>
+                            <dt>device</dt>
+                            <dd class="mono">@(i.DeviceId ?? "not registered")</dd>
+                            <dt>capture</dt>
+                            <dd>@FlowLine(i)</dd>
+                            <dt>up</dt>
+                            <dd>
+                                <TimeAgo Value="@i.CreatedAt" Hover="false"/>
+                            </dd>
+                        </dl>
+                        @if (i.Note is { Length: > 0 } rowNote) {
+                            <div class="vd-note text-xs text-muted">@rowNote</div>
+                        }
+                        <div class="vd-card-actions">
+                            @if (i.DeviceId is { Length: > 0 } did) {
+                                <button type="button" class="btn-mini" disabled="@_busy"
+                                        @onclick="() => OnConsole.InvokeAsync(did)">
+                                    console
+                                </button>
+                            }
+                            <button type="button" class="btn-mini btn-danger" disabled="@_busy"
+                                    @onclick="() => Destroy(i.InstanceId)">
+                                destroy
+                            </button>
+                        </div>
+                    </div>
+                }
+            </div>
         }
     </Detail>
 </AdminCard>
@@ -119,6 +116,15 @@
         if (row.DeviceId is not { Length: > 0 }) return "not registered";
         if (row.Flows == 0) return "no flows yet";
         return row.LastFlowAt is { Length: > 0 } at ? $"{row.Flows} flows, last {at}" : $"{row.Flows} flows";
+    }
+
+    static string StateLabel(VirtualInstanceRow row) =>
+        row.ContainerPresent ? row.State : $"{row.State}, no container";
+
+    static string DotCss(VirtualInstanceRow row) {
+        if (!row.ContainerPresent || row.State is "failed") return "vd-dot-bad";
+        if (row.State is "ready") return "vd-dot-ready";
+        return "vd-dot-busy";
     }
 
     protected override async Task OnApiReadyAsync() {

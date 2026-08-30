@@ -84,8 +84,37 @@ public sealed class VirtualDeviceLifecycle(
         return created;
     }
 
+    public async Task MirrorRemoteDevicesAsync(IEnumerable<ProvisionedInstance> instances, CancellationToken ct) {
+        if (!RemoteOwned) return;
+
+        using var scope = scopeFactory.CreateScope();
+        if (scope.ServiceProvider.GetService(typeof(IDeviceStatusStore)) is not IDeviceStatusStore devices) return;
+
+        foreach (var instance in instances) {
+            if (instance.DeviceId is not { Length: > 0 } deviceId) continue;
+            if (!ProvisionStates.IsLive(instance.State)) {
+                await devices.RemoveAsync(deviceId, ct);
+                continue;
+            }
+
+            if (instance.AdbSerial is not { Length: > 0 } serial) continue;
+            var existing = await devices.GetAsync(deviceId, ct);
+            if (existing is not null && existing.Enabled && existing.Target == serial) continue;
+
+            await devices.UpsertDeviceAsync(deviceId, Platforms.Android, deviceId, serial, Package,
+                DeviceOrigins.Virtual, ct);
+            logger.LogInformation(
+                "virtual devices: mirrored remote device {Id} on {Serial} so the console can reach it over the bridge",
+                deviceId, serial);
+        }
+    }
+
     public async Task<DeviceResult> DestroyAsync(string instanceId, CancellationToken ct) {
-        if (RemoteOwned) return await Provisioner.DestroyAsync(instanceId, ct);
+        if (RemoteOwned) {
+            var remote = await Provisioner.DestroyAsync(instanceId, ct);
+            if (remote.Ok) await ForgetRemoteDeviceAsync(instanceId, ct);
+            return remote;
+        }
 
         using var scope = scopeFactory.CreateScope();
         var sp = scope.ServiceProvider;
@@ -107,9 +136,17 @@ public sealed class VirtualDeviceLifecycle(
         var destroyed = await Provisioner.DestroyAsync(instanceId, ct);
         if (!destroyed.Ok) return destroyed;
 
-        if (row.DeviceId is { Length: > 0 } id) await store.DisableDeviceAsync(id, ct);
-        await store.SetStateAsync(instanceId, ProvisionStates.Destroyed, "destroyed by admin", ct);
+        if (row.DeviceId is { Length: > 0 } id && sp.GetService(typeof(IDeviceStatusStore)) is IDeviceStatusStore ds)
+            await ds.RemoveAsync(id, ct);
+        await store.RemoveAsync(instanceId, ct);
+        _lastBootstrap.Remove(instanceId);
         return DeviceResult.Success(destroyed.Note);
+    }
+
+    private async Task ForgetRemoteDeviceAsync(string instanceId, CancellationToken ct) {
+        using var scope = scopeFactory.CreateScope();
+        if (scope.ServiceProvider.GetService(typeof(IDeviceStatusStore)) is not IDeviceStatusStore devices) return;
+        await devices.RemoveAsync(instanceId, ct);
     }
 
     public async Task<int> ReconcileAsync(CancellationToken ct) {

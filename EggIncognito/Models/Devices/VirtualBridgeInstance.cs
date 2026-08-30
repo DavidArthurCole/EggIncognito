@@ -8,4 +8,5 @@ public sealed record VirtualBridgeInstance(
     string? AdbSerial,
     string? HostRef,
     DateTimeOffset CreatedAt,
-    string? Note);
+    string? Note,
+    string? DeviceId = null);

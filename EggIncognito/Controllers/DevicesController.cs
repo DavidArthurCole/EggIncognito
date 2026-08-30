@@ -726,7 +726,8 @@ public sealed class DevicesController(
         services.GetService(typeof(ProvisionedInstanceStore)) as ProvisionedInstanceStore;
 
     private static VirtualBridgeInstance BridgeInstance(ProvisionedInstanceRow row) => new(
-        row.InstanceId, row.Kind, row.Image, row.State, row.AdbSerial, row.HostRef, row.CreatedAt, row.Note);
+        row.InstanceId, row.Kind, row.Image, row.State, row.AdbSerial, row.HostRef, row.CreatedAt, row.Note,
+        row.DeviceId);
 
     private static VirtualBridgeInstance BridgeInstance(ProvisionedInstance instance) => new(
         instance.InstanceId, instance.Kind, instance.Image, instance.State, instance.AdbSerial, instance.HostRef,

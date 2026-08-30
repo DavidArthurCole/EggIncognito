@@ -208,6 +208,8 @@ public class DevicesControllerTests {
 
         public Task<Device?> GetAsync(string id, CancellationToken ct = default) =>
             Task.FromResult<Device?>(id == "frame-android" ? new Device { Id = id, Platform = "android", Label = id } : null);
+
+        public Task RemoveAsync(string id, CancellationToken ct = default) => Task.CompletedTask;
     }
 
     private sealed class FakeUser(UserRole role) : ICurrentUser {

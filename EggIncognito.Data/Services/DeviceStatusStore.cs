@@ -9,6 +9,7 @@ public interface IDeviceStatusStore {
 
     Task<List<Device>> EnabledDevicesAsync(CancellationToken ct = default);
     Task<Device?> GetAsync(string id, CancellationToken ct = default);
+    Task RemoveAsync(string id, CancellationToken ct = default);
 }
 
 public sealed class DeviceStatusStore(EggIncognitoDbContext db) : IDeviceStatusStore {
@@ -43,4 +44,11 @@ public sealed class DeviceStatusStore(EggIncognitoDbContext db) : IDeviceStatusS
 
     public Task<Device?> GetAsync(string id, CancellationToken ct = default) =>
         db.Devices.AsNoTracking().FirstOrDefaultAsync(d => d.Id == id, ct);
+
+    public async Task RemoveAsync(string id, CancellationToken ct = default) {
+        var row = await db.Devices.FirstOrDefaultAsync(d => d.Id == id, ct);
+        if (row is null) return;
+        db.Devices.Remove(row);
+        await db.SaveChangesAsync(ct);
+    }
 }

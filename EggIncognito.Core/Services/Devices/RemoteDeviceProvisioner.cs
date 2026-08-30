@@ -118,7 +118,8 @@ public sealed class RemoteDeviceProvisioner(IHttpClientFactory httpFactory, Devi
         body.AdbSerial,
         body.HostRef,
         body.CreatedAt,
-        body.Note);
+        body.Note,
+        body.DeviceId);
 
     private sealed record CreateRequestBody(string? Image);
 
@@ -130,7 +131,8 @@ public sealed class RemoteDeviceProvisioner(IHttpClientFactory httpFactory, Devi
         string? AdbSerial,
         string? HostRef,
         DateTimeOffset CreatedAt,
-        string? Note);
+        string? Note,
+        string? DeviceId);
 
     private sealed record ActionResponseBody(bool Ok, string? Outcome, string? Note);
 

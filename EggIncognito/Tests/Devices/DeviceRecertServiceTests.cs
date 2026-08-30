@@ -251,6 +251,8 @@ public class DeviceRecertServiceTests {
 
         public Task<Device?> GetAsync(string id, CancellationToken ct = default) =>
             Task.FromResult(row is not null && row.Id == id ? row : null);
+
+        public Task RemoveAsync(string id, CancellationToken ct = default) => Task.CompletedTask;
     }
 
     private sealed class FakeUiDriver : IDeviceUiDriver {

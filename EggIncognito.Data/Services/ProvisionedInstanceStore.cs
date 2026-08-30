@@ -67,10 +67,10 @@ public sealed class ProvisionedInstanceStore(EggIncognitoDbContext db, TimeProvi
         await db.SaveChangesAsync(ct);
     }
 
-    public async Task DisableDeviceAsync(string deviceId, CancellationToken ct = default) {
-        var row = await db.Devices.FirstOrDefaultAsync(d => d.Id == deviceId, ct);
-        if (row is null || !row.Enabled) return;
-        row.Enabled = false;
+    public async Task RemoveAsync(string instanceId, CancellationToken ct = default) {
+        var row = await db.ProvisionedInstances.FirstOrDefaultAsync(x => x.InstanceId == instanceId, ct);
+        if (row is null) return;
+        db.ProvisionedInstances.Remove(row);
         await db.SaveChangesAsync(ct);
     }
 }

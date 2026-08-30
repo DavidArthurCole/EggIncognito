@@ -19,6 +19,37 @@ jobs:
     secrets:
       PACKAGES_PAT: ${{ secrets.PACKAGES_PAT }}
 
+  warm-release-cache:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1
+        with:
+          dotnet-version: "10.0.x"
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Build.props', '**/Directory.Packages.props') }}
+          restore-keys: ${{ runner.os }}-nuget-
+
+      - name: Authenticate GitHub Packages
+        run: |
+          dotnet nuget update source github \
+            --username ${{ github.repository_owner }} \
+            --password ${{ github.token }} \
+            --store-password-in-clear-text \
+            --configfile nuget.config
+
+      - name: Warm caches via self-contained publish
+        run: |
+          dotnet publish EggIncognito/EggIncognito.csproj \
+            -c Release -r linux-x64 --self-contained true \
+            -p:PublishSingleFile=true -p:NoBrowser=true -p:EmitTypes=false \
+            -o publish/warm
+
   seed-app-image-cache:
     if: github.event_name == 'push'
     uses: EggIncTools/EggIdentity/.github/workflows/docker-publish.yml@main
