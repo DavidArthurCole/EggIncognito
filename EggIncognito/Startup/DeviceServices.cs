@@ -4,6 +4,7 @@ using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Services;
 using EggIncognito.Services.DataApi;
 using EggIncognito.Services.Devices;
+using EggIncognito.Services.Devices.Cookbooks;
 using EggIncognito.Services.Devices.Fake;
 using EggIncognito.Services.Feed;
 
@@ -47,6 +48,28 @@ public static class DeviceServices {
         builder.AddDeviceCapture(boot);
         builder.AddStoreCheckers(boot);
         builder.Services.AddSingleton<IDevicePlatforms, DevicePlatforms>();
+        builder.AddDeviceCookbooks(boot);
+    }
+
+    private static void AddDeviceCookbooks(this WebApplicationBuilder builder, BootFlags boot) {
+        builder.Services.AddSingleton<InstallAppCookbook>();
+        builder.Services.AddSingleton<InstallCaCookbook>();
+        builder.Services.AddSingleton<LaunchAppCookbook>();
+        builder.Services.AddSingleton<DismissFirstRunCookbook>();
+        builder.Services.AddSingleton<BringUpCookbook>();
+        builder.Services.AddSingleton<IDeviceCookbook>(sp => sp.GetRequiredService<InstallAppCookbook>());
+        builder.Services.AddSingleton<IDeviceCookbook>(sp => sp.GetRequiredService<InstallCaCookbook>());
+        builder.Services.AddSingleton<IDeviceCookbook>(sp => sp.GetRequiredService<LaunchAppCookbook>());
+        builder.Services.AddSingleton<IDeviceCookbook>(sp => sp.GetRequiredService<DismissFirstRunCookbook>());
+        builder.Services.AddSingleton<IDeviceCookbook>(sp => sp.GetRequiredService<BringUpCookbook>());
+        builder.Services.AddSingleton<IDeviceAppLauncher>(sp => sp.GetRequiredService<LaunchAppCookbook>());
+
+        var extensions = DeviceExtensionLoader.Load(
+            builder.Services, builder.Configuration, ContentRoot.Resolve(builder.Configuration["ContentRoot"]));
+        builder.Services.AddSingleton(extensions);
+
+        builder.Services.AddSingleton<IDeviceCookbooks, DeviceCookbooks>();
+        if (boot.DbEnabled) builder.Services.AddScoped<DeviceCookbookRunner>();
     }
 
     private static void AddDeviceProxyAndCa(this WebApplicationBuilder builder, BootFlags boot) {
@@ -84,7 +107,7 @@ public static class DeviceServices {
             var config = sp.GetRequiredService<IConfiguration>();
             string contentRoot = ContentRoot.Resolve(config["ContentRoot"]);
             string capturePath = config["CapturePath"] ?? Path.Combine(contentRoot, "captures");
-            string caPath = config["CaPath"] ?? Path.Combine(capturePath, "eggincognito-ca.cer");
+            string caPath = CaptureCaPath.Resolve(config);
             Func<bool, ICaptureProxy>? proxyFactory = boot.FakeDevices
                 ? sp.GetRequiredService<FakeCaptureProxyFactory>().Create
                 : null;
@@ -100,8 +123,10 @@ public static class DeviceServices {
 #pragma warning restore IDE0028
                 boot.FakeDevices ? null : sp.GetService<ConfigChangeNotifier>(),
                 sp.GetRequiredService<IRouteCatalog>(),
-                sp.GetService<ConsumeObservationRecorder>());
+                sp.GetService<ConsumeObservationRecorder>(),
+                sp.GetService<IDeviceResponseSources>());
         });
+        builder.Services.AddSingleton<IDeviceCaptureStatus>(sp => sp.GetRequiredService<DeviceCaptureManager>());
         builder.Services.AddSingleton<DeviceProxyPusher>();
         if (boot.DeviceCaptureConfig.Enabled)
             builder.Services.AddHostedService(sp => sp.GetRequiredService<DeviceCaptureManager>());

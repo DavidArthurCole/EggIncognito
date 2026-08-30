@@ -15,4 +15,10 @@ public sealed class RefusingProcessRunner : IProcessRunner {
         return Task.FromResult(new ProcessResult(RefusedExitCode, "",
             $"refused: fake device mode never runs '{exe}'"));
     }
+
+    public Task<ProcessBytesResult> RunBytesAsync(string exe, string[] args, CancellationToken ct) {
+        _attempts.Enqueue(exe);
+        return Task.FromResult(new ProcessBytesResult(RefusedExitCode, [],
+            $"refused: fake device mode never runs '{exe}'"));
+    }
 }

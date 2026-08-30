@@ -44,6 +44,7 @@ public static class DataServices {
             .PersistKeysToDbContext<EggIncognitoDbContext>();
 
         builder.Services.AddScoped<GameBinaryStore>();
+        builder.Services.AddScoped<ApkStore>();
         builder.Services.AddScoped<SymbolizedReferenceStore>();
         builder.Services.AddScoped<DeviceAssetStore>();
         builder.Services.AddScoped<DeviceStateStore>();

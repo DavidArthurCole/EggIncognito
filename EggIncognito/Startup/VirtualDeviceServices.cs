@@ -10,11 +10,13 @@ public static class VirtualDeviceServices {
         builder.Services.AddSingleton(config);
         builder.Services.AddSingleton(_ => new DockerEngineClient(config.DockerSocket));
         builder.Services.AddSingleton<IDeviceProvisioner, RedroidProvisioner>();
+        builder.Services.AddSingleton<IDeviceProvisioner, RemoteDeviceProvisioner>();
         builder.Services.AddSingleton<IDeviceProvisioners, DeviceProvisioners>();
         builder.Services.AddSingleton<VirtualDeviceLifecycle>();
 
         if (!boot.DbEnabled || boot.FakeDevices) return;
         builder.Services.AddScoped<ProvisionedInstanceStore>();
+        if (RemoteDeviceProvisioner.IsRemoteKind(config.Kind)) return;
         builder.Services.AddHostedService(sp => sp.GetRequiredService<VirtualDeviceLifecycle>());
     }
 }

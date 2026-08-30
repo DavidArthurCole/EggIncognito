@@ -16,6 +16,7 @@ public sealed class DeviceHarvester(
     DeviceStateStore states,
     DeviceJobStore jobs,
     GameBinaryStore binaries,
+    ApkStore apks,
     ILogger<DeviceHarvester> logger) {
     private const string FingerprintPrefix = DeviceAssetStore.FingerprintPrefix;
 
@@ -79,6 +80,7 @@ public sealed class DeviceHarvester(
                     ? await StoreBinaryAsync(target.Platform, state.AppVersion, item, ct)
                     : await assets.PutAsync(target.Platform, entry.Kind, item.Name, item.Bytes, item.ContentType,
                         state.AppVersion, ct);
+                if (entry.Kind == DeviceAssetKinds.Package) await StoreApkAsync(target, state, item, ct);
                 if (!stored) continue;
                 wrote++;
                 bytes += item.Bytes.LongLength;
@@ -124,6 +126,14 @@ public sealed class DeviceHarvester(
         var syms = img?.Symbols ?? MachoSymbols.Read(item.Bytes);
         await binaries.PutAsync(platform, version, sha, item.Bytes, syms.Count, syms.Count, "harvest", ct);
         return true;
+    }
+
+    private async Task StoreApkAsync(DeviceTarget target, DeviceState state, HarvestItem item,
+        CancellationToken ct) {
+        if (!Platforms.Matches(target.Platform, Platforms.Android)) return;
+        if (state.AppVersion is not { Length: > 0 } appVersion || state.Build is not { Length: > 0 } build) return;
+        await apks.PutAsync(target.Platform, target.Package, appVersion, build, ApkStore.SplitLabel(item.Name),
+            item.Bytes, target.Id, ct);
     }
 
     private static string Text(byte[] bytes) => Encoding.UTF8.GetString(bytes);

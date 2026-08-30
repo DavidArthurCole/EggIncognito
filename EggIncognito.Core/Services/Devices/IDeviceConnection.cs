@@ -5,6 +5,11 @@ public interface IDeviceConnection {
     Task<ProcessResult> ShellAsync(string command, CancellationToken ct);
     Task<byte[]?> PullBytesAsync(string remotePath, CancellationToken ct);
     Task<bool> PushFileAsync(string localPath, string remotePath, CancellationToken ct);
+
+    bool SupportsExecOut => false;
+
+    Task<ProcessBytesResult> ExecOutAsync(string command, CancellationToken ct) =>
+        Task.FromResult(new ProcessBytesResult(-1, [], "exec-out is not supported by this connection"));
 }
 
 public sealed record SshEndpoint(string Host, string Port, string KeyPath) {

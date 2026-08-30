@@ -102,6 +102,10 @@
     string? _msg;
     StatusNoteKind _msgKind = StatusNoteKind.Info;
     bool _busy;
+    CancellationTokenSource? _loopCts;
+    PageVisibility? _vis;
+
+    PageVisibility Vis => _vis ??= new PageVisibility(Js, Env);
 
     string StatText => _status is null ? "" : $"{_status.LiveCount}/{_status.MaxInstances}";
 
@@ -119,13 +123,39 @@
 
     protected override async Task OnApiReadyAsync() {
         await Load();
+        _loopCts = new CancellationTokenSource();
+        _ = RunLoopAsync(_loopCts.Token);
     }
 
-    async Task Load() {
+    async Task RunLoopAsync(CancellationToken ct) {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+        try {
+            while (await timer.WaitForNextTickAsync(ct)) {
+                if (_busy || !await Vis.IsVisibleAsync()) continue;
+                await Load(true);
+                await InvokeAsync(StateHasChanged);
+            }
+        } catch (OperationCanceledException) {
+        }
+    }
+
+    public override async ValueTask DisposeAsync() {
+        if (_loopCts is not null) {
+            await _loopCts.CancelAsync();
+            _loopCts.Dispose();
+        }
+
+        if (_vis is not null) await _vis.DisposeAsync();
+        await base.DisposeAsync();
+    }
+
+    Task Load() => Load(false);
+
+    async Task Load(bool quiet) {
         if (Api is null) return;
         var res = await Api.GetAsync("/api/devices/virtual");
         if (!res.Ok) {
-            Say($"load failed: {res.Describe()}", StatusNoteKind.Error);
+            if (!quiet) Say($"load failed: {res.Describe()}", StatusNoteKind.Error);
             return;
         }
 

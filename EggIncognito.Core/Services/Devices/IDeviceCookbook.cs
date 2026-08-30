@@ -1,0 +1,63 @@
+namespace EggIncognito.Core.Services.Devices;
+
+public static class DeviceCookbookIds {
+    public const string InstallApp = "install-app";
+    public const string InstallCa = "install-ca";
+    public const string LaunchApp = "launch-app";
+    public const string DismissFirstRun = "dismiss-first-run";
+    public const string BringUp = "bring-up";
+}
+
+public sealed record DeviceCookbookOption(string Value, string Label, bool Recommended = false);
+
+public sealed record DeviceCookbookInfo(
+    string Id,
+    string Title,
+    string Summary,
+    bool Available,
+    string? Unavailable = null,
+    string? ArgumentLabel = null,
+    IReadOnlyList<DeviceCookbookOption>? Options = null);
+
+public sealed record DeviceCookbookRequest(string CookbookId, string? Argument = null);
+
+public sealed record DeviceCookbookRun(
+    bool Ok,
+    string CookbookId,
+    IReadOnlyList<string> Log,
+    string? FailedStep = null,
+    string? Note = null);
+
+public sealed record DeviceCookbookContext(
+    DeviceTarget Target,
+    string? Argument,
+    Action<string> Progress);
+
+public interface IDeviceCookbook {
+    string Id { get; }
+    string Title { get; }
+    string Summary { get; }
+    Task<DeviceCookbookInfo> DescribeAsync(DeviceTarget target, CancellationToken ct);
+    Task<DeviceCookbookRun> RunAsync(DeviceCookbookContext context, CancellationToken ct);
+}
+
+public interface IDeviceCookbooks {
+    Task<IReadOnlyList<DeviceCookbookInfo>> DescribeAllAsync(DeviceTarget target, CancellationToken ct);
+    IDeviceCookbook? Find(string cookbookId);
+}
+
+public sealed class DeviceCookbooks(IEnumerable<IDeviceCookbook> cookbooks) : IDeviceCookbooks {
+    private readonly Dictionary<string, IDeviceCookbook> _byId =
+        cookbooks.ToDictionary(c => c.Id, StringComparer.OrdinalIgnoreCase);
+
+    public async Task<IReadOnlyList<DeviceCookbookInfo>> DescribeAllAsync(
+        DeviceTarget target, CancellationToken ct) {
+        var described = new List<DeviceCookbookInfo>();
+        foreach (var cookbook in _byId.Values.OrderBy(c => c.Id, StringComparer.Ordinal))
+            described.Add(await cookbook.DescribeAsync(target, ct));
+        return described;
+    }
+
+    public IDeviceCookbook? Find(string cookbookId) =>
+        !string.IsNullOrEmpty(cookbookId) && _byId.TryGetValue(cookbookId, out var c) ? c : null;
+}

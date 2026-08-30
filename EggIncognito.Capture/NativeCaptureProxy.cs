@@ -33,6 +33,7 @@ public sealed class NativeCaptureProxy(bool verbose = false) : ICaptureProxy {
 
     public bool LanForwarderEnabled { get; init; } = true;
     public bool TrustCaInOsStore { get; init; } = true;
+    public ICaptureResponseSource? ResponseSource { get; init; }
 
     public bool FreshCa { get; private set; }
     public string? RootThumbprint => _rootCa?.Thumbprint;
@@ -224,9 +225,12 @@ public sealed class NativeCaptureProxy(bool verbose = false) : ICaptureProxy {
             var req = await HttpMessage.ReadAsync(deviceTls, ct);
             if (req is null) break;
 
-            await req.WriteAsync(upstreamTls, ct);
-            var resp = await HttpMessage.ReadAsync(upstreamTls, ct);
-            if (resp is null) break;
+            var resp = await AnswerLocallyAsync(host, req, ct);
+            if (resp is null) {
+                await req.WriteAsync(upstreamTls, ct);
+                resp = await HttpMessage.ReadAsync(upstreamTls, ct);
+                if (resp is null) break;
+            }
 
             await resp.WriteAsync(deviceTls, ct);
 
@@ -235,6 +239,33 @@ public sealed class NativeCaptureProxy(bool verbose = false) : ICaptureProxy {
 
             if (req.IsConnectionClose || resp.IsConnectionClose) break;
         }
+    }
+
+    private async Task<HttpMessage?> AnswerLocallyAsync(string host, HttpMessage req, CancellationToken ct) {
+        if (ResponseSource is not { } source) return null;
+
+        CaptureOverrideResponse? answer;
+        try {
+            string reqText = req.Body is { Length: > 0 } ? Encoding.UTF8.GetString(req.Body) : "";
+            answer = await source.TryAnswerAsync(
+                new CaptureOverrideRequest(host, req.Method, req.Path, WireBody.ExtractDataParam(reqText), req.Body),
+                ct);
+        } catch (Exception ex) {
+            Log($"response source failed for {host}{req.Path}, forwarding upstream: {ex.Message}");
+            return null;
+        }
+
+        if (answer is null) return null;
+
+        Log($"answering {host}{req.Path} locally, {answer.Body.Length} bytes");
+        return new HttpMessage {
+            StartLine = $"HTTP/1.1 {answer.StatusCode} OK",
+            Headers = [
+                new HttpHeader("Content-Type", answer.ContentType),
+                new HttpHeader("Content-Length", answer.Body.Length.ToString(CultureInfo.InvariantCulture))
+            ],
+            Body = answer.Body
+        };
     }
 
     private void EmitFlow(string host, HttpMessage req, HttpMessage resp) {

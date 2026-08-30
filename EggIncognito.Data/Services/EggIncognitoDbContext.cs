@@ -43,6 +43,7 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
     public DbSet<ContractRelease> ContractReleases => Set<ContractRelease>();
     public DbSet<GameDataDocument> GameDataDocuments => Set<GameDataDocument>();
     public DbSet<StoredBinary> StoredBinaries => Set<StoredBinary>();
+    public DbSet<StoredApk> StoredApks => Set<StoredApk>();
     public DbSet<SymbolizedBinary> SymbolizedBinaries => Set<SymbolizedBinary>();
     public DbSet<AnalyzedFile> AnalyzedFiles => Set<AnalyzedFile>();
     public DbSet<UserTheme> UserThemes => Set<UserTheme>();
@@ -230,6 +231,13 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
             e.HasIndex(x => new { x.Platform, x.AppVersion }).IsUnique();
             e.HasIndex(x => x.Sha256);
             e.Property(x => x.PulledAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
+        });
+        modelBuilder.Entity<StoredApk>(e => {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.Platform, x.Package, x.AppVersion, x.Build, x.Split }).IsUnique();
+            e.HasIndex(x => new { x.Platform, x.Package, x.Build });
+            e.HasIndex(x => x.Sha256);
+            e.Property(x => x.CapturedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
         });
         modelBuilder.Entity<SymbolizedBinary>(e => {
             e.HasKey(x => x.Id);

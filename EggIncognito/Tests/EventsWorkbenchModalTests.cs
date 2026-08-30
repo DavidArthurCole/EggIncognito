@@ -70,13 +70,14 @@ public class EventsWorkbenchModalTests : BunitContext {
 
         var cut = await OpenAsync();
 
-        var rowsWithBars = cut.FindAll(".evcal-row")
+        var currentPeriod = cut.FindAll(".cal-period")[1];
+        var rowsWithBars = currentPeriod.QuerySelectorAll(".cal-row")
             .Where(row => row.QuerySelectorAll(".evcal-bar").Length > 0)
             .ToList();
         Assert.NotEmpty(rowsWithBars);
-        Assert.Contains(rowsWithBars, row => row.QuerySelectorAll(".evcal-lane").Length == 2);
+        Assert.Contains(rowsWithBars, row => row.QuerySelectorAll(".cal-lane").Length == 2);
         Assert.All(rowsWithBars, row => Assert.All(
-            row.QuerySelectorAll(".evcal-lane"),
+            row.QuerySelectorAll(".cal-lane"),
             lane => Assert.True(lane.QuerySelectorAll(".evcal-bar").Length <= 1)));
     }
 
@@ -87,7 +88,8 @@ public class EventsWorkbenchModalTests : BunitContext {
 
         var cut = await OpenAsync();
 
-        Assert.Single(cut.FindAll(".evcal-now"));
+        var currentPeriod = cut.FindAll(".cal-period")[1];
+        Assert.Single(currentPeriod.QuerySelectorAll(".cal-now"));
     }
 
     [Fact]

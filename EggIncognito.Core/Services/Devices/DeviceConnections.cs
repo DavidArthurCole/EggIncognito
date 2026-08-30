@@ -4,8 +4,13 @@ public sealed class AdbDeviceConnection(IProcessRunner runner, string serial) : 
     public string Serial => serial;
     public string Platform => "android";
 
+    public bool SupportsExecOut => true;
+
     public Task<ProcessResult> ShellAsync(string command, CancellationToken ct) =>
         runner.RunAsync("adb", ["-s", serial, "shell", command], ct);
+
+    public Task<ProcessBytesResult> ExecOutAsync(string command, CancellationToken ct) =>
+        runner.RunBytesAsync("adb", ["-s", serial, "exec-out", command], ct);
 
     public async Task<byte[]?> PullBytesAsync(string remotePath, CancellationToken ct) {
         string dest = DeviceShell.NewTempPath(".bin");

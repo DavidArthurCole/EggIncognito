@@ -1,6 +1,7 @@
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
+using EggIncognito.Services.Devices.Cookbooks;
 
 namespace EggIncognito.Services.Devices;
 
@@ -8,13 +9,13 @@ public sealed class VirtualDeviceLifecycle(
     IServiceScopeFactory scopeFactory,
     IDeviceProvisioners provisioners,
     VirtualDeviceConfig config,
-    IDeviceFleet fleet,
+    InstallAppCookbook installApp,
+    LaunchAppCookbook launchApp,
     IProcessRunner runner,
     TimeProvider time,
     ILogger<VirtualDeviceLifecycle> logger) : BackgroundService {
     private const string Package = "com.auxbrain.egginc";
     private static readonly TimeSpan AdbTimeout = TimeSpan.FromSeconds(30);
-    private static readonly TimeSpan InstallTimeout = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan BootstrapBackoff = TimeSpan.FromMinutes(15);
     private readonly SemaphoreSlim _gate = new(1, 1);
 #pragma warning disable IDE0028
@@ -26,9 +27,18 @@ public sealed class VirtualDeviceLifecycle(
 
     public IDeviceProvisioner Provisioner => provisioners.For(config.Kind);
 
+    public bool RemoteOwned => RemoteDeviceProvisioner.IsRemoteKind(config.Kind);
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken) {
         if (!config.Enabled) {
             logger.LogInformation("virtual devices: disabled (Devices:Virtual:Enabled is false)");
+            return;
+        }
+
+        if (RemoteOwned) {
+            logger.LogInformation(
+                "virtual devices: kind '{Kind}' - instances are owned and reconciled by the remote host, "
+                + "this instance runs no reconciler and writes no provisioned_instances rows", config.Kind);
             return;
         }
 
@@ -54,6 +64,7 @@ public sealed class VirtualDeviceLifecycle(
 
     public async Task<DeviceResult<ProvisionedInstance>> CreateAsync(string? image, CancellationToken ct) {
         if (!config.Enabled) return DeviceResult<ProvisionedInstance>.Unsupported("virtual devices are disabled");
+        if (RemoteOwned) return await Provisioner.CreateAsync(new ProvisionSpec(config.Kind, image ?? ""), ct);
 
         using var scope = scopeFactory.CreateScope();
         if (scope.ServiceProvider.GetService(typeof(ProvisionedInstanceStore)) is not ProvisionedInstanceStore store)
@@ -74,6 +85,8 @@ public sealed class VirtualDeviceLifecycle(
     }
 
     public async Task<DeviceResult> DestroyAsync(string instanceId, CancellationToken ct) {
+        if (RemoteOwned) return await Provisioner.DestroyAsync(instanceId, ct);
+
         using var scope = scopeFactory.CreateScope();
         var sp = scope.ServiceProvider;
         if (sp.GetService(typeof(ProvisionedInstanceStore)) is not ProvisionedInstanceStore store)
@@ -100,7 +113,7 @@ public sealed class VirtualDeviceLifecycle(
     }
 
     public async Task<int> ReconcileAsync(CancellationToken ct) {
-        if (!config.Enabled) return 0;
+        if (!config.Enabled || RemoteOwned) return 0;
         if (!await _gate.WaitAsync(TimeSpan.Zero, ct)) return 0;
         try {
             return await ReconcileCoreAsync(ct);
@@ -199,64 +212,23 @@ public sealed class VirtualDeviceLifecycle(
             return;
         _lastBootstrap[instanceId] = time.GetUtcNow();
 
-        var source = (await fleet.EnabledAsync(ct)).FirstOrDefault(d =>
-            Platforms.Matches(d.Platform, Platforms.Android) && !DeviceOrigins.IsVirtual(d.Origin));
-        if (source is null) {
+        var target = new DeviceTarget(deviceId, Platforms.Android, serial, Package);
+        var install = await installApp.RunAsync(new DeviceCookbookContext(target, null, Line(instanceId)), ct);
+        if (!install.Ok) {
             await store.SetStateAsync(instanceId, ProvisionStates.Failed,
-                "no physical android device is available to pull the egg inc splits from", ct);
-            logger.LogWarning("virtual devices: {Id} has no physical android source device to copy the apk from",
-                instanceId);
+                install.Note ?? $"install-app failed at {install.FailedStep ?? "?"}", ct);
             return;
         }
 
-        var puller = new DeviceApkPuller(runner);
-        byte[]? baseApk = await puller.PullBaseSplitAsync(source.Target, source.Package, ct);
-        byte[]? armApk = await puller.PullArmSplitAsync(source.Target, source.Package, ct);
-        if (baseApk is null || armApk is null) {
-            string missing = baseApk is null ? (armApk is null ? "base and arm64" : "base") : "arm64";
-            await store.SetStateAsync(instanceId, ProvisionStates.Failed,
-                $"could not pull the {missing} split from {source.Id}", ct);
-            logger.LogWarning("virtual devices: {Id} apk pull from {Source} yielded no {Missing} split",
-                instanceId, source.Id, missing);
-            return;
-        }
-
-        string basePath = DeviceShell.NewTempPath("-base.apk");
-        string armPath = DeviceShell.NewTempPath("-arm64.apk");
-        try {
-            await File.WriteAllBytesAsync(basePath, baseApk, ct);
-            await File.WriteAllBytesAsync(armPath, armApk, ct);
-            var install = await Adb(["-s", serial, "install-multiple", "-r", basePath, armPath], InstallTimeout, ct);
-            if (install.ExitCode != 0) {
-                await store.SetStateAsync(instanceId, ProvisionStates.Failed,
-                    $"install-multiple failed: {DeviceParsing.TrimNote(install.Stderr + install.Stdout)}", ct);
-                return;
-            }
-        } finally {
-            DeviceShell.TryDelete(basePath);
-            DeviceShell.TryDelete(armPath);
-        }
-
-        string launched = await LaunchAsync(serial, ct) ? "and launched" : "but could not be launched";
-        await store.SetStateAsync(instanceId, ProvisionStates.Ready,
-            $"egg inc installed from {source.Id} {launched}", ct);
-        logger.LogInformation("virtual devices: {Id} installed egg inc from {Source} and launched it on {Device}",
-            instanceId, source.Id, deviceId);
+        var launch = await launchApp.RunAsync(new DeviceCookbookContext(target, null, Line(instanceId)), ct);
+        string launched = launch.Ok ? "and launched" : "but could not be launched";
+        await store.SetStateAsync(instanceId, ProvisionStates.Ready, $"egg inc installed {launched}", ct);
+        logger.LogInformation("virtual devices: {Id} installed egg inc {Launched} on {Device}",
+            instanceId, launched, deviceId);
     }
 
-    private async Task<bool> LaunchAsync(string serial, CancellationToken ct) {
-        var resolve = await Adb(
-            ["-s", serial, "shell", $"cmd package resolve-activity --brief {Package} | tail -1"], AdbTimeout, ct);
-        string component = resolve.Stdout.Trim();
-        if (resolve.ExitCode != 0 || !component.Contains('/', StringComparison.Ordinal)) {
-            logger.LogWarning("virtual devices: could not resolve a launch activity for {Pkg} on {Serial}: {Out}",
-                Package, serial, DeviceParsing.TrimNote(resolve.Stdout + resolve.Stderr));
-            return false;
-        }
-
-        var start = await Adb(["-s", serial, "shell", $"am start -n {component}"], AdbTimeout, ct);
-        return start.ExitCode == 0 && !start.Stdout.Contains("Error", StringComparison.Ordinal);
-    }
+    private Action<string> Line(string instanceId) =>
+        line => logger.LogInformation("virtual devices: {Id} {Line}", instanceId, line);
 
     private async Task<bool> BootCompletedAsync(string serial, CancellationToken ct) {
         await Adb(["connect", serial], AdbTimeout, ct);

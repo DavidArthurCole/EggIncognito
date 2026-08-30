@@ -1,3 +1,4 @@
+using EggIdentity.UI;
 using EggIncognito.Models.Events;
 
 namespace EggIncognito.Services.Events;
@@ -114,14 +115,7 @@ public static class EventCalendarLayout {
     }
 
     private static int AssignLane(List<double> laneRights, double left, double right, double gap) {
-        for (var i = 0; i < laneRights.Count; i++) {
-            if (laneRights[i] + gap > left) continue;
-            laneRights[i] = right;
-            return i;
-        }
-
-        laneRights.Add(right);
-        return laneRights.Count - 1;
+        return CalendarLanePacker.AssignLane(laneRights, left, right, -gap);
     }
 
     private static (double Left, double Width) Clip(double startUnix, double endUnix, double windowStart, double span) {
@@ -134,5 +128,6 @@ public static class EventCalendarLayout {
         return (Math.Min(left, 1 - width), width);
     }
 
-    private static DateTime WeekStart(DateTime local) => local.Date.AddDays(-(int)local.DayOfWeek);
+    private static DateTime WeekStart(DateTime local) =>
+        CalendarGridAnchor.WeekStartDate(DateOnly.FromDateTime(local)).ToDateTime(TimeOnly.MinValue);
 }

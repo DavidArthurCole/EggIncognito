@@ -39,6 +39,15 @@ public sealed class AndroidUiDriver(IDeviceConnectionFactory connections) : IDev
 
     public async Task<DeviceResult<byte[]>> ScreenshotAsync(DeviceTarget target, CancellationToken ct) {
         var conn = connections.For(target)!;
+        if (conn.SupportsExecOut) {
+            var raw = await conn.ExecOutAsync("screencap -p", ct);
+            if (raw.ExitCode != 0)
+                return DeviceResult<byte[]>.Unreachable(DeviceParsing.TrimNote(raw.Stderr));
+            return raw.Stdout.Length > 0
+                ? DeviceResult<byte[]>.Success(raw.Stdout)
+                : DeviceResult<byte[]>.Error("screencap produced no bytes");
+        }
+
         var cap = await conn.ShellAsync("screencap -p /sdcard/egi-screen.png", ct);
         if (cap.ExitCode != 0)
             return DeviceResult<byte[]>.Unreachable(DeviceParsing.TrimNote(cap.Stderr + cap.Stdout));

@@ -1,4 +1,8 @@
+using System.Diagnostics;
+using System.Globalization;
 using System.Net;
+using System.Security.Cryptography;
+using System.Text;
 using EggIdentity.Contract;
 using EggIncognito.Core;
 using EggIncognito.Core.Services.Devices;
@@ -8,6 +12,7 @@ using EggIncognito.Models.Devices;
 using EggIncognito.Services;
 using EggIncognito.Services.Auth;
 using EggIncognito.Services.Devices;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -22,6 +27,14 @@ public sealed class DevicesController(
     ICurrentUser currentUser,
     IServiceProvider services,
     IServiceScopeFactory scopeFactory) : ControllerBase {
+    public const string BridgeSecretHeader = "X-Api-Key";
+    private const string StreamBoundary = "egiframe";
+    private const int MinStreamFps = 1;
+    private const int MaxStreamFps = 5;
+
+    private static readonly byte[] PartTrailer = "\r\n"u8.ToArray();
+    private static readonly byte[] StreamEnd = Encoding.ASCII.GetBytes($"--{StreamBoundary}--\r\n");
+
     private IDeviceStatusStore? Store => services.GetService(typeof(IDeviceStatusStore)) as IDeviceStatusStore;
     private DeviceJobStore? Jobs => services.GetService(typeof(DeviceJobStore)) as DeviceJobStore;
     private DeviceTimelineCache? Timeline => services.GetService(typeof(DeviceTimelineCache)) as DeviceTimelineCache;
@@ -101,41 +114,42 @@ public sealed class DevicesController(
             }
         }
 
-        var rows = latest.Where(p => devices.ContainsKey(p.DeviceId)).Select(p => {
-            var d = devices[p.DeviceId];
+        var probes = latest.ToDictionary(p => p.DeviceId, StringComparer.Ordinal);
+        var rows = devices.Values.Select(d => {
+            probes.TryGetValue(d.Id, out var p);
             updates.TryGetValue(d.Id, out var up);
             string? sl = storeLatest.GetValueOrDefault(d.Platform);
 
-            string liveResult = p.Reachable == true && !string.IsNullOrEmpty(p.AppVersion)
+            string liveResult = p?.Reachable == true && !string.IsNullOrEmpty(p.AppVersion)
                 ? DeviceProbeRunner.Classify(
                     new DeviceProbeResult(true, p.AppVersion, p.Build, null),
                     d.Platform, regLatestBuild.GetValueOrDefault(d.Platform),
                     regLatestApp.GetValueOrDefault(d.Platform))
-                : p.Outcome ?? "";
+                : p?.Outcome ?? "";
             return new {
                 id = isAdmin ? d.Id : DeviceKey(d.Id),
                 platform = d.Platform,
                 label = d.Label,
                 target = isAdmin ? d.Target : null,
                 package = isAdmin ? d.Package : null,
-                reachable = p.Reachable == true,
-                installedAppVersion = p.AppVersion,
-                installedBuild = p.Build,
-                clientVersion = binaries?.CachedClientVersion(d.Platform, p.AppVersion)
-                    ?? (p.Build is { } ib &&
+                reachable = p?.Reachable == true,
+                installedAppVersion = p?.AppVersion,
+                installedBuild = p?.Build,
+                clientVersion = binaries?.CachedClientVersion(d.Platform, p?.AppVersion)
+                    ?? (p?.Build is { } ib &&
                         regBuildClientVersion.TryGetValue((d.Platform, ib), out int bcv)
                         ? bcv
-                        : p.AppVersion is { } iv &&
+                        : p?.AppVersion is { } iv &&
                           regClientVersion.TryGetValue((d.Platform, iv), out int rcv)
                             ? rcv
                             : capturedClientVersion.TryGetValue(d.Id, out int ccv)
                                 ? ccv
                                 : (int?)null),
                 storeLatest = sl,
-                storeAhead = StoreAheadCheck.IsAhead(sl, p.AppVersion),
+                storeAhead = StoreAheadCheck.IsAhead(sl, p?.AppVersion),
                 result = liveResult,
-                note = isAdmin ? p.Message : null,
-                probedAt = p.StartedAt,
+                note = isAdmin ? p?.Message : null,
+                probedAt = p?.StartedAt,
                 lastUpdate = !isAdmin || up is null
                     ? null
                     : new {
@@ -551,21 +565,39 @@ public sealed class DevicesController(
     private IActionResult? BridgeGate() {
         if (services.GetService(typeof(DeviceTransportConfig)) is not DeviceTransportConfig cfg || !cfg.BridgeEnabled)
             return NotFound();
-        if (cfg.AllowedCidrs.Length == 0) return null;
+
+        var denied = StatusCode(403, new { error = "forbidden" });
+        if (!CallerInAllowedRange(cfg)) return denied;
+        return BridgeSecretPresented(cfg) || currentUser.IsAtLeast(UserRole.Admin) ? null : denied;
+    }
+
+    private bool CallerInAllowedRange(DeviceTransportConfig cfg) {
+        if (cfg.AllowedCidrs.Length == 0) return true;
 
         var ip = HttpContext.Connection.RemoteIpAddress;
-        if (ip is null) return StatusCode(403, new { error = "forbidden" });
+        if (ip is null) return false;
         if (ip.IsIPv4MappedToIPv6) ip = ip.MapToIPv4();
 
         foreach (string cidr in cfg.AllowedCidrs) {
             try {
-                if (IPNetwork.Parse(cidr).Contains(ip)) return null;
+                if (IPNetwork.Parse(cidr).Contains(ip)) return true;
             } catch (FormatException) {
                 continue;
             }
         }
 
-        return StatusCode(403, new { error = "forbidden" });
+        return false;
+    }
+
+    private bool BridgeSecretPresented(DeviceTransportConfig cfg) {
+        if (string.IsNullOrEmpty(cfg.ApiKey)) return false;
+        if (!Request.Headers.TryGetValue(BridgeSecretHeader, out var presented)) return false;
+        string? offered = presented.ToString();
+        if (string.IsNullOrEmpty(offered)) return false;
+
+        byte[] expected = SHA256.HashData(Encoding.UTF8.GetBytes(cfg.ApiKey));
+        byte[] actual = SHA256.HashData(Encoding.UTF8.GetBytes(offered));
+        return CryptographicOperations.FixedTimeEquals(expected, actual);
     }
 
     private async Task<(IActionResult? Error, IDeviceConnection Connection)> ResolveTransportAsync(
@@ -588,7 +620,6 @@ public sealed class DevicesController(
     [ApiAccess(ApiAccessLevel.Admin)]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> TransportShell(string id, [FromBody] TransportShellRequest req) {
-        if (RequireAdmin() is { } no) return no;
         if (BridgeGate() is { } gate) return gate;
         if (string.IsNullOrEmpty(req.Cmd)) return BadRequest(new { error = "cmd required" });
         (IActionResult? err, var conn) = await ResolveTransportAsync(id, HttpContext.RequestAborted);
@@ -602,7 +633,6 @@ public sealed class DevicesController(
     [ApiAccess(ApiAccessLevel.Admin)]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> TransportPull(string id, [FromBody] TransportPullRequest req) {
-        if (RequireAdmin() is { } no) return no;
         if (BridgeGate() is { } gate) return gate;
         if (string.IsNullOrEmpty(req.Path)) return BadRequest(new { error = "path required" });
         (IActionResult? err, var conn) = await ResolveTransportAsync(id, HttpContext.RequestAborted);
@@ -616,7 +646,6 @@ public sealed class DevicesController(
     [ApiAccess(ApiAccessLevel.Admin)]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> TransportPush(string id, [FromBody] TransportPushRequest req) {
-        if (RequireAdmin() is { } no) return no;
         if (BridgeGate() is { } gate) return gate;
         if (string.IsNullOrEmpty(req.Path) || string.IsNullOrEmpty(req.Base64))
             return BadRequest(new { error = "path and base64 required" });
@@ -645,7 +674,6 @@ public sealed class DevicesController(
     [ApiAccess(ApiAccessLevel.Admin)]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> TransportClaim(string id, [FromBody] TransportClaimRequest? req) {
-        if (RequireAdmin() is { } no) return no;
         if (BridgeGate() is { } gate) return gate;
         if (services.GetService(typeof(IDeviceFleet)) is not IDeviceFleet fleet
             || services.GetService(typeof(DeviceTransportConfig)) is not DeviceTransportConfig cfg
@@ -664,13 +692,72 @@ public sealed class DevicesController(
     [ApiAccess(ApiAccessLevel.Admin)]
     [EnableRateLimiting("write")]
     public IActionResult TransportRelease(string id) {
-        if (RequireAdmin() is { } no) return no;
         if (BridgeGate() is { } gate) return gate;
         if (services.GetService(typeof(DeviceClaimRegistry)) is not DeviceClaimRegistry claims)
             return StatusCode(503, new { error = "device transport not configured" });
 
         claims.Release(id);
         return Ok(new { ok = true });
+    }
+
+    private VirtualDeviceLifecycle? Virtual =>
+        services.GetService(typeof(VirtualDeviceLifecycle)) as VirtualDeviceLifecycle;
+
+    private ProvisionedInstanceStore? Instances =>
+        services.GetService(typeof(ProvisionedInstanceStore)) as ProvisionedInstanceStore;
+
+    private static VirtualBridgeInstance BridgeInstance(ProvisionedInstanceRow row) => new(
+        row.InstanceId, row.Kind, row.Image, row.State, row.AdbSerial, row.HostRef, row.CreatedAt, row.Note);
+
+    private static VirtualBridgeInstance BridgeInstance(ProvisionedInstance instance) => new(
+        instance.InstanceId, instance.Kind, instance.Image, instance.State, instance.AdbSerial, instance.HostRef,
+        instance.CreatedAt, instance.Note);
+
+    [HttpGet("virtual/bridge/instances")]
+    [ApiAccess(ApiAccessLevel.Admin)]
+    [EnableRateLimiting("read")]
+    public async Task<IActionResult> BridgeVirtualList(CancellationToken ct) {
+        if (BridgeGate() is { } gate) return gate;
+        if (Virtual is not { } lifecycle)
+            return Ok(new VirtualBridgeListResult(false, DeviceOutcomes.Unsupported, "no provisioner here", []));
+
+        if (Instances is { } store) {
+            var rows = await store.AllAsync(ct);
+            return Ok(new VirtualBridgeListResult(
+                true, DeviceOutcomes.Ok, null, [.. rows.Select(BridgeInstance)]));
+        }
+
+        var listed = await lifecycle.Provisioner.ListAsync(ct);
+        return Ok(new VirtualBridgeListResult(
+            listed.Ok, DeviceOutcomes.Label(listed.Outcome), listed.Note,
+            [.. (listed.Value ?? []).Select(BridgeInstance)]));
+    }
+
+    [HttpPost("virtual/bridge/create")]
+    [ApiAccess(ApiAccessLevel.Admin)]
+    [EnableRateLimiting("write")]
+    public async Task<IActionResult> BridgeVirtualCreate(
+        [FromBody] VirtualCreateRequest? req, CancellationToken ct) {
+        if (BridgeGate() is { } gate) return gate;
+        if (Virtual is not { } lifecycle)
+            return Ok(new VirtualBridgeCreateResult(false, DeviceOutcomes.Unsupported, "no provisioner here", null));
+
+        var res = await lifecycle.CreateAsync(req?.Image, ct);
+        return Ok(new VirtualBridgeCreateResult(
+            res.Ok, DeviceOutcomes.Label(res.Outcome), res.Note,
+            res.Value is { } instance ? BridgeInstance(instance) : null));
+    }
+
+    [HttpPost("virtual/bridge/{instanceId}/destroy")]
+    [ApiAccess(ApiAccessLevel.Admin)]
+    [EnableRateLimiting("write")]
+    public async Task<IActionResult> BridgeVirtualDestroy(string instanceId, CancellationToken ct) {
+        if (BridgeGate() is { } gate) return gate;
+        if (Virtual is not { } lifecycle)
+            return Ok(new VirtualBridgeActionResult(false, DeviceOutcomes.Unsupported, "no provisioner here"));
+
+        var res = await lifecycle.DestroyAsync(instanceId, ct);
+        return Ok(new VirtualBridgeActionResult(res.Ok, DeviceOutcomes.Label(res.Outcome), res.Note));
     }
 
     private async Task<(IActionResult? Error, IDevicePlatform Platform, DeviceTarget Target)> ResolveUiAsync(
@@ -705,6 +792,76 @@ public sealed class DevicesController(
         Response.Headers.CacheControl = "no-store";
         return File(png, "image/png");
     }
+
+    [HttpGet("{id}/ui/stream")]
+    [ApiAccess(ApiAccessLevel.Admin)]
+    [DisableRateLimiting]
+    public async Task<IActionResult> UiStream(string id, [FromQuery] int fps = 3,
+        [FromQuery] int quality = DeviceFrameEncoder.DefaultQuality, CancellationToken ct = default) {
+        if (RequireAdmin() is { } no) return no;
+        (IActionResult? err, var platform, var target) = await ResolveUiAsync(id, ct);
+        if (err is not null) return err;
+
+        if (!DeviceStreamGate.TryEnter(target.Id))
+            return StatusCode(409, new { error = "a screen stream is already open for this device" });
+
+        int jpegQuality = DeviceFrameEncoder.ClampQuality(quality);
+        var gap = TimeSpan.FromMilliseconds(1000.0 / Math.Clamp(fps, MinStreamFps, MaxStreamFps));
+        try {
+            (byte[]? first, var outcome, string? note) = await FrameAsync(platform, target, jpegQuality, ct);
+            if (first is null) return UiFailure(outcome, note);
+            await PumpFramesAsync(platform, target, first, gap, jpegQuality, ct);
+            return new EmptyResult();
+        } catch (Exception ex) when (ex is OperationCanceledException or IOException
+                                        or ObjectDisposedException) {
+            return new EmptyResult();
+        } finally {
+            DeviceStreamGate.Exit(target.Id);
+        }
+    }
+
+    private static async Task<(byte[]? Jpeg, DeviceOutcome Outcome, string? Note)> FrameAsync(
+        IDevicePlatform platform, DeviceTarget target, int quality, CancellationToken ct) {
+        var shot = await platform.ScreenshotAsync(target, ct);
+        if (!shot.Ok || shot.Value is not { Length: > 0 } raw) return (null, shot.Outcome, shot.Note);
+
+        byte[]? jpeg = await DeviceFrameEncoder.ToJpegAsync(raw, quality, ct);
+        return jpeg is null
+            ? (null, DeviceOutcome.Error, "the device frame could not be encoded")
+            : (jpeg, DeviceOutcome.Ok, null);
+    }
+
+    private async Task PumpFramesAsync(IDevicePlatform platform, DeviceTarget target, byte[] first,
+        TimeSpan gap, int quality, CancellationToken ct) {
+        Response.StatusCode = StatusCodes.Status200OK;
+        Response.ContentType = $"multipart/x-mixed-replace; boundary={StreamBoundary}";
+        Response.Headers.CacheControl = "no-store";
+        Response.Headers.Pragma = "no-cache";
+        Response.Headers["X-Accel-Buffering"] = "no";
+        HttpContext.Features.Get<IHttpResponseBodyFeature>()?.DisableBuffering();
+
+        var body = Response.Body;
+        byte[]? jpeg = first;
+        while (jpeg is not null && !ct.IsCancellationRequested) {
+            long started = Stopwatch.GetTimestamp();
+            await body.WriteAsync(PartHeader(jpeg.Length), ct);
+            await body.WriteAsync(jpeg, ct);
+            await body.WriteAsync(PartTrailer, ct);
+            await body.FlushAsync(ct);
+
+            var spent = Stopwatch.GetElapsedTime(started);
+            if (spent < gap) await Task.Delay(gap - spent, ct);
+            if (ct.IsCancellationRequested) return;
+            (jpeg, _, _) = await FrameAsync(platform, target, quality, ct);
+        }
+
+        if (ct.IsCancellationRequested) return;
+        await body.WriteAsync(StreamEnd, ct);
+        await body.FlushAsync(ct);
+    }
+
+    private static byte[] PartHeader(int length) => Encoding.ASCII.GetBytes(
+        $"--{StreamBoundary}\r\nContent-Type: image/jpeg\r\nContent-Length: {length.ToString(CultureInfo.InvariantCulture)}\r\n\r\n");
 
     [HttpGet("{id}/ui/dump")]
     [ApiAccess(ApiAccessLevel.Admin)]

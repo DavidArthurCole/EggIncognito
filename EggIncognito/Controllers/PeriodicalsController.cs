@@ -131,7 +131,6 @@ public sealed class PeriodicalsController(
                 var per = PeriodicalsResponse.Parser.ParseJson(perJson);
                 foreach (var contract in per.Contracts?.Contracts ?? []) {
                     if (string.IsNullOrEmpty(contract.SeasonId) || string.IsNullOrEmpty(contract.CustomEggId)) continue;
-                    if (contract.Leggacy) continue;
                     if (!seasonEggs.TryGetValue(contract.SeasonId, out var eggs)) {
                         eggs = [];
                         seasonEggs[contract.SeasonId] = eggs;
@@ -160,10 +159,12 @@ public sealed class PeriodicalsController(
         var list = infos.Infos.ToList();
         double[] starts = ResolveStarts(list);
         double quarter = Quarter(starts);
+        var releaseSeason = ReleaseSeasons(list, seasonEggs);
         return [
             .. list.Select((s, i) => {
                 object[] colleggtibles = seasonEggs.TryGetValue(s.Id, out var eggs)
-                    ? [.. eggs.Select(e => (object)new { id = e.Id, icon = e.Icon, contracts = e.Contracts.ToArray() })]
+                    ? [.. eggs.Where(e => releaseSeason.GetValueOrDefault(e.Id) == s.Id)
+                        .Select(e => (object)new { id = e.Id, icon = e.Icon, contracts = e.Contracts.ToArray() })]
                     : [];
                 return (object)new {
                 id = s.Id,
@@ -188,6 +189,26 @@ public sealed class PeriodicalsController(
                 };
             })
         ];
+    }
+
+    private static Dictionary<string, string> ReleaseSeasons(List<ContractSeasonInfo> list,
+        Dictionary<string, List<(string Id, string? Icon, List<string> Contracts)>> seasonEggs) {
+        var seasonIndex = new Dictionary<string, int>(StringComparer.Ordinal);
+        for (int i = 0; i < list.Count; i++) seasonIndex[list[i].Id] = i;
+
+        var releaseSeason = new Dictionary<string, string>(StringComparer.Ordinal);
+        var releaseIndex = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach ((string seasonId, var eggs) in seasonEggs) {
+            if (!seasonIndex.TryGetValue(seasonId, out int idx)) continue;
+            foreach (var egg in eggs) {
+                if (!releaseIndex.TryGetValue(egg.Id, out int bestIdx) || idx > bestIdx) {
+                    releaseIndex[egg.Id] = idx;
+                    releaseSeason[egg.Id] = seasonId;
+                }
+            }
+        }
+
+        return releaseSeason;
     }
 
     private static double[] ResolveStarts(List<ContractSeasonInfo> list) {

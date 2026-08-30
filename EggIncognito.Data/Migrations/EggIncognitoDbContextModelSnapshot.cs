@@ -1785,6 +1785,76 @@ namespace EggIncognito.Data.Migrations
                     b.ToTable("staged_protos");
                 });
 
+            modelBuilder.Entity("EggIncognito.Data.Models.StoredApk", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("AppVersion")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("app_version");
+
+                    b.Property<string>("Build")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("build");
+
+                    b.Property<long>("ByteSize")
+                        .HasColumnType("bigint")
+                        .HasColumnName("byte_size");
+
+                    b.Property<byte[]>("Bytes")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("bytes");
+
+                    b.Property<DateTimeOffset>("CapturedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("captured_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("Package")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("package");
+
+                    b.Property<string>("Platform")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("platform");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("sha256");
+
+                    b.Property<string>("SourceDeviceId")
+                        .HasColumnType("text")
+                        .HasColumnName("source_device_id");
+
+                    b.Property<string>("Split")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("split");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Sha256");
+
+                    b.HasIndex("Platform", "Package", "Build");
+
+                    b.HasIndex("Platform", "Package", "AppVersion", "Build", "Split")
+                        .IsUnique();
+
+                    b.ToTable("stored_apks");
+                });
+
             modelBuilder.Entity("EggIncognito.Data.Models.StoredBinary", b =>
                 {
                     b.Property<long>("Id")

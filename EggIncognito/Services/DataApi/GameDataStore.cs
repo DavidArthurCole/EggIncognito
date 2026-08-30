@@ -7,7 +7,8 @@ namespace EggIncognito.Services.DataApi;
 
 public sealed record GameDataDocInfo(string Id, DateTimeOffset UpdatedAt, int Bytes);
 
-public sealed class GameDataStore(IServiceScopeFactory scopeFactory, ILogger<GameDataStore> logger) {
+public sealed class GameDataStore(IServiceScopeFactory scopeFactory, ILogger<GameDataStore> logger)
+    : IGameDataDocuments {
     private readonly Lock _gate = new();
     private (int Count, DateTimeOffset MaxUpdated)? _stamp;
     private IGameDataProvider? _cached;

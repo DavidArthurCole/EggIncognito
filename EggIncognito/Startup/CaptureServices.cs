@@ -6,6 +6,7 @@ using EggIncognito.Data.Services;
 using EggIncognito.Services;
 using EggIncognito.Services.Contributions;
 using EggIncognito.Services.DataApi;
+using EggIncognito.Services.Devices;
 using EggIncognito.Services.Feed;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -40,7 +41,7 @@ public static class CaptureServices {
             var writeObserver = sp.GetService<ConfigChangeNotifier>();
             if (key == CaptureSessionManager.LocalKey) {
                 string capturePath = config["CapturePath"] ?? Path.Combine(contentRoot, "captures");
-                string caPath = config["CaPath"] ?? Path.Combine(capturePath, "eggincognito-ca.cer");
+                string caPath = CaptureCaPath.Resolve(config);
                 var opts = new CaptureSessionOptions(
                     int.TryParse(config["CapturePort"], out int cp) ? cp : 8080,
                     config["EGG_INC_EID"] ?? Environment.GetEnvironmentVariable("EGG_INC_EID"),

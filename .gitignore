@@ -23,6 +23,7 @@ EggIncognito/Endpoints/requests/
 dist/
 EggIncognito.ExtractMcp/
 EggIncognito.DiscordMcp/
+EggIncognito.LocalPlugins/
 *.trx
 EggIncognito/wwwroot/styles.css
 .sonarqube/

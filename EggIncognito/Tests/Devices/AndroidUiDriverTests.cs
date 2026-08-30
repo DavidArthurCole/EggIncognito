@@ -132,24 +132,31 @@ public class AndroidUiDriverTests {
     }
 
     [Fact]
-    public async Task ScreenshotAsync_PullSucceeds_ReturnsBytes() {
+    public async Task ScreenshotAsync_UsesExecOutWithoutTempFile() {
         byte[] png = [1, 2, 3];
-        var runner = new FakeRunner(args => {
-            string cmd = ShellCommand(args);
-            if (cmd.StartsWith("screencap", StringComparison.Ordinal)) return new ProcessResult(0, "", "");
-            if (args is ["-s", _, "pull", ..]) {
-                File.WriteAllBytes(args[4], png);
-                return new ProcessResult(0, "", "");
-            }
-
-            return new ProcessResult(0, "", "");
-        });
+        var runner = new FakeRunner(_ => new ProcessResult(0, "", "")) {
+            Bytes = _ => new ProcessBytesResult(0, png, "")
+        };
         var driver = new AndroidUiDriver(new FakeConnections(runner));
 
         var result = await driver.ScreenshotAsync(AndroidTarget, default);
 
         Assert.True(result.Ok);
         Assert.Equal(png, result.Value);
+        Assert.Contains(runner.RawArgs, a => a is ["-s", _, "exec-out", "screencap -p"]);
+        Assert.DoesNotContain(runner.Commands, c => c.Contains("/sdcard/egi-screen.png", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ScreenshotAsync_ExecOutFails_ReturnsUnreachable() {
+        var runner = new FakeRunner(_ => new ProcessResult(0, "", "")) {
+            Bytes = _ => new ProcessBytesResult(1, [], "device offline")
+        };
+        var driver = new AndroidUiDriver(new FakeConnections(runner));
+
+        var result = await driver.ScreenshotAsync(AndroidTarget, default);
+
+        Assert.Equal(DeviceOutcome.Unreachable, result.Outcome);
     }
 
     [Fact]
@@ -203,11 +210,21 @@ public class AndroidUiDriverTests {
 
     private sealed class FakeRunner(Func<string[], ProcessResult> fn) : IProcessRunner {
         public List<string> Commands { get; } = [];
+        public List<string[]> RawArgs { get; } = [];
+        public Func<string[], ProcessBytesResult>? Bytes { get; init; }
 
         public Task<ProcessResult> RunAsync(string exe, string[] args, CancellationToken ct) {
+            RawArgs.Add(args);
             string cmd = ShellCommand(args);
             if (cmd.Length > 0) Commands.Add(cmd);
             return Task.FromResult(fn(args));
+        }
+
+        public Task<ProcessBytesResult> RunBytesAsync(string exe, string[] args, CancellationToken ct) {
+            RawArgs.Add(args);
+            return Task.FromResult(Bytes is null
+                ? new ProcessBytesResult(-1, [], "no raw handler")
+                : Bytes(args));
         }
     }
 

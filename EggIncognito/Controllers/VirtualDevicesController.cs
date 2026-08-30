@@ -26,14 +26,19 @@ public sealed class VirtualDevicesController(
     [HttpGet]
     [EnableRateLimiting("read")]
     public async Task<IActionResult> List(CancellationToken ct) {
-        var store = Store;
-        if (store is null) return StatusCode(503, new { error = "no database configured" });
-
         var listed = await lifecycle.Provisioner.ListAsync(ct);
         var containers = new Dictionary<string, ProvisionedInstance>(StringComparer.Ordinal);
         foreach (var c in listed.Value ?? []) containers[c.InstanceId] = c;
 
-        var rows = (await store.AllAsync(ct)).Select(r => Row(r, containers)).ToList();
+        List<VirtualInstanceRow> rows;
+        if (lifecycle.RemoteOwned) {
+            rows = [.. containers.Values.Select(RemoteRow)];
+        } else {
+            var store = Store;
+            if (store is null) return StatusCode(503, new { error = "no database configured" });
+            rows = [.. (await store.AllAsync(ct)).Select(r => Row(r, containers))];
+        }
+
         var byState = rows.GroupBy(r => r.State, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal);
 
@@ -70,6 +75,10 @@ public sealed class VirtualDevicesController(
         int touched = await lifecycle.ReconcileAsync(ct);
         return Ok(new VirtualActionResult(true, DeviceOutcomes.Ok, null, $"reconciled {touched} instance(s)"));
     }
+
+    private static VirtualInstanceRow RemoteRow(ProvisionedInstance instance) => new(
+        instance.InstanceId, instance.Kind, instance.Image, instance.State, instance.AdbSerial, null,
+        instance.CreatedAt, null, instance.Note, true, instance.Note, 0, null);
 
     private VirtualInstanceRow Row(
         ProvisionedInstanceRow row, Dictionary<string, ProvisionedInstance> containers) {

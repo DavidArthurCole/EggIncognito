@@ -1,0 +1,109 @@
+using EggIncognito.Core;
+using EggIncognito.Core.Services.Devices;
+using EggIncognito.Data.Models;
+using Microsoft.EntityFrameworkCore;
+
+namespace EggIncognito.Data.Services;
+
+public sealed record StoredApkHead(
+    string Platform, string Package, string AppVersion, string Build, string Split,
+    string Sha256, long ByteSize, string? SourceDeviceId, DateTimeOffset CapturedAt);
+
+public sealed record ApkVersionSet(
+    string Platform, string Package, string AppVersion, string Build,
+    IReadOnlyList<StoredApkHead> Splits, DateTimeOffset CapturedAt) {
+    public string Key => $"{AppVersion}@{Build}";
+
+    public long ByteSize => Splits.Sum(s => s.ByteSize);
+
+    public bool HasSplit(string split) =>
+        Splits.Any(s => string.Equals(s.Split, split, StringComparison.OrdinalIgnoreCase));
+
+    public bool Installable => HasSplit(ApkSplitNames.Base);
+
+    public string Label {
+        get {
+            string version = string.IsNullOrEmpty(AppVersion) ? "unknown version" : AppVersion;
+            string build = string.IsNullOrEmpty(Build) ? "" : $" ({Build})";
+            string splits = string.Join("+", Splits.Select(s => s.Split).Order(StringComparer.Ordinal));
+            return $"{version}{build} - {splits}, captured {CapturedAt:yyyy-MM-dd}";
+        }
+    }
+}
+
+public sealed class ApkStore(EggIncognitoDbContext db, TimeProvider time) {
+    public static string SplitLabel(string nameOrPath) {
+        string name = Path.GetFileNameWithoutExtension(nameOrPath);
+        if (name.Length == 0) return ApkSplitNames.Base;
+        if (name.Contains("arm", StringComparison.OrdinalIgnoreCase)) return ApkSplitNames.Arm64;
+        if (string.Equals(name, "base", StringComparison.OrdinalIgnoreCase)) return ApkSplitNames.Base;
+        return name.StartsWith("split_", StringComparison.OrdinalIgnoreCase)
+            ? name["split_".Length..]
+            : name;
+    }
+
+    public async Task<bool> PutAsync(string platform, string package, string appVersion, string build, string split,
+        byte[] bytes, string? sourceDeviceId, CancellationToken ct) {
+        string sha = Hashes.Sha256Hex(bytes);
+        var existing = await db.StoredApks.FirstOrDefaultAsync(
+            a => a.Platform == platform && a.Package == package && a.AppVersion == appVersion
+                 && a.Build == build && a.Split == split, ct);
+        if (existing is not null && string.Equals(existing.Sha256, sha, StringComparison.Ordinal)) return false;
+
+        if (existing is null) {
+            db.StoredApks.Add(new StoredApk {
+                Platform = platform,
+                Package = package,
+                AppVersion = appVersion,
+                Build = build,
+                Split = split,
+                Sha256 = sha,
+                Bytes = bytes,
+                ByteSize = bytes.LongLength,
+                SourceDeviceId = sourceDeviceId,
+                CapturedAt = time.GetUtcNow()
+            });
+        } else {
+            existing.Sha256 = sha;
+            existing.Bytes = bytes;
+            existing.ByteSize = bytes.LongLength;
+            existing.SourceDeviceId = sourceDeviceId;
+            existing.CapturedAt = time.GetUtcNow();
+        }
+
+        await db.SaveChangesAsync(ct);
+        return true;
+    }
+
+    public async Task<IReadOnlyList<ApkVersionSet>> VersionsAsync(string platform, string package,
+        CancellationToken ct) {
+        var heads = await db.StoredApks.AsNoTracking()
+            .Where(a => a.Platform == platform && a.Package == package)
+            .Select(a => new StoredApkHead(a.Platform, a.Package, a.AppVersion, a.Build, a.Split, a.Sha256,
+                a.ByteSize, a.SourceDeviceId, a.CapturedAt))
+            .ToListAsync(ct);
+
+        var sets = heads
+            .GroupBy(h => (h.AppVersion, h.Build))
+            .Select(g => new ApkVersionSet(platform, package, g.Key.AppVersion, g.Key.Build,
+                [.. g.OrderBy(s => s.Split, StringComparer.Ordinal)], g.Max(s => s.CapturedAt)))
+            .ToList();
+        sets.Sort(NewestFirst);
+        return sets;
+    }
+
+    public async Task<IReadOnlyList<StoredApk>> SplitsAsync(string platform, string package, string appVersion,
+        string build, CancellationToken ct) =>
+        await db.StoredApks.AsNoTracking()
+            .Where(a => a.Platform == platform && a.Package == package && a.AppVersion == appVersion
+                        && a.Build == build)
+            .OrderBy(a => a.Split)
+            .ToListAsync(ct);
+
+    public static int NewestFirst(ApkVersionSet a, ApkVersionSet b) {
+        if (long.TryParse(a.Build, out long ab) && long.TryParse(b.Build, out long bb) && ab != bb)
+            return bb.CompareTo(ab);
+        int byVersion = DeviceParsing.CompareVersions(b.AppVersion, a.AppVersion);
+        return byVersion != 0 ? byVersion : b.CapturedAt.CompareTo(a.CapturedAt);
+    }
+}

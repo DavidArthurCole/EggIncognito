@@ -56,6 +56,7 @@ public static class CoreServices {
         builder.Services.AddSingleton<IBehaviorService, BehaviorService>();
         builder.Services.AddSingleton<IProtoReflection, ProtoReflection>();
         builder.Services.AddSingleton<GameDataStore>();
+        builder.Services.AddSingleton<IGameDataDocuments>(sp => sp.GetRequiredService<GameDataStore>());
         builder.Services.AddSingleton<FarmPlacementDataProvider>();
         builder.Services.AddSingleton<IDocRegistry, DocRegistry>();
         builder.Services.AddSingleton<ILastKnownProtoSource, LastKnownProtoSource>();

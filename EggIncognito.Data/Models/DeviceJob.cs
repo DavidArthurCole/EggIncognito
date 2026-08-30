@@ -10,6 +10,7 @@ public static class DeviceJobKinds {
     public const string RestartApp = "restart_app";
     public const string Poke = "poke";
     public const string Recert = "recert";
+    public const string Cookbook = "cookbook";
 }
 
 public static class DeviceJobStates {
