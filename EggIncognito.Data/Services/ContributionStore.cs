@@ -70,15 +70,24 @@ public sealed class ContributionStore(EggIncognitoDbContext db) {
         return new ContributionPage(rows, total);
     }
 
-    public Task<List<ContributorTally>> PendingTalliesAsync(int take, CancellationToken ct) =>
-        db.ContributedCaptures.AsNoTracking()
-            .Where(c => c.Status == ContributedCaptureStatus.Submitted)
+    public async Task<List<ContributorTally>> PendingTalliesAsync(int take, CancellationToken ct) {
+        var raw = await db.ContributedCaptures.AsNoTracking()
+            .Where(c => c.Status == ContributedCaptureStatus.Submitted && c.SubmittedAt != null)
             .GroupBy(c => new { c.ContributorUserId, c.Kind })
-            .Select(g => new ContributorTally(
-                g.Key.ContributorUserId, g.Key.Kind, g.Count(), g.Min(x => x.SubmittedAt)!.Value))
+            .Select(g => new {
+                g.Key.ContributorUserId,
+                g.Key.Kind,
+                Submitted = g.Count(),
+                Oldest = g.Min(x => x.SubmittedAt)
+            })
             .OrderByDescending(t => t.Submitted)
             .Take(take)
             .ToListAsync(ct);
+
+        return [
+            .. raw.Select(r => new ContributorTally(r.ContributorUserId, r.Kind, r.Submitted, r.Oldest ?? default))
+        ];
+    }
 
     public Task<int> ReviewAsync(
         IReadOnlyList<long> ids, bool approve, string reviewer, string? note, CancellationToken ct) {

@@ -88,7 +88,7 @@
   --scrollbar-size: 0.875rem;
 }
 
-html { color-scheme: dark; }
+html { color-scheme: dark; scrollbar-gutter: stable; }
 
 ::-webkit-scrollbar { width: var(--scrollbar-size); height: var(--scrollbar-size); }
 ::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
