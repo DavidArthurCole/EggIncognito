@@ -8,6 +8,7 @@ public static class DeviceCookbookIds {
     public const string BringUp = "bring-up";
     public const string Recert = "recert";
     public const string Readiness = "readiness";
+    public const string InstallIntegrity = "install-integrity";
 }
 
 public sealed record DeviceCookbookOption(string Value, string Label, bool Recommended = false);

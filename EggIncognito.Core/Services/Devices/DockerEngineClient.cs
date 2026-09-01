@@ -39,10 +39,17 @@ public sealed record DockerCreateSpec(
     bool Privileged = true,
     string RestartPolicy = "unless-stopped");
 
+public sealed record DockerImage(
+    IReadOnlyList<string> RepoTags,
+    string Id,
+    long Size,
+    DateTimeOffset Created);
+
 public sealed partial class DockerEngineClient : IDisposable {
     public const string HostNetwork = "host";
     private static readonly string[] ReservedNetworks = ["bridge", "host", "none"];
     private readonly HttpClient _http;
+    private readonly HttpClient _build;
     private readonly SocketsHttpHandler _handler;
 
     public DockerEngineClient(string socketPath) {
@@ -59,11 +66,16 @@ public sealed partial class DockerEngineClient : IDisposable {
                 }
             }
         };
-        _http = new HttpClient(_handler) {
+        _http = new HttpClient(_handler, false) {
             BaseAddress = new Uri("http://docker/"),
             Timeout = TimeSpan.FromSeconds(90)
         };
         _http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        _build = new HttpClient(_handler, false) {
+            BaseAddress = new Uri("http://docker/"),
+            Timeout = Timeout.InfiniteTimeSpan
+        };
+        _build.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
     }
 
     public string SocketPath { get; }
@@ -72,6 +84,7 @@ public sealed partial class DockerEngineClient : IDisposable {
 
     public void Dispose() {
         _http.Dispose();
+        _build.Dispose();
         _handler.Dispose();
     }
 
@@ -157,6 +170,108 @@ public sealed partial class DockerEngineClient : IDisposable {
 
     public async Task<DeviceResult> RemoveVolumeAsync(string name, CancellationToken ct) =>
         Plain(await SendAsync(HttpMethod.Delete, $"volumes/{Uri.EscapeDataString(name)}?force=1", null, ct, true));
+
+    public async Task<DeviceResult<IReadOnlyList<DockerImage>>> ListImagesAsync(string? reference, CancellationToken ct) {
+        string path = "images/json";
+        if (!string.IsNullOrEmpty(reference)) {
+            string filters = $"{{\"reference\":[\"{reference}\"]}}";
+            path += "?filters=" + Uri.EscapeDataString(filters);
+        }
+
+        var res = await SendAsync(HttpMethod.Get, path, null, ct);
+        if (!res.Ok) return new DeviceResult<IReadOnlyList<DockerImage>>(res.Outcome, null, res.Note);
+
+        try {
+            using var doc = JsonDocument.Parse(res.Value ?? "[]");
+            var list = new List<DockerImage>();
+            foreach (var el in doc.RootElement.EnumerateArray()) list.Add(ReadImage(el));
+            return DeviceResult<IReadOnlyList<DockerImage>>.Success(list);
+        } catch (JsonException ex) {
+            return DeviceResult<IReadOnlyList<DockerImage>>.Error($"unreadable image list: {ex.Message}");
+        }
+    }
+
+    public async Task<DeviceResult> RemoveImageAsync(string tagOrId, CancellationToken ct) =>
+        Plain(await SendAsync(HttpMethod.Delete, $"images/{Uri.EscapeDataString(tagOrId)}?force=1", null, ct, true));
+
+    public async Task<DeviceResult> BuildImageAsync(
+        Stream tarContext, string tag, IReadOnlyDictionary<string, string>? buildArgs, Action<string> onLog,
+        CancellationToken ct) {
+        if (!SocketPresent) return DeviceResult.Unsupported($"docker socket {SocketPath} is not present");
+
+        string path = $"build?t={Uri.EscapeDataString(tag)}&rm=1&forcerm=1";
+        if (buildArgs is { Count: > 0 })
+            path += "&buildargs=" + Uri.EscapeDataString(JsonSerializer.Serialize(buildArgs));
+
+        using var req = new HttpRequestMessage(HttpMethod.Post, path);
+        req.Content = new StreamContent(tarContext);
+        req.Content.Headers.ContentType = new MediaTypeHeaderValue("application/x-tar");
+
+        try {
+            using var res = await _build.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+            string? error = null;
+            await using (var body = await res.Content.ReadAsStreamAsync(ct)) {
+                using var reader = new StreamReader(body, Encoding.UTF8);
+                string? line;
+                while ((line = await reader.ReadLineAsync(ct)) is not null) {
+                    if (line.Length == 0) continue;
+                    (string? text, string? err) = ParseBuildLine(line);
+                    if (text is { Length: > 0 }) onLog(text);
+                    if (err is { Length: > 0 }) error = err;
+                }
+            }
+
+            if (!res.IsSuccessStatusCode) return DeviceResult.Error($"docker build {(int)res.StatusCode}: {error ?? "no detail"}");
+            return error is null ? DeviceResult.Success() : DeviceResult.Error(error);
+        } catch (HttpRequestException ex) {
+            return DeviceResult.Unsupported($"docker socket unreachable: {ex.Message}");
+        } catch (SocketException ex) {
+            return DeviceResult.Unsupported($"docker socket unreachable: {ex.Message}");
+        } catch (IOException ex) {
+            return DeviceResult.Unreachable($"docker build stream broke: {ex.Message}");
+        }
+    }
+
+    private static (string? Text, string? Error) ParseBuildLine(string line) {
+        try {
+            using var doc = JsonDocument.Parse(line);
+            var root = doc.RootElement;
+            if (root.ValueKind != JsonValueKind.Object) return (null, null);
+
+            if (root.TryGetProperty("error", out var errEl) && errEl.ValueKind == JsonValueKind.String)
+                return (null, errEl.GetString());
+            if (root.TryGetProperty("errorDetail", out var detail)
+                && detail.ValueKind == JsonValueKind.Object
+                && detail.TryGetProperty("message", out var msg) && msg.ValueKind == JsonValueKind.String)
+                return (null, msg.GetString());
+
+            if (root.TryGetProperty("stream", out var s) && s.ValueKind == JsonValueKind.String)
+                return (s.GetString()?.TrimEnd('\r', '\n'), null);
+            if (root.TryGetProperty("status", out var st) && st.ValueKind == JsonValueKind.String) {
+                string? id = root.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                string status = st.GetString() ?? "";
+                return (id is { Length: > 0 } ? $"{id}: {status}" : status, null);
+            }
+
+            return (null, null);
+        } catch (JsonException) {
+            return (line, null);
+        }
+    }
+
+    private static DockerImage ReadImage(JsonElement el) {
+        var tags = new List<string>();
+        if (el.TryGetProperty("RepoTags", out var rt) && rt.ValueKind == JsonValueKind.Array) {
+            foreach (var t in rt.EnumerateArray()) {
+                string? tag = t.GetString();
+                if (tag is { Length: > 0 } and not "<none>:<none>") tags.Add(tag);
+            }
+        }
+
+        long size = el.TryGetProperty("Size", out var sz) && sz.TryGetInt64(out long sv) ? sv : 0;
+        long created = el.TryGetProperty("Created", out var c) && c.TryGetInt64(out long cv) ? cv : 0;
+        return new DockerImage(tags, Str(el, "Id"), size, DateTimeOffset.FromUnixTimeSeconds(created));
+    }
 
     public async Task<DeviceResult<string>> SelfNetworkAsync(CancellationToken ct) {
         if (!SocketPresent) return DeviceResult<string>.Unsupported($"docker socket {SocketPath} is not present");

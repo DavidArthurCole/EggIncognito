@@ -6,8 +6,9 @@ namespace EggIncognito.Services.Devices;
 public sealed class VirtualDeviceReadinessProbe(
     IDeviceConnectionFactory connections,
     VirtualDeviceConfig config) {
-    private const string TrickyStoreModule = "/data/adb/modules/tricky_store";
-    private const string TrickyStoreAlt = "/data/adb/tricky_store";
+    private const string IntegrityDetect =
+        "su -c 'ls -d /data/adb/modules/*integrity* 2>/dev/null; "
+        + "grep -il integrity /data/adb/modules/*/module.prop 2>/dev/null'";
     private const string SystemCaCerts = "/system/etc/security/cacerts/";
 
     public async Task<DeviceReadiness> ProbeAsync(DeviceTarget target, CancellationToken ct) {
@@ -52,10 +53,10 @@ public sealed class VirtualDeviceReadinessProbe(
     }
 
     private static async Task<ReadinessCheck> IntegrityAsync(IDeviceConnection conn, CancellationToken ct) {
-        var r = await conn.ShellAsync($"ls -d {TrickyStoreModule} {TrickyStoreAlt} 2>/dev/null", ct);
+        var r = await conn.ShellAsync(IntegrityDetect, ct);
         return r.Stdout.Trim().Length > 0
             ? new ReadinessCheck(true)
-            : new ReadinessCheck(false, "tricky_store module not found");
+            : new ReadinessCheck(false, "Integrity-Box module not found under /data/adb/modules");
     }
 
     private static async Task<ReadinessCheck> LaunchedAsync(IDeviceConnection conn, string package, CancellationToken ct) {

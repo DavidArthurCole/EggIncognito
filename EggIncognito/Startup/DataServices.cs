@@ -45,6 +45,7 @@ public static class DataServices {
 
         builder.Services.AddScoped<GameBinaryStore>();
         builder.Services.AddScoped<ApkStore>();
+        builder.Services.AddScoped<DeviceModuleStore>();
         builder.Services.AddScoped<SymbolizedReferenceStore>();
         builder.Services.AddScoped<DeviceAssetStore>();
         builder.Services.AddScoped<DeviceStateStore>();
@@ -102,6 +103,9 @@ public static class DataServices {
         builder.Services.AddScoped<IProtoUpsertObserver, ProtoUpsertNotifier>();
         builder.Services.AddScoped<ApiKeyStore>();
         builder.Services.AddScoped<UserThemeStore>();
+        builder.Services.AddScoped<BuildBlobStore>();
+        builder.Services.AddScoped<ImageBuildStore>();
+        builder.Services.AddScoped<AppSettingStore>();
         builder.Services.AddScoped<IProtoBackfillStore>(sp => sp.GetRequiredService<ProtoRegistryStore>());
 
         builder.Services.AddHostedService<GameDataAutoRebuildService>();

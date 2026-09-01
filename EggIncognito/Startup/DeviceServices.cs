@@ -55,6 +55,12 @@ public static class DeviceServices {
     private static void AddDeviceCookbooks(this WebApplicationBuilder builder, BootFlags boot) {
         builder.Services.AddSingleton<VirtualDeviceReadinessProbe>();
         builder.Services.AddSingleton<CookbookExecutor>();
+        builder.Services.AddSingleton<ModuleFetcher>();
+        builder.Services.AddHttpClient(ModuleFetcher.HttpClientName, c => {
+            c.Timeout = TimeSpan.FromSeconds(60);
+            c.MaxResponseContentBufferSize = 64 * 1024 * 1024;
+            c.DefaultRequestHeaders.UserAgent.ParseAdd("EggIncognito-DeviceModules/1.0");
+        });
 
         builder.Services.AddSingleton<InstallAppStep>();
         builder.Services.AddSingleton<InstallCaStep>();
@@ -62,6 +68,7 @@ public static class DeviceServices {
         builder.Services.AddSingleton<DismissFirstRunStep>();
         builder.Services.AddSingleton<RecertStep>();
         builder.Services.AddSingleton<ReadinessStep>();
+        builder.Services.AddSingleton<InstallIntegrityStep>();
 
         builder.Services.AddSingleton<InstallAppCookbook>();
         builder.Services.AddSingleton<InstallCaCookbook>();
@@ -70,6 +77,7 @@ public static class DeviceServices {
         builder.Services.AddSingleton<BringUpCookbook>();
         builder.Services.AddSingleton<RecertCookbook>();
         builder.Services.AddSingleton<ReadinessCookbook>();
+        builder.Services.AddSingleton<InstallIntegrityCookbook>();
         builder.Services.AddSingleton<IDeviceCookbook>(sp => sp.GetRequiredService<InstallAppCookbook>());
         builder.Services.AddSingleton<IDeviceCookbook>(sp => sp.GetRequiredService<InstallCaCookbook>());
         builder.Services.AddSingleton<IDeviceCookbook>(sp => sp.GetRequiredService<LaunchAppCookbook>());
@@ -77,6 +85,7 @@ public static class DeviceServices {
         builder.Services.AddSingleton<IDeviceCookbook>(sp => sp.GetRequiredService<BringUpCookbook>());
         builder.Services.AddSingleton<IDeviceCookbook>(sp => sp.GetRequiredService<RecertCookbook>());
         builder.Services.AddSingleton<IDeviceCookbook>(sp => sp.GetRequiredService<ReadinessCookbook>());
+        builder.Services.AddSingleton<IDeviceCookbook>(sp => sp.GetRequiredService<InstallIntegrityCookbook>());
         builder.Services.AddSingleton<IDeviceAppLauncher>(sp => sp.GetRequiredService<LaunchAppCookbook>());
 
         var extensions = DeviceExtensionLoader.Load(

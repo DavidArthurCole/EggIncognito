@@ -45,6 +45,10 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
     public DbSet<GameDataDocument> GameDataDocuments => Set<GameDataDocument>();
     public DbSet<StoredBinary> StoredBinaries => Set<StoredBinary>();
     public DbSet<StoredApk> StoredApks => Set<StoredApk>();
+    public DbSet<StoredModule> DeviceModules => Set<StoredModule>();
+    public DbSet<BuildBlob> BuildBlobs => Set<BuildBlob>();
+    public DbSet<ImageBuild> ImageBuilds => Set<ImageBuild>();
+    public DbSet<AppSetting> AppSettings => Set<AppSetting>();
     public DbSet<SymbolizedBinary> SymbolizedBinaries => Set<SymbolizedBinary>();
     public DbSet<AnalyzedFile> AnalyzedFiles => Set<AnalyzedFile>();
     public DbSet<UserTheme> UserThemes => Set<UserTheme>();
@@ -243,6 +247,29 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
             e.HasIndex(x => new { x.Platform, x.Package, x.Build });
             e.HasIndex(x => x.Sha256);
             e.Property(x => x.CapturedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
+        });
+        modelBuilder.Entity<StoredModule>(e => {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.Name).IsUnique();
+            e.HasIndex(x => x.Sha256);
+            e.Property(x => x.FetchedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
+        });
+        modelBuilder.Entity<BuildBlob>(e => {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.Key).IsUnique();
+            e.HasIndex(x => x.Sha256);
+            e.Property(x => x.FetchedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
+        });
+        modelBuilder.Entity<ImageBuild>(e => {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.State);
+            e.HasIndex(x => x.Tag);
+            e.Property(x => x.Log).HasDefaultValue("");
+            e.Property(x => x.StartedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
+        });
+        modelBuilder.Entity<AppSetting>(e => {
+            e.HasKey(x => x.Key);
+            e.Property(x => x.UpdatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
         });
         modelBuilder.Entity<SymbolizedBinary>(e => {
             e.HasKey(x => x.Id);

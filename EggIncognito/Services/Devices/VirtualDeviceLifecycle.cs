@@ -8,6 +8,7 @@ public sealed class VirtualDeviceLifecycle(
     IServiceScopeFactory scopeFactory,
     IDeviceProvisioners provisioners,
     VirtualDeviceConfig config,
+    VirtualDeviceReadinessProbe readiness,
     IProcessRunner runner,
     TimeProvider time,
     ILogger<VirtualDeviceLifecycle> logger) : BackgroundService {
@@ -17,6 +18,7 @@ public sealed class VirtualDeviceLifecycle(
     private readonly SemaphoreSlim _gate = new(1, 1);
 #pragma warning disable IDE0028
     private readonly Dictionary<string, DateTimeOffset> _lastBootstrap = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, DateTimeOffset> _lastIntegrity = new(StringComparer.Ordinal);
 #pragma warning restore IDE0028
 
     public bool Supported { get; private set; }
@@ -73,12 +75,22 @@ public sealed class VirtualDeviceLifecycle(
                 $"virtual device cap reached ({live}/{config.MaxInstances}); destroy one before creating another");
         }
 
-        var created = await Provisioner.CreateAsync(
-            new ProvisionSpec(config.Kind, string.IsNullOrWhiteSpace(image) ? config.Image : image), ct);
+        string resolvedImage = await ResolveImageAsync(scope.ServiceProvider, image, ct);
+        var created = await Provisioner.CreateAsync(new ProvisionSpec(config.Kind, resolvedImage), ct);
         if (!created.Ok || created.Value is not { } instance) return created;
 
         await store.AddAsync(instance, ct);
         return created;
+    }
+
+    public async Task<string> ResolveImageAsync(IServiceProvider sp, string? requested, CancellationToken ct) {
+        if (!string.IsNullOrWhiteSpace(requested)) return requested;
+        if (sp.GetService(typeof(AppSettingStore)) is AppSettingStore settings) {
+            string? active = await settings.GetAsync(AppSettingStore.VirtualImageOverrideKey, ct);
+            if (!string.IsNullOrWhiteSpace(active)) return active;
+        }
+
+        return config.Image;
     }
 
     public async Task MirrorRemoteDevicesAsync(IEnumerable<ProvisionedInstance> instances, CancellationToken ct) {
@@ -210,8 +222,11 @@ public sealed class VirtualDeviceLifecycle(
             if (row.State != ProvisionStates.Ready)
                 await store.SetStateAsync(row.InstanceId, ProvisionStates.Ready, "android boot completed", ct);
 
+            if (!await EnsureRootAsync(row.InstanceId, serial, store, ct)) continue;
+
             string deviceId = await EnsureDeviceRowAsync(row, serial, devices, store, ct);
-            await EnsureAppInstalledAsync(row.InstanceId, deviceId, serial, store, ct);
+            if (await EnsureAppInstalledAsync(row.InstanceId, deviceId, serial, store, ct))
+                await EnsureIntegrityAsync(row.InstanceId, deviceId, serial, ct);
         }
 
         return touched;
@@ -233,24 +248,24 @@ public sealed class VirtualDeviceLifecycle(
         return deviceId;
     }
 
-    private async Task EnsureAppInstalledAsync(
+    private async Task<bool> EnsureAppInstalledAsync(
         string instanceId, string deviceId, string serial, ProvisionedInstanceStore store, CancellationToken ct) {
         var pm = await Adb(["-s", serial, "shell", $"pm path {Package}"], AdbTimeout, ct);
         if (pm.ExitCode == 0 && pm.Stdout.Contains("package:", StringComparison.Ordinal)) {
             _lastBootstrap.Remove(instanceId);
-            return;
+            return true;
         }
 
         if (_lastBootstrap.TryGetValue(instanceId, out var lastTry)
             && time.GetUtcNow() - lastTry < BootstrapBackoff)
-            return;
+            return false;
         _lastBootstrap[instanceId] = time.GetUtcNow();
 
         using var scope = scopeFactory.CreateScope();
         if (scope.ServiceProvider.GetService(typeof(DeviceCookbookRunner)) is not DeviceCookbookRunner cookbookRunner) {
             logger.LogWarning("virtual devices: {Id} cannot bring up egg inc, no cookbook runner (db disabled?)",
                 instanceId);
-            return;
+            return false;
         }
 
         var run = await cookbookRunner.RunNowAsync(
@@ -258,11 +273,64 @@ public sealed class VirtualDeviceLifecycle(
         if (!run.Ok) {
             await store.SetStateAsync(instanceId, ProvisionStates.Failed,
                 run.Note ?? $"bring-up failed at {run.FailedStep ?? "?"}", ct);
-            return;
+            return false;
         }
 
         await store.SetStateAsync(instanceId, ProvisionStates.Ready, run.Note ?? "egg inc brought up", ct);
         logger.LogInformation("virtual devices: {Id} brought up egg inc on {Device}", instanceId, deviceId);
+        return true;
+    }
+
+    private async Task EnsureIntegrityAsync(
+        string instanceId, string deviceId, string serial, CancellationToken ct) {
+        if (!config.IntegrityEnabled) return;
+        if (_lastIntegrity.TryGetValue(instanceId, out var lastTry)
+            && time.GetUtcNow() - lastTry < BootstrapBackoff)
+            return;
+
+        var target = new DeviceTarget(deviceId, Platforms.Android, serial, Package);
+        var probed = await readiness.ProbeAsync(target, ct);
+        if (probed.IntegrityModule.Ok) {
+            _lastIntegrity.Remove(instanceId);
+            return;
+        }
+
+        _lastIntegrity[instanceId] = time.GetUtcNow();
+
+        using var scope = scopeFactory.CreateScope();
+        if (scope.ServiceProvider.GetService(typeof(DeviceCookbookRunner)) is not DeviceCookbookRunner cookbookRunner) {
+            logger.LogWarning("virtual devices: {Id} cannot install integrity, no cookbook runner (db disabled?)",
+                instanceId);
+            return;
+        }
+
+        var run = await cookbookRunner.RunNowAsync(
+            deviceId, new DeviceCookbookRequest(DeviceCookbookIds.InstallIntegrity, null), "auto:integrity", ct);
+        if (!run.Ok) {
+            logger.LogWarning("virtual devices: {Id} integrity install failed: {Note}", instanceId,
+                run.Note ?? run.FailedStep ?? "no detail");
+            return;
+        }
+
+        logger.LogInformation("virtual devices: {Id} installed the integrity chain on {Device}", instanceId, deviceId);
+    }
+
+    private async Task<bool> EnsureRootAsync(
+        string instanceId, string serial, ProvisionedInstanceStore store, CancellationToken ct) {
+        if (await IsRootAsync(serial, ct)) return true;
+
+        await Adb(["-s", serial, "root"], AdbTimeout, ct);
+        await Adb(["connect", serial], AdbTimeout, ct);
+        if (await IsRootAsync(serial, ct)) return true;
+
+        await store.SetStateAsync(instanceId, ProvisionStates.Failed,
+            "adb root did not reach uid=0; the image may not be rooted (use the magisk gapps image)", ct);
+        return false;
+    }
+
+    private async Task<bool> IsRootAsync(string serial, CancellationToken ct) {
+        var id = await Adb(["-s", serial, "shell", "id"], AdbTimeout, ct);
+        return id.Stdout.Contains("uid=0", StringComparison.Ordinal);
     }
 
     private async Task<bool> BootCompletedAsync(string serial, CancellationToken ct) {

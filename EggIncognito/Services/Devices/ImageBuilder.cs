@@ -1,0 +1,373 @@
+using System.Formats.Tar;
+using System.IO.Compression;
+using System.Security.Cryptography;
+using System.Text;
+using EggIncognito.Core;
+using EggIncognito.Core.Services.Devices;
+using EggIncognito.Data.Services;
+using SharpCompress.Compressors.LZMA;
+
+namespace EggIncognito.Services.Devices;
+
+public sealed class ImageBuilder(
+    BuildBlobStore blobs,
+    ImageBuildStore builds,
+    IImageBuildExecutor executor,
+    IHttpClientFactory httpFactory,
+    VirtualDeviceConfig config,
+    ILogger<ImageBuilder> logger) {
+    public const string HttpClientName = "image-build";
+
+    private const UnixFileMode DirMode =
+        UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute
+        | UnixFileMode.GroupRead | UnixFileMode.GroupExecute
+        | UnixFileMode.OtherRead | UnixFileMode.OtherExecute;
+
+    private const UnixFileMode FileMode =
+        UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead | UnixFileMode.OtherRead;
+
+    private const UnixFileMode ExecMode = DirMode;
+
+    private static readonly string[] GappsSkip =
+        ["setupwizarddefault-x86_64.tar.lz", "setupwizardtablet-x86_64.tar.lz"];
+
+    private static readonly string[] GappsCommon =
+        ["defaultetc-common.tar.lz", "defaultframework-common.tar.lz", "googlepixelconfig-common.tar.lz",
+         "vending-common.tar.lz"];
+
+    public async Task<ImageBuildOutcome> BuildAsync(ImageBuildSpec spec, long buildId, CancellationToken ct) {
+        string contextDir = Directory.CreateTempSubdirectory("egi-imgbuild-").FullName;
+        string tarPath = Path.Combine(Path.GetTempPath(), $"egi-imgctx-{Guid.NewGuid():N}.tar");
+        var execPaths = new HashSet<string>(StringComparer.Ordinal);
+        try {
+            await builds.SetStateAsync(buildId, ImageBuildStates.Downloading, "resolving components", ct);
+
+            if (spec.Ndk) {
+                await Log(buildId, "ndk: downloading + unpacking", ct);
+                await BuildNdkAsync(contextDir, buildId, ct);
+            }
+
+            if (spec.Gapps) {
+                await Log(buildId, "gapps: downloading + unpacking", ct);
+                await BuildGappsAsync(contextDir, buildId, ct);
+            }
+
+            if (spec.Magisk) {
+                await Log(buildId, "magisk: downloading + unpacking", ct);
+                await BuildMagiskAsync(contextDir, execPaths, buildId, ct);
+            }
+
+            WriteDockerfile(contextDir, spec);
+            await Log(buildId, $"assembling build context for {spec.ResolvedTag}", ct);
+            AssembleTar(contextDir, tarPath, execPaths);
+
+            await builds.SetStateAsync(buildId, ImageBuildStates.Building, "streaming to docker", ct);
+            await using var tar = File.OpenRead(tarPath);
+            var outcome = await executor.BuildAsync(
+                tar, spec.ResolvedTag, null,
+                line => builds.AppendAsync(buildId, line, CancellationToken.None).GetAwaiter().GetResult(), ct);
+
+            await builds.FinishAsync(buildId,
+                outcome.Ok ? ImageBuildStates.Ready : ImageBuildStates.Failed, outcome.Tag, outcome.Note, ct);
+            return outcome;
+        } catch (Exception ex) when (ex is not OperationCanceledException) {
+            logger.LogError(ex, "image build {Id} for {Tag} failed", buildId, spec.ResolvedTag);
+            await builds.FinishAsync(buildId, ImageBuildStates.Failed, spec.ResolvedTag, ex.Message,
+                CancellationToken.None);
+            return new ImageBuildOutcome(false, spec.ResolvedTag, ex.Message);
+        } finally {
+            TryDelete(tarPath);
+            TryDeleteDir(contextDir);
+        }
+    }
+
+    private async Task BuildNdkAsync(string contextDir, long buildId, CancellationToken ct) {
+        byte[] zip = await FetchAsync("ndk", config.Build.NdkUrl, config.Build.NdkMd5, "ndk",
+            config.Build.NdkUrl, buildId, ct);
+        string unpack = FreshDir(Path.Combine(Path.GetTempPath(), $"egi-ndk-{Guid.NewGuid():N}"));
+        try {
+            ExtractZip(zip, unpack);
+            string top = SingleTopDir(unpack) ?? throw new InvalidOperationException("ndk: archive has no top-level dir");
+            string prebuilts = Path.Combine(top, "prebuilts");
+            if (!Directory.Exists(prebuilts))
+                throw new InvalidOperationException($"ndk: no prebuilts tree under {Path.GetFileName(top)}");
+
+            CopyTree(prebuilts, Path.Combine(contextDir, "ndk", "system"));
+            await Log(buildId, "ndk: staged prebuilts into ndk/system", ct);
+        } finally {
+            TryDeleteDir(unpack);
+        }
+    }
+
+    private async Task BuildGappsAsync(string contextDir, long buildId, CancellationToken ct) {
+        byte[] zip = await FetchAsync("gapps", config.Build.GappsUrl, config.Build.GappsMd5, "gapps",
+            config.Build.GappsUrl, buildId, ct);
+        string outer = FreshDir(Path.Combine(Path.GetTempPath(), $"egi-gapps-{Guid.NewGuid():N}"));
+        try {
+            ExtractZip(zip, outer);
+            string core = Path.Combine(outer, "Core");
+            if (!Directory.Exists(core)) throw new InvalidOperationException("gapps: archive has no Core dir");
+
+            string system = Path.Combine(contextDir, "gapps", "system");
+            string privApp = Path.Combine(system, "priv-app");
+            Directory.CreateDirectory(privApp);
+
+            foreach (string lz in Directory.EnumerateFiles(core, "*.tar.lz")) {
+                string name = Path.GetFileName(lz);
+                if (GappsSkip.Contains(name, StringComparer.Ordinal)) continue;
+
+                string appUnpack = FreshDir(Path.Combine(outer, "appunpack"));
+                ExtractTarLz(await File.ReadAllBytesAsync(lz, ct), appUnpack);
+                string appRoot = SingleTopDir(appUnpack) ?? appUnpack;
+
+                if (GappsCommon.Contains(name, StringComparer.Ordinal)) {
+                    string common = Path.Combine(appRoot, "common");
+                    if (Directory.Exists(common)) CopyTree(common, system);
+                    continue;
+                }
+
+                foreach (string priv in Directory.EnumerateDirectories(appRoot, "priv-app", SearchOption.AllDirectories)) {
+                    foreach (string appDir in Directory.EnumerateDirectories(priv))
+                        CopyTree(appDir, Path.Combine(privApp, Path.GetFileName(appDir)));
+                }
+            }
+
+            await Log(buildId, "gapps: staged priv-app + framework into gapps/system", ct);
+        } finally {
+            TryDeleteDir(outer);
+        }
+    }
+
+    private async Task BuildMagiskAsync(
+        string contextDir, HashSet<string> execPaths, long buildId, CancellationToken ct) {
+        byte[] apk = await FetchAsync("magisk", config.Build.MagiskUrl, config.Build.MagiskMd5, "magisk",
+            config.Build.MagiskUrl, buildId, ct);
+        string unpack = FreshDir(Path.Combine(Path.GetTempPath(), $"egi-magisk-{Guid.NewGuid():N}"));
+        try {
+            ExtractZip(apk, unpack);
+            string magiskDir = Path.Combine(contextDir, "magisk", "system", "etc", "init", "magisk");
+            Directory.CreateDirectory(magiskDir);
+            Directory.CreateDirectory(Path.Combine(contextDir, "magisk", "sbin"));
+
+            string libDir = Path.Combine(unpack, "lib", "x86_64");
+            if (!Directory.Exists(libDir)) throw new InvalidOperationException("magisk: no lib/x86_64 in the apk");
+
+            foreach (string so in Directory.EnumerateFiles(libDir, "lib*.so")) {
+                string bare = Path.GetFileName(so);
+                string applet = bare[3..^3];
+                string dest = Path.Combine(magiskDir, applet);
+                File.Copy(so, dest, true);
+                execPaths.Add(RelKey(contextDir, dest));
+            }
+
+            await File.WriteAllBytesAsync(Path.Combine(magiskDir, "magisk.apk"), apk, ct);
+
+            string bootanim = Path.Combine(contextDir, "magisk", "system", "etc", "init", "bootanim.rc");
+            await File.WriteAllTextAsync(bootanim, BootanimRc, new UTF8Encoding(false), ct);
+            WriteGzip(BootanimServiceBlock, bootanim + ".gz");
+
+            await Log(buildId, "magisk: staged applets + bootanim.rc hook", ct);
+        } finally {
+            TryDeleteDir(unpack);
+        }
+    }
+
+    private static void WriteDockerfile(string contextDir, ImageBuildSpec spec) {
+        var sb = new StringBuilder();
+        sb.Append("FROM ").Append(spec.ResolvedBaseImage).Append('\n');
+        if (spec.Gapps) sb.Append("COPY gapps /\n");
+        if (spec.Ndk) sb.Append("COPY ndk /\n");
+        if (spec.Magisk) sb.Append("COPY magisk /\n");
+        File.WriteAllText(Path.Combine(contextDir, "Dockerfile"), sb.ToString(), new UTF8Encoding(false));
+    }
+
+    private static void AssembleTar(string contextDir, string tarPath, HashSet<string> execPaths) {
+        using var file = File.Create(tarPath);
+        using var writer = new TarWriter(file, TarEntryFormat.Pax, false);
+
+        foreach (string dir in Directory.EnumerateDirectories(contextDir, "*", SearchOption.AllDirectories)
+                     .OrderBy(d => d, StringComparer.Ordinal)) {
+            string rel = RelKey(contextDir, dir);
+            writer.WriteEntry(new PaxTarEntry(TarEntryType.Directory, rel + "/") { Mode = DirMode });
+        }
+
+        foreach (string path in Directory.EnumerateFiles(contextDir, "*", SearchOption.AllDirectories)
+                     .OrderBy(f => f, StringComparer.Ordinal)) {
+            string rel = RelKey(contextDir, path);
+            var mode = FileMode;
+            if (execPaths.Contains(rel)) mode = ExecMode;
+            else if (rel.StartsWith("ndk/", StringComparison.Ordinal) && !rel.EndsWith(".rc", StringComparison.Ordinal))
+                mode = ExecMode;
+
+            var entry = new PaxTarEntry(TarEntryType.RegularFile, rel) { Mode = mode };
+            using var src = File.OpenRead(path);
+            entry.DataStream = src;
+            writer.WriteEntry(entry);
+        }
+    }
+
+    private async Task<byte[]> FetchAsync(
+        string component, string url, string expectedMd5, string label, string pin, long buildId, CancellationToken ct) {
+        string key = $"{component}:{expectedMd5}";
+        var cached = await blobs.GetAsync(key, ct);
+        try {
+            var http = httpFactory.CreateClient(HttpClientName);
+            byte[] bytes = await http.GetByteArrayAsync(url, ct);
+            string md5 = Md5Hex(bytes);
+            if (!string.IsNullOrEmpty(expectedMd5) && !string.Equals(md5, expectedMd5, StringComparison.OrdinalIgnoreCase)) {
+                if (cached is not null) {
+                    await Log(buildId, $"{label}: md5 mismatch on download (got {md5}); using cached blob", ct);
+                    return cached.Bytes;
+                }
+
+                throw new InvalidOperationException(
+                    $"{label}: md5 mismatch (got {md5}, pinned {expectedMd5}); check the pin {pin}");
+            }
+
+            await blobs.PutAsync(key, url, Hashes.Sha256Hex(bytes), bytes, ct);
+            await Log(buildId, $"{label}: downloaded {bytes.LongLength} bytes", ct);
+            return bytes;
+        } catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested) {
+            if (cached is not null) {
+                await Log(buildId, $"{label}: download failed ({ex.Message}); using cached blob", ct);
+                return cached.Bytes;
+            }
+
+            throw new InvalidOperationException(
+                $"{label}: download failed for pin {pin} and no cached blob is present: {ex.Message}", ex);
+        }
+    }
+
+    private Task Log(long buildId, string line, CancellationToken ct) {
+        logger.LogInformation("image build {Id}: {Line}", buildId, line);
+        return builds.AppendAsync(buildId, line, ct);
+    }
+
+    private static void ExtractZip(byte[] bytes, string destDir) {
+        using var ms = new MemoryStream(bytes);
+        using var zip = new ZipArchive(ms, ZipArchiveMode.Read);
+        foreach (var entry in zip.Entries) {
+            string dest = SafeCombine(destDir, entry.FullName);
+            if (entry.FullName.EndsWith('/')) {
+                Directory.CreateDirectory(dest);
+                continue;
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+            entry.ExtractToFile(dest, true);
+        }
+    }
+
+    private static void ExtractTarLz(byte[] lzBytes, string destDir) {
+        using var ms = new MemoryStream(lzBytes);
+        using var lz = LZipStream.Create(ms, SharpCompress.Compressors.CompressionMode.Decompress);
+        using var reader = new TarReader(lz);
+        while (reader.GetNextEntry() is { } entry) {
+            string rel = entry.Name.Replace('/', Path.DirectorySeparatorChar);
+            if (rel.Length == 0) continue;
+            string dest = SafeCombine(destDir, entry.Name);
+            if (entry.EntryType is TarEntryType.Directory) {
+                Directory.CreateDirectory(dest);
+                continue;
+            }
+
+            if (entry.EntryType is not (TarEntryType.RegularFile or TarEntryType.V7RegularFile)) continue;
+            Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+            entry.ExtractToFile(dest, true);
+        }
+    }
+
+    private static void CopyTree(string src, string dest) {
+        Directory.CreateDirectory(dest);
+        foreach (string dir in Directory.EnumerateDirectories(src, "*", SearchOption.AllDirectories))
+            Directory.CreateDirectory(Path.Combine(dest, Path.GetRelativePath(src, dir)));
+        foreach (string file in Directory.EnumerateFiles(src, "*", SearchOption.AllDirectories)) {
+            string target = Path.Combine(dest, Path.GetRelativePath(src, file));
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.Copy(file, target, true);
+        }
+    }
+
+    private static string? SingleTopDir(string dir) {
+        var dirs = Directory.GetDirectories(dir);
+        var files = Directory.GetFiles(dir);
+        if (dirs.Length == 1 && files.Length == 0) return dirs[0];
+        return dirs.Length > 0 ? dirs[0] : null;
+    }
+
+    private static string SafeCombine(string root, string entryPath) {
+        string full = Path.GetFullPath(Path.Combine(root, entryPath.Replace('/', Path.DirectorySeparatorChar)));
+        string prefix = Path.GetFullPath(root) + Path.DirectorySeparatorChar;
+        if (!full.StartsWith(prefix, StringComparison.Ordinal) && full != Path.GetFullPath(root))
+            throw new InvalidOperationException($"archive entry escapes the extract dir: {entryPath}");
+        return full;
+    }
+
+    private static string RelKey(string root, string path) =>
+        Path.GetRelativePath(root, path).Replace(Path.DirectorySeparatorChar, '/');
+
+    private static string FreshDir(string path) {
+        if (Directory.Exists(path)) Directory.Delete(path, true);
+        Directory.CreateDirectory(path);
+        return path;
+    }
+
+    private static void WriteGzip(string text, string path) {
+        using var file = File.Create(path);
+        using var gz = new GZipStream(file, CompressionLevel.Optimal);
+        gz.Write(Encoding.UTF8.GetBytes(text));
+    }
+
+    private static string Md5Hex(byte[] bytes) {
+#pragma warning disable CA5351
+        return Convert.ToHexStringLower(MD5.HashData(bytes));
+#pragma warning restore CA5351
+    }
+
+    private void TryDelete(string path) {
+        try {
+            if (File.Exists(path)) File.Delete(path);
+        } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+            logger.LogDebug(ex, "image build: could not delete temp file {Path}", path);
+        }
+    }
+
+    private void TryDeleteDir(string path) {
+        try {
+            if (Directory.Exists(path)) Directory.Delete(path, true);
+        } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+            logger.LogDebug(ex, "image build: could not delete temp dir {Path}", path);
+        }
+    }
+
+    private const string BootanimServiceBlock =
+        "service bootanim /system/bin/bootanimation\n"
+        + "    class core animation\n"
+        + "    user graphics\n"
+        + "    group graphics audio\n"
+        + "    disabled\n"
+        + "    oneshot\n"
+        + "    ioprio rt 0\n"
+        + "    task_profiles MaxPerformance\n";
+
+    private const string BootanimRc = BootanimServiceBlock
+        + "on post-fs-data\n"
+        + "    start logd\n"
+        + "    exec u:r:su:s0 root root -- /system/etc/init/magisk/magiskpolicy --live --magisk\n"
+        + "    exec u:r:magisk:s0 root root -- /system/etc/init/magisk/magiskpolicy --live --magisk\n"
+        + "    exec u:r:update_engine:s0 root root -- /system/etc/init/magisk/magiskpolicy --live --magisk\n"
+        + "    exec u:r:su:s0 root root -- /system/etc/init/magisk/magisk --auto-selinux --setup-sbin /system/etc/init/magisk /sbin\n"
+        + "    exec u:r:su:s0 root root -- /sbin/magisk --auto-selinux --post-fs-data\n"
+        + "on nonencrypted\n"
+        + "    exec u:r:su:s0 root root -- /sbin/magisk --auto-selinux --service\n"
+        + "on property:vold.decrypt=trigger_restart_framework\n"
+        + "    exec u:r:su:s0 root root -- /sbin/magisk --auto-selinux --service\n"
+        + "on property:sys.boot_completed=1\n"
+        + "    mkdir /data/adb/magisk 755\n"
+        + "    exec u:r:su:s0 root root -- /sbin/magisk --auto-selinux --boot-complete\n"
+        + "    exec -- /system/bin/sh -c \"if [ ! -e /data/data/io.github.huskydg.magisk ] ; then pm install /system/etc/init/magisk/magisk.apk ; fi\"\n"
+        + "on property:init.svc.zygote=restarting\n"
+        + "    exec u:r:su:s0 root root -- /sbin/magisk --auto-selinux --zygote-restart\n"
+        + "on property:init.svc.zygote=stopped\n"
+        + "    exec u:r:su:s0 root root -- /sbin/magisk --auto-selinux --zygote-restart\n";
+}

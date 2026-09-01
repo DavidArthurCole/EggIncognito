@@ -12,6 +12,7 @@
     <PackageReference Include="EggIdentity.Metrics.AdminUi" />
     <PackageReference Include="EggIdentity.Styles" />
     <PackageReference Include="EggIdentity.UI" />
+    <PackageReference Include="SharpCompress" />
     <PackageReference Include="SixLabors.ImageSharp" />
     <PackageReference Include="SixLabors.ImageSharp.Drawing" />
   </ItemGroup>
