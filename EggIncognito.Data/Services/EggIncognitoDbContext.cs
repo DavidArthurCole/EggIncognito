@@ -19,6 +19,7 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
     public DbSet<ProtoVersion> ProtoVersions => Set<ProtoVersion>();
     public DbSet<ProtoProto> ProtoProtos => Set<ProtoProto>();
     public DbSet<ProtoShaOrder> ProtoShaOrders => Set<ProtoShaOrder>();
+    public DbSet<ProtoCanonical> ProtoCanonicals => Set<ProtoCanonical>();
     public DbSet<FeedSubscription> FeedSubscriptions => Set<FeedSubscription>();
     public DbSet<FeedDelivery> FeedDeliveries => Set<FeedDelivery>();
     public DbSet<FeedSuppression> FeedSuppressions => Set<FeedSuppression>();
@@ -107,6 +108,10 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
         modelBuilder.Entity<ProtoShaOrder>(e => {
             e.HasKey(x => x.ProtoSha);
             e.Property(x => x.UpdatedAt).HasDefaultValueSql("now()");
+        });
+        modelBuilder.Entity<ProtoCanonical>(e => {
+            e.HasKey(x => x.ProtoSha);
+            e.Property(x => x.ComputedAt).HasDefaultValueSql("now()");
         });
         modelBuilder.Entity<FeedSubscription>(e => {
             e.HasKey(x => x.Id);

@@ -110,11 +110,10 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
         foreach (var r in records) {
             var norm = ProtoCanonicalForm.Normalize(r.ProtoText);
             string sha = norm.Ok ? norm.Sha! : r.ProtoSha;
-            string text = norm.Ok ? norm.Text! : r.ProtoText;
-            string? messageIndex = norm.Ok ? JsonSerializer.Serialize(ProtoTextIndex.Names(text)) : null;
+            string? messageIndex = norm.Ok ? JsonSerializer.Serialize(ProtoTextIndex.Names(norm.Text!)) : null;
             var outcome = await StageOrReviveAsync(r.Platform, r.AppVersion, r.Build, r.ClientVersion, null,
-                sha, text, messageIndex, "crawl", null, r.OriginRepo, r.OriginCommit, r.OriginDate, r.Confidence,
-                ct);
+                sha, r.ProtoText, messageIndex, "crawl", null, r.OriginRepo, r.OriginCommit, r.OriginDate,
+                r.Confidence, ct);
             if (outcome is StageOutcome.Staged or StageOutcome.Revived) staged++;
             else skipped++;
         }

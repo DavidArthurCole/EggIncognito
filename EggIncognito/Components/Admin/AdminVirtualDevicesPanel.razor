@@ -118,8 +118,9 @@
         return row.LastFlowAt is { Length: > 0 } at ? $"{row.Flows} flows, last {at}" : $"{row.Flows} flows";
     }
 
-    static string StateLabel(VirtualInstanceRow row) =>
-        row.ContainerPresent ? row.State : $"{row.State}, no container";
+    static string StateLabel(VirtualInstanceRow row) {
+        return row.ContainerPresent ? row.State : $"{row.State}, no container";
+    }
 
     static string DotCss(VirtualInstanceRow row) {
         if (!row.ContainerPresent || row.State is "failed") return "vd-dot-bad";
@@ -141,7 +142,8 @@
                 await Load(true);
                 await InvokeAsync(StateHasChanged);
             }
-        } catch (OperationCanceledException) {
+        }
+        catch (OperationCanceledException) {
         }
     }
 
@@ -155,7 +157,9 @@
         await base.DisposeAsync();
     }
 
-    Task Load() => Load(false);
+    Task Load() {
+        return Load(false);
+    }
 
     async Task Load(bool quiet) {
         if (Api is null) return;
@@ -179,7 +183,8 @@
                     ? $"provisioned {body?.InstanceId ?? "instance"}, it boots in the background"
                     : $"provision failed: {body?.Note ?? res.Describe()}",
                 res.Ok ? StatusNoteKind.Ok : StatusNoteKind.Error);
-        } finally {
+        }
+        finally {
             _busy = false;
         }
 
@@ -194,7 +199,8 @@
             var body = res.Json<VirtualActionResult>();
             Say(res.Ok ? $"destroyed {instanceId}" : $"destroy refused: {body?.Note ?? res.Describe()}",
                 res.Ok ? StatusNoteKind.Ok : StatusNoteKind.Error);
-        } finally {
+        }
+        finally {
             _busy = false;
         }
 
@@ -209,7 +215,8 @@
             var body = res.Json<VirtualActionResult>();
             Say(res.Ok ? body?.Note ?? "reconciled" : $"reconcile failed: {res.Describe()}",
                 res.Ok ? StatusNoteKind.Ok : StatusNoteKind.Error);
-        } finally {
+        }
+        finally {
             _busy = false;
         }
 

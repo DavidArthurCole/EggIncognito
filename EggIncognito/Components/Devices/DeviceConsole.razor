@@ -38,7 +38,7 @@
             }
         </select>
         <select class="field-input dcon-rate" aria-label="Stream frame rate" value="@_fps" @onchange="FpsChanged">
-            @foreach (int fps in Rates) {
+            @foreach (var fps in Rates) {
                 <option value="@fps">@fps fps</option>
             }
         </select>
@@ -113,7 +113,7 @@
                                 <div class="dcon-log-empty">No output yet.</div>
                             } else {
                                 <div class="dcon-log">
-                                    @foreach (string line in _runLog) {
+                                    @foreach (var line in _runLog) {
                                         <div class="dcon-log-line">@line</div>
                                     }
                                 </div>
@@ -245,6 +245,7 @@
                                         <CopyButton Text="@hint.Snippet" AriaLabel="Copy selector"/>
                                     </div>
                                 }
+
                                 <div class="dcon-sel-steps">
                                     <div class="dcon-snip-row">
                                         <span class="dcon-snip-by">tap step</span>
@@ -348,10 +349,12 @@
         StateHasChanged();
     }
 
-    Task PickDeviceAsync(ChangeEventArgs e) => SelectDeviceAsync(e.Value?.ToString());
+    Task PickDeviceAsync(ChangeEventArgs e) {
+        return SelectDeviceAsync(e.Value?.ToString());
+    }
 
     async Task SelectDeviceAsync(string? id) {
-        string? next = string.IsNullOrEmpty(id) ? null : id;
+        var next = string.IsNullOrEmpty(id) ? null : id;
         await StopStreamAsync();
         if (_module is { } module) await SafeAsync(() => module.InvokeVoidAsync("clear", _img).AsTask());
         StopRunTimer();
@@ -400,7 +403,7 @@
     }
 
     void FpsChanged(ChangeEventArgs e) {
-        if (!int.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int fps)) return;
+        if (!int.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var fps)) return;
         _fps = Math.Clamp(fps, 1, 5);
     }
 
@@ -416,9 +419,11 @@
     string StatusLine() {
         if (_deviceId is null) return "No device picked.";
         if (_streamError is not null) return "The screen is not running.";
-        string head = _streaming
+        var head = _streaming
             ? _hasFrame ? $"Live at {_fps} fps." : "Waiting for the first frame."
-            : _hasFrame ? "Showing one frame." : "Screen paused. Go live for a stream, or One frame for a single shot.";
+            : _hasFrame
+                ? "Showing one frame."
+                : "Screen paused. Go live for a stream, or One frame for a single shot.";
         return _lastTap is { } tap ? $"{head} Last tap at {tap}." : head;
     }
 
@@ -439,13 +444,13 @@
             return;
         }
 
-        int x = Scale(e.OffsetX, _renderW, TapWidth);
-        int y = Scale(e.OffsetY, _renderH, TapHeight);
+        var x = Scale(e.OffsetX, _renderW, TapWidth);
+        var y = Scale(e.OffsetY, _renderH, TapHeight);
         await TapAsync(x, y);
     }
 
     static int Scale(double offset, int rendered, int device) {
-        int value = (int)Math.Round(offset / rendered * device, MidpointRounding.AwayFromZero);
+        var value = (int)Math.Round(offset / rendered * device, MidpointRounding.AwayFromZero);
         return Math.Clamp(value, 0, device - 1);
     }
 
@@ -456,8 +461,9 @@
         Note(res.IsSuccessStatusCode ? $"Tapped {x}, {y}." : await ReadError(res), res.IsSuccessStatusCode);
     }
 
-    Task TapSelectedAsync() =>
-        _selected is { } sel ? TapAsync(sel.CenterX, sel.CenterY) : Task.CompletedTask;
+    Task TapSelectedAsync() {
+        return _selected is { } sel ? TapAsync(sel.CenterX, sel.CenterY) : Task.CompletedTask;
+    }
 
     async Task SendTextAsync() {
         if (_deviceId is null || _text.Length == 0) return;
@@ -489,7 +495,7 @@
     }
 
     string ArgFor(DeviceCookbookInfo book) {
-        if (_args.TryGetValue(book.Id, out string? chosen)) return chosen;
+        if (_args.TryGetValue(book.Id, out var chosen)) return chosen;
         if (book.Options is not { Count: > 0 } options) return "";
         return (options.FirstOrDefault(o => o.Recommended) ?? options[0]).Value;
     }
@@ -498,8 +504,9 @@
         _args[bookId] = e.Value?.ToString() ?? "";
     }
 
-    static string OptionLabel(DeviceCookbookOption option) =>
-        option.Recommended ? $"{option.Label} (recommended)" : option.Label;
+    static string OptionLabel(DeviceCookbookOption option) {
+        return option.Recommended ? $"{option.Label} (recommended)" : option.Label;
+    }
 
     async Task RunCookbookAsync(DeviceCookbookInfo book) {
         if (_deviceId is null || _runBusy) return;
@@ -517,11 +524,11 @@
         _notice = null;
         StateHasChanged();
 
-        string? argument = book.Options is { Count: > 0 } ? ArgFor(book) : null;
+        var argument = book.Options is { Count: > 0 } ? ArgFor(book) : null;
         var res = await Client().PostAsJsonAsync($"/api/devices/{_deviceId}/cookbooks",
             new DeviceCookbookRequest(book.Id, argument), SelfCallJson.Web);
         if (!res.IsSuccessStatusCode) {
-            string failed = await ReadError(res);
+            var failed = await ReadError(res);
             _runBusy = false;
             _runDone = true;
             _runNote = failed;
@@ -602,7 +609,9 @@
         _runTimer = null;
     }
 
-    string RunStateWord() => !_runDone ? "running" : _runCancelled ? "cancelled" : _runOk ? "succeeded" : "failed";
+    string RunStateWord() {
+        return !_runDone ? "running" : _runCancelled ? "cancelled" : _runOk ? "succeeded" : "failed";
+    }
 
     string RunStateLine() {
         if (!_runDone) return "running";
@@ -630,12 +639,14 @@
             _dump = await res.Content.ReadFromJsonAsync<UiDumpResult>(SelfCallJson.Web);
             _selected = null;
             ApplyFilter();
-        } catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException) {
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException) {
             Logger.LogDebug(ex, "ui dump read failed");
             _dumpError = ex.Message;
             _dump = null;
             _rows = [];
-        } finally {
+        }
+        finally {
             _dumpBusy = false;
         }
     }
@@ -658,7 +669,7 @@
 
         IEnumerable<UiNodeRow> query = _dump.Nodes;
         if (_clickableOnly) query = query.Where(n => n.Clickable);
-        string needle = _filter.Trim();
+        var needle = _filter.Trim();
         if (needle.Length > 0) {
             query = query.Where(n => Has(n.Label, needle) || Has(n.ResourceId, needle) || Has(n.Text, needle)
                                      || Has(n.ContentDesc, needle) || Has(n.ClassName, needle));
@@ -667,42 +678,55 @@
         _rows = [.. query];
     }
 
-    static bool Has(string? value, string needle) =>
-        value is not null && value.Contains(needle, StringComparison.OrdinalIgnoreCase);
+    static bool Has(string? value, string needle) {
+        return value is not null && value.Contains(needle, StringComparison.OrdinalIgnoreCase);
+    }
 
     void SelectNode(UiNodeRow node) {
         _selected = _selected?.Id == node.Id ? null : node;
     }
 
     string HighlightStyle(UiNodeRow node) {
-        int width = TapWidth;
-        int height = TapHeight;
+        var width = TapWidth;
+        var height = TapHeight;
         if (width <= 0 || height <= 0) return "display:none";
         return string.Create(CultureInfo.InvariantCulture,
             $"left:{100.0 * node.Left / width:0.###}%;top:{100.0 * node.Top / height:0.###}%;width:{100.0 * node.Width / width:0.###}%;height:{100.0 * node.Height / height:0.###}%");
     }
 
-    static string IndentStyle(UiNodeRow node) =>
-        string.Create(CultureInfo.InvariantCulture, $"--dcon-indent:{Math.Min(node.Depth, 12)}");
+    static string IndentStyle(UiNodeRow node) {
+        return string.Create(CultureInfo.InvariantCulture, $"--dcon-indent:{Math.Min(node.Depth, 12)}");
+    }
 
-    static string HintLabel(UiSelectorHint hint) =>
-        hint.Unique ? hint.Label : $"{hint.Label} {hint.Index + 1} of {hint.Matches}";
+    static string HintLabel(UiSelectorHint hint) {
+        return hint.Unique ? hint.Label : $"{hint.Label} {hint.Index + 1} of {hint.Matches}";
+    }
 
-    static string TapStep(UiNodeRow node) => $"DeviceFlowSteps.Tap({node.Selectors[0].Snippet})";
+    static string TapStep(UiNodeRow node) {
+        return $"DeviceFlowSteps.Tap({node.Selectors[0].Snippet})";
+    }
 
-    static string WaitStep(UiNodeRow node) => $"DeviceFlowSteps.WaitForSelector({node.Selectors[0].Snippet})";
+    static string WaitStep(UiNodeRow node) {
+        return $"DeviceFlowSteps.WaitForSelector({node.Selectors[0].Snippet})";
+    }
 
-    static string PointStep(UiNodeRow node) => $"DeviceFlowSteps.TapPoint({node.CenterX}, {node.CenterY})";
+    static string PointStep(UiNodeRow node) {
+        return $"DeviceFlowSteps.TapPoint({node.CenterX}, {node.CenterY})";
+    }
 
-    static string Dim(int w, int h) => w > 0 && h > 0 ? $"{w} x {h}" : "unknown";
+    static string Dim(int w, int h) {
+        return w > 0 && h > 0 ? $"{w} x {h}" : "unknown";
+    }
 
-    static string DeviceLabel(DeviceRow d) =>
-        d.Reachable ? $"{d.Label} - {d.Platform}" : $"{d.Label} - {d.Platform} - unreachable";
+    static string DeviceLabel(DeviceRow d) {
+        return d.Reachable ? $"{d.Label} - {d.Platform}" : $"{d.Label} - {d.Platform} - unreachable";
+    }
 
-    IEnumerable<DeviceRow> Ordered() =>
-        _devices
+    IEnumerable<DeviceRow> Ordered() {
+        return _devices
             .OrderBy(d => d.Platform == "ios" ? 0 : d.Platform == "android" ? 1 : 2)
             .ThenBy(d => d.Label, StringComparer.OrdinalIgnoreCase);
+    }
 
     void ClearNotice() {
         _notice = null;
@@ -716,16 +740,17 @@
         try {
             var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
             if (body.ValueKind != JsonValueKind.Object) return null;
-            foreach (string name in JobIdNames) {
+            foreach (var name in JobIdNames) {
                 if (!body.TryGetProperty(name, out var value)) continue;
-                string? text = value.ValueKind switch {
+                var text = value.ValueKind switch {
                     JsonValueKind.String => value.GetString(),
                     JsonValueKind.Number => value.GetRawText(),
                     _ => null
                 };
                 if (!string.IsNullOrEmpty(text)) return text;
             }
-        } catch (Exception ex) when (ex is JsonException or HttpRequestException or NotSupportedException) {
+        }
+        catch (Exception ex) when (ex is JsonException or HttpRequestException or NotSupportedException) {
             return null;
         }
 
@@ -737,7 +762,8 @@
             var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
             if (body.ValueKind == JsonValueKind.Object && body.TryGetProperty("error", out var e))
                 return e.GetString() ?? $"failed [{(int)resp.StatusCode}]";
-        } catch (Exception ex) when (ex is JsonException or HttpRequestException or NotSupportedException) {
+        }
+        catch (Exception ex) when (ex is JsonException or HttpRequestException or NotSupportedException) {
             return $"failed [{(int)resp.StatusCode}]";
         }
 
@@ -747,7 +773,7 @@
     protected override async Task OnAfterRenderAsync(bool firstRender) {
         if (_disposed || !_open || !_isAdmin) return;
 
-        string desired = _streaming && _deviceId is not null && _streamError is null ? $"{_deviceId}|{_fps}" : "";
+        var desired = _streaming && _deviceId is not null && _streamError is null ? $"{_deviceId}|{_fps}" : "";
         if (desired == _streamKey) return;
 
         if (await ModuleAsync() is not { } module) return;
@@ -777,7 +803,7 @@
 
     async Task MeasureAsync() {
         if (await ModuleAsync() is not { } module) return;
-        int[]? size = await SafeValueAsync(() => module.InvokeAsync<int[]>("measure", _img).AsTask());
+        var size = await SafeValueAsync(() => module.InvokeAsync<int[]>("measure", _img).AsTask());
         if (size is not { Length: 4 }) return;
         _shotW = size[0];
         _shotH = size[1];
@@ -786,9 +812,13 @@
         _hasFrame = _shotW > 0;
     }
 
-    string StreamUrl() => $"/api/devices/{_deviceId}/ui/stream?fps={_fps}";
+    string StreamUrl() {
+        return $"/api/devices/{_deviceId}/ui/stream?fps={_fps}";
+    }
 
-    string ScreenshotUrl() => $"/api/devices/{_deviceId}/ui/screenshot";
+    string ScreenshotUrl() {
+        return $"/api/devices/{_deviceId}/ui/screenshot";
+    }
 
     [JSInvokable]
     public Task OnFrameSize(int naturalW, int naturalH, int renderW, int renderH) {
@@ -802,7 +832,7 @@
 
     [JSInvokable]
     public Task OnFrameFailed(int status, string note) {
-        bool live = _streaming;
+        var live = _streaming;
         _streamKey = "";
         _streaming = false;
         _hasFrame = false;
@@ -811,8 +841,8 @@
     }
 
     static string FrameFailure(int status, string note, bool live) {
-        string detail = status > 0 ? $"{note} [http {status}]" : note;
-        string tail = string.IsNullOrWhiteSpace(detail) ? "" : $" The browser said: {detail}.";
+        var detail = status > 0 ? $"{note} [http {status}]" : note;
+        var tail = string.IsNullOrWhiteSpace(detail) ? "" : $" The browser said: {detail}.";
         return live
             ? $"The live screen did not run. A device streams to one console at a time, so another viewer may be holding it.{tail}"
             : $"That frame did not load.{tail}";
@@ -829,7 +859,8 @@
             _module = await JS.InvokeAsync<IJSObjectReference>(
                 "import", InteropAsset.Url(Env, "./interop/deviceConsole.js"));
             return _module;
-        } catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
+        }
+        catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
             Logger.LogDebug(ex, "device console module import failed");
             return null;
         }
@@ -838,7 +869,8 @@
     async Task SafeAsync(Func<Task> call) {
         try {
             await call();
-        } catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
+        }
+        catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
             Logger.LogDebug(ex, "device console interop call failed");
         }
     }
@@ -846,7 +878,8 @@
     async Task<T?> SafeValueAsync<T>(Func<Task<T>> call) {
         try {
             return await call();
-        } catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
+        }
+        catch (Exception ex) when (ex is JSDisconnectedException or JSException or ObjectDisposedException) {
             Logger.LogDebug(ex, "device console interop call failed");
             return default;
         }

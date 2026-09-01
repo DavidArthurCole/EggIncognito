@@ -1018,6 +1018,37 @@
             : $"registry:{value.Platform}:{value.Build}";
     }
 
+    static string RawCacheKey(ProtoRef value) {
+        return CacheKey(value) + "#raw";
+    }
+
+    string FormOf(ProtoRef value) {
+        return State.TextForms.GetValueOrDefault(CacheKey(value), ProtoDisplayForm.Canonical);
+    }
+
+    void SyncFormNotice() {
+        if (State.A is not { } a) return;
+        var formA = FormOf(a);
+        if (State.Mode == "text" || State.B is not { } b) {
+            if (formA == ProtoDisplayForm.Raw) {
+                _notice = ("Normalization failed, raw proto text is shown.", StatusNoteKind.Info);
+            }
+
+            return;
+        }
+
+        var formB = FormOf(b);
+        if (formA != ProtoDisplayForm.Raw && formB != ProtoDisplayForm.Raw) return;
+        var mixed = formA == ProtoDisplayForm.Canonical && RawFailed(a) || formB == ProtoDisplayForm.Canonical && RawFailed(b);
+        _notice = mixed
+            ? ("Raw text could not be fetched for one side, so the diff mixes canonical and raw forms.", StatusNoteKind.Error)
+            : ("Normalization failed, raw proto text is shown.", StatusNoteKind.Info);
+    }
+
+    bool RawFailed(ProtoRef value) {
+        return State.TextCache.TryGetValue(RawCacheKey(value), out var cached) && cached == MissingText;
+    }
+
     string RefMark(ProtoRef? value) {
         if (value is null) return "";
         if (SameRef(State.A, value)) return "A";
@@ -1148,6 +1179,7 @@
         await ResolveText(State.B);
         await FallbackMissing();
         await EnsureBundle();
+        SyncFormNotice();
         await Rerender();
         _ = CheckCanonical(State.A);
         _ = CheckCanonical(State.B);
@@ -1192,8 +1224,19 @@
         if (State.TextCache.TryGetValue(key, out var cached)) return cached == MissingText ? null : cached;
         if (value.Source == ProtoRefSource.Session) {
             var staged = FindSession(value)?.Result?.Proto;
-            await InvokeAsync(() => State.TextCache[key] = staged ?? MissingText);
-            return staged;
+            if (staged is not { Length: > 0 }) {
+                await InvokeAsync(() => State.TextCache[key] = MissingText);
+                return null;
+            }
+
+            var normalized = await Task.Run(() => ProtoCanonicalForm.Normalize(staged));
+            var text = normalized is { Ok: true, Text: { Length: > 0 } canonText } ? canonText : staged;
+            await InvokeAsync(() => {
+                State.TextCache[key] = text;
+                State.TextForms[key] = normalized is { Ok: true } ? ProtoDisplayForm.Canonical : ProtoDisplayForm.Raw;
+                if (normalized is { Ok: true, Sha: { Length: > 0 } sha }) State.CanonicalShas[key] = sha;
+            });
+            return text;
         }
 
         try {
@@ -1205,11 +1248,48 @@
             }
 
             var body = await resp.Content.ReadAsStringAsync();
-            await InvokeAsync(() => State.TextCache[key] = body);
+            await InvokeAsync(() => {
+                State.TextCache[key] = body;
+                if (resp.Headers.TryGetValues("X-Proto-Form", out var forms) && forms.FirstOrDefault() is { Length: > 0 } form) {
+                    State.TextForms[key] = form;
+                }
+
+                if (resp.Headers.TryGetValues("X-Proto-Canonical-Sha", out var shas) && shas.FirstOrDefault() is { Length: > 0 } sha) {
+                    State.CanonicalShas[key] = sha;
+                }
+            });
             return body;
         }
         catch (Exception ex) {
             Logger.LogWarning(ex, "proto text for {Platform} {Build} could not be loaded", value.Platform, value.Build);
+            await InvokeAsync(() => State.TextCache[key] = MissingText);
+            return null;
+        }
+    }
+
+    async Task<string?> ResolveRawText(ProtoRef value) {
+        var key = RawCacheKey(value);
+        if (State.TextCache.TryGetValue(key, out var cached)) return cached == MissingText ? null : cached;
+        if (value.Source == ProtoRefSource.Session) {
+            var staged = FindSession(value)?.Result?.Proto;
+            await InvokeAsync(() => State.TextCache[key] = staged ?? MissingText);
+            return staged;
+        }
+
+        try {
+            var resp = await Client().GetAsync(
+                $"/api/protos/versions/{Uri.EscapeDataString(value.Platform)}/{Uri.EscapeDataString(value.Build)}/proto?form=raw");
+            if (!resp.IsSuccessStatusCode) {
+                await InvokeAsync(() => State.TextCache[key] = MissingText);
+                return null;
+            }
+
+            var body = await resp.Content.ReadAsStringAsync();
+            await InvokeAsync(() => State.TextCache[key] = body);
+            return body;
+        }
+        catch (Exception ex) {
+            Logger.LogWarning(ex, "raw proto text for {Platform} {Build} could not be loaded", value.Platform, value.Build);
             await InvokeAsync(() => State.TextCache[key] = MissingText);
             return null;
         }
@@ -1220,6 +1300,7 @@
         State.Mode = mode;
         _hunk = 0;
         await EnsureBundle();
+        SyncFormNotice();
         await RaiseRefChanged();
     }
 
@@ -1265,7 +1346,10 @@
             return;
         }
 
-        var key = $"{CacheKey(a)}|{CacheKey(b)}|{_context}";
+        var pairForm = FormOf(a) == ProtoDisplayForm.Canonical && FormOf(b) == ProtoDisplayForm.Canonical
+            ? ProtoDisplayForm.Canonical
+            : ProtoDisplayForm.Raw;
+        var key = $"{CacheKey(a)}|{CacheKey(b)}|{_context}|{pairForm}";
         if (State.CachedKey == key) {
             AdoptBundle();
             return;
@@ -1278,11 +1362,23 @@
             return;
         }
 
-        if (TextOf(a) is not { Length: > 0 } textA || TextOf(b) is not { Length: > 0 } textB) {
+        if (TextOf(a) is not { Length: > 0 } cachedA || TextOf(b) is not { Length: > 0 } cachedB) {
             State.Cached = null;
             State.CachedKey = null;
             AdoptBundle();
             return;
+        }
+
+        var textA = cachedA;
+        var textB = cachedB;
+        if (pairForm == ProtoDisplayForm.Raw) {
+            var formA = FormOf(a);
+            var formB = FormOf(b);
+            var canonA = formA == ProtoDisplayForm.Canonical ? cachedA : null;
+            var canonB = formB == ProtoDisplayForm.Canonical ? cachedB : null;
+            var rawA = formA == ProtoDisplayForm.Canonical ? await ResolveRawText(a) ?? cachedA : cachedA;
+            var rawB = formB == ProtoDisplayForm.Canonical ? await ResolveRawText(b) ?? cachedB : cachedB;
+            (textA, textB, _) = ProtoDisplayForm.Pair(canonA, rawA, canonB, rawB);
         }
 
         var context = _context;
@@ -1340,6 +1436,7 @@
         _context = _context == FullContext ? DefaultContext : FullContext;
         State.CachedKey = null;
         await EnsureBundle();
+        SyncFormNotice();
     }
 
     void OnHunkPicked(int index) {
@@ -1478,27 +1575,18 @@
         return _legacy.TryGetValue(CacheKey(value), out var legacy) && legacy;
     }
 
-    async Task CheckCanonical(ProtoRef? value) {
-        if (value is null) return;
+    Task CheckCanonical(ProtoRef? value) {
+        if (value is null) return Task.CompletedTask;
         var key = CacheKey(value);
-        if (_legacy.ContainsKey(key)) return;
-        if (ShaOf(value) is not { Length: > 0 } stored) return;
-        if (TextOf(value) is not { Length: > 0 } text) return;
-        bool legacy;
-        try {
-            var normalized = await Task.Run(() => ProtoCanonicalForm.Normalize(text));
-            if (normalized is not { Ok: true, Sha: { Length: > 0 } canonical }) return;
-            legacy = !SameSha(canonical, stored);
-        }
-        catch (Exception ex) {
-            Logger.LogDebug(ex, "canonical form check failed for {Key}", key);
-            return;
+        if (_legacy.ContainsKey(key)) return Task.CompletedTask;
+        if (ShaOf(value) is not { Length: > 0 } stored) return Task.CompletedTask;
+        if (!State.CanonicalShas.TryGetValue(key, out var canonical) || canonical is not { Length: > 0 }) {
+            return Task.CompletedTask;
         }
 
-        await InvokeAsync(() => {
-            _legacy[key] = legacy;
-            StateHasChanged();
-        });
+        _legacy[key] = !SameSha(canonical, stored);
+        StateHasChanged();
+        return Task.CompletedTask;
     }
 
     static IReadOnlyList<string> SummaryParts(ProtoDiffSummary s) {

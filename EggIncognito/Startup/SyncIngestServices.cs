@@ -40,10 +40,7 @@ public static class SyncIngestServices {
             string protoSha = evt.ProtoSha;
             if (protoText is not null) {
                 var norm = ProtoCanonicalForm.Normalize(protoText);
-                if (norm.Ok) {
-                    protoText = norm.Text!;
-                    protoSha = norm.Sha!;
-                }
+                if (norm.Ok) protoSha = norm.Sha!;
             }
 
             string? appVersion = string.IsNullOrEmpty(evt.AppVersion) ? evt.Version : evt.AppVersion;

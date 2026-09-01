@@ -61,6 +61,8 @@ public sealed class ProtoWorkbenchState : WorkbenchStateBase {
     public IReadOnlyList<ProtoRegistryRow> Registry { get; set; } = [];
     public DateTime RegistryLoadedAt { get; set; }
     public Dictionary<string, string> TextCache { get; } = [];
+    public Dictionary<string, string> TextForms { get; } = [];
+    public Dictionary<string, string> CanonicalShas { get; } = [];
     public RegistryQuery Query { get; set; } = RegistryQuery.Empty;
     public Dictionary<string, string> ViewFilters { get; } = [];
     public ProtoRef? A { get; set; }

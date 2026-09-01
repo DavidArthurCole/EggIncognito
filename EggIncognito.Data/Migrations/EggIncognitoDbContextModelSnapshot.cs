@@ -1394,6 +1394,39 @@ namespace EggIncognito.Data.Migrations
                     b.ToTable("periodicals_snapshots");
                 });
 
+            modelBuilder.Entity("EggIncognito.Data.Models.ProtoCanonical", b =>
+                {
+                    b.Property<string>("ProtoSha")
+                        .HasColumnType("text")
+                        .HasColumnName("proto_sha");
+
+                    b.Property<string>("CanonicalSha")
+                        .HasColumnType("text")
+                        .HasColumnName("canonical_sha");
+
+                    b.Property<string>("CanonicalText")
+                        .HasColumnType("text")
+                        .HasColumnName("canonical_text");
+
+                    b.Property<DateTimeOffset>("ComputedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("computed_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("Error")
+                        .HasColumnType("text")
+                        .HasColumnName("error");
+
+                    b.Property<bool>("Ok")
+                        .HasColumnType("boolean")
+                        .HasColumnName("ok");
+
+                    b.HasKey("ProtoSha");
+
+                    b.ToTable("proto_canonicals");
+                });
+
             modelBuilder.Entity("EggIncognito.Data.Models.ProtoProto", b =>
                 {
                     b.Property<int>("ProtoVersionId")

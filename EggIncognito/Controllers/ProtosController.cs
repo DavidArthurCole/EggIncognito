@@ -65,12 +65,19 @@ public sealed class ProtosController(IServiceProvider services) : ControllerBase
     }
 
     [HttpGet("versions/{platform}/{build}/proto")]
-    public async Task<IActionResult> Proto(string platform, string build, CancellationToken ct) {
+    public async Task<IActionResult> Proto(
+        string platform, string build, [FromQuery] string? form, CancellationToken ct) {
         if (Store is null) return NotFound();
-        var row = await Store.GetAsync(platform, build, ct);
-        if (row is null) return NotFound();
-        var pp = await Store.GetProtoAsync(row.Id, ct);
-        return pp is null ? NotFound() : Content(pp.ProtoText, "text/plain");
+        var (raw, canonical) = await Store.GetCanonicalForVersionAsync(platform, build, ct);
+        if (raw is null) return NotFound();
+
+        bool wantRaw = string.Equals(form, ProtoDisplayForm.Raw, StringComparison.OrdinalIgnoreCase);
+        bool useCanonical = !wantRaw && canonical.Ok;
+
+        Response.Headers["X-Proto-Form"] = useCanonical ? ProtoDisplayForm.Canonical : ProtoDisplayForm.Raw;
+        if (!string.IsNullOrEmpty(canonical.Sha)) Response.Headers["X-Proto-Canonical-Sha"] = canonical.Sha;
+
+        return Content(useCanonical ? canonical.Text! : raw.ProtoText, "text/plain");
     }
 
     [HttpGet("sources")]
@@ -104,9 +111,12 @@ public sealed class ProtosController(IServiceProvider services) : ControllerBase
         if (string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(to))
             return BadRequest(new { error = "from and to required" });
 
-        string? fromText = await LoadProtoText(platform, from, ct);
-        string? toText = await LoadProtoText(platform, to, ct);
-        if (fromText is null || toText is null) return NotFound();
+        var (fromRaw, fromCanonical) = await LoadProtoText(platform, from, ct);
+        var (toRaw, toCanonical) = await LoadProtoText(platform, to, ct);
+        if (fromRaw is null || toRaw is null) return NotFound();
+
+        var (fromText, toText, usedForm) = ProtoDisplayForm.Pair(fromCanonical, fromRaw, toCanonical, toRaw);
+        Response.Headers["X-Proto-Form"] = usedForm;
 
         bool attach = Truthy(download);
 
@@ -153,10 +163,9 @@ public sealed class ProtosController(IServiceProvider services) : ControllerBase
         return sb.Length == 0 ? "proto" : sb.ToString();
     }
 
-    private async Task<string?> LoadProtoText(string platform, string build, CancellationToken ct) {
-        var row = await Store!.GetAsync(platform, build, ct);
-        if (row is null) return null;
-        var pp = await Store.GetProtoAsync(row.Id, ct);
-        return pp?.ProtoText;
+    private async Task<(string? Raw, string? Canonical)> LoadProtoText(
+        string platform, string build, CancellationToken ct) {
+        var (raw, canonical) = await Store!.GetCanonicalForVersionAsync(platform, build, ct);
+        return (raw?.ProtoText, canonical.Ok ? canonical.Text : null);
     }
 }

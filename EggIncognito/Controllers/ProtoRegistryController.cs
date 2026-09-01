@@ -38,7 +38,6 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
         string sha = "";
         if (hasProto) {
             var norm = ProtoCanonicalForm.Normalize(req.Proto!);
-            if (norm.Ok) protoText = norm.Text!;
             sha = norm.Ok ? norm.Sha! : ProtoHash.Of(req.Proto!);
         }
 
@@ -76,11 +75,8 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
         if (Require(UserRole.Contributor) is { } no) return no;
         if (Store is not { } store) return StatusCode(503, new { error = NoDb });
         if (string.IsNullOrWhiteSpace(req.Proto)) return StatusCode(400, new { error = "proto required" });
-        var norm = ProtoCanonicalForm.Normalize(req.Proto);
-        string protoText = norm.Ok ? norm.Text! : req.Proto;
-        string sha = norm.Ok ? norm.Sha! : ProtoHash.Of(req.Proto);
-        bool ok = await store.SetProtoAsync(platform, build, protoText, ct);
-        return ok ? Ok(new { ok = true, protoSha = sha }) : NotFound();
+        var sha = await store.SetProtoAsync(platform, build, req.Proto, ct);
+        return sha is null ? NotFound() : Ok(new { ok = true, protoSha = sha });
     }
 
     [HttpDelete("{platform}/{build}")]

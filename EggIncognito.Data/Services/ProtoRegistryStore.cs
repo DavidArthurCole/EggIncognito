@@ -49,12 +49,12 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db, IEnumerable<IPr
 
         if (writeProto && !string.IsNullOrEmpty(protoText)) {
             row.ProtoSha = protoSha ?? "";
-            await UpsertProtoProtoAsync(row.Id, protoText, messageIndex ?? "[]", ct);
+            await UpsertProtoProtoAsync(row.Id, protoText, messageIndex ?? "[]", row.ProtoSha, ct);
         }
     }
 
     private async Task UpsertProtoProtoAsync(int protoVersionId, string protoText, string? messageIndex,
-        CancellationToken ct) {
+        string protoSha, CancellationToken ct) {
         var pp = await db.ProtoProtos.FirstOrDefaultAsync(x => x.ProtoVersionId == protoVersionId, ct);
         if (pp is null) {
             pp = new ProtoProto { ProtoVersionId = protoVersionId };
@@ -64,6 +64,33 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db, IEnumerable<IPr
         pp.ProtoText = protoText;
         pp.MessageIndex = messageIndex ?? JsonSerializer.Serialize(ProtoTextIndex.Names(protoText));
         await db.SaveChangesAsync(ct);
+        await EnsureCanonicalAsync(protoSha, protoText, ct);
+    }
+
+    private async Task EnsureCanonicalAsync(string sha, string rawText, CancellationToken ct) {
+        if (string.IsNullOrEmpty(sha)) return;
+        if (await db.ProtoCanonicals.AsNoTracking().AnyAsync(c => c.ProtoSha == sha, ct)) return;
+
+        ProtoCanonicalForm.NormalizeResult norm;
+        try {
+            norm = ProtoCanonicalForm.Normalize(rawText);
+        } catch (Exception ex) {
+            norm = new ProtoCanonicalForm.NormalizeResult(false, null, null, ex.Message);
+        }
+
+        var entity = new ProtoCanonical {
+            ProtoSha = sha,
+            CanonicalText = norm.Ok ? norm.Text : null,
+            CanonicalSha = norm.Ok ? norm.Sha : null,
+            Ok = norm.Ok,
+            Error = norm.Ok ? null : norm.Error
+        };
+        db.ProtoCanonicals.Add(entity);
+        try {
+            await db.SaveChangesAsync(ct);
+        } catch (DbUpdateException) {
+            db.Entry(entity).State = EntityState.Detached;
+        }
     }
 
     public async Task<List<(string Platform, string Build, string ProtoText)>> LatestProtoTextsAsync(
@@ -131,7 +158,7 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db, IEnumerable<IPr
         await db.SaveChangesAsync(ct);
 
         if (!string.IsNullOrEmpty(protoText))
-            await UpsertProtoProtoAsync(row.Id, protoText, null, ct);
+            await UpsertProtoProtoAsync(row.Id, protoText, null, row.ProtoSha, ct);
 
         bool protoChanged = prevLatest is not null && prevLatest.ProtoSha != protoSha;
         var delta = VersionDeltaCalc.Classify(
@@ -299,19 +326,55 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db, IEnumerable<IPr
         return linked;
     }
 
-    public async Task<bool> SetProtoAsync(string platform, string build, string protoText, CancellationToken ct = default) {
+    public async Task<string?> SetProtoAsync(string platform, string build, string protoText, CancellationToken ct = default) {
         var row = await db.ProtoVersions.FirstOrDefaultAsync(p => p.Platform == platform && p.Build == build, ct);
-        if (row is null) return false;
+        if (row is null) return null;
 
         var norm = ProtoCanonicalForm.Normalize(protoText);
-        if (norm.Ok) protoText = norm.Text!;
         row.ProtoSha = norm.Ok ? norm.Sha! : ProtoHash.Of(protoText);
-        await UpsertProtoProtoAsync(row.Id, protoText, null, ct);
-        return true;
+        await UpsertProtoProtoAsync(row.Id, protoText, null, row.ProtoSha, ct);
+        return row.ProtoSha;
     }
 
     public Task<ProtoProto?> GetProtoAsync(int protoVersionId, CancellationToken ct = default) =>
         db.ProtoProtos.AsNoTracking().FirstOrDefaultAsync(x => x.ProtoVersionId == protoVersionId, ct);
+
+    public async Task<CanonicalText> GetCanonicalTextAsync(string sha, CancellationToken ct = default) {
+        if (string.IsNullOrEmpty(sha)) return new CanonicalText(false, null, null, null);
+
+        var row = await db.ProtoCanonicals.AsNoTracking().FirstOrDefaultAsync(c => c.ProtoSha == sha, ct);
+        if (row is not null) return new CanonicalText(row.Ok, row.CanonicalText, row.CanonicalSha, row.Error);
+
+        var versionId = await db.ProtoVersions.AsNoTracking()
+            .Where(v => v.ProtoSha == sha)
+            .Select(v => (int?)v.Id)
+            .FirstOrDefaultAsync(ct);
+        string? raw = versionId is null
+            ? null
+            : await db.ProtoProtos.AsNoTracking()
+                .Where(pp => pp.ProtoVersionId == versionId)
+                .Select(pp => pp.ProtoText)
+                .FirstOrDefaultAsync(ct);
+        if (string.IsNullOrEmpty(raw)) return new CanonicalText(false, null, null, null);
+
+        await EnsureCanonicalAsync(sha, raw, ct);
+        row = await db.ProtoCanonicals.AsNoTracking().FirstOrDefaultAsync(c => c.ProtoSha == sha, ct);
+        return row is not null
+            ? new CanonicalText(row.Ok, row.CanonicalText, row.CanonicalSha, row.Error)
+            : new CanonicalText(false, null, null, null);
+    }
+
+    public async Task<(ProtoProto? Raw, CanonicalText Canonical)> GetCanonicalForVersionAsync(
+        string platform, string build, CancellationToken ct = default) {
+        var version = await db.ProtoVersions.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Platform == platform && p.Build == build, ct);
+        if (version is null) return (null, new CanonicalText(false, null, null, null));
+
+        var raw = await db.ProtoProtos.AsNoTracking().FirstOrDefaultAsync(x => x.ProtoVersionId == version.Id, ct);
+        if (raw is null || string.IsNullOrEmpty(version.ProtoSha)) return (raw, new CanonicalText(false, null, null, null));
+
+        return (raw, await GetCanonicalTextAsync(version.ProtoSha, ct));
+    }
 
     public sealed record UpsertOutcome(
         ProtoVersion Row,
@@ -324,4 +387,6 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db, IEnumerable<IPr
     public sealed record MergeSuggestion(string AppVersion, string ProtoSha, IReadOnlyList<MergeMember> Members);
 
     public sealed record MergeMember(string Platform, string Build);
+
+    public sealed record CanonicalText(bool Ok, string? Text, string? Sha, string? Error);
 }
