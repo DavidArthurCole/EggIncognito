@@ -36,9 +36,9 @@ public sealed class RecertStep(
         if (connections.For(target) is not { } conn)
             return Failed(lines, "no connection for this device");
 
-        var id = await conn.ShellAsync("su -c id", ct);
-        if (!id.Stdout.Contains("uid=0", StringComparison.Ordinal))
-            return Skipped(lines, "device is not rooted; skipping recert");
+        var root = await DeviceRoot.ProbeAsync(conn, ct);
+        if (!root.Ok)
+            return Skipped(lines, $"device is not rooted ({root.Detail}); skipping recert");
 
         using var scope = scopeFactory.CreateScope();
         if (scope.ServiceProvider.GetService(typeof(DeviceRecertService)) is not DeviceRecertService recert)

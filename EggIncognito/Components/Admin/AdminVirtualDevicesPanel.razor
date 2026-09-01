@@ -1,4 +1,6 @@
 @rendermode @(RenderModes.InteractiveServer)
+@using EggIncognito.Core
+@using EggIncognito.Core.Services.Devices
 @using EggIncognito.Models.Devices
 @inherits BrowserApiComponentBase
 
@@ -97,6 +99,119 @@
                 }
             </div>
         }
+
+        <div class="vd-sub">
+            <div class="sub-section-head">Images</div>
+            @if (_images is { } iv) {
+                <div class="vd-head-meta text-xs text-muted">
+                    <span>active <span class="mono">@(iv.ActiveTag is { Length: > 0 } ? iv.ActiveTag : iv.ConfigImage)</span></span>
+                    @if (!iv.DockerOk) {
+                        <span class="text-err">docker unreachable</span>
+                    }
+                </div>
+                @if (iv.Note is { Length: > 0 } inote) {
+                    <div class="text-xs text-muted">@inote</div>
+                }
+
+                <div class="vd-build">
+                    <input type="text" class="field-input" @bind="_buildVer" placeholder="11.0.0"/>
+                    <label class="vd-check"><input type="checkbox" @bind="_gapps"/> gapps</label>
+                    <label class="vd-check"><input type="checkbox" @bind="_magisk"/> magisk</label>
+                    <label class="vd-check"><input type="checkbox" @bind="_ndk"/> ndk</label>
+                    <button type="button" class="btn-primary" disabled="@(_busy || !iv.BuildEnabled)" @onclick="BuildImage">
+                        Build
+                    </button>
+                </div>
+                @if (!iv.BuildEnabled) {
+                    <div class="text-xs text-muted">builds disabled (Devices:Virtual:Build:Enabled)</div>
+                }
+
+                @if (_build is { } b) {
+                    <div class="vd-note text-xs @(b.State == ImageBuildStates.Failed ? "text-err" : "text-muted")">
+                        build <span class="mono">@b.Tag</span>: @b.State@(b.Note is { Length: > 0 } bn ? $" - {bn}" : "")
+                    </div>
+                }
+
+                @if (iv.Images.Count == 0) {
+                    <div class="text-xs text-muted">no redroid images on this host</div>
+                } else {
+                    <div class="reg-wrap">
+                        <table class="data-table">
+                            <thead>
+                            <tr>
+                                <th>Tag</th><th>Size</th><th>Created</th><th></th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            @foreach (var img in iv.Images) {
+                                <tr class="@(img.Active ? "vd-row-active" : "")">
+                                    <td class="mono text-xs">@(img.Tag ?? "none")</td>
+                                    <td class="mono text-xs">@ByteFormat.Mb(img.Size, "F0")</td>
+                                    <td class="text-muted text-xs">
+                                        <TimeAgo Value="@img.Created" Hover="false"/>
+                                    </td>
+                                    <td class="vd-row-actions">
+                                        @if (img.Tag is { Length: > 0 } t) {
+                                            @if (!img.Active) {
+                                                <button type="button" class="btn-mini" disabled="@_busy"
+                                                        @onclick="() => UseImage(t)">
+                                                    use
+                                                </button>
+                                            }
+
+                                            <button type="button" class="btn-mini btn-danger" disabled="@_busy"
+                                                    @onclick="() => RemoveImage(t)">
+                                                remove
+                                            </button>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            } else {
+                <div class="text-xs text-muted">loading</div>
+            }
+        </div>
+
+        <div class="vd-sub">
+            <div class="vd-head">
+                <div class="sub-section-head">Integrity modules</div>
+                <div class="vd-head-actions">
+                    <button type="button" class="btn-secondary" disabled="@_busy" @onclick="RefreshModules">
+                        Refresh cache
+                    </button>
+                </div>
+            </div>
+            @if (_modules is { Count: > 0 } mods) {
+                <div class="reg-wrap">
+                    <table class="data-table">
+                        <thead>
+                        <tr>
+                            <th>Module</th><th>Version</th><th>Size</th><th>Source</th><th>State</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var m in mods) {
+                            <tr>
+                                <td class="mono text-xs">@m.Name</td>
+                                <td class="text-xs">@(m.Version ?? "?")</td>
+                                <td class="mono text-xs">@ByteFormat.Mb(m.ByteSize, "F1")</td>
+                                <td class="text-muted text-xs truncate">@m.Source</td>
+                                <td class="text-xs @(m.Error is { Length: > 0 } ? "text-err" : "")">
+                                    @(m.Error is { Length: > 0 } err ? err : m.Cached ? "cached" : "fetched")
+                                </td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            } else {
+                <div class="text-xs text-muted">no modules cached yet</div>
+            }
+        </div>
     </Detail>
 </AdminCard>
 
@@ -105,6 +220,13 @@
 
     VirtualDevicesStatus? _status;
     readonly Dictionary<string, DeviceReadiness> _readiness = [];
+    ImagesView? _images;
+    List<ModuleCacheRow>? _modules;
+    ImageBuildStatusView? _build;
+    string _buildVer = "11.0.0";
+    bool _gapps = true;
+    bool _magisk = true;
+    bool _ndk = true;
     string? _msg;
     StatusNoteKind _msgKind = StatusNoteKind.Info;
     bool _busy;
@@ -183,7 +305,23 @@
         }
 
         _status = res.Json<VirtualDevicesStatus>();
-        if (!quiet) await LoadReadiness();
+        if (!quiet) {
+            await LoadReadiness();
+            await LoadImages();
+            await LoadModules();
+        }
+    }
+
+    async Task LoadImages() {
+        if (Api is null) return;
+        var res = await Api.GetAsync("/api/devices/virtual/images");
+        if (res.Ok) _images = res.Json<ImagesView>();
+    }
+
+    async Task LoadModules() {
+        if (Api is null) return;
+        var res = await Api.GetAsync("/api/devices/virtual/modules");
+        if (res.Ok) _modules = res.Json<List<ModuleCacheRow>>();
     }
 
     async Task LoadReadiness() {
@@ -245,6 +383,98 @@
         }
 
         await Load();
+    }
+
+    async Task BuildImage() {
+        if (Api is null || _busy) return;
+        _busy = true;
+        _build = null;
+        long? id = null;
+        try {
+            var req = new ImageBuildRequest(_buildVer, _gapps, _magisk, _ndk, null);
+            var res = await Api.PostJsonAsync("/api/devices/virtual/images/build", req, TimeSpan.FromMinutes(2));
+            var start = res.Json<ImageBuildStartResult>();
+            if (!res.Ok || start is not { Ok: true, Id: { } sid }) {
+                Say($"build refused: {start?.Note ?? res.Describe()}", StatusNoteKind.Error);
+                return;
+            }
+
+            id = sid;
+            Say($"build {start.Tag} started, running in the background", StatusNoteKind.Ok);
+        }
+        finally {
+            _busy = false;
+        }
+
+        if (id is { } bid) _ = PollBuild(bid);
+    }
+
+    async Task PollBuild(long id) {
+        for (var i = 0; i < 300; i++) {
+            await Task.Delay(2000);
+            if (Api is null) return;
+            var res = await Api.GetAsync($"/api/devices/virtual/images/build/{id}");
+            if (!res.Ok || res.Json<ImageBuildStatusView>() is not { } b) continue;
+
+            _build = b;
+            await InvokeAsync(StateHasChanged);
+            if (!ImageBuildStates.IsTerminal(b.State)) continue;
+
+            Say(b.State == ImageBuildStates.Ready ? $"image {b.Tag} built" : $"build failed: {b.Note ?? "see log"}",
+                b.State == ImageBuildStates.Ready ? StatusNoteKind.Ok : StatusNoteKind.Error);
+            await LoadImages();
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+    }
+
+    async Task UseImage(string tag) {
+        if (Api is null || _busy) return;
+        _busy = true;
+        try {
+            var res = await Api.PostJsonAsync("/api/devices/virtual/images/use", new ImageUseRequest(tag));
+            var body = res.Json<VirtualActionResult>();
+            Say(res.Ok ? body?.Note ?? $"active image set to {tag}" : $"use failed: {res.Describe()}",
+                res.Ok ? StatusNoteKind.Ok : StatusNoteKind.Error);
+        }
+        finally {
+            _busy = false;
+        }
+
+        await LoadImages();
+    }
+
+    async Task RemoveImage(string tag) {
+        if (Api is null || _busy) return;
+        _busy = true;
+        try {
+            var res = await Api.PostJsonAsync("/api/devices/virtual/images/remove", new ImageRemoveRequest(tag));
+            var body = res.Json<VirtualActionResult>();
+            Say(res.Ok ? $"removed {tag}" : $"remove refused: {body?.Note ?? res.Describe()}",
+                res.Ok ? StatusNoteKind.Ok : StatusNoteKind.Error);
+        }
+        finally {
+            _busy = false;
+        }
+
+        await LoadImages();
+    }
+
+    async Task RefreshModules() {
+        if (Api is null || _busy) return;
+        _busy = true;
+        try {
+            var res = await Api.PostAsync("/api/devices/virtual/modules/refresh", TimeSpan.FromMinutes(2));
+            if (res.Ok) {
+                _modules = res.Json<List<ModuleCacheRow>>();
+                Say("module cache refreshed", StatusNoteKind.Ok);
+            } else {
+                Say($"refresh failed: {res.Describe()}", StatusNoteKind.Error);
+            }
+        }
+        finally {
+            _busy = false;
+        }
     }
 
     void Say(string message, StatusNoteKind kind) {

@@ -4,7 +4,7 @@ using Microsoft.Extensions.Configuration;
 namespace EggIncognito.Core.Services.Devices;
 
 public sealed record VirtualDeviceConfig {
-    public const string DefaultImage = "redroid/redroid:12.0.0_64only-latest";
+    public const string DefaultImage = "redroid/redroid:11.0.0_gapps_ndk_magisk";
     public const string DefaultSocket = "/var/run/docker.sock";
 
     public const string DefaultGmsPackage = "com.google.android.gms";

@@ -7,8 +7,8 @@ public sealed class VirtualDeviceReadinessProbe(
     IDeviceConnectionFactory connections,
     VirtualDeviceConfig config) {
     private const string IntegrityDetect =
-        "su -c 'ls -d /data/adb/modules/*integrity* 2>/dev/null; "
-        + "grep -il integrity /data/adb/modules/*/module.prop 2>/dev/null'";
+        "ls -d /data/adb/modules/*integrity* 2>/dev/null; "
+        + "grep -il integrity /data/adb/modules/*/module.prop 2>/dev/null";
     private const string SystemCaCerts = "/system/etc/security/cacerts/";
 
     public async Task<DeviceReadiness> ProbeAsync(DeviceTarget target, CancellationToken ct) {
@@ -22,10 +22,11 @@ public sealed class VirtualDeviceReadinessProbe(
             return new DeviceReadiness(no, no, no, no, no, no);
         }
 
+        var root = await DeviceRoot.ProbeAsync(conn, ct);
         var installed = await InstalledAsync(conn, target.Package, ct);
         var play = await GooglePlayAsync(conn, ct);
-        var rooted = await RootedAsync(conn, ct);
-        var integrity = await IntegrityAsync(conn, ct);
+        var rooted = RootedCheck(root);
+        var integrity = await IntegrityAsync(conn, root, ct);
         var launched = await LaunchedAsync(conn, target.Package, ct);
         var ca = await CaptureCaAsync(conn, ct);
         return new DeviceReadiness(installed, ca, play, rooted, integrity, launched);
@@ -45,15 +46,11 @@ public sealed class VirtualDeviceReadinessProbe(
             : new ReadinessCheck(false, $"no {config.GmsPackage}; image lacks Google Play (use the gapps image)");
     }
 
-    private static async Task<ReadinessCheck> RootedAsync(IDeviceConnection conn, CancellationToken ct) {
-        var r = await conn.ShellAsync("su -c id", ct);
-        return r.Stdout.Contains("uid=0", StringComparison.Ordinal)
-            ? new ReadinessCheck(true)
-            : new ReadinessCheck(false, "su did not report uid=0");
-    }
+    private static ReadinessCheck RootedCheck(RootAccess root) =>
+        root.Ok ? new ReadinessCheck(true) : new ReadinessCheck(false, root.Detail);
 
-    private static async Task<ReadinessCheck> IntegrityAsync(IDeviceConnection conn, CancellationToken ct) {
-        var r = await conn.ShellAsync(IntegrityDetect, ct);
+    private static async Task<ReadinessCheck> IntegrityAsync(IDeviceConnection conn, RootAccess root, CancellationToken ct) {
+        var r = await conn.ShellAsync(root.Wrap(IntegrityDetect), ct);
         return r.Stdout.Trim().Length > 0
             ? new ReadinessCheck(true)
             : new ReadinessCheck(false, "Integrity-Box module not found under /data/adb/modules");

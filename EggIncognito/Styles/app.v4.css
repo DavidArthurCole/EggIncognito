@@ -3408,6 +3408,12 @@ a.dsc-embed-title:hover { text-decoration: underline; }
 .vd-ready { @apply flex flex-wrap gap-2; }
 .vd-ready-ok { color: var(--color-ok); }
 .vd-ready-no { color: var(--color-muted); text-decoration: line-through; }
+.vd-sub { @apply flex flex-col gap-2 mt-4 pt-3 border-t border-border; }
+.vd-build { @apply flex flex-wrap items-center gap-2; }
+.vd-build .field-input { @apply w-24; }
+.vd-check { @apply flex items-center gap-1 text-xs text-muted; }
+.vd-row-actions { @apply flex items-center gap-1 justify-end; }
+.vd-row-active td { background: color-mix(in oklab, var(--color-accent) 10%, transparent); }
 
 .sub-section-head { @apply text-sm font-semibold text-fg; }
 .sub-form { @apply flex flex-col gap-4; }

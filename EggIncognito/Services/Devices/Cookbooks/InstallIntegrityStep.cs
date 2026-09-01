@@ -9,10 +9,10 @@ public sealed class InstallIntegrityStep(
     IDeviceConnectionFactory connections,
     IProcessRunner runner) : CookbookStep {
     private const string DisableZygiskSql =
-        "su -c 'magisk --sqlite \"REPLACE INTO settings (key,value) VALUES(\\\"zygisk\\\",0)\"'";
+        "magisk --sqlite \"REPLACE INTO settings (key,value) VALUES('zygisk',0)\"";
     private const string IntegrityDetect =
-        "su -c 'ls -d /data/adb/modules/*integrity* 2>/dev/null; "
-        + "grep -il integrity /data/adb/modules/*/module.prop 2>/dev/null'";
+        "ls -d /data/adb/modules/*integrity* 2>/dev/null; "
+        + "grep -il integrity /data/adb/modules/*/module.prop 2>/dev/null";
     private static readonly TimeSpan AdbTimeout = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan BootTimeout = TimeSpan.FromSeconds(150);
     private static readonly TimeSpan BootPollInterval = TimeSpan.FromSeconds(5);
@@ -43,17 +43,27 @@ public sealed class InstallIntegrityStep(
             return Skipped(lines, "integrity provisioning is not enabled");
         if (connections.For(target) is not { } conn)
             return Failed(lines, "no connection for this device");
-        if (!await RootedAsync(conn, target.Target, ct))
-            return Failed(lines, "device is not rooted; integrity install needs uid=0 (su or adb root)");
+
+        var root = await DeviceRoot.EnsureAsync(conn, runner, target.Target, ct);
+        if (!root.Ok)
+            return Failed(lines, $"device is not rooted ({root.Detail}); integrity install needs uid=0 (adb root or su)");
+        Add($"root: {root.Detail}");
+
+        string? magisk = await MagiskBinaryAsync(conn, root, ct);
+        if (magisk is null) {
+            return Failed(lines,
+                "magisk binary not found; the image has no Magisk bootstrapped into /data "
+                + "(rebuild the gapps+magisk image or seed the /data volume). integrity install needs Magisk");
+        }
 
         if (config.IntegrityDisableMagiskZygisk) {
             Add("disabling Magisk built-in Zygisk before installing the zygisk provider");
-            await conn.ShellAsync(DisableZygiskSql, ct);
-            if (!await RebootAsync(conn, target.Target, Add, ct))
+            await conn.ShellAsync(root.Wrap(DisableZygiskSql), ct);
+            if (await RebootAsync(conn, target.Target, Add, ct) is not { } after)
                 return Failed(lines, "device did not come back after the Zygisk-toggle reboot");
+            root = after;
         }
 
-        string magisk = await MagiskBinaryAsync(conn, ct);
         foreach (var spec in config.IntegrityModules) {
             var fetched = await fetcher.ResolveAsync(spec, false, ct);
             if (!fetched.Ok || fetched.Bytes is not { } bytes)
@@ -73,23 +83,29 @@ public sealed class InstallIntegrityStep(
             string? staged = await PushAsync(conn, bytes, spec.Name, remote, ct);
             if (staged is null) return Failed(lines, $"could not push module '{spec.Name}' to {remote}");
 
-            var install = await conn.ShellAsync($"su -c \"{magisk} --install-module {remote}\"", ct);
-            await conn.ShellAsync($"rm -f {remote}", ct);
+            var install = await conn.ShellAsync(root.Wrap($"{magisk} --install-module {remote}"), ct);
+            await conn.ShellAsync(root.Wrap($"rm -f {remote}"), ct);
             if (install.ExitCode != 0) {
                 return Failed(lines,
                     $"install of '{spec.Name}' failed: {DeviceParsing.TrimNote(install.Stderr + install.Stdout)}");
             }
 
             Add($"{spec.Name}: installed");
-            if (spec.RebootAfter && !await RebootAsync(conn, target.Target, Add, ct))
-                return Failed(lines, $"device did not come back after installing '{spec.Name}'");
+            if (spec.RebootAfter) {
+                if (await RebootAsync(conn, target.Target, Add, ct) is not { } after)
+                    return Failed(lines, $"device did not come back after installing '{spec.Name}'");
+                root = after;
+            }
         }
 
         bool lastRebooted = config.IntegrityModules is { Count: > 0 } m && m[^1].RebootAfter;
-        if (!lastRebooted && !await RebootAsync(conn, target.Target, Add, ct))
-            return Failed(lines, "device did not come back after the final reboot");
+        if (!lastRebooted) {
+            if (await RebootAsync(conn, target.Target, Add, ct) is not { } after)
+                return Failed(lines, "device did not come back after the final reboot");
+            root = after;
+        }
 
-        var verify = await conn.ShellAsync(IntegrityDetect, ct);
+        var verify = await conn.ShellAsync(root.Wrap(IntegrityDetect), ct);
         if (verify.Stdout.Trim().Length == 0)
             return Failed(lines, "Integrity-Box module not found under /data/adb/modules after install");
 
@@ -97,19 +113,14 @@ public sealed class InstallIntegrityStep(
         return Ok(lines, $"installed {config.IntegrityModules.Count} module(s)");
     }
 
-    private async Task<bool> RootedAsync(IDeviceConnection conn, string serial, CancellationToken ct) {
-        var su = await conn.ShellAsync("su -c id", ct);
-        if (su.Stdout.Contains("uid=0", StringComparison.Ordinal)) return true;
+    private static async Task<string?> MagiskBinaryAsync(IDeviceConnection conn, RootAccess root, CancellationToken ct) {
+        var onPath = await conn.ShellAsync(root.Wrap("command -v magisk"), ct);
+        if (onPath.Stdout.Trim().Length > 0) return "magisk";
 
-        await Adb(["-s", serial, "root"], ct);
-        await Adb(["connect", serial], ct);
-        var again = await conn.ShellAsync("su -c id", ct);
-        return again.Stdout.Contains("uid=0", StringComparison.Ordinal);
-    }
-
-    private static async Task<string> MagiskBinaryAsync(IDeviceConnection conn, CancellationToken ct) {
-        var probe = await conn.ShellAsync("su -c 'command -v magisk'", ct);
-        return probe.Stdout.Trim().Length > 0 ? "magisk" : "/data/adb/magisk/magisk";
+        var fallback = await conn.ShellAsync(root.Wrap("ls /data/adb/magisk/magisk 2>/dev/null"), ct);
+        return fallback.Stdout.Contains("/data/adb/magisk/magisk", StringComparison.Ordinal)
+            ? "/data/adb/magisk/magisk"
+            : null;
     }
 
     private static async Task<string?> PushAsync(
@@ -123,22 +134,24 @@ public sealed class InstallIntegrityStep(
         }
     }
 
-    private async Task<bool> RebootAsync(IDeviceConnection conn, string serial, Action<string> add, CancellationToken ct) {
+    private async Task<RootAccess?> RebootAsync(IDeviceConnection conn, string serial, Action<string> add, CancellationToken ct) {
         add("rebooting and waiting for boot");
-        await conn.ShellAsync("su -c reboot", ct);
+        await Adb(["-s", serial, "reboot"], ct);
 
         var deadline = DateTimeOffset.UtcNow + BootTimeout;
         while (DateTimeOffset.UtcNow < deadline) {
             await Task.Delay(BootPollInterval, ct);
             await Adb(["connect", serial], ct);
             var boot = await Adb(["-s", serial, "shell", "getprop sys.boot_completed"], ct);
-            if (boot.Stdout.Trim() == "1") {
-                add("boot completed");
-                return true;
-            }
+            if (boot.Stdout.Trim() != "1") continue;
+
+            add("boot completed");
+            var root = await DeviceRoot.EnsureAsync(conn, runner, serial, ct);
+            add($"root after reboot: {root.Detail}");
+            return root;
         }
 
-        return false;
+        return null;
     }
 
     private async Task<ProcessResult> Adb(string[] args, CancellationToken ct) {
