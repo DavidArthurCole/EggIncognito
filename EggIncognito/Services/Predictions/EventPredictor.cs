@@ -17,11 +17,19 @@ public sealed record EventStreamStats(
     int Samples);
 
 public sealed class EventPredictor(EggIncognitoDbContext db, EventDataVersion version, EventPredictionCache cache) {
+    internal const int MinStarts = 6;
+    internal const double MaxSpreadRatio = 0.35;
+    internal const double StalenessMedians = 2;
+    internal const double CollapseSeconds = 86400;
+    internal const double MadScale = 1.4826;
+    internal const double MinWindowRatio = 0.05;
+
     public async Task<EventPredictionSet> GetAsync(CancellationToken ct = default) {
         var stats = await GetStatsAsync(ct);
         double now = UnixSeconds.FromTime(DateTimeOffset.UtcNow);
         var predictions = stats
             .Select(s => Project(s, now))
+            .OfType<EventPrediction>()
             .OrderBy(p => p.PredictedStart)
             .ToList();
         return new EventPredictionSet(now, predictions);
@@ -53,8 +61,8 @@ public sealed class EventPredictor(EggIncognitoDbContext db, EventDataVersion ve
 
     public static EventStreamStats? StatsFor(
         string type, bool ultra, IReadOnlyList<EventOccurrence> occurrences) {
-        var starts = occurrences.Select(o => o.Start).Distinct().OrderBy(s => s).ToList();
-        if (starts.Count < 4) return null;
+        var starts = CollapseStarts(occurrences);
+        if (starts.Count < MinStarts) return null;
 
         var intervals = new List<double>(starts.Count - 1);
         for (int i = 1; i < starts.Count; i++) intervals.Add(starts[i] - starts[i - 1]);
@@ -62,21 +70,40 @@ public sealed class EventPredictor(EggIncognitoDbContext db, EventDataVersion ve
         double spread = RobustStats.Mad(intervals, median);
         if (IsUnstable(median, spread)) return null;
 
-        double duration = RobustStats.Median(occurrences.Select(o => o.End - o.Start).ToList());
+        var durationByStart = new Dictionary<double, double>();
+        foreach (var o in occurrences) durationByStart.TryAdd(o.Start, o.End - o.Start);
+        double duration = RobustStats.Median(starts.Select(s => durationByStart[s]).ToList());
         return new EventStreamStats(type, ultra, starts[^1], median, duration, spread, starts.Count);
     }
 
-    public static EventPrediction Project(EventStreamStats stats, double now) {
+    public static EventPrediction? Project(EventStreamStats stats, double now) {
+        if (now - stats.LastStart > StalenessMedians * stats.MedianIntervalSeconds) return null;
+
         double predictedStart = stats.LastStart + stats.MedianIntervalSeconds;
-        while (stats.MedianIntervalSeconds > 0 && predictedStart < now) predictedStart += stats.MedianIntervalSeconds;
+        int skipped = 0;
+        while (stats.MedianIntervalSeconds > 0 && predictedStart < now) {
+            predictedStart += stats.MedianIntervalSeconds;
+            skipped++;
+        }
+        double window = Math.Max(MadScale * stats.WindowSeconds, MinWindowRatio * stats.MedianIntervalSeconds)
+                        * Math.Sqrt(skipped + 1);
         return new EventPrediction(
             stats.Type, stats.Ultra, stats.LastStart, stats.MedianIntervalSeconds,
-            predictedStart, predictedStart + stats.DurationSeconds, stats.WindowSeconds, stats.Samples);
+            predictedStart, predictedStart + stats.DurationSeconds, window, stats.Samples, skipped);
     }
 
     public static EventPrediction? PredictGroup(
         string type, bool ultra, IReadOnlyList<EventOccurrence> occurrences, double now) =>
         StatsFor(type, ultra, occurrences) is { } stats ? Project(stats, now) : null;
 
-    internal static bool IsUnstable(double median, double spread) => median <= 0 || spread > median;
+    internal static List<double> CollapseStarts(IReadOnlyList<EventOccurrence> occurrences) {
+        var sorted = occurrences.Select(o => o.Start).Distinct().OrderBy(s => s).ToList();
+        var kept = new List<double>(sorted.Count);
+        foreach (double s in sorted) {
+            if (kept.Count == 0 || s - kept[^1] >= CollapseSeconds) kept.Add(s);
+        }
+        return kept;
+    }
+
+    internal static bool IsUnstable(double median, double spread) => median <= 0 || spread > MaxSpreadRatio * median;
 }

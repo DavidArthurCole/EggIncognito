@@ -17,7 +17,7 @@ public class ContractSlotsTests {
 
         var slot = Assert.Single(slots);
         Assert.Equal(UtcSeconds(2026, 6, 17, 16), slot.Time);
-        Assert.Equal(ContractSlotKind.Leggacy, slot.Kind);
+        Assert.Equal(Assert.Single(ContractSlots.KindsFor(DayOfWeek.Wednesday)), slot.Kind);
     }
 
     [Fact]
@@ -26,7 +26,7 @@ public class ContractSlotsTests {
 
         var slot = Assert.Single(slots);
         Assert.Equal(UtcSeconds(2026, 1, 14, 17), slot.Time);
-        Assert.Equal(ContractSlotKind.Leggacy, slot.Kind);
+        Assert.Equal(Assert.Single(ContractSlots.KindsFor(DayOfWeek.Wednesday)), slot.Kind);
     }
 
     [Fact]
@@ -34,8 +34,10 @@ public class ContractSlotsTests {
         var slots = ContractSlots.Next(Utc(2026, 6, 19, 20), 5);
 
         ContractSlotKind[] expected = [
-            ContractSlotKind.NewContract, ContractSlotKind.Leggacy,
-            ContractSlotKind.PeLeggacy, ContractSlotKind.PeLeggacyUltra, ContractSlotKind.NewContract
+            .. ContractSlots.KindsFor(DayOfWeek.Monday),
+            .. ContractSlots.KindsFor(DayOfWeek.Wednesday),
+            .. ContractSlots.KindsFor(DayOfWeek.Friday),
+            .. ContractSlots.KindsFor(DayOfWeek.Monday)
         ];
 
         Assert.Equal(5, slots.Count);
@@ -53,7 +55,7 @@ public class ContractSlotsTests {
         var slots = ContractSlots.Next(Utc(2026, 6, 19, 16), 1);
 
         var slot = Assert.Single(slots);
-        Assert.Equal(ContractSlotKind.NewContract, slot.Kind);
+        Assert.Equal(Assert.Single(ContractSlots.KindsFor(DayOfWeek.Monday)), slot.Kind);
         Assert.Equal(UtcSeconds(2026, 6, 22, 16), slot.Time);
     }
 
@@ -61,9 +63,8 @@ public class ContractSlotsTests {
     public void Next_HorizonSplittingFridayPair_KeepsBoth() {
         var slots = ContractSlots.Next(Utc(2026, 6, 17, 20), 1);
 
+        Assert.Equal(ContractSlots.KindsFor(DayOfWeek.Friday), [.. slots.Select(s => s.Kind)]);
         Assert.Equal(2, slots.Count);
-        Assert.Equal(ContractSlotKind.PeLeggacy, slots[0].Kind);
-        Assert.Equal(ContractSlotKind.PeLeggacyUltra, slots[1].Kind);
         Assert.Equal(slots[0].Time, slots[1].Time);
     }
 
@@ -78,4 +79,16 @@ public class ContractSlotsTests {
     [Fact]
     public void Next_NonPositiveHorizon_ReturnsEmpty() =>
         Assert.Empty(ContractSlots.Next(Utc(2026, 6, 17, 20), 0));
+
+    [Fact]
+    public void IsGridSlot_SlotTimeWithinTolerance_True() {
+        Assert.True(ContractSlots.IsGridSlot(UtcSeconds(2026, 6, 19, 16), 300));
+        Assert.True(ContractSlots.IsGridSlot(UtcSeconds(2026, 6, 19, 16) + 240, 300));
+    }
+
+    [Fact]
+    public void IsGridSlot_OffGridWeekdayOrTime_False() {
+        Assert.False(ContractSlots.IsGridSlot(UtcSeconds(2026, 6, 16, 16), 300));
+        Assert.False(ContractSlots.IsGridSlot(UtcSeconds(2026, 6, 19, 17), 300));
+    }
 }

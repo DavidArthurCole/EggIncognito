@@ -8,4 +8,5 @@ public sealed record EventPrediction(
     double PredictedStart,
     double PredictedEnd,
     double WindowSeconds,
-    int Samples);
+    int Samples,
+    int SkippedPeriods);
