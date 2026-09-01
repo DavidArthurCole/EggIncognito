@@ -10,9 +10,9 @@ public sealed record VirtualDeviceConfig {
     public const string DefaultGmsPackage = "com.google.android.gms";
 
     public static readonly IReadOnlyList<IntegrityModuleSpec> DefaultIntegrityModules = [
-        new IntegrityModuleSpec("zygisk", "Dr-TSNG/ZygiskNext", null, null, null, true),
-        new IntegrityModuleSpec("tee", "JingMatrix/TEESimulator", null, null, null, false),
-        new IntegrityModuleSpec("integrity-box", "MeowDump/Integrity-Box", null, null, null, true)
+        new IntegrityModuleSpec("zygisk", "Dr-TSNG/ZygiskNext", null, "v1.5.0", null, true),
+        new IntegrityModuleSpec("tee", "JingMatrix/TEESimulator", null, "v4.0", null, false),
+        new IntegrityModuleSpec("integrity-box", "MeowDump/Integrity-Box", null, "v41", null, true)
     ];
 
     public bool Enabled { get; init; }

@@ -104,14 +104,18 @@ public sealed class ModuleFetcher(
         if (!doc.RootElement.TryGetProperty("assets", out var assets) || assets.ValueKind != JsonValueKind.Array)
             throw new InvalidOperationException($"{repo}@{tag}: release has no assets");
 
+        var zips = new List<(string Name, string Url)>();
         foreach (var asset in assets.EnumerateArray()) {
             string? name = asset.TryGetProperty("name", out var n) ? n.GetString() : null;
             if (name is null || !name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)) continue;
             string? url = asset.TryGetProperty("browser_download_url", out var u) ? u.GetString() : null;
-            if (url is { Length: > 0 }) return (url, tag);
+            if (url is { Length: > 0 }) zips.Add((name, url));
         }
 
-        throw new InvalidOperationException($"{repo}@{tag}: release has no .zip asset");
+        if (zips.Count == 0) throw new InvalidOperationException($"{repo}@{tag}: release has no .zip asset");
+
+        var release = zips.FirstOrDefault(z => !z.Name.Contains("debug", StringComparison.OrdinalIgnoreCase));
+        return (release.Url ?? zips[0].Url, tag);
     }
 
     private static string? Nz(string? s) => string.IsNullOrWhiteSpace(s) ? null : s;

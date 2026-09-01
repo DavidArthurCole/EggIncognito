@@ -119,6 +119,7 @@
                                 <span class="@WorkbenchStatus.Class(WorkbenchStatus.Parse(RunStateWord()))">
                                     @RunStateLine()
                                 </span>
+                                <CopyButton GetText="RunReport" Label="Copy" CopiedLabel="Copied" ShowIcon="false"/>
                                 @if (_runJobId is not null && !_runDone) {
                                     <button type="button" class="btn-mini" disabled="@_stopBusy" @onclick="StopRunAsync">
                                         @(_stopBusy ? "Stopping..." : "Stop")
@@ -742,6 +743,23 @@
         if (_runOk) return _runNote is { Length: > 0 } ok ? $"done, {ok}" : "done";
         if (_runFailedStep is { Length: > 0 } step) return $"failed at {step}";
         return _runNote is { Length: > 0 } note ? $"failed, {note}" : "failed";
+    }
+
+    string RunReport() {
+        var sb = new System.Text.StringBuilder();
+        sb.Append(_runTitle ?? "run").Append(' ').AppendLine(RunStateLine());
+        foreach (var step in _steps) {
+            sb.Append("- ").Append(step.Title).Append(": ").Append(StepStateWord(step.Status));
+            if (step.Note is { Length: > 0 } note) sb.Append(" (").Append(note).Append(')');
+            sb.AppendLine();
+        }
+
+        if (_runLog.Count > 0) {
+            sb.AppendLine();
+            foreach (var line in _runLog) sb.AppendLine(line);
+        }
+
+        return sb.ToString();
     }
 
     async Task LoadDumpAsync() {

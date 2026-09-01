@@ -116,6 +116,7 @@ public sealed class DeviceCookbookRunner(
             await scoped.CancelAsync(job, $"{request.CookbookId} stopped by an admin", CancellationToken.None);
         } catch (Exception ex) {
             logger.LogError(ex, "cookbook: {Cookbook} on {Device} threw", request.CookbookId, job.DeviceId);
+            await scoped.ProgressAsync(job, ex.ToString(), DeviceJobLevels.Error, CancellationToken.None);
             await scoped.FailAsync(job, ex.Message, CancellationToken.None);
         } finally {
             _cancellations.TryRemove(new KeyValuePair<string, CancellationTokenSource>(job.DeviceId, cts));

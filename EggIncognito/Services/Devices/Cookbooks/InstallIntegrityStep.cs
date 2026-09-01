@@ -20,6 +20,7 @@ public sealed class InstallIntegrityStep(
     private static readonly TimeSpan AdbTimeout = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan BootTimeout = TimeSpan.FromSeconds(150);
     private static readonly TimeSpan BootPollInterval = TimeSpan.FromSeconds(5);
+    private const int RootRetries = 6;
 
     public override string Id => DeviceCookbookIds.InstallIntegrity;
     public override string Title => "Install integrity chain";
@@ -63,8 +64,8 @@ public sealed class InstallIntegrityStep(
         if (config.IntegrityDisableMagiskZygisk) {
             Add("disabling Magisk built-in Zygisk before installing the zygisk provider");
             await conn.ShellAsync(root.Wrap($"{magisk} {ZygiskOffSql}"), ct);
-            if (await RebootAsync(conn, target.Target, Add, ct) is not { } after)
-                return Failed(lines, "device did not come back after the Zygisk-toggle reboot");
+            if (await RebootAsync(conn, target.Target, Add, ct) is not { Ok: true } after)
+                return Failed(lines, "device did not come back rooted after the Zygisk-toggle reboot");
             root = after;
         }
 
@@ -96,16 +97,16 @@ public sealed class InstallIntegrityStep(
 
             Add($"{spec.Name}: installed");
             if (spec.RebootAfter) {
-                if (await RebootAsync(conn, target.Target, Add, ct) is not { } after)
-                    return Failed(lines, $"device did not come back after installing '{spec.Name}'");
+                if (await RebootAsync(conn, target.Target, Add, ct) is not { Ok: true } after)
+                    return Failed(lines, $"device did not come back rooted after installing '{spec.Name}'");
                 root = after;
             }
         }
 
         bool lastRebooted = config.IntegrityModules is { Count: > 0 } m && m[^1].RebootAfter;
         if (!lastRebooted) {
-            if (await RebootAsync(conn, target.Target, Add, ct) is not { } after)
-                return Failed(lines, "device did not come back after the final reboot");
+            if (await RebootAsync(conn, target.Target, Add, ct) is not { Ok: true } after)
+                return Failed(lines, "device did not come back rooted after the final reboot");
             root = after;
         }
 
@@ -150,7 +151,13 @@ public sealed class InstallIntegrityStep(
             if (boot.Stdout.Trim() != "1") continue;
 
             add("boot completed");
-            var root = await DeviceRoot.EnsureAsync(conn, runner, serial, ct);
+            RootAccess root = RootAccess.None;
+            for (var attempt = 0; attempt < RootRetries; attempt++) {
+                root = await DeviceRoot.EnsureAsync(conn, runner, serial, ct);
+                if (root.Ok) break;
+                await Task.Delay(BootPollInterval, ct);
+            }
+
             add($"root after reboot: {root.Detail}");
             return root;
         }
