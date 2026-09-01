@@ -19,7 +19,6 @@ public static class VirtualDeviceServices {
         builder.Services.AddScoped<ProvisionedInstanceStore>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<VirtualDeviceLifecycle>());
 
-        if (!config.Build.Enabled) return;
         builder.Services.AddHttpClient(ImageBuilder.HttpClientName, c => {
             c.Timeout = TimeSpan.FromMinutes(10);
             c.MaxResponseContentBufferSize = 512L * 1024 * 1024;

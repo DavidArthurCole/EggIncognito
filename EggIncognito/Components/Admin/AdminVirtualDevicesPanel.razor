@@ -171,6 +171,8 @@
                         </table>
                     </div>
                 }
+            } else if (_imagesErr is { Length: > 0 } ierr) {
+                <div class="text-xs text-muted">images unavailable: @ierr</div>
             } else {
                 <div class="text-xs text-muted">loading</div>
             }
@@ -221,6 +223,7 @@
     VirtualDevicesStatus? _status;
     readonly Dictionary<string, DeviceReadiness> _readiness = [];
     ImagesView? _images;
+    string? _imagesErr;
     List<ModuleCacheRow>? _modules;
     ImageBuildStatusView? _build;
     string _buildVer = "11.0.0";
@@ -315,7 +318,12 @@
     async Task LoadImages() {
         if (Api is null) return;
         var res = await Api.GetAsync("/api/devices/virtual/images");
-        if (res.Ok) _images = res.Json<ImagesView>();
+        if (res.Ok) {
+            _images = res.Json<ImagesView>();
+            _imagesErr = null;
+        } else {
+            _imagesErr = res.Describe();
+        }
     }
 
     async Task LoadModules() {
@@ -342,7 +350,7 @@
                 TimeSpan.FromMinutes(2));
             var body = res.Json<VirtualActionResult>();
             Say(res.Ok
-                    ? $"provisioned {body?.InstanceId ?? "instance"}, it boots in the background"
+                    ? $"provisioned {body?.InstanceId ?? "instance"}"
                     : $"provision failed: {body?.Note ?? res.Describe()}",
                 res.Ok ? StatusNoteKind.Ok : StatusNoteKind.Error);
         }

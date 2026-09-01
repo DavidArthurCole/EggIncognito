@@ -137,8 +137,8 @@ public sealed class DeviceCookbookRunner(
         });
 
     private static string Summarize(DeviceCookbookRun run) {
-        if (run.Ok) return run.Note is { Length: > 0 } ok ? $"{run.CookbookId}: {ok}" : $"{run.CookbookId} ok";
+        if (run.Ok) return run.Note is { Length: > 0 } ok ? ok : "ok";
         string where = run.FailedStep is { Length: > 0 } step ? $" at {step}" : "";
-        return $"{run.CookbookId} failed{where}: {run.Note ?? "no detail"}";
+        return run.Note is { Length: > 0 } detail ? $"{detail}{where}" : $"failed{where}";
     }
 }

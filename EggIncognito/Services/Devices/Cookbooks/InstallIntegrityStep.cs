@@ -8,8 +8,12 @@ public sealed class InstallIntegrityStep(
     ModuleFetcher fetcher,
     IDeviceConnectionFactory connections,
     IProcessRunner runner) : CookbookStep {
-    private const string DisableZygiskSql =
-        "magisk --sqlite \"REPLACE INTO settings (key,value) VALUES('zygisk',0)\"";
+    private const string ZygiskOffSql =
+        "--sqlite \"REPLACE INTO settings (key,value) VALUES('zygisk',0)\"";
+    private static readonly string[] MagiskPaths = [
+        "/sbin/magisk", "/debug_ramdisk/magisk",
+        "/system/etc/init/magisk/magisk", "/data/adb/magisk/magisk"
+    ];
     private const string IntegrityDetect =
         "ls -d /data/adb/modules/*integrity* 2>/dev/null; "
         + "grep -il integrity /data/adb/modules/*/module.prop 2>/dev/null";
@@ -58,7 +62,7 @@ public sealed class InstallIntegrityStep(
 
         if (config.IntegrityDisableMagiskZygisk) {
             Add("disabling Magisk built-in Zygisk before installing the zygisk provider");
-            await conn.ShellAsync(root.Wrap(DisableZygiskSql), ct);
+            await conn.ShellAsync(root.Wrap($"{magisk} {ZygiskOffSql}"), ct);
             if (await RebootAsync(conn, target.Target, Add, ct) is not { } after)
                 return Failed(lines, "device did not come back after the Zygisk-toggle reboot");
             root = after;
@@ -114,13 +118,13 @@ public sealed class InstallIntegrityStep(
     }
 
     private static async Task<string?> MagiskBinaryAsync(IDeviceConnection conn, RootAccess root, CancellationToken ct) {
-        var onPath = await conn.ShellAsync(root.Wrap("command -v magisk"), ct);
-        if (onPath.Stdout.Trim().Length > 0) return "magisk";
+        foreach (string p in MagiskPaths) {
+            var probe = await conn.ShellAsync(root.Wrap($"[ -x {p} ] && echo yes"), ct);
+            if (probe.Stdout.Contains("yes", StringComparison.Ordinal)) return p;
+        }
 
-        var fallback = await conn.ShellAsync(root.Wrap("ls /data/adb/magisk/magisk 2>/dev/null"), ct);
-        return fallback.Stdout.Contains("/data/adb/magisk/magisk", StringComparison.Ordinal)
-            ? "/data/adb/magisk/magisk"
-            : null;
+        var onPath = await conn.ShellAsync(root.Wrap("command -v magisk"), ct);
+        return onPath.Stdout.Trim().Length > 0 ? "magisk" : null;
     }
 
     private static async Task<string?> PushAsync(
