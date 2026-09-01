@@ -13,7 +13,7 @@ public class ThemeDeliveryTests(SharedAppFactory f) {
         var c = _f.CreateClient();
         string html = await c.GetStringAsync("/");
         Assert.DoesNotContain("id=\"egi-theme\"", html);
-        Assert.DoesNotContain("data-egi-theme", html);
+        Assert.DoesNotContain("data-eggidentity-theme", html);
     }
 
     [Fact]

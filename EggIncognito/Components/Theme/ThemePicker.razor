@@ -4,6 +4,7 @@
 @inject IWebHostEnvironment HostEnv
 @using System.Text
 @using System.Text.Json
+@using EggIdentity.Styles.Theming
 @using EggIncognito.Models.Theme
 @using EggIncognito.Services.Theme
 @implements IAsyncDisposable
@@ -147,12 +148,12 @@
 
     static Dictionary<string, string> TokenCssMap(ThemeModel model) {
         var map = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var token in ThemeTokens.Settable) map[token] = model.ResolveToken(token).ToCss();
+        foreach (var token in ThemeTokens.Settable) map[token] = model.TokenOrDefault(token).ToCss();
         return map;
     }
 
     static string AccentCss(ThemeModel preset) {
-        return preset.ResolveToken("accent").ToCss();
+        return preset.TokenOrDefault("accent").ToCss();
     }
 
     void SetStatus(string message, StatusNoteKind kind, ThemeStatusSource source, bool needsReload = false) {

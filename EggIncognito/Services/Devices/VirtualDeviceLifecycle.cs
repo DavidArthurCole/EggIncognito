@@ -1,7 +1,6 @@
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
-using EggIncognito.Services.Devices.Cookbooks;
 
 namespace EggIncognito.Services.Devices;
 
@@ -9,8 +8,6 @@ public sealed class VirtualDeviceLifecycle(
     IServiceScopeFactory scopeFactory,
     IDeviceProvisioners provisioners,
     VirtualDeviceConfig config,
-    InstallAppCookbook installApp,
-    LaunchAppCookbook launchApp,
     IProcessRunner runner,
     TimeProvider time,
     ILogger<VirtualDeviceLifecycle> logger) : BackgroundService {
@@ -249,23 +246,24 @@ public sealed class VirtualDeviceLifecycle(
             return;
         _lastBootstrap[instanceId] = time.GetUtcNow();
 
-        var target = new DeviceTarget(deviceId, Platforms.Android, serial, Package);
-        var install = await installApp.RunAsync(new DeviceCookbookContext(target, null, Line(instanceId)), ct);
-        if (!install.Ok) {
-            await store.SetStateAsync(instanceId, ProvisionStates.Failed,
-                install.Note ?? $"install-app failed at {install.FailedStep ?? "?"}", ct);
+        using var scope = scopeFactory.CreateScope();
+        if (scope.ServiceProvider.GetService(typeof(DeviceCookbookRunner)) is not DeviceCookbookRunner cookbookRunner) {
+            logger.LogWarning("virtual devices: {Id} cannot bring up egg inc, no cookbook runner (db disabled?)",
+                instanceId);
             return;
         }
 
-        var launch = await launchApp.RunAsync(new DeviceCookbookContext(target, null, Line(instanceId)), ct);
-        string launched = launch.Ok ? "and launched" : "but could not be launched";
-        await store.SetStateAsync(instanceId, ProvisionStates.Ready, $"egg inc installed {launched}", ct);
-        logger.LogInformation("virtual devices: {Id} installed egg inc {Launched} on {Device}",
-            instanceId, launched, deviceId);
-    }
+        var run = await cookbookRunner.RunNowAsync(
+            deviceId, new DeviceCookbookRequest(DeviceCookbookIds.BringUp, null), "auto:provision", ct);
+        if (!run.Ok) {
+            await store.SetStateAsync(instanceId, ProvisionStates.Failed,
+                run.Note ?? $"bring-up failed at {run.FailedStep ?? "?"}", ct);
+            return;
+        }
 
-    private Action<string> Line(string instanceId) =>
-        line => logger.LogInformation("virtual devices: {Id} {Line}", instanceId, line);
+        await store.SetStateAsync(instanceId, ProvisionStates.Ready, run.Note ?? "egg inc brought up", ct);
+        logger.LogInformation("virtual devices: {Id} brought up egg inc on {Device}", instanceId, deviceId);
+    }
 
     private async Task<bool> BootCompletedAsync(string serial, CancellationToken ct) {
         await Adb(["connect", serial], AdbTimeout, ct);

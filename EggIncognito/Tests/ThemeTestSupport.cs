@@ -1,3 +1,4 @@
+using EggIdentity.Styles.Theming;
 using EggIncognito.Services.Theme;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.FileProviders;
@@ -6,8 +7,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace EggIncognito.Tests;
 
 public static class ThemeTestSupport {
-    public static ThemeCssSerializer Serializer(string environment = "Production") =>
-        new(new FakeWebHostEnvironment(environment), NullLogger<ThemeCssSerializer>.Instance);
+    public static ThemeCssEmitter Serializer(string environment = "Production") =>
+        new(new FakeWebHostEnvironment(environment), NullLogger<ThemeCssEmitter>.Instance);
 
     public static ThemeModel WithCss(this ThemeModel model, string css) => model with { Css = css };
 

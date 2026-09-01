@@ -1,3 +1,5 @@
+using EggIncognito.Core.Services.Devices;
+
 namespace EggIncognito.Models.Devices;
 
 public sealed record DeviceCookbookRunView(
@@ -9,4 +11,5 @@ public sealed record DeviceCookbookRunView(
     DateTimeOffset StartedAt,
     DateTimeOffset? FinishedAt,
     bool Running,
-    IReadOnlyList<string> Log);
+    IReadOnlyList<string> Log,
+    IReadOnlyList<CookbookStepResult>? Steps = null);

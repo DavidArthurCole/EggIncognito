@@ -13,7 +13,7 @@
 
   try {
     var lockAccent = document.currentScript?.dataset.lockAccent === "1";
-    if (document.documentElement.dataset.egiTheme) return;
+    if (document.documentElement.dataset.eggidentityTheme) return;
     if (localStorage.getItem("theme.active") !== "1") return;
     var raw = localStorage.getItem("theme.model");
     if (!raw) return;

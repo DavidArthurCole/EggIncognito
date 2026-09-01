@@ -569,6 +569,19 @@ public sealed class DevicesController(
         return Ok(dto);
     }
 
+    [HttpGet("{id}/readiness")]
+    [ApiAccess(ApiAccessLevel.Admin)]
+    [EnableRateLimiting("read")]
+    public async Task<IActionResult> Readiness(string id, CancellationToken ct) {
+        if (RequireAdmin() is { } no) return no;
+        (IActionResult? err, _, var target) = await ResolveUiAsync(id, ct);
+        if (err is not null) return err;
+        if (services.GetService(typeof(VirtualDeviceReadinessProbe)) is not VirtualDeviceReadinessProbe probe)
+            return StatusCode(503, new { error = "readiness probe not configured" });
+
+        return Ok(await probe.ProbeAsync(target, ct));
+    }
+
     private IActionResult? BridgeGate() {
         if (services.GetService(typeof(DeviceTransportConfig)) is not DeviceTransportConfig cfg || !cfg.BridgeEnabled)
             return NotFound();

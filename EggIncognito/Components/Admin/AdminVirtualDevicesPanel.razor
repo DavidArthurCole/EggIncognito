@@ -65,6 +65,14 @@
                             <dd class="mono">@(i.DeviceId ?? "not registered")</dd>
                             <dt>capture</dt>
                             <dd>@FlowLine(i)</dd>
+                            @if (i.DeviceId is { Length: > 0 } rid && _readiness.TryGetValue(rid, out var rr)) {
+                                <dt>ready</dt>
+                                <dd class="vd-ready">
+                                    <span class="@ReadyCss(rr.GooglePlay)">GMS</span>
+                                    <span class="@ReadyCss(rr.Rooted)">root</span>
+                                    <span class="@ReadyCss(rr.IntegrityModule)">integrity</span>
+                                </dd>
+                            }
                             <dt>up</dt>
                             <dd>
                                 <TimeAgo Value="@i.CreatedAt" Hover="false"/>
@@ -96,6 +104,7 @@
     [Parameter] public EventCallback<string> OnConsole { get; set; }
 
     VirtualDevicesStatus? _status;
+    readonly Dictionary<string, DeviceReadiness> _readiness = [];
     string? _msg;
     StatusNoteKind _msgKind = StatusNoteKind.Info;
     bool _busy;
@@ -120,6 +129,10 @@
 
     static string StateLabel(VirtualInstanceRow row) {
         return row.ContainerPresent ? row.State : $"{row.State}, no container";
+    }
+
+    static string ReadyCss(ReadinessCheck check) {
+        return check.Ok ? "vd-ready-ok" : "vd-ready-no";
     }
 
     static string DotCss(VirtualInstanceRow row) {
@@ -170,6 +183,17 @@
         }
 
         _status = res.Json<VirtualDevicesStatus>();
+        if (!quiet) await LoadReadiness();
+    }
+
+    async Task LoadReadiness() {
+        if (Api is null || _status is null) return;
+        _readiness.Clear();
+        foreach (var i in _status.Instances) {
+            if (i.DeviceId is not { Length: > 0 } did) continue;
+            var res = await Api.GetAsync($"/api/devices/{did}/readiness");
+            if (res.Ok && res.Json<DeviceReadiness>() is { } r) _readiness[did] = r;
+        }
     }
 
     async Task Create() {

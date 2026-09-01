@@ -1,3 +1,4 @@
+using EggIdentity.Styles.Theming;
 using EggIncognito.Services.Theme;
 
 namespace EggIncognito.Tests;
@@ -42,7 +43,7 @@ public class ThemeSerializerOutputTests {
     public void LiveScope_PrefixesTheHtmlAttributeSelector() {
         string css = ThemeTestSupport.Serializer()
             .Serialize(ThemePresets.Default.WithCss("panel { color: red }"), ThemeScope.Live, true);
-        Assert.Contains("html[data-egi-theme=\"u\"] .panel", css);
+        Assert.Contains("html[data-eggidentity-theme=\"u\"] .panel", css);
         Assert.DoesNotContain(".theme-preview-scope", css);
     }
 
@@ -51,7 +52,7 @@ public class ThemeSerializerOutputTests {
         string css = ThemeTestSupport.Serializer()
             .Serialize(ThemePresets.Default.WithCss("panel { color: red }"), ThemeScope.Preview, true);
         Assert.Contains(".theme-preview-scope .panel", css);
-        Assert.DoesNotContain("html[data-egi-theme", css);
+        Assert.DoesNotContain("html[data-eggidentity-theme", css);
     }
 
     [Fact]
@@ -65,8 +66,8 @@ public class ThemeSerializerOutputTests {
     public void MultiSelectorCatalogEntry_ScopesEveryPart() {
         string css = ThemeTestSupport.Serializer()
             .Serialize(ThemePresets.Default.WithCss("input { color: red }"), ThemeScope.Live, true);
-        Assert.Contains("html[data-egi-theme=\"u\"] .reg-filter-input", css);
-        Assert.Contains("html[data-egi-theme=\"u\"] .protos-filter", css);
+        Assert.Contains("html[data-eggidentity-theme=\"u\"] .reg-filter-input", css);
+        Assert.Contains("html[data-eggidentity-theme=\"u\"] .protos-filter", css);
     }
 
     [Fact]

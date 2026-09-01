@@ -1,3 +1,4 @@
+using EggIdentity.Styles.Theming;
 using EggIncognito.Services.Theme;
 
 namespace EggIncognito.Tests;
@@ -6,7 +7,7 @@ public class ThemeContrastTests {
     [Fact]
     public void EveryShippedPreset_PassesValidation() {
         foreach (var preset in ThemePresets.All) {
-            var result = ThemeContrast.Validate(preset);
+            var result = ThemePalette.Contrast(preset);
             Assert.True(result.Passes, preset.Slug + ": " + string.Join("; ",
                 result.Failures.Select(f => $"{f.Check} {f.A}/{f.B} {f.Measured} < {f.Required}")));
         }
@@ -19,7 +20,7 @@ public class ThemeContrastTests {
             ["fg"] = new(Hex: "#8a8a8a")
         };
         var model = ThemePresets.Default with { Tokens = Merge(tokens) };
-        var result = ThemeContrast.Validate(model);
+        var result = ThemePalette.Contrast(model);
         Assert.False(result.Passes);
         Assert.Contains(result.Failures, f => f is { Check: "contrast", A: "fg", B: "bg" });
     }
@@ -28,7 +29,7 @@ public class ThemeContrastTests {
     public void AccentTooCloseToErr_FailsDistinguishability() {
         var tokens = new Dictionary<string, ThemeTokenValue> { ["accent"] = new(Hex: "#e0685f") };
         var model = ThemePresets.Default with { Tokens = Merge(tokens) };
-        var result = ThemeContrast.Validate(model);
+        var result = ThemePalette.Contrast(model);
         Assert.False(result.Passes);
         Assert.Contains(result.Failures, f => f.Check == "distinguish");
     }
@@ -36,12 +37,12 @@ public class ThemeContrastTests {
     [Fact]
     public void HueRotation_IsJudgedAtTheWorstHue() {
         var staticModel = ThemePresets.Default;
-        Assert.True(ThemeContrast.Validate(staticModel).Passes);
+        Assert.True(ThemePalette.Contrast(staticModel).Passes);
 
         var rotating = staticModel with {
             Chroma = new ThemeChroma(HueRotate: new ThemeHueRotate(true, 30)).Clamped()
         };
-        var result = ThemeContrast.Validate(rotating);
+        var result = ThemePalette.Contrast(rotating);
         Assert.False(result.Passes);
         Assert.Contains(result.Failures, f => f is { Check: "distinguish", AtHue: not null });
     }
@@ -52,7 +53,7 @@ public class ThemeContrastTests {
             ["muted"] = new(Hex: "#3a3a44")
         };
         var model = ThemePresets.Default with { Tokens = Merge(tokens) };
-        var result = ThemeContrast.Validate(model);
+        var result = ThemePalette.Contrast(model);
         Assert.False(result.Passes);
         foreach (var failure in result.Failures) {
             Assert.True(failure.Measured < failure.Required);

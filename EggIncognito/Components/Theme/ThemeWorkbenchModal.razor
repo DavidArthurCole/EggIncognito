@@ -1,12 +1,13 @@
 @inherits SelfCallComponentBase
 @inject ThemeWorkbenchState State
-@inject ThemeCssSerializer Serializer
+@inject ThemeCssEmitter Serializer
 @inject ICurrentUser User
 @inject IJSRuntime Js
 @inject IWebHostEnvironment HostEnv
 @using System.Globalization
 @using System.Text
 @using System.Text.Json
+@using EggIdentity.Styles.Theming
 @using EggIdentity.UI
 @using EggIncognito.Models.Theme
 @using EggIncognito.Services.Theme
@@ -290,7 +291,7 @@
         try {
             using var client = Client();
             var json = await client.GetStringAsync($"/api/theme/{Uri.EscapeDataString(slug)}");
-            var (model, _) = ThemeModel.Parse(json);
+            var (model, _) = ThemeJson.Parse(json);
             if (model is not null) {
                 State.Draft.LoadFrom(model);
                 State.SelectedSlug = slug;
@@ -348,7 +349,7 @@
     }
 
     async Task SaveCssAsync() {
-        var parsed = ThemeCssParser.Parse(State.Draft.Css);
+        var parsed = ThemeCss.Parse(State.Draft.Css);
         _cssErrors = parsed.Errors;
         if (!parsed.Ok) return;
         using var client = Client();
@@ -436,7 +437,7 @@
 
     async Task OnCssChangedAsync(ChangeEventArgs e) {
         State.Draft.Css = e.Value?.ToString() ?? "";
-        _cssErrors = State.Draft.Css.Length > 0 ? ThemeCssParser.Parse(State.Draft.Css).Errors : [];
+        _cssErrors = State.Draft.Css.Length > 0 ? ThemeCss.Parse(State.Draft.Css).Errors : [];
         await RefreshAllAsync();
     }
 
@@ -452,11 +453,11 @@
 
     void SetMode(string mode) {
         State.Mode = mode;
-        if (mode == ThemeWorkbenchState.ModeChroma) _contrast = ThemeContrast.Validate(State.Draft.ToModel());
+        if (mode == ThemeWorkbenchState.ModeChroma) _contrast = ThemePalette.Contrast(State.Draft.ToModel());
     }
 
     async Task RefreshAllAsync() {
-        _contrast = ThemeContrast.Validate(State.Draft.ToModel());
+        _contrast = ThemePalette.Contrast(State.Draft.ToModel());
         await PushPreviewAsync();
     }
 
@@ -475,13 +476,13 @@
         var model = State.Draft.ToModel();
         var sb = new StringBuilder();
         foreach (var token in ThemeTokens.Settable)
-            sb.Append("--color-").Append(token).Append(": ").Append(model.ResolveToken(token).ToCss()).Append("; ");
+            sb.Append("--color-").Append(token).Append(": ").Append(model.TokenOrDefault(token).ToCss()).Append("; ");
         return sb.ToString();
     }
 
     static Dictionary<string, string> TokenCssMap(ThemeModel model) {
         var map = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var token in ThemeTokens.Settable) map[token] = model.ResolveToken(token).ToCss();
+        foreach (var token in ThemeTokens.Settable) map[token] = model.TokenOrDefault(token).ToCss();
         return map;
     }
 
@@ -495,7 +496,7 @@
     }
 
     static string PresetAccentCss(ThemeModel preset) {
-        return preset.ResolveToken("accent").ToCss();
+        return preset.TokenOrDefault("accent").ToCss();
     }
 
     static string PresetBorder(ThemeModel preset) {

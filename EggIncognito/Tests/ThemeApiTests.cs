@@ -57,7 +57,7 @@ public class ThemeApiTests(SharedAppFactory f) {
     public void Import_RejectsUnknownFields() {
         string json = ThemePresets.Default.ToJson().TrimEnd().TrimEnd('}')
                       + ", \"surprise\": true }";
-        var (model, errors) = ThemeModel.Parse(json);
+        var (model, errors) = ThemeJson.Parse(json);
         Assert.Null(model);
         Assert.NotEmpty(errors);
     }
@@ -65,7 +65,7 @@ public class ThemeApiTests(SharedAppFactory f) {
     [Fact]
     public void Import_RejectsUnknownSchemaVersion() {
         string json = ThemePresets.Default.ToJson().Replace("\"schemaVersion\": 1", "\"schemaVersion\": 2");
-        var (model, errors) = ThemeModel.Parse(json);
+        var (model, errors) = ThemeJson.Parse(json);
         Assert.Null(model);
         Assert.Contains(errors, e => e.Contains("schemaVersion", StringComparison.OrdinalIgnoreCase));
     }
@@ -73,21 +73,21 @@ public class ThemeApiTests(SharedAppFactory f) {
     [Fact]
     public void Import_RejectsUnknownTokenNames() {
         string json = ThemePresets.Default.ToJson().Replace("\"bg\":", "\"warn\":");
-        var (model, _) = ThemeModel.Parse(json);
+        var (model, _) = ThemeJson.Parse(json);
         Assert.Null(model);
     }
 
     [Fact]
     public void Import_RejectsUnknownSchemaId() {
-        string json = ThemePresets.Default.ToJson().Replace("egi-theme/1", "egi-theme/9");
-        var (model, _) = ThemeModel.Parse(json);
+        string json = ThemePresets.Default.ToJson().Replace("eggidentity-theme/1", "eggidentity-theme/9");
+        var (model, _) = ThemeJson.Parse(json);
         Assert.Null(model);
     }
 
     [Fact]
     public void ModelRoundTrip_IsLossless() {
         foreach (var preset in ThemePresets.All) {
-            var (model, errors) = ThemeModel.Parse(preset.ToJson());
+            var (model, errors) = ThemeJson.Parse(preset.ToJson());
             Assert.True(errors.Count == 0, preset.Slug + ": " + string.Join("; ", errors));
             Assert.NotNull(model);
             Assert.Equal(preset.Slug, model.Slug);

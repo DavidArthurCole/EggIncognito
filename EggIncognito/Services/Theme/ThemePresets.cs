@@ -1,3 +1,5 @@
+using EggIdentity.Styles.Theming;
+
 namespace EggIncognito.Services.Theme;
 
 public static class ThemePresets {
@@ -48,7 +50,7 @@ public static class ThemePresets {
         var tokens = new Dictionary<string, ThemeTokenValue>(StringComparer.Ordinal);
         foreach (var (key, hex) in DefaultHex) tokens[key] = new ThemeTokenValue(Hex: hex);
         foreach (var (key, value) in overrides) tokens[key] = value;
-        return new ThemeModel(ThemeModel.SchemaId, name, slug, ThemeModel.CurrentSchemaVersion,
+        return new ThemeModel(ThemeSchema.Current, name, slug, ThemeSchema.CurrentVersion,
             tokens, (chroma ?? ThemeChroma.None).Clamped(), "");
     }
 }

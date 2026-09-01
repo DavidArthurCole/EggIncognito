@@ -43,6 +43,24 @@ public static partial class DeviceParsing {
         return null;
     }
 
+    public static IReadOnlyList<string> SelectConfigSplits(string pmPathOutput) {
+        var list = new List<string>();
+        foreach (string p in ApkPaths(pmPathOutput)) {
+            string name = p[(p.LastIndexOf('/') + 1)..];
+            if (name.StartsWith("split_config.", StringComparison.OrdinalIgnoreCase))
+                list.Add(p);
+        }
+
+        return list;
+    }
+
+    public static string SplitNameFromPath(string apkPath) {
+        string name = apkPath[(apkPath.LastIndexOf('/') + 1)..];
+        int dot = name.LastIndexOf('.');
+        if (dot > 0 && name[(dot + 1)..].Equals("apk", StringComparison.OrdinalIgnoreCase)) name = name[..dot];
+        return name.StartsWith("split_", StringComparison.OrdinalIgnoreCase) ? name["split_".Length..] : name;
+    }
+
     public static string? SelectBaseSplit(string pmPathOutput) {
         string? only = null;
         int count = 0;

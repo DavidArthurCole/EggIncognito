@@ -2,10 +2,10 @@ using EggIncognito.Core.Services.Devices;
 
 namespace EggIncognito.Services.Devices.Cookbooks;
 
-public sealed class InstallCaCookbook(InstallCaStep step) : IStepCookbook {
-    public string Id => DeviceCookbookIds.InstallCa;
-    public string Title => "Install capture CA";
-    public string Summary => "Trusts the EggIncognito capture root CA on the device so the proxy can decrypt auxbrain.";
+public sealed class ReadinessCookbook(ReadinessStep step) : IStepCookbook {
+    public string Id => DeviceCookbookIds.Readiness;
+    public string Title => "Readiness";
+    public string Summary => "Reports install, Google Play, root, integrity module, launch and capture-CA state for the device.";
 
     public async Task<DeviceCookbookInfo> DescribeAsync(DeviceTarget target, CancellationToken ct) {
         var a = await step.DescribeAsync(target, ct);

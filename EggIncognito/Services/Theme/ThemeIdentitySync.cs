@@ -1,4 +1,5 @@
 using EggIdentity.Client;
+using EggIdentity.Styles.Theming;
 using EggIncognito.Data.Services;
 
 namespace EggIncognito.Services.Theme;
@@ -18,7 +19,7 @@ public sealed class ThemeIdentitySync(
         var row = await store.ActiveForAsync(userId, ct);
         string payload = NoTheme;
         if (row is not null) {
-            var (model, _) = ThemeModel.Parse(row.Model);
+            var (model, _) = ThemeJson.Parse(row.Model);
             if (model is not null) payload = (model with { Css = "" }).ToJson();
         }
 
@@ -47,7 +48,7 @@ public sealed class ThemeIdentitySync(
         }
 
         if (string.IsNullOrWhiteSpace(json) || json.Trim() == NoTheme) return null;
-        var (model, errors) = ThemeModel.Parse(json);
+        var (model, errors) = ThemeJson.Parse(json);
         if (model is null) logger.LogWarning("shared theme rejected: {Errors}", string.Join("; ", errors));
         return model is null ? null : model with { Css = "" };
     }

@@ -1,3 +1,5 @@
+using EggIncognito.Core.Services.Devices;
+
 namespace EggIncognito.Models.Devices;
 
 public sealed record CookbookRunStatus(
@@ -9,7 +11,8 @@ public sealed record CookbookRunStatus(
     DateTimeOffset? StartedAt,
     DateTimeOffset? FinishedAt,
     bool Running,
-    IReadOnlyList<string>? Log) {
+    IReadOnlyList<string>? Log,
+    IReadOnlyList<CookbookStepResult>? Steps = null) {
     public bool Finished =>
         !Running
         && (string.Equals(State, "succeeded", StringComparison.OrdinalIgnoreCase)

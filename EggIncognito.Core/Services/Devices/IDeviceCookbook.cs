@@ -7,6 +7,7 @@ public static class DeviceCookbookIds {
     public const string DismissFirstRun = "dismiss-first-run";
     public const string BringUp = "bring-up";
     public const string Recert = "recert";
+    public const string Readiness = "readiness";
 }
 
 public sealed record DeviceCookbookOption(string Value, string Label, bool Recommended = false);
@@ -18,7 +19,9 @@ public sealed record DeviceCookbookInfo(
     bool Available,
     string? Unavailable = null,
     string? ArgumentLabel = null,
-    IReadOnlyList<DeviceCookbookOption>? Options = null);
+    IReadOnlyList<DeviceCookbookOption>? Options = null) {
+    public string Group { get; init; } = CookbookGroups.Step;
+}
 
 public sealed record DeviceCookbookRequest(string CookbookId, string? Argument = null);
 
@@ -27,7 +30,9 @@ public sealed record DeviceCookbookRun(
     string CookbookId,
     IReadOnlyList<string> Log,
     string? FailedStep = null,
-    string? Note = null);
+    string? Note = null) {
+    public IReadOnlyList<CookbookStepResult> Steps { get; init; } = [];
+}
 
 public sealed record DeviceCookbookContext(
     DeviceTarget Target,

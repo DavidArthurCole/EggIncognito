@@ -69,7 +69,7 @@ public static class CoreServices {
     public static void AddWorkbenchServices(this WebApplicationBuilder builder) {
         builder.Services.AddWorkbenchStates();
         builder.Services.AddScoped<Services.Theme.ThemeWorkbenchState>();
-        builder.Services.AddSingleton<Services.Theme.ThemeCssSerializer>();
+        builder.Services.AddSingleton<Services.Theme.ThemeCssEmitter>();
         builder.Services.AddScoped<Services.Theme.ThemeResolver>();
         builder.Services.AddScoped<Services.Theme.ThemeIdentitySync>();
     }

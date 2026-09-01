@@ -1,3 +1,4 @@
+using EggIdentity.Styles.Theming;
 using EggIdentity.UI;
 using EggIncognito.Services.Workbench;
 
@@ -28,7 +29,7 @@ public sealed class ThemeDraft {
         AccentC = null;
         AccentH = null;
         foreach (string token in ThemeTokens.Settable) {
-            var color = model.ResolveToken(token);
+            var color = model.TokenOrDefault(token);
             if (token == "accent" && color.Hex is null) {
                 AccentL = color.L;
                 AccentC = color.C;
@@ -61,7 +62,7 @@ public sealed class ThemeDraft {
 
         var chroma = new ThemeChroma(SurfaceTint, GradientHueShift, GlowRadius, GlowAlpha,
             new ThemeHueRotate(HueRotateEnabled, HueRotateSeconds)).Clamped();
-        return new ThemeModel(ThemeModel.SchemaId, Name, Slug, ThemeModel.CurrentSchemaVersion, tokens, chroma, Css);
+        return new ThemeModel(ThemeSchema.Current, Name, Slug, ThemeSchema.CurrentVersion, tokens, chroma, Css);
     }
 
     private static string OklchToHexFallback(ThemeColor color) {

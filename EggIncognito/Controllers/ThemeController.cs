@@ -75,7 +75,7 @@ public sealed class ThemeController(ICurrentUser currentUser, IServiceProvider s
         if (store is null) return StatusCode(503, new { error = "no database configured" });
         string? json = await ReadBodyAsync();
         if (json is null) return BadRequest(new { error = "body too large" });
-        var (model, errors) = ThemeModel.Parse(json);
+        var (model, errors) = ThemeJson.Parse(json);
         if (model is null) return BadRequest(new { error = "invalid theme", details = errors });
         if (!string.Equals(model.Slug, slug, StringComparison.Ordinal))
             return BadRequest(new { error = "slug in the body must match the route" });
@@ -111,9 +111,9 @@ public sealed class ThemeController(ICurrentUser currentUser, IServiceProvider s
         if (store is null) return StatusCode(503, new { error = "no database configured" });
         var row = await store.GetAsync(uid, slug, HttpContext.RequestAborted);
         if (row is null) return NotFound(new { error = "unknown theme" });
-        var (model, errors) = ThemeModel.Parse(row.Model);
+        var (model, errors) = ThemeJson.Parse(row.Model);
         if (model is null) return UnprocessableEntity(new { error = "stored theme no longer parses", details = errors });
-        var contrast = ThemeContrast.Validate(model);
+        var contrast = ThemePalette.Contrast(model);
         if (!contrast.Passes)
             return UnprocessableEntity(new { error = "contrast validation failed", failures = contrast.Failures });
         await store.ActivateAsync(uid, slug, System.Text.Json.JsonSerializer.Serialize(contrast),
@@ -151,10 +151,10 @@ public sealed class ThemeController(ICurrentUser currentUser, IServiceProvider s
         if (store is null) return StatusCode(503, new { error = "no database configured" });
         string? json = await ReadBodyAsync();
         if (json is null) return BadRequest(new { error = "body too large" });
-        var (model, errors) = ThemeModel.Parse(json);
+        var (model, errors) = ThemeJson.Parse(json);
         if (model is null) return BadRequest(new { error = "invalid theme", details = errors });
         if (!string.IsNullOrEmpty(model.Css)) {
-            var parsed = ThemeCssParser.Parse(model.Css);
+            var parsed = ThemeCss.Parse(model.Css);
             if (!parsed.Ok) return BadRequest(new { error = "invalid custom css", details = parsed.Errors });
         }
 
@@ -178,13 +178,13 @@ public sealed class ThemeController(ICurrentUser currentUser, IServiceProvider s
 
         string css = body.Css ?? "";
         if (css.Length > 0) {
-            var parsed = ThemeCssParser.Parse(css);
+            var parsed = ThemeCss.Parse(css);
             if (!parsed.Ok) return BadRequest(new { error = "invalid custom css", details = parsed.Errors });
         }
 
         var row = await store.GetAsync(uid, body.Slug ?? "", HttpContext.RequestAborted);
         if (row is null) return NotFound(new { error = "unknown theme" });
-        var (model, errors) = ThemeModel.Parse(row.Model);
+        var (model, errors) = ThemeJson.Parse(row.Model);
         if (model is null) return UnprocessableEntity(new { error = "stored theme no longer parses", details = errors });
         var updated = model with { Css = css };
         await store.UpsertAsync(uid, model.Slug, model.Name, model.SchemaVersion, updated.ToJson(),
@@ -247,7 +247,7 @@ public sealed class ThemeController(ICurrentUser currentUser, IServiceProvider s
     }
 
     private static string ExtractCss(string modelJson) {
-        var (model, _) = ThemeModel.Parse(modelJson);
+        var (model, _) = ThemeJson.Parse(modelJson);
         return model?.Css ?? "";
     }
 }

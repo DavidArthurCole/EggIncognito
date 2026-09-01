@@ -1,41 +1,32 @@
-using System.Buffers;
 using System.Globalization;
 using System.Text;
+using EggIdentity.Styles.Theming;
 
 namespace EggIncognito.Services.Theme;
 
-public enum ThemeScope {
-    Live,
-    Preview
-}
-
-public sealed class ThemeCssSerializer(IWebHostEnvironment env, ILogger<ThemeCssSerializer> logger) {
-    public const string LivePrefix = "html[data-egi-theme=\"u\"]";
-    public const string PreviewPrefix = ".theme-preview-scope";
-    public const int MaxLane2OutputBytes = 8 * 1024;
-
+public sealed class ThemeCssEmitter(IWebHostEnvironment env, ILogger<ThemeCssEmitter> logger) {
     private static readonly string[] AllowedAtPrefixes = ["@keyframes", "@media"];
-    private static readonly SearchValues<char> Lane2Forbidden = SearchValues.Create("<\\@&");
 
     private bool IsStaging => string.Equals(env.EnvironmentName, "Staging", StringComparison.OrdinalIgnoreCase);
 
     public static bool UsesHueRotation(ThemeModel model) => model.Chroma.HueRotate is { Enabled: true };
 
     public string Serialize(ThemeModel model, ThemeScope scope, bool customCssAllowed) {
-        string root = scope == ThemeScope.Live ? LivePrefix : PreviewPrefix;
+        string root = scope == ThemeScope.Live ? ThemeCssSerializer.LivePrefix : ThemeCssSerializer.PreviewPrefix;
         var sb = new StringBuilder();
         WriteLane1(sb, model, root);
 
-        if (customCssAllowed && !IsStaging && !string.IsNullOrWhiteSpace(model.Css)) {
-            string lane2 = SerializeLane2(model.Css, root);
-            if (Encoding.UTF8.GetByteCount(lane2) > MaxLane2OutputBytes) {
-                logger.LogWarning("theme '{Slug}': lane-2 output over {Cap} KB, dropped", model.Slug,
-                    MaxLane2OutputBytes / 1024);
-            } else if (!Lane2AlphabetOk(lane2)) {
+        if (customCssAllowed && !IsStaging && !string.IsNullOrWhiteSpace(model.Css) && ThemeCss.Parse(model.Css).Ok) {
+            var lane2 = ThemeCssSerializer.SerializeLane2(model.Css, scope, ThemeTokens.Catalog, ThemeTokens.Registry,
+                ThemeModel.MaxCssSourceBytes);
+            if (lane2.Ok) {
+                sb.Append(lane2.Output);
+            } else if (lane2.Reason == "lane-2 self-check failed") {
                 logger.LogError("theme '{Slug}': lane-2 self-check failed, output dropped", model.Slug);
                 return "";
-            } else {
-                sb.Append(lane2);
+            } else if (lane2.Reason == "lane-2 output over size cap") {
+                logger.LogWarning("theme '{Slug}': lane-2 output over {Cap} KB, dropped", model.Slug,
+                    ThemeCssSerializer.MaxLane2OutputBytes / 1024);
             }
         }
 
@@ -57,7 +48,7 @@ public sealed class ThemeCssSerializer(IWebHostEnvironment env, ILogger<ThemeCss
         foreach (string name in ThemeTokens.Settable) {
             if (staging && name == "accent") continue;
             if (!model.Tokens.ContainsKey(name)) continue;
-            var color = model.ResolveToken(name);
+            var color = model.TokenOrDefault(name);
             if (name == "accent" && hueRotate) {
                 sb.Append("  --color-accent: oklch(")
                     .Append(Num(Math.Round(color.L * 100.0, 1))).Append("% ")
@@ -82,7 +73,7 @@ public sealed class ThemeCssSerializer(IWebHostEnvironment env, ILogger<ThemeCss
             }
 
             if (chroma.GradientHueShift != 0) {
-                var to = model.ResolveToken("accent").RotateHue(chroma.GradientHueShift);
+                var to = model.TokenOrDefault("accent").RotateHue(chroma.GradientHueShift);
                 sb.Append("  --egi-accent-grad-to: ").Append(to.ToCss()).Append(";\n");
             }
 
@@ -105,69 +96,6 @@ public sealed class ThemeCssSerializer(IWebHostEnvironment env, ILogger<ThemeCss
                 .Append(" { animation: none; } }\n");
         }
     }
-
-    private static string SerializeLane2(string css, string root) {
-        var parsed = ThemeCssParser.Parse(css);
-        if (!parsed.Ok) return "";
-        var sb = new StringBuilder();
-        foreach (var rule in parsed.Rules) {
-            sb.Append(ScopedSelector(root, rule.Entry.Selector)).Append(" {\n");
-            foreach (var decl in rule.Declarations) {
-                sb.Append("  ").Append(decl.Property).Append(": ");
-                for (int g = 0; g < decl.Groups.Count; g++) {
-                    if (g > 0) sb.Append(", ");
-                    AppendParts(sb, decl.Groups[g]);
-                }
-
-                sb.Append(";\n");
-            }
-
-            sb.Append("}\n");
-        }
-
-        return sb.ToString();
-    }
-
-    private static string ScopedSelector(string root, string canonical) {
-        var parts = canonical.Split(", ");
-        return string.Join(", ", parts.Select(p => $"{root} {p}"));
-    }
-
-    private static void AppendParts(StringBuilder sb, IReadOnlyList<CssPart> parts) {
-        for (int i = 0; i < parts.Count; i++) {
-            if (i > 0) sb.Append(' ');
-            AppendPart(sb, parts[i]);
-        }
-    }
-
-    private static void AppendPart(StringBuilder sb, CssPart part) {
-        switch (part) {
-            case CssKeyword kw:
-                sb.Append(kw.Text);
-                break;
-            case CssNumber num:
-                sb.Append(ThemeCssParser.FormatNumber(num.Value)).Append(num.Unit);
-                break;
-            case CssHex hex:
-                sb.Append('#').Append(hex.R.ToString("x2", CultureInfo.InvariantCulture))
-                    .Append(hex.G.ToString("x2", CultureInfo.InvariantCulture))
-                    .Append(hex.B.ToString("x2", CultureInfo.InvariantCulture));
-                if (hex.A is { } a) sb.Append(a.ToString("x2", CultureInfo.InvariantCulture));
-                break;
-            case CssFunc fn:
-                sb.Append(fn.Name).Append('(');
-                for (int i = 0; i < fn.Args.Count; i++) {
-                    if (i > 0) sb.Append(", ");
-                    AppendParts(sb, fn.Args[i]);
-                }
-
-                sb.Append(')');
-                break;
-        }
-    }
-
-    private static bool Lane2AlphabetOk(string output) =>
-        !output.AsSpan().ContainsAny(Lane2Forbidden);
 
     private static bool OutputAlphabetOk(string output) {
         var span = output.AsSpan();
