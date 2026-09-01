@@ -1,9 +1,6 @@
 @page "/admin"
-@using EggIncognito.Components.Playground
-@using EggIncognito.Components.Protos
 @rendermode @(RenderModes.InteractiveServer)
 @inject ICurrentUser User
-@inject NavigationManager Nav
 
 <PageTitle>EggIncognito - Admin</PageTitle>
 <main id="adminMain" class="page page-wide pt-6 pb-8">
@@ -23,66 +20,15 @@
             </div>
         </div>
     } else {
-        <div class="admin-top mb-4">
-            <AdminTrafficPanel/>
-            <DeviceStatusPanel OnManage="OpenDeviceWorkbench"/>
-        </div>
-        <AdminSection Title="Access">
-            <AdminUsersPanel/>
-            <AdminNotificationsPanel/>
-            <AdminThemePolicyPanel/>
-        </AdminSection>
-        <AdminSection Title="Data">
-            <AdminDataStatusPanel/>
-            <AdminBinariesPanel/>
-            <AdminGameDataPanel/>
-            <AdminEventsPanel/>
-            <AdminContractsPanel/>
-            <AdminStagedPanel/>
-            <AdminContributionsPanel/>
-        </AdminSection>
-        <AdminSection Title="Ops">
-            <AdminSessionsPanel/>
-            <AdminConsolePanel/>
-            <AdminBotConfigPanel/>
-            <AdminMaintenancePanel/>
-            <AdminVirtualDevicesPanel OnConsole="OpenConsole"/>
-            <AdminPlaygroundPanel OnOpen="OpenPlayground"/>
-        </AdminSection>
+        <AdminWorkbench/>
     }
 </main>
 
-<DeviceWorkbenchModal @ref="_deviceWorkbench"/>
-<DeviceConsole @ref="_console"/>
-<PlaygroundWorkbenchModal @ref="_playground"/>
-
 @code {
     bool _isAdmin;
-    DeviceWorkbenchModal? _deviceWorkbench;
-    DeviceConsole? _console;
-    PlaygroundWorkbenchModal? _playground;
-
-    Task OpenDeviceWorkbench(string? deviceId) {
-        return _deviceWorkbench?.Open(deviceId) ?? Task.CompletedTask;
-    }
-
-    Task OpenConsole(string? deviceId) {
-        return _console?.Open(deviceId) ?? Task.CompletedTask;
-    }
-
-    Task OpenPlayground() {
-        return _playground?.Open() ?? Task.CompletedTask;
-    }
 
     protected override void OnInitialized() {
         _isAdmin = User.IsAtLeast(UserRole.Admin);
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender) {
-        if (!firstRender || !_isAdmin) return;
-        var fragment = new Uri(Nav.Uri).Fragment.TrimStart('#');
-        if (string.Equals(fragment, "playground", StringComparison.Ordinal)) await OpenPlayground();
-        else if (string.Equals(fragment, "console", StringComparison.Ordinal)) await OpenConsole(null);
     }
 
 }

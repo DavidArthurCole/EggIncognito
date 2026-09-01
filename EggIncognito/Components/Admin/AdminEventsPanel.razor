@@ -1,63 +1,61 @@
 @rendermode @(RenderModes.InteractiveServer)
 @using EggIncognito.Models.Events
 @using EggIncognito.Services.Events
-@inherits BrowserApiComponentBase
+@inherits AdminPaneBase
 
-<AdminCard Title="Events" Stat="@StatText" OnOpened="Load">
-    <Summary>
-        @if (_stats is null || _stats.Total == 0) {
-            <div class="text-sm text-muted">
-                <span>no events stored</span>
-            </div>
-        } else {
-            <div class="text-xs text-muted">@((MarkupString)TotalsBySource())</div>
+<div class="admin-pane-head">
+    <h2 class="admin-pane-title">Events</h2>
+    <span class="text-muted text-xs">@StatText</span>
+</div>
+<div class="sub-section-head">Store</div>
+<div class="reg-wrap">
+    <table class="data-table">
+        <tbody>
+        <tr>
+            <td>total</td><td class="mono">@(_stats?.Total ?? 0)</td>
+        </tr>
+        <tr>
+            <td>device</td><td class="mono">@(_stats?.Device ?? 0)</td>
+        </tr>
+        <tr>
+            <td>carpet</td><td class="mono">@(_stats?.Carpet ?? 0)</td>
+        </tr>
+        </tbody>
+    </table>
+</div>
+@if (_latest.Count > 0) {
+    <div class="sub-section-head">Recent</div>
+    <div class="reg-wrap">
+        <table class="data-table">
+            <tbody>
             @foreach (var e in _latest) {
-                <div class="admin-card-extra text-xs text-muted">@e.Type &middot; @FormatStart(e.StartTimestamp)</div>
+                <tr>
+                    <td>@e.Type</td><td class="text-muted text-xs">@FormatStart(e.StartTimestamp)</td>
+                </tr>
             }
-        }
-    </Summary>
-    <Detail>
-        <div class="sub-section-head">Store</div>
-        <div class="reg-wrap">
-            <table class="data-table">
-                <tbody>
-                <tr>
-                    <td>total</td><td class="mono">@(_stats?.Total ?? 0)</td>
-                </tr>
-                <tr>
-                    <td>device</td><td class="mono">@(_stats?.Device ?? 0)</td>
-                </tr>
-                <tr>
-                    <td>carpet</td><td class="mono">@(_stats?.Carpet ?? 0)</td>
-                </tr>
-                </tbody>
-            </table>
-        </div>
-        <div class="text-xs text-muted">Historical data courtesy of carpetsage/egg. Backfill tools live in the Maintenance card.</div>
-        @if (_msg is not null) {
-            <StatusNote>@_msg</StatusNote>
-        }
-    </Detail>
-</AdminCard>
+            </tbody>
+        </table>
+    </div>
+}
+<div class="text-xs text-muted mt-2">Historical data courtesy of carpetsage/egg. Backfill tools live in the Maintenance pane.</div>
+@if (_msg is not null) {
+    <StatusNote>@_msg</StatusNote>
+}
 
 @code {
     EventStatsResponse? _stats;
     List<GameEventDto> _latest = [];
     string? _msg;
 
-    string StatText => _stats?.Total.ToString() ?? "";
-
-    string TotalsBySource() {
-        return _stats is null ? "" : $"{_stats.Total} total &middot; {_stats.Device} device &middot; {_stats.Carpet} carpet";
-    }
+    string StatText => _stats is null ? "" : $"{_stats.Total} total, {_stats.Device} device, {_stats.Carpet} carpet";
 
     static string FormatStart(double startTimestamp) {
         return UnixSeconds.ToTime(startTimestamp).ToLocalTime().ToString("yyyy-MM-dd");
     }
 
-    protected override async Task OnApiReadyAsync() {
-        await Load();
-    }
+    protected override IReadOnlyList<string> Topics => [AdminTopics.Events];
+
+    protected override Task LoadAsync() => Load();
 
     async Task Load() {
         if (Api is null) return;

@@ -1,42 +1,37 @@
 @rendermode @(RenderModes.InteractiveServer)
 @using EggIncognito.Components.Protos
 @using EggIncognito.Models.Notifications
-@inherits BrowserApiComponentBase
+@inherits AdminPaneBase
 
-<AdminCard Title="Notifications" Stat="@StatText" OnOpened="Load">
-    <Summary>
-        @if (_feed is { Total: > 0 } feed) {
-            <div class="text-xs text-muted">@SummaryLine(feed)</div>
-            @foreach (var owner in _owners.Take(3)) {
-                <div class="admin-card-extra text-xs">@owner.Key @owner.Value</div>
+<div class="admin-pane-head">
+    <h2 class="admin-pane-title">Notifications</h2>
+    <div class="admin-pane-tools">
+        <span class="text-muted text-xs">@StatText</span>
+        <button type="button" class="btn-mini" @onclick="OpenWorkbench">Manage subscriptions</button>
+    </div>
+</div>
+@if (_feed is { Total: > 0 } feed) {
+    <div class="text-xs text-muted mb-2">@SummaryLine(feed)</div>
+}
+@if (_owners.Count > 0) {
+    <div class="sub-section-head">Owners</div>
+    <div class="reg-wrap">
+        <table class="data-table">
+            <tbody>
+            @foreach (var owner in _owners) {
+                <tr>
+                    <td>@owner.Key</td><td class="mono">@owner.Value</td>
+                </tr>
             }
-        } else {
-            <div class="text-sm text-muted">no subscriptions</div>
-        }
-    </Summary>
-    <Detail>
-        @if (_owners.Count > 0) {
-            <div class="sub-section-head">Owners</div>
-            <div class="reg-wrap">
-                <table class="data-table">
-                    <tbody>
-                    @foreach (var owner in _owners) {
-                        <tr>
-                            <td>@owner.Key</td><td class="mono">@owner.Value</td>
-                        </tr>
-                    }
-                    </tbody>
-                </table>
-            </div>
-        }
-        <div class="flex gap-1 items-center">
-            <button type="button" class="btn-mini" @onclick="OpenWorkbench">Manage subscriptions</button>
-        </div>
-        @if (_msg is not null) {
-            <StatusNote>@_msg</StatusNote>
-        }
-    </Detail>
-</AdminCard>
+            </tbody>
+        </table>
+    </div>
+} else {
+    <div class="text-sm text-muted">no subscriptions</div>
+}
+@if (_msg is not null) {
+    <StatusNote>@_msg</StatusNote>
+}
 
 <NotificationsWorkbenchModal AdminScope="true" @ref="_workbench"/>
 
@@ -52,9 +47,9 @@
         return $"{feed.ActiveCount} active / {feed.Total - feed.ActiveCount} inactive / {feed.Owners} owners";
     }
 
-    protected override async Task OnApiReadyAsync() {
-        await Load();
-    }
+    protected override IReadOnlyList<string> Topics => [AdminTopics.Notifications];
+
+    protected override Task LoadAsync() => Load();
 
     async Task Load() {
         if (Api is null) return;

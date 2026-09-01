@@ -4,25 +4,11 @@
 @using EggIncognito.Models.Devices
 @inherits BrowserApiComponentBase
 
-<AdminCard Title="Virtual devices" Stat="@StatText" OnOpened="Load">
-    <Summary>
-        @if (_status is null) {
-            <div class="text-sm text-muted">loading</div>
-        } else if (!_status.Enabled) {
-            <div class="text-sm text-muted">disabled (Devices:Virtual:Enabled)</div>
-        } else if (!_status.Supported) {
-            <div class="text-sm text-muted">provisioner unavailable</div>
-        } else {
-            <div class="text-xs text-muted">@StateLine()</div>
-            @foreach (var i in _status.Instances.Where(x => x.State != "destroyed").Take(3)) {
-                <div class="admin-card-extra text-xs text-muted">
-                    @i.InstanceId, @i.State, @(i.Target ?? "no target"), @FlowLine(i)
-                </div>
-            }
-        }
-    </Summary>
-    <Detail>
-        <div class="vd-head">
+<div class="admin-pane-head">
+    <h2 class="admin-pane-title">Virtual devices</h2>
+    <span class="text-muted text-xs">@StatText</span>
+</div>
+<div class="vd-head">
             <div class="sub-section-head">Fleet</div>
             <div class="vd-head-meta text-xs text-muted">
                 <span>@(_status?.LiveCount ?? 0) of @(_status?.MaxInstances ?? 0) live</span>
@@ -214,8 +200,6 @@
                 <div class="text-xs text-muted">no modules cached yet</div>
             }
         </div>
-    </Detail>
-</AdminCard>
 
 @code {
     [Parameter] public EventCallback<string> OnConsole { get; set; }

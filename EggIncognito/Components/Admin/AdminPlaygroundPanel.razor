@@ -2,40 +2,42 @@
 @using EggIncognito.Models.Playground
 @inherits SelfCallComponentBase
 
-<section class="panel admin-card" @onclick="Open">
-    <div class="admin-panel-head">
-        <h2 class="admin-panel-title">Farm Playground</h2>
-        <div class="flex items-center gap-2">
-            @if (!string.IsNullOrEmpty(Stat)) {
-                <span class="text-muted text-xs">@Stat</span>
-            }
-            <button type="button" class="dropzone-open" aria-label="Open Farm Playground"
-                    @onclick="Open" @onclick:stopPropagation="true">
-                <Icon Name="chevronRight" Class="icon-sm"/>
-            </button>
-        </div>
-    </div>
-    <div class="admin-card-summary">
-        @if (_failed) {
-            <div class="text-xs text-muted">design and showcase counts are unavailable</div>
-        } else {
-            <div class="text-xs text-muted">@_designs saved @(_designs == 1 ? "design" : "designs") &middot; @_presets showcase @(_presets == 1 ? "preset" : "presets")</div>
-            @foreach (var d in Recent()) {
-                <div class="admin-card-extra text-xs text-muted">
-                    <span class="truncate">@d.Name</span>
-                    <TimeAgo Value="@d.UpdatedAt"/>
-                </div>
-            }
-
-            @if (_designs == 0) {
-                <div class="admin-card-extra text-xs text-muted">no farms saved yet</div>
-            }
+<div class="admin-pane-head">
+    <h2 class="admin-pane-title">Farm Playground</h2>
+    <div class="admin-pane-tools">
+        @if (!_failed) {
+            <span class="text-muted text-xs">@_designs saved / @_presets showcase</span>
         }
+        <button type="button" class="btn-primary" @onclick="Open">Open playground</button>
     </div>
-</section>
+</div>
+@if (_failed) {
+    <div class="text-sm text-muted">design and showcase counts are unavailable</div>
+} else if (_designs == 0) {
+    <div class="text-sm text-muted">no farms saved yet</div>
+} else {
+    <div class="reg-wrap">
+        <table class="data-table">
+            <thead>
+            <tr>
+                <th>Design</th><th>Updated</th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var d in Recent()) {
+                <tr>
+                    <td class="truncate">@d.Name</td>
+                    <td class="text-muted text-xs">
+                        <TimeAgo Value="@d.UpdatedAt"/>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+}
 
 @code {
-
     [Parameter] public EventCallback OnOpen { get; set; }
 
     DesignRow[] _rows = [];
@@ -44,10 +46,8 @@
     bool _failed;
     bool _loaded;
 
-    string Stat => _failed ? "" : $"{_designs} saved";
-
     IEnumerable<DesignRow> Recent() {
-        return _rows.OrderByDescending(r => r.UpdatedAt).Take(3);
+        return _rows.OrderByDescending(r => r.UpdatedAt).Take(8);
     }
 
     Task Open() {

@@ -3,6 +3,7 @@ using Bunit;
 using EggIdentity.Contract;
 using EggIncognito.Components.Pages;
 using EggIncognito.Services;
+using EggIncognito.Services.Admin;
 using EggIncognito.Services.Devices;
 using EggIncognito.Services.Notifications;
 using Microsoft.AspNetCore.Hosting;
@@ -36,6 +37,8 @@ public class AdminPageTests {
             Services.AddSingleton(new AuthState(false));
             Services.AddScoped<DeviceWorkbenchState>();
             Services.AddScoped<NotificationsWorkbenchState>();
+            Services.AddScoped<AdminWorkbenchState>();
+            Services.AddSingleton<AdminNotifier>();
             Services.AddHttpClient();
         }
 
@@ -55,7 +58,8 @@ public class AdminPageTests {
             var cut = Render<Admin>();
             Assert.Empty(cut.FindAll("#denied"));
             Assert.Contains("Users", cut.Markup);
-            Assert.Equal(3, cut.WaitForElements(".admin-section").Count);
+            Assert.NotNull(cut.Find(".admin-wb-rail"));
+            Assert.Equal(4, cut.FindAll(".admin-wb-group").Count);
         }
     }
 

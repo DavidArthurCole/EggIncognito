@@ -1,60 +1,53 @@
-@* Admin oversight of active capture sessions: list + a kill button per row, polling /api/admin/sessions. *@
 @rendermode @(RenderModes.InteractiveServer)
 @inherits BrowserApiComponentBase
 @using EggIncognito.Models.AdminUi
 @implements IDisposable
 
-<AdminCard Title="Capture sessions" Stat="@($"{_rows.Count} active")">
-    <Summary>
-        @if (_rows.Count == 0) {
-            <p class="text-muted text-sm m-0">No active capture sessions.</p>
-        } else {
-            <p class="text-muted text-xs m-0">@((MarkupString)KindBreakdown())</p>
-            @foreach (var s in _rows.Take(4)) {
-                <div class="text-xs text-muted">@Label(s.Key) &middot; <span class="sess-kind @KindClass(s.Kind)">@s.Kind</span> &middot; @(s.Running ? "running" : "stopped")</div>
-            }
-        }
-    </Summary>
-    <Detail>
-        <div class="reg-wrap">
-            <table class="data-table">
-                <thead>
+<div class="admin-pane-head">
+    <h2 class="admin-pane-title">Capture sessions</h2>
+    <span class="text-muted text-xs">@_rows.Count active @((MarkupString)(_rows.Count == 0 ? "" : " &middot; " + KindBreakdown()))</span>
+</div>
+@if (_rows.Count == 0) {
+    <p class="text-muted text-sm m-0">No active capture sessions.</p>
+} else {
+    <div class="reg-wrap">
+        <table class="data-table">
+            <thead>
+            <tr>
+                <th>Session</th><th>Kind</th><th>State</th><th>Port</th><th>Flows</th><th>Conns</th><th>Devices</th><th>Decrypt</th><th></th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var s in _rows) {
                 <tr>
-                    <th>Session</th><th>Kind</th><th>State</th><th>Port</th><th>Flows</th><th>Conns</th><th>Devices</th><th>Decrypt</th><th></th>
+                    <td class="mono text-xs">@Label(s.Key)</td>
+                    <td>
+                        <span class="sess-kind @KindClass(s.Kind)">@s.Kind</span>
+                    </td>
+                    <td>
+                        <span class="@(s.Running ? "text-green-400" : "text-muted")">@(s.Running ? "running" : "stopped")</span>
+                    </td>
+                    <td class="mono text-xs">@s.Port</td>
+                    <td class="mono text-xs">@s.Flows</td>
+                    <td class="mono text-xs">@s.Connections</td>
+                    <td class="mono text-xs">@s.Devices</td>
+                    <td class="mono text-xs">@s.DecryptOk ok / <span class="@(s.DecryptErr > 0 ? "text-err" : "")">@s.DecryptErr err</span></td>
+                    <td>
+                        @if (s.Kind == "device") {
+                            <a class="btn-mini no-underline" href="/capture/device/@DeviceId(s.Key)">View</a>
+                        } else if (s.Killable) {
+                            <button type="button" class="btn-mini btn-danger" disabled="@_busy" @onclick="() => Kill(s.Key)">Kill</button>
+                        }
+                    </td>
                 </tr>
-                </thead>
-                <tbody>
-                @foreach (var s in _rows) {
-                    <tr>
-                        <td class="mono text-xs">@Label(s.Key)</td>
-                        <td>
-                            <span class="sess-kind @KindClass(s.Kind)">@s.Kind</span>
-                        </td>
-                        <td>
-                            <span class="@(s.Running ? "text-green-400" : "text-muted")">@(s.Running ? "running" : "stopped")</span>
-                        </td>
-                        <td class="mono text-xs">@s.Port</td>
-                        <td class="mono text-xs">@s.Flows</td>
-                        <td class="mono text-xs">@s.Connections</td>
-                        <td class="mono text-xs">@s.Devices</td>
-                        <td class="mono text-xs">@s.DecryptOk ok / <span class="@(s.DecryptErr > 0 ? "text-err" : "")">@s.DecryptErr err</span></td>
-                        <td>
-                            @if (s.Kind == "device") {
-                                <a class="btn-mini no-underline" href="/capture/device/@DeviceId(s.Key)">View</a>
-                            } else if (s.Killable) {
-                                <button type="button" class="btn-mini btn-danger" disabled="@_busy" @onclick="() => Kill(s.Key)">Kill</button>
-                            }
-                        </td>
-                    </tr>
-                }
-                </tbody>
-            </table>
-        </div>
-        @if (_msg is not null) {
-            <StatusNote>@_msg</StatusNote>
-        }
-    </Detail>
-</AdminCard>
+            }
+            </tbody>
+        </table>
+    </div>
+}
+@if (_msg is not null) {
+    <StatusNote>@_msg</StatusNote>
+}
 
 @code {
     List<SessionRow> _rows = [];

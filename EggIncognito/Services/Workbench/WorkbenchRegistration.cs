@@ -1,3 +1,4 @@
+using EggIncognito.Services.Admin;
 using EggIncognito.Services.Api;
 using EggIncognito.Services.Devices;
 using EggIncognito.Services.Events;
@@ -13,6 +14,8 @@ public static class WorkbenchRegistration {
         services.AddScoped<NotificationsWorkbenchState>();
         services.AddScoped<ApiWorkbenchState>();
         services.AddScoped<EventsWorkbenchState>();
+        services.AddScoped<AdminWorkbenchState>();
+        services.AddSingleton<AdminNotifier>();
         return services;
     }
 }

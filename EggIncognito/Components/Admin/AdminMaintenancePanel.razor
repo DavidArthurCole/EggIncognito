@@ -2,109 +2,109 @@
 @using System.Text.Json
 @using EggIncognito.Models.Admin
 @using EggIncognito.Models.Events
-@inherits BrowserApiComponentBase
+@inherits AdminPaneBase
 
-<AdminCard Title="Maintenance" Stat="@Stat">
-    <Detail>
-        <div class="reg-wrap">
-            <table class="data-table">
-                <tbody>
-                <tr>
-                    <td>Backfill capture user ids</td>
-                    <td>
-                        <button type="button" class="btn-mini" disabled="@_busy" @onclick="BackfillCaptureUserIds">Run</button>
-                    </td>
-                    <td class="text-xs">@Result("backfill-capture")</td>
-                </tr>
-                <tr>
-                    <td>Backfill owner/author user ids</td>
-                    <td>
-                        <button type="button" class="btn-mini" disabled="@_busy" @onclick="BackfillOwnerAuthorUserIds">Run</button>
-                    </td>
-                    <td class="text-xs">@Result("backfill-owner")</td>
-                </tr>
-                <tr>
-                    <td>Proto realign</td>
-                    <td>
-                        <button type="button" class="btn-mini" disabled="@_busy" @onclick="RealignProtos">@(_realignArmed ? "Confirm realign" : "Run")</button>
-                    </td>
-                    <td class="text-xs">@Result("realign")</td>
-                </tr>
-                <tr>
-                    <td>Refresh endpoint catalog</td>
-                    <td>
-                        <button type="button" class="btn-mini" disabled="@_busy" @onclick="RefreshEndpoints">Run</button>
-                    </td>
-                    <td class="text-xs">@Result("refresh-endpoints")</td>
-                </tr>
-                <tr>
-                    <td>
-                        <div class="flex gap-1 items-center flex-wrap">
-                            <span>Config refresh-live</span>
-                            <select class="reg-filter-input w-auto" @bind="_livePlatform">
-                                <option value="ios">ios</option>
-                                <option value="android">android</option>
-                            </select>
-                        </div>
-                    </td>
-                    <td>
-                        <button type="button" class="btn-mini" disabled="@_busy" @onclick="RefreshLive">Run</button>
-                    </td>
-                    <td class="text-xs">@Result("refresh-live")</td>
-                </tr>
-                <tr>
-                    <td>
-                        <div class="flex gap-1 items-center flex-wrap">
-                            <span>Config ingest JSON</span>
-                            <select class="reg-filter-input w-auto" @bind="_ingestPlatform">
-                                <option value="ios">ios</option>
-                                <option value="android">android</option>
-                            </select>
-                        </div>
-                        <textarea class="reg-filter-input w-full mono text-xs" rows="3" placeholder="ConfigResponse JSON" @bind="_ingestJson"></textarea>
-                    </td>
-                    <td>
-                        <button type="button" class="btn-mini" disabled="@_busy" @onclick="IngestJson">Run</button>
-                    </td>
-                    <td class="text-xs">@Result("ingest-json")</td>
-                </tr>
-                <tr>
-                    <td>
-                        <div class="flex gap-1 items-center flex-wrap">
-                            <span>Icon import</span>
-                            <input class="reg-filter-input w-auto" placeholder="name" @bind="_iconName"/>
-                            <InputFile OnChange="OnIconFile" class="text-xs"/>
-                        </div>
-                    </td>
-                    <td>
-                        <button type="button" class="btn-mini" disabled="@_busy" @onclick="ImportIcon">Run</button>
-                    </td>
-                    <td class="text-xs">@Result("icon-import")</td>
-                </tr>
-                <tr>
-                    <td>Sweep event snapshots</td>
-                    <td>
-                        <button type="button" class="btn-mini" disabled="@_busy" @onclick="SweepEvents">Run</button>
-                    </td>
-                    <td class="text-xs">@Result("event-sweep")</td>
-                </tr>
-                <tr>
-                    <td>
-                        <div class="flex gap-1 items-center flex-wrap">
-                            <span>Import carpet events</span>
-                            <input class="reg-filter-input w-auto" placeholder="@CarpetPlaceholder" @bind="_carpetUrl"/>
-                        </div>
-                    </td>
-                    <td>
-                        <button type="button" class="btn-mini" disabled="@_busy" @onclick="ImportCarpetEvents">Run</button>
-                    </td>
-                    <td class="text-xs">@Result("event-carpet")</td>
-                </tr>
-                </tbody>
-            </table>
-        </div>
-    </Detail>
-</AdminCard>
+<div class="admin-pane-head">
+    <h2 class="admin-pane-title">Maintenance</h2>
+    <span class="text-muted text-xs">@Stat</span>
+</div>
+<div class="reg-wrap">
+    <table class="data-table">
+        <tbody>
+        <tr>
+            <td>Backfill capture user ids</td>
+            <td>
+                <button type="button" class="btn-mini" disabled="@_busy" @onclick="BackfillCaptureUserIds">Run</button>
+            </td>
+            <td class="text-xs">@Result("backfill-capture")</td>
+        </tr>
+        <tr>
+            <td>Backfill owner/author user ids</td>
+            <td>
+                <button type="button" class="btn-mini" disabled="@_busy" @onclick="BackfillOwnerAuthorUserIds">Run</button>
+            </td>
+            <td class="text-xs">@Result("backfill-owner")</td>
+        </tr>
+        <tr>
+            <td>Proto realign</td>
+            <td>
+                <button type="button" class="btn-mini" disabled="@_busy" @onclick="RealignProtos">@(_realignArmed ? "Confirm realign" : "Run")</button>
+            </td>
+            <td class="text-xs">@Result("realign")</td>
+        </tr>
+        <tr>
+            <td>Refresh endpoint catalog</td>
+            <td>
+                <button type="button" class="btn-mini" disabled="@_busy" @onclick="RefreshEndpoints">Run</button>
+            </td>
+            <td class="text-xs">@Result("refresh-endpoints")</td>
+        </tr>
+        <tr>
+            <td>
+                <div class="flex gap-1 items-center flex-wrap">
+                    <span>Config refresh-live</span>
+                    <select class="reg-filter-input w-auto" @bind="_livePlatform">
+                        <option value="ios">ios</option>
+                        <option value="android">android</option>
+                    </select>
+                </div>
+            </td>
+            <td>
+                <button type="button" class="btn-mini" disabled="@_busy" @onclick="RefreshLive">Run</button>
+            </td>
+            <td class="text-xs">@Result("refresh-live")</td>
+        </tr>
+        <tr>
+            <td>
+                <div class="flex gap-1 items-center flex-wrap">
+                    <span>Config ingest JSON</span>
+                    <select class="reg-filter-input w-auto" @bind="_ingestPlatform">
+                        <option value="ios">ios</option>
+                        <option value="android">android</option>
+                    </select>
+                </div>
+                <textarea class="reg-filter-input w-full mono text-xs" rows="3" placeholder="ConfigResponse JSON" @bind="_ingestJson"></textarea>
+            </td>
+            <td>
+                <button type="button" class="btn-mini" disabled="@_busy" @onclick="IngestJson">Run</button>
+            </td>
+            <td class="text-xs">@Result("ingest-json")</td>
+        </tr>
+        <tr>
+            <td>
+                <div class="flex gap-1 items-center flex-wrap">
+                    <span>Icon import</span>
+                    <input class="reg-filter-input w-auto" placeholder="name" @bind="_iconName"/>
+                    <InputFile OnChange="OnIconFile" class="text-xs"/>
+                </div>
+            </td>
+            <td>
+                <button type="button" class="btn-mini" disabled="@_busy" @onclick="ImportIcon">Run</button>
+            </td>
+            <td class="text-xs">@Result("icon-import")</td>
+        </tr>
+        <tr>
+            <td>Sweep event snapshots</td>
+            <td>
+                <button type="button" class="btn-mini" disabled="@_busy" @onclick="SweepEvents">Run</button>
+            </td>
+            <td class="text-xs">@Result("event-sweep")</td>
+        </tr>
+        <tr>
+            <td>
+                <div class="flex gap-1 items-center flex-wrap">
+                    <span>Import carpet events</span>
+                    <input class="reg-filter-input w-auto" placeholder="@CarpetPlaceholder" @bind="_carpetUrl"/>
+                </div>
+            </td>
+            <td>
+                <button type="button" class="btn-mini" disabled="@_busy" @onclick="ImportCarpetEvents">Run</button>
+            </td>
+            <td class="text-xs">@Result("event-carpet")</td>
+        </tr>
+        </tbody>
+    </table>
+</div>
 
 @code {
     const int ToolCount = 9;
@@ -121,6 +121,10 @@
     readonly Dictionary<string, string> _results = new(StringComparer.Ordinal);
 
     string Stat => $"{ToolCount} tools";
+
+    protected override IReadOnlyList<string> Topics => [];
+
+    protected override Task LoadAsync() => Task.CompletedTask;
 
     string Result(string key) {
         return _results.GetValueOrDefault(key, "");
@@ -145,6 +149,7 @@
         } else {
             var payload = res.Json<ConfigStoreResult>();
             _results[key] = payload is null || payload.Ok ? "ok" : payload.Diagnostics ?? "failed";
+            Notifier.Publish(AdminTopics.DataStatus);
         }
 
         _busy = false;
@@ -196,6 +201,7 @@
             _results[key] = r is null
                 ? "ok"
                 : $"scanned {r.Scanned}, inserted {r.Inserted}, updated {r.Updated}, skipped {r.Skipped}";
+            Notifier.Publish(AdminTopics.Events);
         }
 
         _busy = false;

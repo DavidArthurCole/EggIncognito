@@ -112,9 +112,14 @@ public sealed class ImageBuilder(
             string privApp = Path.Combine(system, "priv-app");
             Directory.CreateDirectory(privApp);
 
-            foreach (string lz in Directory.EnumerateFiles(core, "*.tar.lz")) {
+            var payloads = Directory.EnumerateFiles(core, "*.tar.lz")
+                .Where(p => !GappsSkip.Contains(Path.GetFileName(p), StringComparer.Ordinal))
+                .OrderBy(p => p, StringComparer.Ordinal)
+                .ToList();
+            int done = 0;
+            foreach (string lz in payloads) {
                 string name = Path.GetFileName(lz);
-                if (GappsSkip.Contains(name, StringComparer.Ordinal)) continue;
+                await Log(buildId, $"gapps: unpacking {name} ({++done}/{payloads.Count})", ct);
 
                 string appUnpack = FreshDir(Path.Combine(outer, "appunpack"));
                 ExtractTarLz(await File.ReadAllBytesAsync(lz, ct), appUnpack);
@@ -212,6 +217,7 @@ public sealed class ImageBuilder(
         var cached = await blobs.GetAsync(key, ct);
         try {
             var http = httpFactory.CreateClient(HttpClientName);
+            await Log(buildId, $"{label}: downloading {url}", ct);
             byte[] bytes = await http.GetByteArrayAsync(url, ct);
             string md5 = Md5Hex(bytes);
             if (!string.IsNullOrEmpty(expectedMd5) && !string.Equals(md5, expectedMd5, StringComparison.OrdinalIgnoreCase)) {
@@ -259,9 +265,8 @@ public sealed class ImageBuilder(
     }
 
     private static void ExtractTarLz(byte[] lzBytes, string destDir) {
-        using var ms = new MemoryStream(lzBytes);
-        using var lz = LZipStream.Create(ms, SharpCompress.Compressors.CompressionMode.Decompress);
-        using var reader = new TarReader(lz);
+        using var ms = new MemoryStream(DecodeLzip(lzBytes), false);
+        using var reader = new TarReader(ms);
         while (reader.GetNextEntry() is { } entry) {
             string rel = entry.Name.Replace('/', Path.DirectorySeparatorChar);
             if (rel.Length == 0) continue;
@@ -275,6 +280,43 @@ public sealed class ImageBuilder(
             Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
             entry.ExtractToFile(dest, true);
         }
+    }
+
+    private static byte[] DecodeLzip(byte[] lz) {
+        using var outMs = new MemoryStream();
+        var members = LzipMembers(lz);
+        for (int i = 0; i < members.Count; i++) {
+            (int start, int len) = members[i];
+            using var member = new MemoryStream(lz, start, len, false);
+            using var dec = LZipStream.Create(member, SharpCompress.Compressors.CompressionMode.Decompress);
+            try {
+                dec.CopyTo(outMs);
+            } catch (Exception ex) {
+                throw new InvalidOperationException(
+                    $"lzip: decode failed on member {i + 1}/{members.Count} (offset {start}, {len} bytes): {ex.Message}", ex);
+            }
+        }
+
+        return outMs.ToArray();
+    }
+
+    private static List<(int Start, int Len)> LzipMembers(byte[] lz) {
+        var members = new List<(int, int)>();
+        long end = lz.Length;
+        while (end > 20) {
+            long size = BitConverter.ToInt64(lz, checked((int)(end - 8)));
+            long start = end - size;
+            if (size <= 20 || start < 0)
+                throw new InvalidOperationException($"lzip: bad member size {size} at offset {end - 8}");
+            if (lz[start] != 0x4C || lz[start + 1] != 0x5A || lz[start + 2] != 0x49 || lz[start + 3] != 0x50)
+                throw new InvalidOperationException($"lzip: member magic mismatch at offset {start}");
+
+            members.Add((checked((int)start), checked((int)size)));
+            end = start;
+        }
+
+        members.Reverse();
+        return members;
     }
 
     private static void CopyTree(string src, string dest) {

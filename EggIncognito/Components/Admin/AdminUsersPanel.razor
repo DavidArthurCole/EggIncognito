@@ -1,60 +1,50 @@
 @rendermode @(RenderModes.InteractiveServer)
 @using EggIncognito.Models.AdminUi
-@inherits BrowserApiComponentBase
+@inherits AdminPaneBase
 
-<AdminCard Title="Users" Stat="@($"{_users.Count} total")">
-    <Summary>
-        @if (_users.Count == 0) {
-            <div class="text-muted text-xs">No users loaded.</div>
-        } else {
-            <div class="text-muted text-xs">@((MarkupString)RoleBreakdown())</div>
-            @foreach (var u in RecentLogins) {
-                <div class="admin-card-extra text-xs text-muted">@u.Username &middot; <TimeAgo Value="@u.LastLoginAt" Hover="false"/></div>
-            }
+<div class="admin-pane-head">
+    <h2 class="admin-pane-title">Users</h2>
+    <span class="text-muted text-xs">@_users.Count total @((MarkupString)(_users.Count == 0 ? "" : " &middot; " + RoleBreakdown()))</span>
+</div>
+<div class="reg-wrap admin-users-scroll">
+    <table class="data-table admin-users-table">
+        <thead>
+        <tr>
+            <th>User</th><th>OIDC Sources</th><th>Role</th><th>Last login</th>
+        </tr>
+        </thead>
+        <tbody>
+        @foreach (var u in _users) {
+            <tr>
+                <td class="font-medium">@u.Username</td>
+                <td>
+                    @{ var provs = u.Providers ?? []; }
+                    <div class="oidc-sources">
+                        @if (provs.Count == 0) {
+                            <span class="text-muted text-xs">none</span>
+                        } else {
+                            @foreach (var p in provs) {
+                                <span class="oidc-icon">@((MarkupString)ProviderGlyph(p))</span>
+                            }
+                        }
+                    </div>
+                </td>
+                <td>
+                    <select class="reg-filter-input w-auto" value="@u.Role" @onchange="e => SetRole(u.DiscordId, (string?)e.Value)">
+                        @foreach (var role in Roles) {
+                            <option value="@role">@role</option>
+                        }
+                    </select>
+                </td>
+                <td class="text-muted text-xs">@u.LastLoginAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
+            </tr>
         }
-    </Summary>
-    <Detail>
-        <div class="reg-wrap admin-users-scroll">
-            <table class="data-table admin-users-table">
-                <thead>
-                <tr>
-                    <th>User</th><th>OIDC Sources</th><th>Role</th><th>Last login</th>
-                </tr>
-                </thead>
-                <tbody>
-                @foreach (var u in _users) {
-                    <tr>
-                        <td class="font-medium">@u.Username</td>
-                        <td>
-                            @{ var provs = u.Providers ?? []; }
-                            <div class="oidc-sources">
-                                @if (provs.Count == 0) {
-                                    <span class="text-muted text-xs">none</span>
-                                } else {
-                                    @foreach (var p in provs) {
-                                        <span class="oidc-icon">@((MarkupString)ProviderGlyph(p))</span>
-                                    }
-                                }
-                            </div>
-                        </td>
-                        <td>
-                            <select class="reg-filter-input w-auto" value="@u.Role" @onchange="e => SetRole(u.DiscordId, (string?)e.Value)">
-                                @foreach (var role in Roles) {
-                                    <option value="@role">@role</option>
-                                }
-                            </select>
-                        </td>
-                        <td class="text-muted text-xs">@u.LastLoginAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
-                    </tr>
-                }
-                </tbody>
-            </table>
-        </div>
-        @if (_msg is not null) {
-            <StatusNote>@_msg</StatusNote>
-        }
-    </Detail>
-</AdminCard>
+        </tbody>
+    </table>
+</div>
+@if (_msg is not null) {
+    <StatusNote>@_msg</StatusNote>
+}
 
 @code {
     static readonly string[] Roles = Enum.GetValues<UserRole>().Select(UserRoles.ToName).ToArray();
@@ -62,11 +52,9 @@
     List<UserRow> _users = [];
     string? _msg;
 
-    List<UserRow> RecentLogins => _users.OrderByDescending(u => u.LastLoginAt).Take(3).ToList();
+    protected override IReadOnlyList<string> Topics => [AdminTopics.Users];
 
-    protected override async Task OnApiReadyAsync() {
-        await LoadUsers();
-    }
+    protected override Task LoadAsync() => LoadUsers();
 
     string RoleBreakdown() {
         var counts = _users.GroupBy(u => u.Role).ToDictionary(g => g.Key, g => g.Count());
@@ -97,6 +85,7 @@
         var i = _users.FindIndex(x => x.DiscordId == discordId);
         if (i >= 0 && d is not null) _users[i] = _users[i] with { Role = d.Role };
         _msg = $"set {discordId} -> {d?.Role}";
+        Notifier.Publish(AdminTopics.Users);
     }
 
     static string ProviderGlyph(string provider) {

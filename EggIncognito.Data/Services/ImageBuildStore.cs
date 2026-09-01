@@ -28,7 +28,9 @@ public sealed class ImageBuildStore(EggIncognitoDbContext db, TimeProvider time)
 
     public Task AppendAsync(long id, string line, CancellationToken ct) =>
         db.ImageBuilds.Where(x => x.Id == id)
-            .ExecuteUpdateAsync(s => s.SetProperty(x => x.Log, x => x.Log + line + "\n"), ct);
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(x => x.Log, x => x.Log + line + "\n")
+                .SetProperty(x => x.Note, line), ct);
 
     public Task SetStateAsync(long id, string state, string? note, CancellationToken ct) =>
         db.ImageBuilds.Where(x => x.Id == id)

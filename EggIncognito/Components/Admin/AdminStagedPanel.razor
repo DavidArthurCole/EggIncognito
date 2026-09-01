@@ -1,39 +1,37 @@
 @rendermode @(RenderModes.InteractiveServer)
 @using EggIncognito.Components.Protos
 @using EggIncognito.Models.Admin
-@inherits BrowserApiComponentBase
+@inherits AdminPaneBase
 
-<AdminCard Title="Staged protos" Stat="@StatText" OnOpened="Load">
-    <Summary>
-        @if (Oldest is { } oldest) {
-            <div class="text-xs text-muted">oldest <TimeAgo Value="@oldest" Hover="false"/></div>
-        } else {
-            <div class="text-xs text-muted">nothing staged</div>
-        }
-    </Summary>
-    <Detail>
-        <StagedReviewPanel IsAdmin="true" OnChanged="Load"/>
-    </Detail>
-</AdminCard>
+<div class="admin-pane-head">
+    <h2 class="admin-pane-title">Staged protos</h2>
+    <span class="text-muted text-xs">
+        @_rows.Count staged@(Oldest is { } oldest ? $", oldest {oldest.LocalDateTime:yyyy-MM-dd}" : "")
+    </span>
+</div>
+<StagedReviewPanel IsAdmin="true" OnChanged="OnReviewed"/>
 
 @code {
     List<StagedPendingRow> _rows = [];
-
-    string StatText => _rows.Count.ToString();
 
     DateTimeOffset? Oldest => _rows.Where(r => r.SubmittedAt is not null)
         .OrderBy(r => r.SubmittedAt)
         .Select(r => r.SubmittedAt)
         .FirstOrDefault();
 
-    protected override async Task OnApiReadyAsync() {
-        await Load();
-    }
+    protected override IReadOnlyList<string> Topics => [AdminTopics.Staged];
+
+    protected override Task LoadAsync() => Load();
 
     async Task Load() {
         if (Api is null) return;
         var res = await Api.GetAsync("/api/protos/staged");
         if (res.Ok) _rows = res.Json<List<StagedPendingRow>>() ?? [];
+    }
+
+    async Task OnReviewed() {
+        await Load();
+        Notifier.Publish(AdminTopics.Staged);
     }
 
 }
