@@ -6,6 +6,7 @@
     <h2 class="admin-pane-title">Theme policy</h2>
     <span class="text-muted text-xs">custom CSS @(_customCssEnabled ? "allowed" : "blocked") &middot; default @(string.IsNullOrWhiteSpace(_defaultThemeSlug) ? "none" : _defaultThemeSlug)</span>
 </div>
+<PaneNotice @ref="_notice"/>
 <div class="flex flex-col gap-3">
     <label class="flex items-center gap-2 text-sm">
         <input type="checkbox" checked="@_customCssEnabled" disabled="@(!_configFloor || _busy)" @onchange="ToggleCustomCss"/>
@@ -22,16 +23,13 @@
         </div>
     </label>
 </div>
-@if (_msg is not null) {
-    <StatusNote>@_msg</StatusNote>
-}
 
 @code {
+    PaneNotice? _notice;
     bool _customCssEnabled = true;
     bool _configFloor = true;
     string _defaultThemeSlug = "";
     bool _busy;
-    string? _msg;
 
     protected override IReadOnlyList<string> Topics => [AdminTopics.ThemePolicy];
 
@@ -41,7 +39,7 @@
         if (Api is null) return;
         var res = await Api.GetAsync("/api/theme/policy");
         if (!res.Ok) {
-            _msg = $"load failed: {res.Describe()}";
+            _notice?.Fail($"load failed: {res.Describe()}");
             return;
         }
 
@@ -68,12 +66,12 @@
     async Task Save() {
         if (Api is null) return;
         _busy = true;
-        _msg = null;
+        _notice?.Clear();
         var res = await Api.PutJsonAsync("/api/theme/policy", new {
             customCssEnabled = _customCssEnabled,
             defaultThemeSlug = string.IsNullOrWhiteSpace(_defaultThemeSlug) ? null : _defaultThemeSlug.Trim()
         });
-        _msg = res.Ok ? "policy saved" : $"save failed: {res.Describe()}";
+        _notice?.Result(res.Ok, res.Ok ? "policy saved" : $"save failed: {res.Describe()}");
         await Load();
         _busy = false;
         if (res.Ok) Notifier.Publish(AdminTopics.ThemePolicy);

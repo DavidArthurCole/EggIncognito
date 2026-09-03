@@ -14,18 +14,20 @@
 <WorkbenchModal Open="@(_open && _isAdmin)" Title="Device console" TitleId="deviceConsoleTitle"
                 Size="WorkbenchSize.Wide" CardClass="dcon-card" OnClose="CloseAsync">
     <Notice>
-        @if (_notice is { } n) {
-            <StatusNote Severity="@n.Severity" OnDismiss="ClearNotice">@n.Text</StatusNote>
-        }
-        @if (_streamError is { } se) {
-            <StatusNote Severity="StatusNoteKind.Error" OnDismiss="ClearStreamError">
-                <ChildContent>@se</ChildContent>
-                <Actions>
-                    <button type="button" class="btn-mini" @onclick="RetryStreamAsync">Try again</button>
-                    <button type="button" class="btn-mini" @onclick="OneFrameAsync">One frame instead</button>
-                </Actions>
-            </StatusNote>
-        }
+        <div class="dcon-notices">
+            @if (_notice is { } n) {
+                <StatusNote Severity="@n.Severity" OnDismiss="ClearNotice">@n.Text</StatusNote>
+            }
+            @if (_streamError is { } se) {
+                <StatusNote Severity="StatusNoteKind.Error" OnDismiss="ClearStreamError">
+                    <ChildContent>@se</ChildContent>
+                    <Actions>
+                        <button type="button" class="btn-mini" @onclick="RetryStreamAsync">Try again</button>
+                        <button type="button" class="btn-mini" @onclick="OneFrameAsync">One frame</button>
+                    </Actions>
+                </StatusNote>
+            }
+        </div>
     </Notice>
     <HeadTools>
         <select class="field-input dcon-pick" aria-label="Device" value="@_deviceId" @onchange="PickDeviceAsync">
@@ -51,9 +53,9 @@
     </HeadTools>
     <ChildContent>
         @if (_devices.Count == 0 && _deviceId is null) {
-            <div class="wb-note">No enabled devices on this host.</div>
+            <div class="wb-note">No devices enabled.</div>
         } else if (_deviceId is null) {
-            <div class="wb-note">Pick a device to work on it.</div>
+            <div class="wb-note">Pick a device.</div>
         } else {
             <div class="dcon-body">
                 <div class="dcon-col">
@@ -76,16 +78,16 @@
                                 </div>
                             }
                         } else if (_readinessBusy) {
-                            <div class="dcon-ready-unknown">Reading device readiness...</div>
+                            <div class="dcon-ready-unknown">Reading...</div>
                         } else {
-                            <div class="dcon-ready-unknown">Readiness unknown for this device.</div>
+                            <div class="dcon-ready-unknown">Not read yet.</div>
                         }
                     </div>
 
                     @if (_booksBusy && _books.Count == 0) {
-                        <div class="wb-note">Reading the recipes this device offers...</div>
+                        <div class="wb-note">Reading recipes...</div>
                     } else if (_books.Count == 0) {
-                        <div class="wb-note">This device offers no recipes.</div>
+                        <div class="wb-note">No recipes for this device.</div>
                     } else {
                         @if (Workflows() is { Count: > 0 } workflows) {
                             <div class="dcon-books">
@@ -229,7 +231,7 @@
                     @if (_dumpError is { } de) {
                         <div class="dcon-tree-note text-err">@de</div>
                     } else if (_dump is null) {
-                        <div class="dcon-tree-note">No UI tree read yet.</div>
+                        <div class="dcon-tree-note">No UI tree yet.</div>
                     } else {
                         <div class="dcon-tree-note">
                             @_rows.Count of @_dump.Count nodes
@@ -260,9 +262,7 @@
                             </div>
 
                             @if (sel.Selectors.Count == 0) {
-                                <div class="dcon-sel-empty">
-                                    Nothing selectable on this node. Tap it by point instead.
-                                </div>
+                                <div class="dcon-sel-empty">No selectors. Tap by point.</div>
                                 <div class="dcon-snip-row">
                                     <code class="dcon-snip">@PointStep(sel)</code>
                                     <CopyButton Text="@PointStep(sel)" AriaLabel="Copy tap-point step"/>
@@ -450,19 +450,19 @@
     }
 
     string StageEmptyText() {
-        if (_streamError is not null) return "No picture. Read the message above the toolbar.";
-        return _streaming ? "Waiting for the first frame." : "Screen paused. The last frame is not kept.";
+        if (_streamError is not null) return "No picture.";
+        return _streaming ? "Waiting for a frame." : "Paused.";
     }
 
     string StatusLine() {
-        if (_deviceId is null) return "No device picked.";
-        if (_streamError is not null) return "The screen is not running.";
+        if (_deviceId is null) return "No device.";
+        if (_streamError is not null) return "Screen stopped.";
         var head = _streaming
-            ? _hasFrame ? $"Live at {_fps} fps." : "Waiting for the first frame."
+            ? _hasFrame ? $"Live, {_fps} fps." : "Waiting for a frame."
             : _hasFrame
-                ? "Showing one frame."
-                : "Screen paused. Go live for a stream, or One frame for a single shot.";
-        return _lastTap is { } tap ? $"{head} Last tap at {tap}." : head;
+                ? "One frame."
+                : "Paused.";
+        return _lastTap is { } tap ? $"{head} Last tap {tap}." : head;
     }
 
     void ToggleDetail() {
@@ -473,12 +473,12 @@
         if (_deviceId is null) return;
         await MeasureAsync();
         if (TapWidth <= 0 || TapHeight <= 0) {
-            Note("No frame has been measured yet, so a click cannot be mapped to device pixels.", false);
+            Note("no frame measured yet", false);
             return;
         }
 
         if (_renderW <= 0 || _renderH <= 0) {
-            Note("The screen has no rendered size yet.", false);
+            Note("screen not measured yet", false);
             return;
         }
 
@@ -496,7 +496,7 @@
         var res = await Client().PostAsJsonAsync($"/api/devices/{_deviceId}/ui/tap",
             new UiTapRequest(x, y), SelfCallJson.Web);
         _lastTap = $"{x}, {y}";
-        Note(res.IsSuccessStatusCode ? $"Tapped {x}, {y}." : await ReadError(res), res.IsSuccessStatusCode);
+        Note(res.IsSuccessStatusCode ? $"tapped {x}, {y}" : await ReadError(res), res.IsSuccessStatusCode);
     }
 
     Task TapSelectedAsync() {
@@ -507,14 +507,14 @@
         if (_deviceId is null || _text.Length == 0) return;
         var res = await Client().PostAsJsonAsync($"/api/devices/{_deviceId}/ui/text",
             new UiTextRequest(_text), SelfCallJson.Web);
-        Note(res.IsSuccessStatusCode ? "Text sent." : await ReadError(res), res.IsSuccessStatusCode);
+        Note(res.IsSuccessStatusCode ? "text sent" : await ReadError(res), res.IsSuccessStatusCode);
     }
 
     async Task KeyAsync(string key) {
         if (_deviceId is null) return;
         var res = await Client().PostAsJsonAsync($"/api/devices/{_deviceId}/ui/key",
             new UiKeyRequest(key), SelfCallJson.Web);
-        Note(res.IsSuccessStatusCode ? $"Sent {key}." : await ReadError(res), res.IsSuccessStatusCode);
+        Note(res.IsSuccessStatusCode ? $"sent {key}" : await ReadError(res), res.IsSuccessStatusCode);
     }
 
     async Task LoadCookbooksAsync() {
@@ -599,7 +599,7 @@
         <div class="dcon-book-sum">@book.Summary</div>
         @if (!book.Available) {
             <div class="dcon-book-off">
-                @(book.Unavailable ?? "Not available on this device right now.")
+                @(book.Unavailable ?? "Not available here.")
             </div>
         } else if (book.Options is { Count: > 0 } options) {
             <label class="dcon-book-arg">
@@ -661,7 +661,7 @@
         if (_runJobId is null) {
             _runBusy = false;
             _runDone = true;
-            _runNote = "the run started but the server did not name a job to follow";
+            _runNote = "run started but no job id came back";
             return;
         }
 
@@ -697,7 +697,7 @@
 
         var res = await Client().PostAsync($"/api/devices/{_deviceId}/cookbooks/stop", null);
         _stopBusy = false;
-        Note(res.IsSuccessStatusCode ? "Stop requested." : await ReadError(res), res.IsSuccessStatusCode);
+        Note(res.IsSuccessStatusCode ? "stop requested" : await ReadError(res), res.IsSuccessStatusCode);
         StateHasChanged();
     }
 
@@ -739,10 +739,11 @@
 
     string RunStateLine() {
         if (!_runDone) return "running";
-        if (_runCancelled) return _runNote is { Length: > 0 } stopNote ? $"stopped, {stopNote}" : "stopped by an admin";
+        if (_runCancelled) return _runNote is { Length: > 0 } stopNote ? $"stopped, {stopNote}" : "stopped";
         if (_runOk) return _runNote is { Length: > 0 } ok ? $"done, {ok}" : "done";
-        if (_runFailedStep is { Length: > 0 } step) return $"failed at {step}";
-        return _runNote is { Length: > 0 } note ? $"failed, {note}" : "failed";
+        if (_runFailedStep is { Length: > 0 } step
+            && !string.Equals(step, _runTitle, StringComparison.OrdinalIgnoreCase)) return $"failed at {step}";
+        return "failed";
     }
 
     string RunReport() {
@@ -983,10 +984,10 @@
 
     static string FrameFailure(int status, string note, bool live) {
         var detail = status > 0 ? $"{note} [http {status}]" : note;
-        var tail = string.IsNullOrWhiteSpace(detail) ? "" : $" The browser said: {detail}.";
+        var tail = string.IsNullOrWhiteSpace(detail) ? "" : $": {detail}";
         return live
-            ? $"The live screen did not run. A device streams to one console at a time, so another viewer may be holding it.{tail}"
-            : $"That frame did not load.{tail}";
+            ? $"stream failed{tail}. a device streams to one console at a time"
+            : $"frame failed{tail}";
     }
 
     DotNetObjectReference<DeviceConsole> Ref() {

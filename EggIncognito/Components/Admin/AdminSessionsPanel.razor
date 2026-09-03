@@ -8,6 +8,7 @@
     <h2 class="admin-pane-title">Capture sessions</h2>
     <span class="text-muted text-xs">@_rows.Count active @((MarkupString)(_rows.Count == 0 ? "" : " &middot; " + KindBreakdown()))</span>
 </div>
+<PaneNotice @ref="_notice"/>
 @if (_rows.Count == 0) {
     <p class="text-muted text-sm m-0">No active capture sessions.</p>
 } else {
@@ -46,14 +47,11 @@
         </table>
     </div>
 }
-@if (_msg is not null) {
-    <StatusNote>@_msg</StatusNote>
-}
 
 @code {
+    PaneNotice? _notice;
     List<SessionRow> _rows = [];
     bool _busy;
-    string? _msg;
     Timer? _timer;
 
     protected override async Task OnApiReadyAsync() {
@@ -89,9 +87,9 @@
     async Task Kill(string key) {
         if (Api is null) return;
         _busy = true;
-        _msg = null;
+        _notice?.Clear();
         var res = await Api.DeleteAsync($"/api/admin/sessions/{Uri.EscapeDataString(key)}");
-        _msg = res.Ok ? $"killed {Label(key)}" : $"kill failed: {res.Describe()}";
+        _notice?.Result(res.Ok, res.Ok ? $"killed {Label(key)}" : $"kill failed: {res.Describe()}");
         await Load();
         _busy = false;
     }

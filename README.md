@@ -53,10 +53,11 @@ The app embeds a TLS-intercepting proxy that records real game traffic into reus
 - [EggIncognito.Bot](EggIncognito.Bot/README.md) - the optional Discord bot.
 - [EggIncognito.RouteGenerator](EggIncognito.RouteGenerator/README.md) - the controller source generator.
 - EggIncognito.GameData - data-free game-data catalogs and effect folding, published as a package.
+- EggIncognito.Protos - the content-only `ei.proto` package; EggLedger builds against it.
 - EggIncognito.Runner - the device-farm agent.
 - EggIncognito.CssBuild - the build-time stylesheet compiler.
 - EggIncognito.RelayAgent - the host-side sidecar for hosted capture routing.
 
 ## HTTPS (optional)
 
-Drop a PEM certificate and key in `certs/`; Kestrel picks them up at startup and serves `https://localhost:5443`. The directory is gitignored.
+Drop `server.crt` and `server.key` in the gitignored `certs/`. Kestrel then binds 8080 and 8443, overridable via `HttpPort`/`HttpsPort`; compose maps those to 5080 and 5443. Without the pair it keeps the default endpoints.

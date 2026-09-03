@@ -1,0 +1,26 @@
+@if (_text is { Length: > 0 } text) {
+    <div class="pane-notice">
+        <StatusNote Severity="@_kind" OnDismiss="Clear">@text</StatusNote>
+    </div>
+}
+
+@code {
+
+    string? _text;
+    StatusNoteKind _kind = StatusNoteKind.Info;
+
+    public void Say(string? text, StatusNoteKind kind = StatusNoteKind.Info) {
+        _text = text;
+        _kind = kind;
+        StateHasChanged();
+    }
+
+    public void Ok(string? text) => Say(text, StatusNoteKind.Ok);
+
+    public void Fail(string? text) => Say(text, StatusNoteKind.Error);
+
+    public void Result(bool ok, string? text) => Say(text, ok ? StatusNoteKind.Ok : StatusNoteKind.Error);
+
+    public void Clear() => Say(null);
+
+}

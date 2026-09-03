@@ -57,11 +57,11 @@ public class CaInstallerTests {
     }
 
     [Fact]
-    public async Task Adb_PushesPemAndScript_ThenRunsItAsRoot() {
+    public async Task Adb_RootShellWithSu_StillUsesSuMinusMm() {
         (string path, var cert) = MakeCa();
         try {
-            var runner = new FakeRunner((_, _) =>
-                new ProcessResult(0, "diag module: written\ndiag live: mounted into running cacerts\ndiag done", ""));
+            var shell = new AdbShell { Uid = "0" };
+            var runner = new FakeRunner((_, args) => shell.Handle(args));
             var inst = new AdbCaInstaller(runner);
             (bool ok, string? note) =
                 await inst.InstallAsync(new DeviceTarget("d", "android", "SERIAL", "com.auxbrain.egginc"), path, default);
@@ -73,9 +73,106 @@ public class CaInstallerTests {
             (string exe, string[] args) = runner.Calls.Single(c => c.args.Contains("su"));
             Assert.Contains("-mm", args);
             Assert.Contains(args, a => a.Contains("/data/local/tmp/eggincognito-ca-magisk.sh"));
-            string hash = CaCertPrep.AndroidSubjectHashOld(cert);
-            Assert.Contains(hash, note!);
+            Assert.Contains(CaCertPrep.AndroidSubjectHashOld(cert), note!);
             Assert.Contains("trusted (live)", note!);
+        } finally {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task Adb_NonRootWithSu_UsesSuMinusMm() {
+        (string path, _) = MakeCa();
+        try {
+            var shell = new AdbShell { Uid = "2000" };
+            var runner = new FakeRunner((_, args) => shell.Handle(args));
+            (bool ok, _) = await new AdbCaInstaller(runner)
+                .InstallAsync(new DeviceTarget("d", "android", "S", "com.auxbrain.egginc"), path, default);
+
+            Assert.True(ok);
+            (string exe, string[] args) = runner.Calls.Single(c => c.args.Contains("su"));
+            Assert.Contains("-mm", args);
+        } finally {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task Adb_NoSu_FallsBackToBareShell() {
+        (string path, _) = MakeCa();
+        try {
+            var shell = new AdbShell { Uid = "0", Su = "" };
+            var runner = new FakeRunner((_, args) => shell.Handle(args));
+            (bool ok, _) = await new AdbCaInstaller(runner)
+                .InstallAsync(new DeviceTarget("d", "android", "S", "com.auxbrain.egginc"), path, default);
+
+            Assert.True(ok);
+            Assert.DoesNotContain(runner.Calls, c => c.args.Contains("su"));
+            Assert.Contains(runner.Calls[^1].args, a => a.Contains("sh /data/local/tmp/eggincognito-ca-magisk.sh"));
+        } finally {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task Adb_Script_OverlaysTrustStoreWithTmpfs_AndVerifies() {
+        (string path, var cert) = MakeCa();
+        try {
+            var shell = new AdbShell();
+            var runner = new FakeRunner((_, args) => shell.Handle(args));
+            await new AdbCaInstaller(runner)
+                .InstallAsync(new DeviceTarget("d", "android", "S", "com.auxbrain.egginc"), path, default);
+
+            string script = shell.PushedScript!;
+            string hash = CaCertPrep.AndroidSubjectHashOld(cert);
+            Assert.Contains($"LIVE=$CACERTS/{hash}.0", script);
+            Assert.DoesNotContain("{hash}", script);
+            Assert.DoesNotContain("{cert_b64}", script);
+            Assert.Contains("mount -t tmpfs", script);
+            Assert.Contains("cp -f $CACERTS/* $SNAP/", script);
+            Assert.Contains("cp -f $SNAP/* $CACERTS/", script);
+            Assert.Contains("chcon u:object_r:system_security_cacerts_file:s0 $CACERTS $CACERTS/*", script);
+            Assert.Contains("BEGIN CERTIFICATE", script);
+            Assert.DoesNotContain("2>/dev/null", script);
+            Assert.DoesNotContain("need su -mm global ns", script);
+        } finally {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task Adb_Script_GuardsTheTmpfsMountBehindAWritabilityCheck() {
+        (string path, _) = MakeCa();
+        try {
+            var shell = new AdbShell();
+            var runner = new FakeRunner((_, args) => shell.Handle(args));
+            await new AdbCaInstaller(runner)
+                .InstallAsync(new DeviceTarget("d", "android", "S", "com.auxbrain.egginc"), path, default);
+
+            string script = shell.PushedScript!;
+            int guard = script.IndexOf("if [ -f $CACERTS/.egi-w ]; then", StringComparison.Ordinal);
+            int mount = script.IndexOf("mount -t tmpfs", StringComparison.Ordinal);
+            Assert.True(guard >= 0);
+            Assert.True(mount > guard);
+            Assert.Contains("diag live: store already writable", script);
+        } finally {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task Adb_LiveMountFails_ReportsTheRealError() {
+        (string path, _) = MakeCa();
+        try {
+            var shell = new AdbShell { Out = LiveFail };
+            var runner = new FakeRunner((_, args) => shell.Handle(args));
+            (bool ok, string? note) = await new AdbCaInstaller(runner)
+                .InstallAsync(new DeviceTarget("d", "android", "S", "com.auxbrain.egginc"), path, default);
+
+            Assert.False(ok);
+            Assert.Contains("module written but live mount FAILED", note!);
+            Assert.Contains("Permission denied", note!);
+            Assert.DoesNotContain("need su -mm", note!);
         } finally {
             File.Delete(path);
         }
@@ -148,6 +245,33 @@ public class CaInstallerTests {
             Assert.Contains("/custom/TrustStore.sqlite3", remote);
         } finally {
             File.Delete(path);
+        }
+    }
+
+    private const string LiveOk =
+        "diag module: written\ndiag live: tmpfs mounted, 158 certs restored\n"
+        + "diag live: mounted into running cacerts\ndiag done";
+
+    private const string LiveFail =
+        "diag module: written\ndiag live: tmpfs mount FAILED: mount: Permission denied\n"
+        + "diag live: verify FAILED: head: no such file\ndiag done";
+
+    private sealed class AdbShell {
+        public string Uid { get; init; } = "0";
+        public string Su { get; init; } = "/system/bin/su";
+        public string Out { get; init; } = LiveOk;
+        public string? PushedScript { get; private set; }
+
+        public ProcessResult Handle(string[] args) {
+            if (args.Contains("push")) {
+                PushedScript = File.ReadAllText(args[^2]);
+                return new ProcessResult(0, "", "");
+            }
+
+            string cmd = string.Join(" ", args);
+            if (cmd.Contains("id -u")) return new ProcessResult(0, Uid, "");
+            if (cmd.Contains("command -v su")) return new ProcessResult(Su.Length > 0 ? 0 : 1, Su, "");
+            return new ProcessResult(0, Out, "");
         }
     }
 

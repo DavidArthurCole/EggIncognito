@@ -14,9 +14,31 @@ public sealed class InstallIntegrityStep(
         "/sbin/magisk", "/debug_ramdisk/magisk",
         "/system/etc/init/magisk/magisk", "/data/adb/magisk/magisk"
     ];
+    private const string ScanMarker = "egi-scan-done";
     private const string IntegrityDetect =
         "ls -d /data/adb/modules/*integrity* 2>/dev/null; "
-        + "grep -il integrity /data/adb/modules/*/module.prop 2>/dev/null";
+        + "grep -il integrity /data/adb/modules/*/module.prop 2>/dev/null; "
+        + "echo " + ScanMarker;
+    private const string MagiskBinDir = "/data/adb/magisk";
+    private const string MagiskSysDir = "/system/etc/init/magisk";
+    private const string BusyboxMarker = "egi-busybox-ok";
+    private const string UtilMarker = "egi-util-ok";
+    private const string MagiskBinProbe =
+        "[ -x " + MagiskBinDir + "/busybox ] && echo " + BusyboxMarker + "; "
+        + "[ -f " + MagiskBinDir + "/util_functions.sh ] && echo " + UtilMarker + "; "
+        + "ls -l " + MagiskBinDir + " 2>&1; "
+        + "echo " + ScanMarker;
+    private const string MagiskBinSeed =
+        "mkdir -p " + MagiskBinDir + "; "
+        + "cp -f " + MagiskSysDir + "/* " + MagiskBinDir + "/ 2>/dev/null; "
+        + MagiskBinDir + "/busybox unzip -o -j " + MagiskSysDir + "/magisk.apk \"assets/*.sh\" -d " + MagiskBinDir
+        + " 2>/dev/null "
+        + "|| busybox unzip -o -j " + MagiskSysDir + "/magisk.apk \"assets/*.sh\" -d " + MagiskBinDir + " 2>/dev/null "
+        + "|| unzip -o -j " + MagiskSysDir + "/magisk.apk \"assets/*.sh\" -d " + MagiskBinDir + " 2>/dev/null; "
+        + "rm -f " + MagiskBinDir + "/magisk.apk; "
+        + "chmod 755 " + MagiskBinDir + "/* 2>/dev/null; "
+        + "chcon u:object_r:magisk_file:s0 " + MagiskBinDir + " " + MagiskBinDir + "/* 2>/dev/null; "
+        + "true";
     private static readonly TimeSpan AdbTimeout = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan BootTimeout = TimeSpan.FromSeconds(150);
     private static readonly TimeSpan BootPollInterval = TimeSpan.FromSeconds(5);
@@ -61,9 +83,22 @@ public sealed class InstallIntegrityStep(
                 + "(rebuild the gapps+magisk image or seed the /data volume). integrity install needs Magisk");
         }
 
+        Add($"magisk binary: {magisk}");
+
+        var magiskBin = await EnsureMagiskBinAsync(conn, root, Add, ct);
+        if (!magiskBin.Ok) {
+            return Failed(lines,
+                $"MAGISKBIN incomplete at {MagiskBinDir}: missing {magiskBin.Missing}; "
+                + $"found: {(magiskBin.Listing.Length > 0 ? magiskBin.Listing : "nothing")}");
+        }
+
         if (config.IntegrityDisableMagiskZygisk) {
             Add("disabling Magisk built-in Zygisk before installing the zygisk provider");
-            await conn.ShellAsync(root.Wrap($"{magisk} {ZygiskOffSql}"), ct);
+            var zygisk = await conn.ShellAsync(root.Wrap($"{magisk} {ZygiskOffSql}"), ct);
+            Add(zygisk.ExitCode == 0
+                ? "zygisk setting written"
+                : $"zygisk setting write failed (exit {zygisk.ExitCode}): "
+                  + DeviceParsing.TrimNote(zygisk.Stderr + zygisk.Stdout));
             if (await RebootAsync(conn, target.Target, Add, ct) is not { Ok: true } after)
                 return Failed(lines, "device did not come back rooted after the Zygisk-toggle reboot");
             root = after;
@@ -91,8 +126,12 @@ public sealed class InstallIntegrityStep(
             var install = await conn.ShellAsync(root.Wrap($"{magisk} --install-module {remote}"), ct);
             await conn.ShellAsync(root.Wrap($"rm -f {remote}"), ct);
             if (install.ExitCode != 0) {
+                var listing = await conn.ShellAsync(root.Wrap($"ls -l {MagiskBinDir} 2>&1"), ct);
+                var magiskVer = await conn.ShellAsync(root.Wrap($"{magisk} -V 2>&1"), ct);
                 return Failed(lines,
-                    $"install of '{spec.Name}' failed: {DeviceParsing.TrimNote(install.Stderr + install.Stdout)}");
+                    $"install of '{spec.Name}' failed: {DeviceParsing.TrimNote(install.Stderr + install.Stdout)}"
+                    + $"; magisk -V: {DeviceParsing.TrimNote(magiskVer.Stdout + magiskVer.Stderr)}"
+                    + $"; {MagiskBinDir}: {DeviceParsing.TrimNote(listing.Stdout + listing.Stderr)}");
             }
 
             Add($"{spec.Name}: installed");
@@ -111,7 +150,13 @@ public sealed class InstallIntegrityStep(
         }
 
         var verify = await conn.ShellAsync(root.Wrap(IntegrityDetect), ct);
-        if (verify.Stdout.Trim().Length == 0)
+        if (!verify.Stdout.Contains(ScanMarker, StringComparison.Ordinal)) {
+            return Failed(lines,
+                $"integrity verify did not run (exit {verify.ExitCode}): "
+                + DeviceParsing.TrimNote(verify.Stderr + verify.Stdout));
+        }
+
+        if (WithoutMarkers(verify.Stdout).Length == 0)
             return Failed(lines, "Integrity-Box module not found under /data/adb/modules after install");
 
         Add("Integrity-Box module present");
@@ -127,6 +172,41 @@ public sealed class InstallIntegrityStep(
         var onPath = await conn.ShellAsync(root.Wrap("command -v magisk"), ct);
         return onPath.Stdout.Trim().Length > 0 ? "magisk" : null;
     }
+
+    private static async Task<(bool Ok, string Missing, string Listing)> MagiskBinStateAsync(
+        IDeviceConnection conn, RootAccess root, CancellationToken ct) {
+        var probe = await conn.ShellAsync(root.Wrap(MagiskBinProbe), ct);
+        bool busybox = probe.Stdout.Contains(BusyboxMarker, StringComparison.Ordinal);
+        bool util = probe.Stdout.Contains(UtilMarker, StringComparison.Ordinal);
+
+        var missing = new List<string>();
+        if (!busybox) missing.Add("busybox (executable)");
+        if (!util) missing.Add("util_functions.sh");
+        return (busybox && util, string.Join(" + ", missing), DeviceParsing.TrimNote(WithoutMarkers(probe.Stdout)));
+    }
+
+    private static async Task<(bool Ok, string Missing, string Listing)> EnsureMagiskBinAsync(
+        IDeviceConnection conn, RootAccess root, Action<string> add, CancellationToken ct) {
+        var state = await MagiskBinStateAsync(conn, root, ct);
+        if (state.Ok) {
+            add($"MAGISKBIN already complete at {MagiskBinDir}");
+            return state;
+        }
+
+        add($"seeding {MagiskBinDir} from {MagiskSysDir} (missing {state.Missing})");
+        var seed = await conn.ShellAsync(root.Wrap(MagiskBinSeed), ct);
+        if (seed.ExitCode != 0)
+            add($"MAGISKBIN seed shell exit {seed.ExitCode}: {DeviceParsing.TrimNote(seed.Stderr + seed.Stdout)}");
+
+        var after = await MagiskBinStateAsync(conn, root, ct);
+        if (after.Ok) add($"MAGISKBIN seeded: applets + magisk.apk assets/*.sh in {MagiskBinDir}");
+        return after;
+    }
+
+    private static string WithoutMarkers(string stdout) =>
+        string.Join(" ", stdout.Split('\n')
+            .Select(l => l.Trim())
+            .Where(l => l.Length > 0 && l != ScanMarker && l != BusyboxMarker && l != UtilMarker));
 
     private static async Task<string?> PushAsync(
         IDeviceConnection conn, byte[] bytes, string name, string remote, CancellationToken ct) {

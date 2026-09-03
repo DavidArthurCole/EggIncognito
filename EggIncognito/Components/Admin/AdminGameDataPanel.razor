@@ -9,6 +9,7 @@
         <button type="button" class="btn-mini" disabled="@_busy" @onclick="Load">Refresh</button>
     </div>
 </div>
+<PaneNotice @ref="_notice"/>
 @if (_data is not null) {
     <div class="reg-wrap">
         <table class="data-table">
@@ -54,18 +55,14 @@
 </div>
 <textarea class="reg-filter-input w-full mono text-xs" rows="6" placeholder="{ }" @bind="_importJson"></textarea>
 
-@if (_msg is not null) {
-    <StatusNote>@_msg</StatusNote>
-}
-
 @code {
+    PaneNotice? _notice;
     GameDataStatusResponse? _data;
     GameDataRebuildResponse? _rebuildResult;
     bool _force;
     bool _busy;
     string _importId = "";
     string _importJson = "";
-    string? _msg;
 
     string StatText {
         get {
@@ -83,7 +80,7 @@
         if (Api is null) return;
         var res = await Api.GetAsync("/api/admin/gamedata");
         if (!res.Ok) {
-            _msg = $"load failed: {res.Describe()}";
+            _notice?.Fail($"load failed: {res.Describe()}");
             return;
         }
 
@@ -93,17 +90,17 @@
     async Task Rebuild() {
         if (Api is null) return;
         _busy = true;
-        _msg = null;
+        _notice?.Clear();
         var res = await Api.PostAsync($"/api/admin/gamedata/rebuild?force={(_force ? "true" : "false")}", TimeSpan.FromMinutes(5));
         if (res.Ok) {
             _rebuildResult = res.Json<GameDataRebuildResponse>();
-            _msg = _rebuildResult is null
+            _notice?.Ok(_rebuildResult is null
                 ? "rebuild complete"
                 : $"rebuild complete: {_rebuildResult.Results.Count} docs" +
-                  (string.IsNullOrEmpty(_rebuildResult.Binary) ? "" : $" ({_rebuildResult.Binary})");
+                  (string.IsNullOrEmpty(_rebuildResult.Binary) ? "" : $" ({_rebuildResult.Binary})"));
         } else {
             _rebuildResult = null;
-            _msg = $"rebuild failed: {res.Describe()}";
+            _notice?.Fail($"rebuild failed: {res.Describe()}");
         }
 
         await Load();
@@ -122,9 +119,9 @@
     async Task Import() {
         if (Api is null || string.IsNullOrWhiteSpace(_importId)) return;
         _busy = true;
-        _msg = null;
+        _notice?.Clear();
         var res = await Api.SendAsync("POST", $"/api/admin/gamedata/{Uri.EscapeDataString(_importId.Trim())}", _importJson);
-        _msg = res.Ok ? $"imported {_importId.Trim()}" : $"import failed: {res.Describe()}";
+        _notice?.Result(res.Ok, res.Ok ? $"imported {_importId.Trim()}" : $"import failed: {res.Describe()}");
         await Load();
         _busy = false;
         if (res.Ok) {

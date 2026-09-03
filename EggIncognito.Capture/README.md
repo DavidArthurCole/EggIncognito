@@ -12,4 +12,4 @@ Start the proxy from the API workbench (`/protos#api`, or launch with `--capture
 
 ## Device farm
 
-Separately, the engine drives a fixed farm of rooted Android and jailbroken iOS devices with zero on-device taps: per-device persistent listeners, proxy config and CA trust automated over `adb`/`ssh`. The farm path harvests wire metadata only; the authoritative client version comes from the device binary itself. Off by default.
+A fixed farm of rooted Android and jailbroken iOS devices runs with zero on-device taps. This project supplies the per-device persistent listeners; the drivers that automate proxy config and CA trust over `adb`/`ssh` live in EggIncognito.Core and the web app, not here. The farm path harvests wire metadata only; the authoritative client version comes from the device binary itself. Off by default.

@@ -7,6 +7,7 @@
     <h2 class="admin-pane-title">API console</h2>
     <span class="text-muted text-xs">@_endpoints.Count endpoints</span>
 </div>
+<PaneNotice @ref="_notice"/>
 @if (_endpoints.Count == 0) {
     <p class="text-muted text-sm m-0">No endpoints available.</p>
 } else {
@@ -50,7 +51,6 @@
         <button class="btn-primary mt-2" @onclick="Send" disabled="@_busy">@(_busy ? "Sending…" : "Send")</button>
 
         @if (_status is not null) {
-            <StatusNote Severity="@(_ok ? StatusNoteKind.Info : StatusNoteKind.Error)">@_statusLine</StatusNote>
             @if (_isBinary) {
                 <div class="text-xs text-muted mt-1">Binary response (@_respBytes bytes). <a class="underline" href="@_blobUrl" download="@_downloadName">Download</a></div>
             } else {
@@ -61,6 +61,7 @@
 }
 
 @code {
+    PaneNotice? _notice;
     List<ConsoleEndpoint> _endpoints = [];
     ConsoleEndpoint? _selected;
 
@@ -69,9 +70,8 @@
     byte[]? _fileBytes;
     string? _fileName;
 
-    bool _busy, _ok, _isBinary;
+    bool _busy, _isBinary;
     int? _status;
-    string? _statusLine;
     string _response = "";
     long _respBytes;
     string? _blobUrl;
@@ -118,7 +118,7 @@
         _fileBytes = null;
         _fileName = null;
         _status = null;
-        _statusLine = null;
+        _notice?.Clear();
         _response = "";
         _isBinary = false;
         _blobUrl = null;
@@ -135,6 +135,7 @@
         if (_selected is null || Api is null) return;
         _busy = true;
         _status = null;
+        _notice?.Clear();
         _isBinary = false;
         _blobUrl = null;
 
@@ -154,8 +155,9 @@
                 _selected.HasBody && !string.IsNullOrWhiteSpace(_body) ? _body : null);
 
         _status = res.Status;
-        _ok = res.Ok;
-        _statusLine = res.Status == 0 ? res.Body : $"HTTP {res.Status} ({res.ContentType})";
+        string? line = res.Status == 0 ? res.Body : $"HTTP {res.Status} ({res.ContentType})";
+        if (res.Ok) _notice?.Say(line);
+        else _notice?.Fail(line);
 
         if (res.Binary) {
             _respBytes = res.ByteSize;

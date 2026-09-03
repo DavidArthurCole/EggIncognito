@@ -10,6 +10,7 @@
         <button type="button" class="btn-mini" @onclick="OpenWorkbench">Manage subscriptions</button>
     </div>
 </div>
+<PaneNotice @ref="_notice"/>
 @if (_feed is { Total: > 0 } feed) {
     <div class="text-xs text-muted mb-2">@SummaryLine(feed)</div>
 }
@@ -29,17 +30,14 @@
 } else {
     <div class="text-sm text-muted">no subscriptions</div>
 }
-@if (_msg is not null) {
-    <StatusNote>@_msg</StatusNote>
-}
 
 <NotificationsWorkbenchModal AdminScope="true" @ref="_workbench"/>
 
 @code {
+    PaneNotice? _notice;
     AdminFeedListResponse? _feed;
     List<KeyValuePair<string, int>> _owners = [];
     NotificationsWorkbenchModal? _workbench;
-    string? _msg;
 
     string StatText => _feed is { } feed ? $"{feed.Total} subs" : "";
 
@@ -55,11 +53,11 @@
         if (Api is null) return;
         var res = await Api.GetAsync("/api/admin/feed/subscriptions");
         if (!res.Ok) {
-            _msg = $"load failed: {res.Describe()}";
+            _notice?.Fail($"load failed: {res.Describe()}");
             return;
         }
 
-        _msg = null;
+        _notice?.Clear();
         _feed = res.Json<AdminFeedListResponse>();
         _owners = _feed is null
             ? []

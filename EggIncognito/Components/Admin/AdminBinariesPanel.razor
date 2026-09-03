@@ -12,6 +12,7 @@
         <button type="button" class="btn-mini" disabled="@_busy" @onclick="Load">Refresh</button>
     </div>
 </div>
+<PaneNotice @ref="_notice"/>
 @if (_rows.Count == 0) {
     <p class="text-muted text-sm m-0">No stored binaries. Pulled automatically on the device maintenance schedule when a new version is installed.</p>
 } else {
@@ -51,9 +52,6 @@
             </tbody>
         </table>
     </div>
-}
-@if (_msg is not null) {
-    <StatusNote>@_msg</StatusNote>
 }
 
 <div class="admin-panel-head mt-4">
@@ -99,20 +97,17 @@
     <input class="reg-filter-input w-auto" placeholder="version (raw Mach-O only)" value="@_refVersion" @oninput="OnRefVersion"/>
     <button type="button" class="btn-mini" disabled="@_refBusy" @onclick="UploadRef">@(_refBusy ? "Working..." : "Upload")</button>
 </div>
-@if (_refMsg is not null) {
-    <StatusNote>@_refMsg</StatusNote>
-}
 
 @code {
     const string RefInputId = "symRefFile";
 
+    PaneNotice? _notice;
+
     List<StoredBinaryRow> _rows = [];
     bool _busy;
-    string? _msg;
 
     List<SymbolizedReferenceRow> _refs = [];
     bool _refBusy;
-    string? _refMsg;
     string _refVersion = "";
     IJSObjectReference? _upload;
 
@@ -132,7 +127,7 @@
         if (Api is null) return;
         var res = await Api.GetAsync("/api/decomp/stored-binaries");
         if (!res.Ok) {
-            _msg = $"load failed: {res.Describe()}";
+            _notice?.Fail($"load failed: {res.Describe()}");
             return;
         }
 
@@ -142,12 +137,12 @@
     async Task PokeHarvest() {
         if (Api is null) return;
         _busy = true;
-        _msg = "queued a harvest on the device agent...";
+        _notice?.Say("queued a harvest on the device agent...");
         StateHasChanged();
         var res = await Api.PostAsync("/api/devices/poke-all");
-        _msg = res.Ok
+        _notice?.Result(res.Ok, res.Ok
             ? "harvest queued; binaries land here once the agent finishes"
-            : $"poke failed: {res.Describe()}";
+            : $"poke failed: {res.Describe()}");
         await Load();
         _busy = false;
     }
@@ -155,10 +150,10 @@
     async Task Delete(string platform, string version) {
         if (Api is null) return;
         _busy = true;
-        _msg = null;
+        _notice?.Clear();
         var res = await Api.DeleteAsync(
             $"/api/decomp/stored-binaries/{Uri.EscapeDataString(platform)}/{Uri.EscapeDataString(version)}");
-        _msg = res.Ok ? $"deleted {platform} {version}" : $"delete failed: {res.Describe()}";
+        _notice?.Result(res.Ok, res.Ok ? $"deleted {platform} {version}" : $"delete failed: {res.Describe()}");
         await Load();
         _busy = false;
         if (res.Ok) Notifier.Publish(AdminTopics.Binaries);
@@ -172,7 +167,7 @@
         if (Api is null) return;
         var res = await Api.GetAsync("/api/decomp/symbolized");
         if (!res.Ok) {
-            _refMsg = $"load failed: {res.Describe()}";
+            _notice?.Fail($"load failed: {res.Describe()}");
             return;
         }
 
@@ -181,7 +176,7 @@
 
     async Task UploadRef() {
         _refBusy = true;
-        _refMsg = "uploading...";
+        _notice?.Say("uploading...");
         StateHasChanged();
         try {
             _upload ??= await Js.InvokeAsync<IJSObjectReference>(
@@ -192,17 +187,17 @@
             var res = await _upload.InvokeAsync<InteropUploadResult?>(
                 "upload", TimeSpan.FromMinutes(30), RefInputId, url);
             if (res is { Status: 200 }) {
-                _refMsg = "stored symbolized reference";
+                _notice?.Ok("stored symbolized reference");
                 _refVersion = "";
                 Notifier.Publish(AdminTopics.Binaries);
             } else {
-                _refMsg = res is null
+                _notice?.Fail(res is null
                     ? "upload failed: no response from the browser"
-                    : $"upload failed ({res.Status}): {Snippet(res.Body)}";
+                    : $"upload failed ({res.Status}): {Snippet(res.Body)}");
             }
         }
         catch (Exception ex) {
-            _refMsg = $"upload failed: {ex.Message}";
+            _notice?.Fail($"upload failed: {ex.Message}");
         }
         finally {
             await LoadRefs();
@@ -213,9 +208,9 @@
     async Task DeleteRef(string version) {
         if (Api is null) return;
         _refBusy = true;
-        _refMsg = null;
+        _notice?.Clear();
         var res = await Api.DeleteAsync($"/api/decomp/symbolized/{Uri.EscapeDataString(version)}");
-        _refMsg = res.Ok ? $"deleted {version}" : $"delete failed: {res.Describe()}";
+        _notice?.Result(res.Ok, res.Ok ? $"deleted {version}" : $"delete failed: {res.Describe()}");
         await LoadRefs();
         _refBusy = false;
         if (res.Ok) Notifier.Publish(AdminTopics.Binaries);

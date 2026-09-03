@@ -4,7 +4,7 @@ On-device native tooling for the jailbroken iOS capture/extraction device, part 
 
 ## eggupdate tweak
 
-Headless App Store update of Egg, Inc., so each new proto extracts with zero taps. An ellekit dylib loads into the App Store (not frida injection, which proved unsafe on this device), watches a trigger file the app touches over ssh, and drives the phone's own logged-in StoreServices session through the update. That reuse dodges the auth wall that kills external downloaders. An arming flag gates the actual install.
+Headless App Store update of Egg, Inc., so each new proto extracts with zero taps. An ellekit dylib loads into the App Store, watches a trigger file the app touches over ssh, and drives the phone's own logged-in StoreServices session through the update. Reusing that session is what clears the auth wall an external downloader hits. An arming flag gates the actual install.
 
 Build on the device host with the Theos toolchain:
 

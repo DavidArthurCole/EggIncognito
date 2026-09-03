@@ -5,7 +5,8 @@ namespace EggIncognito.Services.Devices;
 
 public sealed class VirtualDeviceReadinessProbe(
     IDeviceConnectionFactory connections,
-    VirtualDeviceConfig config) {
+    VirtualDeviceConfig config,
+    IConfiguration configuration) {
     private const string IntegrityDetect =
         "ls -d /data/adb/modules/*integrity* 2>/dev/null; "
         + "grep -il integrity /data/adb/modules/*/module.prop 2>/dev/null";
@@ -13,12 +14,12 @@ public sealed class VirtualDeviceReadinessProbe(
 
     public async Task<DeviceReadiness> ProbeAsync(DeviceTarget target, CancellationToken ct) {
         if (!Platforms.Matches(target.Platform, Platforms.Android)) {
-            var na = new ReadinessCheck(false, "readiness probing is android-only");
+            var na = new ReadinessCheck(false, "android only");
             return new DeviceReadiness(na, na, na, na, na, na);
         }
 
         if (connections.For(target) is not { } conn) {
-            var no = new ReadinessCheck(false, "no connection for this device");
+            var no = new ReadinessCheck(false, "no connection");
             return new DeviceReadiness(no, no, no, no, no, no);
         }
 
@@ -36,14 +37,14 @@ public sealed class VirtualDeviceReadinessProbe(
         var r = await conn.ShellAsync($"pm path {package}", ct);
         return r.ExitCode == 0 && r.Stdout.Contains("package:", StringComparison.Ordinal)
             ? new ReadinessCheck(true)
-            : new ReadinessCheck(false, $"{package} is not installed");
+            : new ReadinessCheck(false, "not installed");
     }
 
     private async Task<ReadinessCheck> GooglePlayAsync(IDeviceConnection conn, CancellationToken ct) {
         var r = await conn.ShellAsync($"pm list packages {config.GmsPackage}", ct);
         return r.Stdout.Contains("package:", StringComparison.Ordinal)
             ? new ReadinessCheck(true)
-            : new ReadinessCheck(false, $"no {config.GmsPackage}; image lacks Google Play (use the gapps image)");
+            : new ReadinessCheck(false, "no Play services, needs a gapps image");
     }
 
     private static ReadinessCheck RootedCheck(RootAccess root) =>
@@ -53,20 +54,23 @@ public sealed class VirtualDeviceReadinessProbe(
         var r = await conn.ShellAsync(root.Wrap(IntegrityDetect), ct);
         return r.Stdout.Trim().Length > 0
             ? new ReadinessCheck(true)
-            : new ReadinessCheck(false, "Integrity-Box module not found under /data/adb/modules");
+            : new ReadinessCheck(false, "no module in /data/adb/modules");
     }
 
     private static async Task<ReadinessCheck> LaunchedAsync(IDeviceConnection conn, string package, CancellationToken ct) {
         var r = await conn.ShellAsync($"pidof {package}", ct);
         return r.Stdout.Trim().Length > 0
             ? new ReadinessCheck(true)
-            : new ReadinessCheck(false, "app is not running");
+            : new ReadinessCheck(false, "not running");
     }
 
-    private static async Task<ReadinessCheck> CaptureCaAsync(IDeviceConnection conn, CancellationToken ct) {
-        var r = await conn.ShellAsync($"ls {SystemCaCerts}", ct);
-        return r.Stdout.Trim().Length > 0
-            ? new ReadinessCheck(true, "system cacerts present (capture CA not individually verified)")
-            : new ReadinessCheck(false, "could not read the system trust store");
+    private async Task<ReadinessCheck> CaptureCaAsync(IDeviceConnection conn, CancellationToken ct) {
+        if (CaptureCaPath.AndroidTrustFile(configuration) is not { } file)
+            return new ReadinessCheck(false, "no capture CA minted");
+
+        var r = await conn.ShellAsync($"[ -s {SystemCaCerts}{file} ] && echo present", ct);
+        return r.Stdout.Contains("present", StringComparison.Ordinal)
+            ? new ReadinessCheck(true)
+            : new ReadinessCheck(false, "not in the trust store");
     }
 }

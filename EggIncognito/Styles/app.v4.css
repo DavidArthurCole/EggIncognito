@@ -380,13 +380,18 @@ html { color-scheme: dark; scrollbar-gutter: stable; }
 
 .status-badge { @apply font-mono text-[0.6875rem] font-semibold; }
 .status-note {
-  @apply mt-2 inline-flex items-center gap-2 px-2.5 py-1.5 rounded-md border border-border bg-panel2 text-xs text-muted;
+  @apply flex w-full items-start gap-2 px-2.5 py-1.5 rounded-md border border-border bg-panel2 text-xs text-muted;
 }
 .status-note-ok { @apply text-ok; border-color: color-mix(in oklab, var(--color-ok) 50%, transparent); background: color-mix(in oklab, var(--color-ok) 7%, transparent); }
 .status-note-error { @apply text-err; border-color: color-mix(in oklab, var(--color-err) 50%, transparent); background: color-mix(in oklab, var(--color-err) 7%, transparent); }
 .status-note-busy { @apply text-fg; }
-.status-note-x { @apply w-5 h-5 shrink-0 grid place-items-center rounded bg-transparent border-0 p-0 text-muted cursor-pointer; }
+.status-note-icon { @apply shrink-0; margin-top: 0.0625rem; }
+.status-note-text { @apply min-w-0 flex-1 break-words; }
+.status-note-actions { @apply flex shrink-0 items-center gap-1.5; }
+.status-note-x { @apply w-4 h-4 shrink-0 grid place-items-center rounded-sm bg-transparent border-0 p-0 text-muted cursor-pointer; margin-top: 0.0625rem; }
 .status-note-x:hover { @apply text-fg; }
+.status-note-x:focus-visible { outline: 1px solid currentColor; outline-offset: 1px; }
+.pane-notice { @apply mb-3; }
 .status-chip { @apply font-mono text-[0.6875rem] text-muted; }
 .status-chip-ok { @apply text-ok; }
 .status-chip-err { @apply text-err; }
@@ -2996,6 +3001,7 @@ body .modal-body .skm { color: var(--color-fg); }
   background-color: var(--color-panel);
   min-width: 0;
 }
+.dcon-notices { display: flex; flex: 1 1 auto; flex-direction: column; gap: 0.375rem; min-width: 0; }
 .dcon-ready-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; min-width: 0; }
 .dcon-ready-row { display: flex; align-items: baseline; gap: 0.375rem; font-size: 0.75rem; min-width: 0; }
 .dcon-ready-row::before { flex: 0 0 auto; line-height: 1; }

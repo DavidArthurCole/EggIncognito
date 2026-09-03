@@ -6,6 +6,7 @@
     <h2 class="admin-pane-title">Users</h2>
     <span class="text-muted text-xs">@_users.Count total @((MarkupString)(_users.Count == 0 ? "" : " &middot; " + RoleBreakdown()))</span>
 </div>
+<PaneNotice @ref="_notice"/>
 <div class="reg-wrap admin-users-scroll">
     <table class="data-table admin-users-table">
         <thead>
@@ -42,15 +43,12 @@
         </tbody>
     </table>
 </div>
-@if (_msg is not null) {
-    <StatusNote>@_msg</StatusNote>
-}
 
 @code {
     static readonly string[] Roles = Enum.GetValues<UserRole>().Select(UserRoles.ToName).ToArray();
 
+    PaneNotice? _notice;
     List<UserRow> _users = [];
-    string? _msg;
 
     protected override IReadOnlyList<string> Topics => [AdminTopics.Users];
 
@@ -70,21 +68,21 @@
         if (Api is null) return;
         var res = await Api.GetAsync("/api/admin/users");
         _users = res.Ok ? res.Json<List<UserRow>>() ?? [] : [];
-        if (!res.Ok) _msg = $"load users failed: {res.Describe()}";
+        if (!res.Ok) _notice?.Fail($"load users failed: {res.Describe()}");
     }
 
     async Task SetRole(string discordId, string? role) {
         if (Api is null || string.IsNullOrEmpty(role)) return;
         var res = await Api.PostJsonAsync($"/api/admin/users/{discordId}/role", new { role });
         if (!res.Ok) {
-            _msg = res.Describe();
+            _notice?.Fail(res.Describe());
             return;
         }
 
         var d = res.Json<SetRoleResult>();
         var i = _users.FindIndex(x => x.DiscordId == discordId);
         if (i >= 0 && d is not null) _users[i] = _users[i] with { Role = d.Role };
-        _msg = $"set {discordId} -> {d?.Role}";
+        _notice?.Ok($"set {discordId} -> {d?.Role}");
         Notifier.Publish(AdminTopics.Users);
     }
 

@@ -1,7 +1,10 @@
-<div class="status-note status-note-@Severity.ToString().ToLowerInvariant()" role="status">
-    <Icon Name="@IconFor(Severity)" Class="icon-sm shrink-0"/>
-    <span class="min-w-0">@ChildContent</span>
-    @Actions
+<div class="status-note status-note-@Severity.ToString().ToLowerInvariant()"
+     role="@(Severity == StatusNoteKind.Error ? "alert" : "status")">
+    <Icon Name="@IconFor(Severity)" Class="icon-sm status-note-icon"/>
+    <span class="status-note-text">@ChildContent</span>
+    @if (Actions is not null) {
+        <span class="status-note-actions">@Actions</span>
+    }
     @if (OnDismiss.HasDelegate) {
         <button type="button" class="status-note-x" aria-label="Dismiss" @onclick="@(() => OnDismiss.InvokeAsync())">
             <Icon Name="x" Class="icon-sm"/>
@@ -19,7 +22,7 @@
     static string IconFor(StatusNoteKind k) {
         return k switch {
             StatusNoteKind.Ok => "check",
-            StatusNoteKind.Error => "x",
+            StatusNoteKind.Error => "alert",
             StatusNoteKind.Busy => "clock",
             _ => "info"
         };

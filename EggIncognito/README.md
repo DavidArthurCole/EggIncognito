@@ -16,10 +16,6 @@ Blazor Server, InteractiveServer over a SignalR circuit.
 - `/protos` - proto registry, game-data repository, public data API + key management.
 - `/admin` - roles, contribution review, API activity, themes, device status, the 3D farm playground.
 
-## Adding an endpoint
-
-Controllers are source-generated from the route map; generated files are not checked in. Edit the route map, rebuild, and add an endpoint file if a non-default response is needed.
-
 ## Run modes
 
 Local (default) has full features. Hosted is the public deploy: capture and shared-data writes return 403, everything read-only stays available.

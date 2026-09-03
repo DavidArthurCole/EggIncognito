@@ -7,6 +7,7 @@
     <h2 class="admin-pane-title">Contracts</h2>
     <span class="text-muted text-xs">@StatText</span>
 </div>
+<PaneNotice @ref="_notice"/>
 <div class="sub-section-head">Store</div>
 <div class="reg-wrap">
     <table class="data-table">
@@ -35,15 +36,12 @@
     <button type="button" class="btn-mini" disabled="@_busy" @onclick="ImportCarpet">Import carpet</button>
 </div>
 <div class="text-xs text-muted">Historical data courtesy of carpetsage/egg.</div>
-@if (_msg is not null) {
-    <StatusNote>@_msg</StatusNote>
-}
 
 @code {
+    PaneNotice? _notice;
     ContractStatsResponse? _stats;
     bool _busy;
     string _carpetUrl = "";
-    string? _msg;
 
     string StatText => _stats is null ? "" : $"{_stats.Total} total, {_stats.Device} device, {_stats.Carpet} carpet";
 
@@ -62,7 +60,7 @@
         if (Api is null) return;
         var res = await Api.GetAsync("/api/admin/contracts/stats");
         if (!res.Ok) {
-            _msg = $"load failed: {res.Describe()}";
+            _notice?.Fail($"load failed: {res.Describe()}");
             return;
         }
 
@@ -72,9 +70,10 @@
     async Task SweepSnapshots() {
         if (Api is null) return;
         _busy = true;
-        _msg = null;
+        _notice?.Clear();
         var res = await Api.PostAsync("/api/admin/contracts/sweep-snapshots", TimeSpan.FromMinutes(10));
-        _msg = res.Ok ? SweepResultText(res.Json<ContractBackfillResult>()) : $"sweep failed: {res.Describe()}";
+        _notice?.Result(res.Ok,
+            res.Ok ? SweepResultText(res.Json<ContractBackfillResult>()) : $"sweep failed: {res.Describe()}");
         await Load();
         _busy = false;
         if (res.Ok) Notifier.Publish(AdminTopics.Contracts);
@@ -83,10 +82,11 @@
     async Task ImportCarpet() {
         if (Api is null) return;
         _busy = true;
-        _msg = null;
+        _notice?.Clear();
         var res = await Api.PostJsonAsync(
             "/api/admin/contracts/import-carpet", new ContractCarpetImportRequest(_carpetUrl), TimeSpan.FromMinutes(10));
-        _msg = res.Ok ? SweepResultText(res.Json<ContractBackfillResult>()) : $"import failed: {res.Describe()}";
+        _notice?.Result(res.Ok,
+            res.Ok ? SweepResultText(res.Json<ContractBackfillResult>()) : $"import failed: {res.Describe()}");
         await Load();
         _busy = false;
         if (res.Ok) Notifier.Publish(AdminTopics.Contracts);

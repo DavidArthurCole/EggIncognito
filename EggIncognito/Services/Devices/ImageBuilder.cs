@@ -165,13 +165,25 @@ public sealed class ImageBuilder(
                 execPaths.Add(RelKey(contextDir, dest));
             }
 
+            string assetsDir = Path.Combine(unpack, "assets");
+            if (!Directory.Exists(assetsDir)) throw new InvalidOperationException("magisk: no assets dir in the apk");
+
+            foreach (string sh in Directory.EnumerateFiles(assetsDir, "*.sh")) {
+                string dest = Path.Combine(magiskDir, Path.GetFileName(sh));
+                File.Copy(sh, dest, true);
+                execPaths.Add(RelKey(contextDir, dest));
+            }
+
+            if (!File.Exists(Path.Combine(magiskDir, "util_functions.sh")))
+                throw new InvalidOperationException("magisk: apk has no assets/util_functions.sh");
+
             await File.WriteAllBytesAsync(Path.Combine(magiskDir, "magisk.apk"), apk, ct);
 
             string bootanim = Path.Combine(contextDir, "magisk", "system", "etc", "init", "bootanim.rc");
             await File.WriteAllTextAsync(bootanim, BootanimRc, new UTF8Encoding(false), ct);
             WriteGzip(BootanimServiceBlock, bootanim + ".gz");
 
-            await Log(buildId, "magisk: staged applets + bootanim.rc hook", ct);
+            await Log(buildId, "magisk: staged applets + shell assets + bootanim.rc hook", ct);
         } finally {
             TryDeleteDir(unpack);
         }
@@ -406,6 +418,7 @@ public sealed class ImageBuilder(
         + "    exec u:r:su:s0 root root -- /sbin/magisk --auto-selinux --service\n"
         + "on property:sys.boot_completed=1\n"
         + "    mkdir /data/adb/magisk 755\n"
+        + "    exec u:r:su:s0 root root -- /system/bin/sh -c \"cp -f /system/etc/init/magisk/* /data/adb/magisk/ ; rm -f /data/adb/magisk/magisk.apk ; chmod 755 /data/adb/magisk/* ; chcon u:object_r:magisk_file:s0 /data/adb/magisk /data/adb/magisk/*\"\n"
         + "    exec u:r:su:s0 root root -- /sbin/magisk --auto-selinux --boot-complete\n"
         + "    exec -- /system/bin/sh -c \"if [ ! -e /data/data/io.github.huskydg.magisk ] ; then pm install /system/etc/init/magisk/magisk.apk ; fi\"\n"
         + "on property:init.svc.zygote=restarting\n"

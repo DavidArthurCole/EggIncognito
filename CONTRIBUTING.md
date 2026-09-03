@@ -12,15 +12,7 @@ Codegen runs during `dotnet build`: controllers are generated from the route map
 
 ## Adding an endpoint
 
-Edit the route map only, then rebuild:
-
-```yaml
-- path: ei/my_endpoint
-  request: MyRequestType
-  response: MyResponseType
-```
-
-Add a response file under the endpoints directory if a non-default response is needed. Hand-written controllers conflict with the generated ones.
+Endpoint controllers are generated from the route map at build time, so a route is added by editing the map and rebuilding, never by writing a controller: a hand-written one conflicts with the generated one. Add a response file under the endpoints directory only when the all-default response is not enough.
 
 ## The proto
 

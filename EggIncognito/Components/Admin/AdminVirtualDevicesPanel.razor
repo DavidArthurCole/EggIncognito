@@ -9,35 +9,31 @@
     <h2 class="admin-pane-title">Virtual devices</h2>
     <span class="text-muted text-xs">@StatText</span>
 </div>
+<PaneNotice @ref="_notice"/>
+
 <div class="vd-head">
-            <div class="sub-section-head">Fleet</div>
-            <div class="vd-head-meta text-xs text-muted">
-                <span>@(_status?.LiveCount ?? 0) of @(_status?.MaxInstances ?? 0) live</span>
-                <span class="mono">@(_status?.Kind ?? "?")</span>
-                <span class="mono">@(_status?.Image ?? "?")</span>
-            </div>
-            <div class="vd-head-actions">
-                <button type="button" class="btn-primary" disabled="@(_busy || _status?.Enabled != true)"
-                        @onclick="Create">
-                    Provision
-                </button>
-                <button type="button" class="btn-secondary" disabled="@_busy" @onclick="Reconcile">Reconcile</button>
-                <button type="button" class="btn-secondary" disabled="@_busy" @onclick="Load">Refresh</button>
-            </div>
-        </div>
+    <div class="sub-section-head">Fleet</div>
+    <div class="vd-head-meta text-xs text-muted">
+        <span>@(_status?.LiveCount ?? 0) of @(_status?.MaxInstances ?? 0) live</span>
+        <span class="mono">@(_status?.Kind ?? "?")</span>
+        <span class="mono">@(_status?.Image ?? "?")</span>
+    </div>
+    <div class="vd-head-actions">
+        <button type="button" class="btn-primary" disabled="@(_busy || _status?.Enabled != true)"
+                @onclick="Create">
+            Provision
+        </button>
+        <button type="button" class="btn-secondary" disabled="@_busy" @onclick="Reconcile">Reconcile</button>
+        <button type="button" class="btn-secondary" disabled="@_busy" @onclick="Load">Refresh</button>
+    </div>
+</div>
 
         @if (_status?.Note is { Length: > 0 } note) {
             <div class="text-xs text-muted">@note</div>
         }
 
-        @if (_msg is { Length: > 0 }) {
-            <StatusNote Severity="@_msgKind" OnDismiss="Clear">@_msg</StatusNote>
-        }
-
         @if (_status is null || _status.Instances.Count == 0) {
-            <div class="vd-empty text-sm text-muted">
-                No instances provisioned. Provision one to get an Android container on the fleet host.
-            </div>
+            <div class="vd-empty text-sm text-muted">No instances provisioned.</div>
         } else {
             <div class="vd-grid">
                 @foreach (var i in _status.Instances) {
@@ -60,6 +56,7 @@
                                     <span class="@ReadyCss(rr.GooglePlay)">GMS</span>
                                     <span class="@ReadyCss(rr.Rooted)">root</span>
                                     <span class="@ReadyCss(rr.IntegrityModule)">integrity</span>
+                                    <span class="@ReadyCss(rr.CaptureCa)">ca</span>
                                 </dd>
                             }
                             <dt>up</dt>
@@ -215,9 +212,9 @@
     bool _gapps = true;
     bool _magisk = true;
     bool _ndk = true;
-    string? _msg;
-    StatusNoteKind _msgKind = StatusNoteKind.Info;
+    PaneNotice? _notice;
     bool _busy;
+    int _ticks;
     CancellationTokenSource? _loopCts;
     PageVisibility? _vis;
 
@@ -262,7 +259,10 @@
         try {
             while (await timer.WaitForNextTickAsync(ct)) {
                 if (_busy || State.SelectedPane != AdminPanes.VirtualDevices || !await Vis.IsVisibleAsync()) continue;
+                _ticks++;
                 await Load(true);
+                if (_ticks % 4 == 0) await LoadReadiness();
+                if (_ticks % 12 == 0) await LoadImages();
                 await InvokeAsync(StateHasChanged);
             }
         }
@@ -293,11 +293,10 @@
         }
 
         _status = res.Json<VirtualDevicesStatus>();
-        if (!quiet) {
-            await LoadReadiness();
-            await LoadImages();
-            await LoadModules();
-        }
+        if (quiet) return;
+        await LoadReadiness();
+        await LoadImages();
+        await LoadModules();
     }
 
     async Task LoadImages() {
@@ -471,12 +470,7 @@
     }
 
     void Say(string message, StatusNoteKind kind) {
-        _msg = message;
-        _msgKind = kind;
-    }
-
-    void Clear() {
-        _msg = null;
+        _notice?.Say(message, kind);
     }
 
 }

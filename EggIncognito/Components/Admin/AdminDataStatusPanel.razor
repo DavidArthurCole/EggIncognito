@@ -9,6 +9,7 @@
         <button type="button" class="btn-mini" disabled="@_busy" @onclick="Load">Refresh</button>
     </div>
 </div>
+<PaneNotice @ref="_notice"/>
 @if (_data is null) {
     <div class="text-sm text-muted">no data</div>
 } else {
@@ -84,14 +85,11 @@
         </table>
     </div>
 }
-@if (_msg is not null) {
-    <StatusNote>@_msg</StatusNote>
-}
 
 @code {
+    PaneNotice? _notice;
     DataStatusResponse? _data;
     bool _busy;
-    string? _msg;
 
     string StatText => _data is null ? "" : $"{_data.GameData.Count} stores / {_data.Missing.Count} missing / config {(_data.Config.Enabled ? "on" : "off")}";
 
@@ -102,10 +100,10 @@
     async Task Load() {
         if (Api is null) return;
         _busy = true;
-        _msg = null;
+        _notice?.Clear();
         var res = await Api.GetAsync("/api/admin/data-status");
         if (!res.Ok) {
-            _msg = $"load failed: {res.Describe()}";
+            _notice?.Fail($"load failed: {res.Describe()}");
             _busy = false;
             return;
         }

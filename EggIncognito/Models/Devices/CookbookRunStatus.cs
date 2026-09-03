@@ -25,5 +25,7 @@ public sealed record CookbookRunStatus(
 
     public string? Note => Message;
 
-    public string? FailedStep => Succeeded || Cancelled ? null : Outcome;
+    public string? FailedStep => Succeeded || Cancelled
+        ? null
+        : Steps?.LastOrDefault(s => s.Status == CookbookStepStatus.Failed)?.Title ?? Outcome;
 }
