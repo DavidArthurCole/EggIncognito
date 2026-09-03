@@ -52,7 +52,7 @@ function bust(url) {
 export function start(img, streamUrl, dotnet) {
   if (!img) return false;
   halt(img);
-  attach(img, dotnet, "the device screen stream ended", false);
+  attach(img, dotnet, "device stopped sending frames", false);
   img.src = bust(streamUrl);
   return true;
 }
@@ -64,7 +64,7 @@ export function stop(img) {
 export function once(img, url, dotnet) {
   if (!img) return false;
   halt(img);
-  attach(img, dotnet, "the single frame request failed", true);
+  attach(img, dotnet, "no frame came back", true);
   img.src = bust(url);
   return true;
 }

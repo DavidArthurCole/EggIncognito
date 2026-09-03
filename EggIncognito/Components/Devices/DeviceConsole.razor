@@ -985,9 +985,7 @@
     static string FrameFailure(int status, string note, bool live) {
         var detail = status > 0 ? $"{note} [http {status}]" : note;
         var tail = string.IsNullOrWhiteSpace(detail) ? "" : $": {detail}";
-        return live
-            ? $"stream failed{tail}. a device streams to one console at a time"
-            : $"frame failed{tail}";
+        return live ? $"stream ended{tail}" : $"frame failed{tail}";
     }
 
     DotNetObjectReference<DeviceConsole> Ref() {

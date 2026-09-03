@@ -7,197 +7,208 @@
 
 <div class="admin-pane-head">
     <h2 class="admin-pane-title">Virtual devices</h2>
-    <span class="text-muted text-xs">@StatText</span>
 </div>
 <PaneNotice @ref="_notice"/>
 
-<div class="vd-head">
-    <div class="sub-section-head">Fleet</div>
-    <div class="vd-head-meta text-xs text-muted">
-        <span>@(_status?.LiveCount ?? 0) of @(_status?.MaxInstances ?? 0) live</span>
-        <span class="mono">@(_status?.Kind ?? "?")</span>
-        <span class="mono">@(_status?.Image ?? "?")</span>
+<div class="vd-sub">
+    <div class="vd-head">
+        <div class="vd-sec-head">Fleet</div>
+        <div class="vd-head-meta text-xs text-muted">
+            <span>@(_status?.LiveCount ?? 0) of @(_status?.MaxInstances ?? 0) live</span>
+            <span class="mono">@(_status?.Kind ?? "?")</span>
+            <span class="mono">@(_status?.Image ?? "?")</span>
+        </div>
+        <div class="vd-head-actions">
+            <button type="button" class="btn-primary" disabled="@(_busy || _status?.Enabled != true)"
+                    @onclick="Create">
+                Provision
+            </button>
+            <button type="button" class="btn-secondary" disabled="@_busy" @onclick="Reconcile">Reconcile</button>
+            <button type="button" class="btn-secondary" disabled="@_busy" @onclick="Load">Refresh</button>
+        </div>
     </div>
-    <div class="vd-head-actions">
-        <button type="button" class="btn-primary" disabled="@(_busy || _status?.Enabled != true)"
-                @onclick="Create">
-            Provision
-        </button>
-        <button type="button" class="btn-secondary" disabled="@_busy" @onclick="Reconcile">Reconcile</button>
-        <button type="button" class="btn-secondary" disabled="@_busy" @onclick="Load">Refresh</button>
-    </div>
+
+    @if (_status?.Note is { Length: > 0 } note) {
+        <div class="text-xs text-muted">@note</div>
+    }
+
+    @if (_status is null || _status.Instances.Count == 0) {
+        <div class="vd-empty text-sm text-muted">No instances provisioned.</div>
+    } else {
+        <div class="vd-grid">
+            @foreach (var i in _status.Instances) {
+                <div class="vd-card">
+                    <div class="vd-card-head">
+                        <span class="vd-dot @DotCss(i)"></span>
+                        <span class="vd-id mono">@i.InstanceId</span>
+                        @if (i.Activity is { Length: > 0 } activity) {
+                            <span class="vd-activity">@activity</span>
+                        }
+                        <span class="vd-state">@StateLabel(i)</span>
+                    </div>
+                    <dl class="vd-facts">
+                        <dt>target</dt>
+                        <dd class="mono">@(i.Target ?? "no address yet")</dd>
+                        <dt>device</dt>
+                        <dd class="mono">@(i.DeviceId ?? "not registered")</dd>
+                        <dt>capture</dt>
+                        <dd>@FlowLine(i)</dd>
+                        @if (i.DeviceId is { Length: > 0 } rid && _readiness.TryGetValue(rid, out var rr)) {
+                            <dt>ready</dt>
+                            <dd class="vd-ready">
+                                <span class="@ReadyCss(rr.GooglePlay)">GMS</span>
+                                <span class="@ReadyCss(rr.Rooted)">root</span>
+                                <span class="@ReadyCss(rr.IntegrityModule)">integrity</span>
+                                <span class="@ReadyCss(rr.CaptureCa)">ca</span>
+                            </dd>
+                        }
+                        <dt>up</dt>
+                        <dd>
+                            <TimeAgo Value="@i.CreatedAt" Hover="false"/>
+                        </dd>
+                    </dl>
+                    @if (i.Note is { Length: > 0 } rowNote) {
+                        <div class="vd-note text-xs text-muted">@rowNote</div>
+                    }
+                    <div class="vd-card-actions">
+                        @if (i.DeviceId is { Length: > 0 } did) {
+                            <button type="button" class="btn-mini" disabled="@_busy"
+                                    @onclick="() => OnConsole.InvokeAsync(did)">
+                                console
+                            </button>
+                        }
+                        <button type="button" class="btn-mini btn-danger" disabled="@_busy"
+                                @onclick="() => Destroy(i.InstanceId)">
+                            destroy
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+    }
 </div>
 
-        @if (_status?.Note is { Length: > 0 } note) {
-            <div class="text-xs text-muted">@note</div>
+<div class="vd-sub">
+    <div class="vd-head">
+        <div class="vd-sec-head">Images</div>
+    </div>
+    @if (_images is { } iv) {
+        <div class="vd-head-meta text-xs text-muted">
+            <span>active <span class="mono">@(iv.ActiveTag is { Length: > 0 } ? iv.ActiveTag : iv.ConfigImage)</span></span>
+            @if (!iv.DockerOk) {
+                <span class="text-err">docker unreachable</span>
+            }
+        </div>
+        @if (iv.Note is { Length: > 0 } inote) {
+            <div class="text-xs text-muted">@inote</div>
         }
 
-        @if (_status is null || _status.Instances.Count == 0) {
-            <div class="vd-empty text-sm text-muted">No instances provisioned.</div>
+        <div class="vd-build">
+            <label class="vd-build-field">
+                <span class="vd-build-label">android version</span>
+                <input type="text" class="field-input" @bind="_buildVer" placeholder="11.0.0"/>
+            </label>
+            <div class="vd-build-opts">
+                <label class="vd-check"><input type="checkbox" @bind="_gapps"/> gapps</label>
+                <label class="vd-check"><input type="checkbox" @bind="_magisk"/> magisk</label>
+                <label class="vd-check"><input type="checkbox" @bind="_ndk"/> ndk</label>
+            </div>
+            <button type="button" class="btn-primary" disabled="@(_busy || !iv.BuildEnabled)" @onclick="BuildImage">
+                Build
+            </button>
+        </div>
+        @if (!iv.BuildEnabled) {
+            <div class="text-xs text-muted">builds disabled (Devices:Virtual:Build:Enabled)</div>
+        }
+
+        @if (_build is { } b) {
+            <div class="vd-note text-xs @(b.State == ImageBuildStates.Failed ? "text-err" : "text-muted")">
+                build <span class="mono">@b.Tag</span>: @b.State@(b.Note is { Length: > 0 } bn ? $" - {bn}" : "")
+            </div>
+        }
+
+        @if (iv.Images.Count == 0) {
+            <div class="text-xs text-muted">no redroid images on this host</div>
         } else {
-            <div class="vd-grid">
-                @foreach (var i in _status.Instances) {
-                    <div class="vd-card">
-                        <div class="vd-card-head">
-                            <span class="vd-dot @DotCss(i)"></span>
-                            <span class="vd-id mono">@i.InstanceId</span>
-                            <span class="vd-state">@StateLabel(i)</span>
-                        </div>
-                        <dl class="vd-facts">
-                            <dt>target</dt>
-                            <dd class="mono">@(i.Target ?? "no address yet")</dd>
-                            <dt>device</dt>
-                            <dd class="mono">@(i.DeviceId ?? "not registered")</dd>
-                            <dt>capture</dt>
-                            <dd>@FlowLine(i)</dd>
-                            @if (i.DeviceId is { Length: > 0 } rid && _readiness.TryGetValue(rid, out var rr)) {
-                                <dt>ready</dt>
-                                <dd class="vd-ready">
-                                    <span class="@ReadyCss(rr.GooglePlay)">GMS</span>
-                                    <span class="@ReadyCss(rr.Rooted)">root</span>
-                                    <span class="@ReadyCss(rr.IntegrityModule)">integrity</span>
-                                    <span class="@ReadyCss(rr.CaptureCa)">ca</span>
-                                </dd>
-                            }
-                            <dt>up</dt>
-                            <dd>
-                                <TimeAgo Value="@i.CreatedAt" Hover="false"/>
-                            </dd>
-                        </dl>
-                        @if (i.Note is { Length: > 0 } rowNote) {
-                            <div class="vd-note text-xs text-muted">@rowNote</div>
-                        }
-                        <div class="vd-card-actions">
-                            @if (i.DeviceId is { Length: > 0 } did) {
-                                <button type="button" class="btn-mini" disabled="@_busy"
-                                        @onclick="() => OnConsole.InvokeAsync(did)">
-                                    console
-                                </button>
-                            }
-                            <button type="button" class="btn-mini btn-danger" disabled="@_busy"
-                                    @onclick="() => Destroy(i.InstanceId)">
-                                destroy
-                            </button>
-                        </div>
-                    </div>
-                }
+            <div class="reg-wrap">
+                <table class="data-table">
+                    <thead>
+                    <tr>
+                        <th>Tag</th><th>Size</th><th>Created</th><th></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var img in iv.Images) {
+                        <tr class="@(img.Active ? "vd-row-active" : "")">
+                            <td class="mono text-xs">@(img.Tag ?? "none")</td>
+                            <td class="mono text-xs">@ByteFormat.Mb(img.Size, "F0")</td>
+                            <td class="text-muted text-xs">
+                                <TimeAgo Value="@img.Created" Hover="false"/>
+                            </td>
+                            <td class="vd-row-actions">
+                                @if (img.Tag is { Length: > 0 } t) {
+                                    @if (!img.Active) {
+                                        <button type="button" class="btn-mini" disabled="@_busy"
+                                                @onclick="() => UseImage(t)">
+                                            use
+                                        </button>
+                                    }
+
+                                    <button type="button" class="btn-mini btn-danger" disabled="@_busy"
+                                            @onclick="() => RemoveImage(t)">
+                                        remove
+                                    </button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
             </div>
         }
+    } else if (_imagesErr is { Length: > 0 } ierr) {
+        <div class="text-xs text-muted">images unavailable: @ierr</div>
+    } else {
+        <div class="text-xs text-muted">loading</div>
+    }
+</div>
 
-        <div class="vd-sub">
-            <div class="sub-section-head">Images</div>
-            @if (_images is { } iv) {
-                <div class="vd-head-meta text-xs text-muted">
-                    <span>active <span class="mono">@(iv.ActiveTag is { Length: > 0 } ? iv.ActiveTag : iv.ConfigImage)</span></span>
-                    @if (!iv.DockerOk) {
-                        <span class="text-err">docker unreachable</span>
-                    }
-                </div>
-                @if (iv.Note is { Length: > 0 } inote) {
-                    <div class="text-xs text-muted">@inote</div>
-                }
-
-                <div class="vd-build">
-                    <input type="text" class="field-input" @bind="_buildVer" placeholder="11.0.0"/>
-                    <label class="vd-check"><input type="checkbox" @bind="_gapps"/> gapps</label>
-                    <label class="vd-check"><input type="checkbox" @bind="_magisk"/> magisk</label>
-                    <label class="vd-check"><input type="checkbox" @bind="_ndk"/> ndk</label>
-                    <button type="button" class="btn-primary" disabled="@(_busy || !iv.BuildEnabled)" @onclick="BuildImage">
-                        Build
-                    </button>
-                </div>
-                @if (!iv.BuildEnabled) {
-                    <div class="text-xs text-muted">builds disabled (Devices:Virtual:Build:Enabled)</div>
-                }
-
-                @if (_build is { } b) {
-                    <div class="vd-note text-xs @(b.State == ImageBuildStates.Failed ? "text-err" : "text-muted")">
-                        build <span class="mono">@b.Tag</span>: @b.State@(b.Note is { Length: > 0 } bn ? $" - {bn}" : "")
-                    </div>
-                }
-
-                @if (iv.Images.Count == 0) {
-                    <div class="text-xs text-muted">no redroid images on this host</div>
-                } else {
-                    <div class="reg-wrap">
-                        <table class="data-table">
-                            <thead>
-                            <tr>
-                                <th>Tag</th><th>Size</th><th>Created</th><th></th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            @foreach (var img in iv.Images) {
-                                <tr class="@(img.Active ? "vd-row-active" : "")">
-                                    <td class="mono text-xs">@(img.Tag ?? "none")</td>
-                                    <td class="mono text-xs">@ByteFormat.Mb(img.Size, "F0")</td>
-                                    <td class="text-muted text-xs">
-                                        <TimeAgo Value="@img.Created" Hover="false"/>
-                                    </td>
-                                    <td class="vd-row-actions">
-                                        @if (img.Tag is { Length: > 0 } t) {
-                                            @if (!img.Active) {
-                                                <button type="button" class="btn-mini" disabled="@_busy"
-                                                        @onclick="() => UseImage(t)">
-                                                    use
-                                                </button>
-                                            }
-
-                                            <button type="button" class="btn-mini btn-danger" disabled="@_busy"
-                                                    @onclick="() => RemoveImage(t)">
-                                                remove
-                                            </button>
-                                        }
-                                    </td>
-                                </tr>
-                            }
-                            </tbody>
-                        </table>
-                    </div>
-                }
-            } else if (_imagesErr is { Length: > 0 } ierr) {
-                <div class="text-xs text-muted">images unavailable: @ierr</div>
-            } else {
-                <div class="text-xs text-muted">loading</div>
-            }
+<div class="vd-sub">
+    <div class="vd-head">
+        <div class="vd-sec-head">Integrity modules</div>
+        <div class="vd-head-actions">
+            <button type="button" class="btn-secondary" disabled="@_busy" @onclick="RefreshModules">
+                Refresh cache
+            </button>
         </div>
-
-        <div class="vd-sub">
-            <div class="vd-head">
-                <div class="sub-section-head">Integrity modules</div>
-                <div class="vd-head-actions">
-                    <button type="button" class="btn-secondary" disabled="@_busy" @onclick="RefreshModules">
-                        Refresh cache
-                    </button>
-                </div>
-            </div>
-            @if (_modules is { Count: > 0 } mods) {
-                <div class="reg-wrap">
-                    <table class="data-table">
-                        <thead>
-                        <tr>
-                            <th>Module</th><th>Version</th><th>Size</th><th>Source</th><th>State</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        @foreach (var m in mods) {
-                            <tr>
-                                <td class="mono text-xs">@m.Name</td>
-                                <td class="text-xs">@(m.Version ?? "?")</td>
-                                <td class="mono text-xs">@ByteFormat.Mb(m.ByteSize, "F1")</td>
-                                <td class="text-muted text-xs truncate">@m.Source</td>
-                                <td class="text-xs @(m.Error is { Length: > 0 } ? "text-err" : "")">
-                                    @(m.Error is { Length: > 0 } err ? err : m.Cached ? "cached" : "fetched")
-                                </td>
-                            </tr>
-                        }
-                        </tbody>
-                    </table>
-                </div>
-            } else {
-                <div class="text-xs text-muted">no modules cached yet</div>
-            }
+    </div>
+    @if (_modules is { Count: > 0 } mods) {
+        <div class="reg-wrap">
+            <table class="data-table">
+                <thead>
+                <tr>
+                    <th>Module</th><th>Version</th><th>Size</th><th>Source</th><th>State</th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var m in mods) {
+                    <tr>
+                        <td class="mono text-xs">@m.Name</td>
+                        <td class="text-xs">@(m.Version ?? "?")</td>
+                        <td class="mono text-xs">@ByteFormat.Mb(m.ByteSize, "F1")</td>
+                        <td class="text-muted text-xs truncate">@m.Source</td>
+                        <td class="text-xs @(m.Error is { Length: > 0 } ? "text-err" : "")">
+                            @(m.Error is { Length: > 0 } err ? err : m.Cached ? "cached" : "fetched")
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
         </div>
+    } else {
+        <div class="text-xs text-muted">no modules cached yet</div>
+    }
+</div>
 
 @code {
     [Parameter] public EventCallback<string> OnConsole { get; set; }
@@ -220,14 +231,6 @@
 
     PageVisibility Vis => _vis ??= new PageVisibility(Js, Env);
 
-    string StatText => _status is null ? "" : $"{_status.LiveCount}/{_status.MaxInstances}";
-
-    string StateLine() {
-        if (_status is null || _status.ByState.Count == 0) return "no instances";
-        return string.Join(", ", _status.ByState.OrderBy(p => p.Key, StringComparer.Ordinal)
-            .Select(p => $"{p.Value} {p.Key}"));
-    }
-
     static string FlowLine(VirtualInstanceRow row) {
         if (row.DeviceId is not { Length: > 0 }) return "not registered";
         if (row.Flows == 0) return "no flows yet";
@@ -243,6 +246,7 @@
     }
 
     static string DotCss(VirtualInstanceRow row) {
+        if (row.Activity is { Length: > 0 }) return "vd-dot-busy";
         if (!row.ContainerPresent || row.State is "failed") return "vd-dot-bad";
         if (row.State is "ready") return "vd-dot-ready";
         return "vd-dot-busy";

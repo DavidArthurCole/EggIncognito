@@ -13,4 +13,5 @@ public sealed record VirtualInstanceRow(
     bool ContainerPresent,
     string? ContainerStatus,
     long Flows,
-    string? LastFlowAt);
+    string? LastFlowAt,
+    string? Activity = null);

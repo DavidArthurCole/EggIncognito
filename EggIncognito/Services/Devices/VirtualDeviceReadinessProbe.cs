@@ -23,6 +23,9 @@ public sealed class VirtualDeviceReadinessProbe(
             return new DeviceReadiness(no, no, no, no, no, no);
         }
 
+        if (await OfflineAsync(conn, ct) is { } offline)
+            return new DeviceReadiness(offline, offline, offline, offline, offline, offline);
+
         var root = await DeviceRoot.ProbeAsync(conn, ct);
         var installed = await InstalledAsync(conn, target.Package, ct);
         var play = await GooglePlayAsync(conn, ct);
@@ -31,6 +34,12 @@ public sealed class VirtualDeviceReadinessProbe(
         var launched = await LaunchedAsync(conn, target.Package, ct);
         var ca = await CaptureCaAsync(conn, ct);
         return new DeviceReadiness(installed, ca, play, rooted, integrity, launched);
+    }
+
+    private static async Task<ReadinessCheck?> OfflineAsync(IDeviceConnection conn, CancellationToken ct) {
+        var r = await conn.ShellAsync("getprop sys.boot_completed", ct);
+        if (r.ExitCode != 0 || r.Stdout.Trim().Length == 0) return new ReadinessCheck(false, "device unreachable");
+        return r.Stdout.Trim() == "1" ? null : new ReadinessCheck(false, "device is booting");
     }
 
     private static async Task<ReadinessCheck> InstalledAsync(IDeviceConnection conn, string package, CancellationToken ct) {

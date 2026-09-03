@@ -38,6 +38,9 @@ public sealed class VirtualDevicesController(
     private ImageBuildStore? BuildStore =>
         services.GetService(typeof(ImageBuildStore)) as ImageBuildStore;
 
+    private DeviceTimelineCache? Timeline =>
+        services.GetService(typeof(DeviceTimelineCache)) as DeviceTimelineCache;
+
     private SettingsStore? Settings =>
         services.GetService(typeof(SettingsStore)) as SettingsStore;
 
@@ -66,6 +69,8 @@ public sealed class VirtualDevicesController(
 
             rows = [.. (await store.AllAsync(ct)).Select(r => Row(r, containers))];
         }
+
+        rows = await WithActivityAsync(rows, ct);
 
         var byState = rows.GroupBy(r => r.State, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal);
@@ -198,6 +203,27 @@ public sealed class VirtualDevicesController(
     private static VirtualInstanceRow RemoteRow(ProvisionedInstance instance) => new(
         instance.InstanceId, instance.Kind, instance.Image, instance.State, instance.AdbSerial, instance.DeviceId,
         instance.CreatedAt, null, instance.Note, true, instance.Note, 0, null);
+
+    private async Task<List<VirtualInstanceRow>> WithActivityAsync(
+        List<VirtualInstanceRow> rows, CancellationToken ct) {
+        if (Timeline is not { } timeline) return rows;
+        List<string> deviceIds = [.. rows.Select(r => r.DeviceId).OfType<string>()];
+        if (deviceIds.Count == 0) return rows;
+
+        var running = await timeline.RunningAsync(deviceIds, ct);
+        if (running.Count == 0) return rows;
+
+        var byDevice = running
+            .GroupBy(j => j.DeviceId, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(j => j.Id).First(), StringComparer.Ordinal);
+
+        return [.. rows.Select(r => r.DeviceId is { } id && byDevice.TryGetValue(id, out var job)
+            ? r with { Activity = ActivityLine(job) }
+            : r)];
+    }
+
+    private static string ActivityLine(DeviceJobRow job) =>
+        job.Message is { Length: > 0 } message ? $"{job.Kind}: {message}" : $"{job.Kind} running";
 
     private VirtualInstanceRow Row(
         ProvisionedInstanceRow row, Dictionary<string, ProvisionedInstance> containers) {

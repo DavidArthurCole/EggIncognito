@@ -1626,28 +1626,32 @@ input[type="search"]::placeholder { @apply text-muted; }
 @media (min-width: 60rem) {
   .admin-wb { grid-template-columns: 12rem 1fr; }
 }
-.admin-wb-rail { @apply flex flex-col gap-0.5 self-start; }
+.admin-wb-rail { @apply flex flex-col self-start; gap: 1px; }
 @media (min-width: 60rem) {
   .admin-wb-rail { position: sticky; top: 1rem; }
 }
 .admin-wb-group {
-  @apply mt-3 mb-1;
+  @apply mt-4 mb-0.5;
   font-size: 0.6875rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--color-muted);
+  padding-left: 0.75rem;
 }
 .admin-wb-group:first-child { @apply mt-0; }
 .admin-wb-tab {
-  @apply text-left text-sm rounded px-2 py-1.5 text-fg-soft cursor-pointer;
+  @apply text-left text-sm py-1 pr-2 text-fg-soft cursor-pointer;
   background: transparent;
-  border: 1px solid transparent;
+  border: 0;
+  border-left: 2px solid transparent;
+  border-radius: 0 0.25rem 0.25rem 0;
+  padding-left: 0.625rem;
 }
 .admin-wb-tab:hover { @apply text-fg; background: var(--color-panel2); }
 .admin-wb-tab.is-active {
   @apply text-fg font-medium;
   background: var(--color-panel2);
-  border-color: var(--color-control-border);
+  border-left-color: var(--color-accent);
 }
 .admin-wb-host { @apply min-w-0 flex flex-col gap-4; }
 .admin-pane { @apply min-w-0; }
@@ -3431,7 +3435,7 @@ a.dsc-embed-title:hover { text-decoration: underline; }
 .vd-head-meta { @apply flex flex-wrap items-center gap-x-3 gap-y-1; }
 .vd-head-actions { @apply flex items-center gap-2 ml-auto; }
 .vd-empty { @apply border border-border rounded-md bg-panel p-4; }
-.vd-grid { @apply grid grid-cols-1 lg:grid-cols-2 gap-3; }
+.vd-grid { @apply grid gap-3; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); }
 .vd-card { @apply flex flex-col gap-2 border border-border rounded-md bg-panel p-3; }
 .vd-card-head { @apply flex items-center gap-2; }
 .vd-dot { @apply w-2 h-2 rounded-full shrink-0; }
@@ -3440,20 +3444,38 @@ a.dsc-embed-title:hover { text-decoration: underline; }
 .vd-dot-bad { background-color: var(--color-err); }
 .vd-id { @apply text-xs truncate; }
 .vd-state { @apply text-xs text-muted ml-auto shrink-0; }
-.vd-facts { @apply grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 m-0 text-xs; }
+.vd-activity { @apply text-xs shrink-0 truncate; color: var(--color-accent); }
+.vd-facts {
+  @apply grid m-0 text-xs;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: 0.75rem;
+  row-gap: 0.3125rem;
+}
 .vd-facts dt { @apply text-muted; }
-.vd-facts dd { @apply m-0 text-fg truncate; }
+.vd-facts dd { @apply m-0 text-fg truncate; min-width: 0; }
 .vd-note { @apply border-t border-border pt-2; }
 .vd-card-actions { @apply flex items-center gap-2 mt-auto pt-1; }
-.vd-ready { @apply flex flex-wrap gap-2; }
+.vd-ready { @apply flex flex-wrap gap-x-2 gap-y-1; }
 .vd-ready-ok { color: var(--color-ok); }
-.vd-ready-no { color: var(--color-muted); text-decoration: line-through; }
-.vd-sub { @apply flex flex-col gap-2 mt-4 pt-3 border-t border-border; }
-.vd-build { @apply flex flex-wrap items-center gap-2; }
+.vd-ready-no { color: var(--color-err); }
+.vd-sub { @apply flex flex-col gap-3; }
+.vd-sub + .vd-sub { @apply mt-6 pt-5; border-top: 1px solid var(--color-border); }
+.vd-sec-head { @apply text-[0.75rem] font-semibold uppercase tracking-[0.05em] text-fg-soft m-0; }
+.vd-build { @apply flex flex-wrap items-end gap-x-5 gap-y-3; }
+.vd-build-field { @apply flex flex-col gap-1; }
+.vd-build-label { @apply text-xs text-muted; }
 .vd-build .field-input { @apply w-24; }
-.vd-check { @apply flex items-center gap-1 text-xs text-muted; }
-.vd-row-actions { @apply flex items-center gap-1 justify-end; }
-.vd-row-active td { background: color-mix(in oklab, var(--color-accent) 10%, transparent); }
+.vd-build-opts { @apply flex flex-wrap items-center gap-x-4 gap-y-2; }
+.vd-check { @apply flex items-center gap-1.5 text-xs text-fg-soft cursor-pointer; }
+.vd-check:hover { color: var(--color-fg); }
+.vd-check input[type="checkbox"]:checked { background-color: transparent; border-color: var(--color-accent); }
+.vd-check input[type="checkbox"]:checked::after {
+  border-color: var(--color-accent);
+  border-bottom-style: solid;
+  border-right-style: solid;
+}
+.vd-row-actions { @apply flex items-center gap-1.5 justify-end; padding-right: 0.75rem; }
+.vd-row-active td:first-child { color: var(--color-accent); box-shadow: inset 2px 0 0 var(--color-accent); }
 
 .sub-section-head { @apply text-sm font-semibold text-fg; }
 .sub-form { @apply flex flex-col gap-4; }

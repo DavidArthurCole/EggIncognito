@@ -40,8 +40,8 @@ public sealed class InstallIntegrityStep(
         + "chcon u:object_r:magisk_file:s0 " + MagiskBinDir + " " + MagiskBinDir + "/* 2>/dev/null; "
         + "true";
     private static readonly TimeSpan AdbTimeout = TimeSpan.FromSeconds(30);
-    private static readonly TimeSpan BootTimeout = TimeSpan.FromSeconds(150);
     private static readonly TimeSpan BootPollInterval = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan BootProgressInterval = TimeSpan.FromSeconds(20);
     private const int RootRetries = 6;
 
     public override string Id => DeviceCookbookIds.InstallIntegrity;
@@ -220,17 +220,25 @@ public sealed class InstallIntegrityStep(
     }
 
     private async Task<RootAccess?> RebootAsync(IDeviceConnection conn, string serial, Action<string> add, CancellationToken ct) {
-        add("rebooting and waiting for boot");
+        var bootTimeout = TimeSpan.FromSeconds(Math.Max(60, config.IntegrityBootTimeoutSeconds));
+        add($"rebooting, waiting up to {bootTimeout.TotalSeconds:F0}s for boot");
         await Adb(["-s", serial, "reboot"], ct);
 
-        var deadline = DateTimeOffset.UtcNow + BootTimeout;
+        var started = DateTimeOffset.UtcNow;
+        var deadline = started + bootTimeout;
+        var nextProgress = started + BootProgressInterval;
         while (DateTimeOffset.UtcNow < deadline) {
             await Task.Delay(BootPollInterval, ct);
             await Adb(["connect", serial], ct);
             var boot = await Adb(["-s", serial, "shell", "getprop sys.boot_completed"], ct);
-            if (boot.Stdout.Trim() != "1") continue;
+            if (boot.Stdout.Trim() != "1") {
+                if (DateTimeOffset.UtcNow < nextProgress) continue;
+                nextProgress = DateTimeOffset.UtcNow + BootProgressInterval;
+                add($"still booting ({(DateTimeOffset.UtcNow - started).TotalSeconds:F0}s)");
+                continue;
+            }
 
-            add("boot completed");
+            add($"boot completed in {(DateTimeOffset.UtcNow - started).TotalSeconds:F0}s");
             RootAccess root = RootAccess.None;
             for (var attempt = 0; attempt < RootRetries; attempt++) {
                 root = await DeviceRoot.EnsureAsync(conn, runner, serial, ct);
