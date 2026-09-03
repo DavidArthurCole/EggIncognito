@@ -28,7 +28,6 @@ public sealed class IosProxyConfigurator(IProcessRunner runner, IosProxyConfigur
                 : await Ssh(BuildClear(), ct);
     }
 
-
     internal string BuildSet(string hostIp, int port) {
         string p = ssh.PlutilPath ?? DefaultPlutil;
         string f = ssh.PrefsPlist ?? DefaultPrefs;
@@ -60,7 +59,6 @@ public sealed class IosProxyConfigurator(IProcessRunner runner, IosProxyConfigur
         var r = await runner.RunAsync("ssh", new SshEndpoint(ssh.Host, ssh.Port, ssh.KeyPath).SshArgs(remoteCmd), ct);
         return r.ExitCode == 0 ? (true, null) : (false, DeviceParsing.TrimNote(r.Stderr + r.Stdout));
     }
-
 
     public sealed record SshConfig(
         string? Host,

@@ -6,7 +6,6 @@ public static class DeviceFileParser {
     public static bool IsDeviceFile(string fileName) =>
         fileName.Contains(".egidevice.", StringComparison.OrdinalIgnoreCase);
 
-
     public static ParsedDevice? Parse(string fileName, string content) {
         if (!IsDeviceFile(fileName)) return null;
 
@@ -21,7 +20,6 @@ public static class DeviceFileParser {
             Nz(Get(kv, "Target")),
             Nz(Get(kv, "Package")));
     }
-
 
     private static (string? Platform, int Order) SplitName(string fileName) {
         int idx = fileName.IndexOf(".egidevice.", StringComparison.OrdinalIgnoreCase);

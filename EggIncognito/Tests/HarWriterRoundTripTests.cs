@@ -40,13 +40,11 @@ public sealed class HarWriterRoundTripTests : IDisposable {
     public void HarWriter_Output_FedBackThroughExtractor_MatchesDirectFlow() {
         var flow = new CapturedFlow(Url, "POST", 200, null, ResponseB64());
 
-
         string directRoot = MakeRepo();
         var direct = EndpointExtractor.ForRepo(directRoot, null, "EI0000000000000000", false);
         direct.ProcessFlow(flow.Url, flow.Method, flow.Status, flow.RequestDataB64, flow.ResponseBodyB64);
         direct.Save();
         string directEndpoint = File.ReadAllText(EndpointPath(directRoot));
-
 
         string harRoot = MakeRepo();
         var writer = new HarWriter();
@@ -74,7 +72,6 @@ public sealed class HarWriterRoundTripTests : IDisposable {
         Assert.Contains("\"data\"", har);
         Assert.Contains("AAEC", har);
     }
-
 
     [Fact]
     public async Task HarWriter_ConcurrentAddAndToHar_NeverThrows_AndSnapshotsParse() {

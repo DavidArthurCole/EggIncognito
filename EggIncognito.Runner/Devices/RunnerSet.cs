@@ -6,12 +6,10 @@ namespace EggIncognito.Runner.Devices;
 public sealed record RunnerSet(
     IReadOnlyList<IDeviceRunner> Runners,
     IReadOnlyDictionary<string, IDeviceRunner> ById) {
-
     public static RunnerSet Build(
         IReadOnlyList<DeviceFileParser.ParsedDevice> devices,
         RunnerDeps deps,
         Func<IDeviceRunner?> legacyFallback) {
-
         var byId = new Dictionary<string, IDeviceRunner>(StringComparer.OrdinalIgnoreCase);
         var list = new List<IDeviceRunner>();
         foreach (var d in devices) {

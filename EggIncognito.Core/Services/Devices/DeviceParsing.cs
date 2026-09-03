@@ -73,9 +73,7 @@ public static partial class DeviceParsing {
         return count == 1 ? only : null;
     }
 
-
     public static string? IosAppVersion(string output, string bundleId) => IosVersion(output, bundleId).AppVersion;
-
 
     public static (string? AppVersion, string? Build) IosVersion(string output, string bundleId) {
         var fromPlist = IosFromPlist(output, bundleId);
@@ -83,7 +81,6 @@ public static partial class DeviceParsing {
         string? csv = IosFromCsv(output, bundleId);
         return (csv, null);
     }
-
 
     private static (string? AppVersion, string? Build) IosFromPlist(string xml, string bundleId) {
         XDocument doc;
@@ -111,7 +108,6 @@ public static partial class DeviceParsing {
         return null;
     }
 
-
     private static string? IosFromCsv(string output, string bundleId) {
         foreach (string raw in output.Split('\n')) {
             string line = raw.Trim();
@@ -126,7 +122,6 @@ public static partial class DeviceParsing {
 
         return null;
     }
-
 
     public static string TrimNote(string s) => s.Trim() is { Length: > 200 } t ? t[..200] : s.Trim();
 

@@ -38,7 +38,6 @@ public static class RpoAssetExtractor {
         return DecodeEntries(entries);
     }
 
-
     public static ExtractResult FromEntries(IEnumerable<(string Name, byte[] Bytes)> entries) =>
         DecodeEntries(entries.Where(e => IsRpoEntry(e.Name) && e.Bytes.LongLength is > 0 and <= MaxEntryBytes));
 
@@ -58,14 +57,12 @@ public static class RpoAssetExtractor {
         fullName.EndsWith(".rpo", StringComparison.OrdinalIgnoreCase)
         || fullName.EndsWith(".rpoz", StringComparison.OrdinalIgnoreCase);
 
-
     private static string KeyFromEntry(string fullName) {
         int slash = fullName.LastIndexOfAny(['/', '\\']);
         string name = slash >= 0 ? fullName[(slash + 1)..] : fullName;
         int dot = name.LastIndexOf('.');
         return dot > 0 ? name[..dot] : name;
     }
-
 
     public sealed record Asset(string Key, string SourceEntry, RpoMeshDecoder.DecodeResult Decode);
 

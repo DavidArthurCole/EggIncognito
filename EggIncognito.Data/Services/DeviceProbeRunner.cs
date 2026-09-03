@@ -10,7 +10,6 @@ public static class DeviceProbeRunner {
         string? extractedLatestAppVersion)
         => Classify(r, d.Platform, extractedLatestBuild, extractedLatestAppVersion);
 
-
     public static string Classify(DeviceProbeResult r, string platform, string? extractedLatestBuild,
         string? extractedLatestAppVersion) {
         if (!r.Reachable) return "unreachable";
@@ -33,13 +32,11 @@ public static class DeviceProbeRunner {
                     : "no_change";
     }
 
-
     public static async Task<DeviceJobRow> ProbeOneAsync(
         Device d, string triggeredBy, IDevicePlatforms platforms, DeviceJobStore jobs,
         EggIncognitoDbContext db, ILogger logger, TimeProvider time, CancellationToken ct) {
         var result = await platforms.For(d.Platform)
             .ProbeAsync(new DeviceTarget(d.Id, d.Platform, d.Target, d.Package), ct);
-
 
         var extracted = await db.ProtoVersions.AsNoTracking()
             .Where(p => p.Platform == d.Platform && p.DeletedAt == null)

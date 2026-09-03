@@ -31,12 +31,10 @@ public sealed class FlowDecoder {
     public string? KnownRequestType(string path) =>
         _requestTypes.GetValueOrDefault(path);
 
-
     private static DecodeResult Result(string? rawJson, string? type, bool known) =>
         rawJson is null
             ? new DecodeResult(null, null, type, known)
             : new DecodeResult(Redactor.Redact(rawJson), rawJson, type, known);
-
 
     public DecodeResult DecodeResponse(string path, string responseB64) {
         byte[] respBytes;
@@ -47,7 +45,6 @@ public sealed class FlowDecoder {
         }
 
         string? knownType = KnownResponseType(path);
-
 
         byte[]? inner = TryUnwrapResponse(respBytes);
 
@@ -78,7 +75,6 @@ public sealed class FlowDecoder {
                 : new DecodeResult(null, null, null, false);
     }
 
-
     private static byte[]? TryUnwrapResponse(byte[] respBytes) {
         try {
             var outer = AuthenticatedMessage.Parser.ParseFrom(respBytes);
@@ -89,7 +85,6 @@ public sealed class FlowDecoder {
             return null;
         }
     }
-
 
     private static (int score, string? json) ScoreKnown(string knownType, byte[] data) {
         try {
@@ -104,7 +99,6 @@ public sealed class FlowDecoder {
         }
     }
 
-
     private static string? AsPrintableText(byte[] bytes) {
         if (bytes.Length is 0 or > 256) return null;
         foreach (byte b in bytes) {
@@ -118,7 +112,6 @@ public sealed class FlowDecoder {
             return null;
         }
     }
-
 
     public DecodeResult DecodeRequest(string path, string? requestDataB64) {
         string? knownType = KnownRequestType(path);

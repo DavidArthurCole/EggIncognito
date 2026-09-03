@@ -25,6 +25,5 @@ public static class ShipNameMap {
 
     public static bool IsBundledShip(string stem) => StemToEnum.ContainsKey(stem);
 
-
     public sealed record Ship(int Tier, string EnumName, string Display, string? BundleStem, string? ShellAsset);
 }

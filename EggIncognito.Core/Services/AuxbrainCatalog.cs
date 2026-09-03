@@ -46,7 +46,6 @@ public static class AuxbrainCatalog {
         return entries;
     }
 
-
     private static string NamespaceOf(string path) {
         int i = path.IndexOf('/');
         return i < 0 ? path : path[..i];

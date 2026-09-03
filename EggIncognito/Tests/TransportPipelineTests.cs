@@ -127,10 +127,8 @@ public class TransportPipelineTests {
         var msg = AuthenticatedMessage.Parser.ParseFrom(
             Convert.FromBase64String(result.Stages.Single(s => s.Name == "authenticated-message").Base64!));
 
-
         Assert.False(string.IsNullOrEmpty(msg.Code));
     }
-
 
     private static string ExpectedCode(byte[] messageBytes, string phrase) {
         byte[] saltBytes = Encoding.ASCII.GetBytes(Hashes.Sha256Hex(phrase));
@@ -370,7 +368,6 @@ public class ProtoReflectionTests {
         var descriptor = reflection.FindMessage("ContractsInfoRequest");
         Assert.NotNull(parser);
         Assert.NotNull(descriptor);
-
 
         Assert.Same(parser, reflection.FindParser("ContractsInfoRequest"));
         Assert.Same(parser, reflection.FindParser("Ei.ContractsInfoRequest"));

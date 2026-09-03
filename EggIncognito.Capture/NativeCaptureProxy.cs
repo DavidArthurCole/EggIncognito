@@ -64,7 +64,6 @@ public sealed class NativeCaptureProxy(bool verbose = false) : ICaptureProxy {
         _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var token = _cts.Token;
 
-
         int bindPort = port + 1;
         _listener = new TcpListener(IPAddress.Loopback, bindPort);
         _listener.Start();
@@ -184,7 +183,6 @@ public sealed class NativeCaptureProxy(bool verbose = false) : ICaptureProxy {
         }
     }
 
-
     private async Task MitmAsync(NetworkStream deviceNet, string host, int port, CancellationToken ct) {
         var leaf = GetLeaf(host);
         await using var deviceTls = new SslStream(deviceNet, false);
@@ -282,7 +280,6 @@ public sealed class NativeCaptureProxy(bool verbose = false) : ICaptureProxy {
         }
     }
 
-
     private static async Task RawTunnelAsync(NetworkStream deviceNet, string host, int port, CancellationToken ct) {
         using var upstream = new TcpClient { NoDelay = true };
         try {
@@ -332,7 +329,6 @@ public sealed class NativeCaptureProxy(bool verbose = false) : ICaptureProxy {
 
     private X509Certificate2 GetLeaf(string host) => _leafCache.GetOrAdd(host, MintLeaf);
 
-
     internal static X509Certificate2 MintLeafForTest(string host, out X509Certificate2 root) {
         var p = new NativeCaptureProxy();
         string tmp = Path.Combine(Path.GetTempPath(), "egi-native-catest-" + Guid.NewGuid().ToString("N"));
@@ -348,7 +344,6 @@ public sealed class NativeCaptureProxy(bool verbose = false) : ICaptureProxy {
             }
         }
     }
-
 
     private X509Certificate2 MintLeaf(string host) {
         using var rsa = RSA.Create(2048);

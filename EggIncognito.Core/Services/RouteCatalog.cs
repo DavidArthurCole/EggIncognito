@@ -49,7 +49,6 @@ public sealed partial class RouteCatalog : IRouteCatalog {
     private static string ResolveYamlPath(IConfiguration config) =>
         ContentRoot.ResolveRouteMapFile(config["RoutesYamlPath"], "routes.yaml");
 
-
     internal static List<RouteInfo> Parse(string yaml) {
         var result = new List<RouteInfo>();
         Block? b = null;
@@ -170,7 +169,6 @@ public sealed partial class RouteCatalog : IRouteCatalog {
             b.PathParamOnly) { Aliases = b.Aliases };
     }
 
-
     private static (string? type, bool wrapped) Normalize(string? v) {
         if (v is null) return (null, false);
         if (v == "AuthenticatedMessage") return (null, true);
@@ -185,7 +183,6 @@ public sealed partial class RouteCatalog : IRouteCatalog {
 
     [GeneratedRegex(@"^\s+-\s*([^#]*?)\s*(?:#.*)?$")]
     private static partial Regex AliasItemRegex();
-
 
     private sealed class Block {
         public readonly List<string> Aliases = [];

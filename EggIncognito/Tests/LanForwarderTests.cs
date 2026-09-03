@@ -82,7 +82,6 @@ public class LanForwarderTests {
         Assert.Equal(-1, LanForwarder.IndexOfDoubleCrlf(bytes, bytes.Length));
     }
 
-
     [Theory]
     [InlineData(SocketError.ConnectionReset)]
     [InlineData(SocketError.ConnectionAborted)]

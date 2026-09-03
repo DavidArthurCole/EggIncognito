@@ -27,7 +27,6 @@ public static class HatcheryAssemblyRecovery {
         return new Assembly(ok, anchor, transforms, timing, ok ? "ok" : "nothing recovered");
     }
 
-
     private static Timing RecoverTiming(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms, ulong tvm, int tfo) {
         if (!MachoSymbols.TryFindFunc(syms, ["FarmScene14rotate_pyramidEP14GameControlleri"], out var fn))
             return new Timing(null, false, null, 0, "rotate_pyramid symbol not found");
@@ -52,13 +51,11 @@ public static class HatcheryAssemblyRecovery {
         float? smooth = ArgOf("smooth", 0);
         int segments = RotateSegmentCount(bin, syms);
 
-
         bool waitForRandom = waitFor is null && CalledBefore(exec, "frandom", "waitFor");
 
         bool ok = waitFor is not null || waitForRandom || smooth is not null || segments > 0;
         return new Timing(waitFor, waitForRandom, smooth, segments, ok ? "ok" : "no tween args resolved");
     }
-
 
     private static bool CalledBefore(Arm64SymbolicExecutor.ExecResult exec, string first, string then) {
         int firstIdx = -1;
@@ -70,7 +67,6 @@ public static class HatcheryAssemblyRecovery {
 
         return false;
     }
-
 
     private static int RotateSegmentCount(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms) {
         var ex = FunctionConstantExtractor.ExtractWith(bin, syms, ["FarmScene14rotate_pyramidEP14GameControlleri"]);
@@ -90,7 +86,6 @@ public static class HatcheryAssemblyRecovery {
             return new Mat4(false, tag, new ExprNode?[16], 0, $"symbol not found: {tag}");
         if (!Arm64Decode.SliceFunction(bin, fn.Start, fn.End, tvm, tfo, out byte[] code, out _))
             return new Mat4(false, tag, new ExprNode?[16], 0, "function range out of bounds");
-
 
         var bases = new Dictionary<string, string> { ["x0"] = "self", ["x8"] = "ret" };
         var exec = Arm64SymbolicExecutor.Run(code, fn, syms, new Dictionary<string, ExprNode>(), bases,
@@ -126,7 +121,6 @@ public static class HatcheryAssemblyRecovery {
             ["diagnostics"] = Diagnostics
         };
     }
-
 
     public readonly record struct Timing(
         float? WaitFor,

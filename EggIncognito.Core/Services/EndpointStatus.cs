@@ -26,7 +26,6 @@ public static partial class EndpointStatus {
         return new Result(ok, empty, missing);
     }
 
-
     public static string WriteStatusBlock(string yamlPath, Result r) {
         var sb = new StringBuilder();
         sb.Append("\nendpoint_status:\n");
@@ -42,7 +41,6 @@ public static partial class EndpointStatus {
         }
 
         string yaml = File.ReadAllText(yamlPath);
-
 
         yaml = EndpointStatusBlockRegex().Replace(yaml, "");
         yaml = yaml.TrimEnd() + "\n" + sb.ToString().TrimStart('\n') + "\n";

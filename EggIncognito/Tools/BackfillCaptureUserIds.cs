@@ -45,7 +45,6 @@ public static class OwnerAuthorUserIdBackfill {
 
         int updated = 0;
 
-
         var cache = new Dictionary<string, Guid>();
 
         foreach ((string table, string column) in Targets) {

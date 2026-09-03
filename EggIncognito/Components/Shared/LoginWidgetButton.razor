@@ -48,7 +48,6 @@
     private bool _loading;
     private string? _error;
 
-
     private string Abs(string url) {
         return url.StartsWith("http", StringComparison.OrdinalIgnoreCase) || string.IsNullOrEmpty(Auth.IdentityHostUrl)
             ? url

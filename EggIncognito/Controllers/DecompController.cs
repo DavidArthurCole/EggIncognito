@@ -140,7 +140,6 @@ public sealed class DecompController(
                 textOff = (ulong)tfo;
             }
 
-
             var exact = report.Symbols.Where(s => s.Name == name).ToList();
             if (exact.Count > 0)
                 return VaResult(tgtBytes, report, exact[0].Name, exact[0].Value, textVm, textOff, "exact-recovered",
@@ -157,7 +156,6 @@ public sealed class DecompController(
                         textVm, textOff, "addr-referrer", referrers.Take(5)
                             .Select(r => new { fnVa = "0x" + r.FunctionVa.ToString("x"), r.HitCount }).ToList());
             }
-
 
             return embedded.Count > 0
                 ? VaResult(tgtBytes, report, embedded[0].Name, embedded[0].Value, textVm, textOff, "contains-fallback",
@@ -256,7 +254,6 @@ public sealed class DecompController(
                 ["floats"] = new JsonArray(main.Floats.Select(f => JsonValue.Create(f)).ToArray()),
                 ["calls"] = new JsonArray(main.Calls.Select(c => JsonValue.Create(c)).ToArray())
             };
-
 
             FunctionConstantExtractor.ExtractResult Ex(string n) {
                 return FunctionConstantExtractor.Extract(bin, [n]);

@@ -34,14 +34,12 @@ public static class TarReader {
                     break;
             }
 
-
             long dataBlocks = (size + BlockSize - 1) / BlockSize;
             pos = dataStart + (int)(dataBlocks * BlockSize);
         }
 
         return entries;
     }
-
 
     private static string ParseName(byte[] tar, int header) {
         string name = ReadString(tar, header, 100);
@@ -55,7 +53,6 @@ public static class TarReader {
         while (end < limit && buf[end] != 0) end++;
         return Encoding.UTF8.GetString(buf, offset, end - offset);
     }
-
 
     private static long ParseOctal(byte[] buf, int offset, int len) {
         long value = 0;

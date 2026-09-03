@@ -14,7 +14,6 @@ public sealed class DeviceRinfoStore(string capturePath)
         return null;
     }
 
-
     public void Observe(string deviceId, RinfoHarvester.ObservedVersion v, string nowIso) {
         if (string.IsNullOrEmpty(deviceId)) return;
         Mutate(rows => {

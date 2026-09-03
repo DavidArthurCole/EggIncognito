@@ -15,6 +15,15 @@ csharp_new_line_before_open_brace = none
 csharp_new_line_before_else = false
 csharp_new_line_before_catch = false
 csharp_new_line_before_finally = false
+dotnet_style_allow_multiple_blank_lines_experimental = false:warning
+csharp_blank_lines_after_block_statements = 1
+csharp_blank_lines_around_field = 0
+csharp_blank_lines_inside_type = 0
+csharp_blank_lines_inside_namespace = 0
+resharper_blank_lines_after_block_statements = 1
+resharper_blank_lines_inside_type = 0
+resharper_keep_blank_lines_in_code = 1
+resharper_keep_blank_lines_in_declarations = 1
 
 csharp_style_namespace_declarations = file_scoped:error
 dotnet_diagnostic.IDE0005.severity = warning

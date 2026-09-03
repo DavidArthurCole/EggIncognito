@@ -44,5 +44,4 @@ public sealed class HarvestScheduler(RunnerDb db, IDevicePlatforms platforms, IL
         var target = new DeviceTarget(device.Id, device.Platform, device.Target, device.Package);
         await harvester.RunAsync(target, force, CancellationToken.None);
     }
-
 }

@@ -69,7 +69,6 @@
     bool _caDmFailed;
     bool _rotated;
 
-
     [Parameter] public string? HostOverride { get; set; }
 
     protected override void OnParametersSet() {
@@ -78,7 +77,6 @@
             _rotated = true;
         }
     }
-
 
     protected override async Task OnAfterRenderAsync(bool firstRender) {
         if (!firstRender || ClientFactory is null) return;

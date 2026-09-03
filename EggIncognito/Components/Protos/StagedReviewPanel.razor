@@ -127,7 +127,6 @@
     [Parameter] public EventCallback OnChanged { get; set; }
     [Parameter] public bool IsAdmin { get; set; }
 
-
     bool AllSelected => _rows.Count > 0 && _rows.All(r => _selected.Contains(r.Id));
 
     protected override async Task OnInitializedAsync() {
@@ -269,7 +268,6 @@
 
     IJSObjectReference? _copy;
 
-
     static string MissingReport(IEnumerable<Models.Staging.StagedRow> rows) {
         var sb = new StringBuilder();
         sb.AppendLine("# Staged proto rows with missing version info");
@@ -289,7 +287,6 @@
             return string.IsNullOrWhiteSpace(s) ? "-" : s;
         }
     }
-
 
     async Task CopyAndClear(IReadOnlyList<Models.Staging.StagedRow> rows) {
         if (rows.Count == 0) return;

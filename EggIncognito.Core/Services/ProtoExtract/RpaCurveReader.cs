@@ -35,7 +35,6 @@ public static class RpaCurveReader {
         string Diagnostics) {
         public float Duration => Keys.Count == 0 ? 0 : Keys[^1].Time;
 
-
         public float Sample(float t, int comp = 0) {
             if (Keys.Count == 0) return 0;
             if (t <= Keys[0].Time) return Comp(Keys[0], comp);

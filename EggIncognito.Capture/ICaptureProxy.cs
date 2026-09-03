@@ -14,13 +14,11 @@ public sealed record CapturedFlow(
 public interface ICaptureProxy : IAsyncDisposable {
     bool Verbose { get; set; }
 
-
     bool FreshCa { get; }
 
     string? RootThumbprint { get; }
 
     event Action<CapturedFlow>? FlowCaptured;
-
 
     event Action<int, string?>? ClientConnected;
     event Action<int, string?>? ClientDisconnected;
@@ -29,12 +27,9 @@ public interface ICaptureProxy : IAsyncDisposable {
     event Action? TrustRestored;
     event Action<string, bool>? ConnectSeen;
 
-
     event Action<string>? Trace;
 
-
     Task StartAsync(int port, string caPath, CancellationToken ct);
-
 
     Task StopAsync();
 }

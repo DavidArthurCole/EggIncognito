@@ -14,7 +14,6 @@ public sealed class EndpointStore(
         return bytes is null ? new TRes() : JsonParser.Default.Parse<TRes>(Encoding.UTF8.GetString(bytes));
     }
 
-
     public IMessage Fetch(Type messageType, string path, string? eid = null) {
         var instance = (IMessage)Activator.CreateInstance(messageType)!;
         byte[]? bytes = LookupBytes(path, eid);

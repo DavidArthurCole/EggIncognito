@@ -3,7 +3,6 @@ namespace EggIncognito.Core.Services.Devices;
 public interface IDeviceStoreChecker {
     string Platform { get; }
 
-
     Task<StoreCheckResult> CheckAndUpdateAsync(
         DeviceTarget device, CancellationToken ct, Action<string>? progress = null);
 }

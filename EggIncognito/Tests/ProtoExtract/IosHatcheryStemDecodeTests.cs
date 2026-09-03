@@ -23,7 +23,6 @@ public class IosHatcheryStemDecodeTests {
         return output.ToArray();
     }
 
-
     private static Dictionary<string, byte[]> StemMap(byte[] tar) {
         var map = new Dictionary<string, byte[]>(StringComparer.Ordinal);
         foreach ((string name, byte[] bytes) in TarReader.Read(tar)) {

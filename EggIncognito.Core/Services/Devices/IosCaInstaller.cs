@@ -5,7 +5,6 @@ namespace EggIncognito.Core.Services.Devices;
 public sealed class IosCaInstaller(IProcessRunner runner, IosCaInstaller.SshConfig ssh) : IDeviceCaInstaller {
     private const string DefaultStore = "/private/var/protected/trustd/private/TrustStore.sqlite3";
 
-
     private const string DefaultCommand =
         "{ command -v sqlite3 >/dev/null 2>&1 || apt-get install -y sqlite3 >/dev/null 2>&1; } && " +
         "sqlite3 {store} \"INSERT OR REPLACE INTO tsettings (sha256, subj, tset, data) " +

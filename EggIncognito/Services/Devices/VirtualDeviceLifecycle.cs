@@ -1,6 +1,8 @@
+using EggIdentity.Settings.Store;
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
+using EggIncognito.Services.Config;
 
 namespace EggIncognito.Services.Devices;
 
@@ -85,9 +87,9 @@ public sealed class VirtualDeviceLifecycle(
 
     public async Task<string> ResolveImageAsync(IServiceProvider sp, string? requested, CancellationToken ct) {
         if (!string.IsNullOrWhiteSpace(requested)) return requested;
-        if (sp.GetService(typeof(AppSettingStore)) is AppSettingStore settings) {
-            string? active = await settings.GetAsync(AppSettingStore.VirtualImageOverrideKey, ct);
-            if (!string.IsNullOrWhiteSpace(active)) return active;
+        if (sp.GetService(typeof(SettingsStore)) is SettingsStore settings) {
+            var active = await settings.GetAsync(SettingKeys.VirtualImageOverride, ct);
+            if (!string.IsNullOrWhiteSpace(active?.Value)) return active.Value;
         }
 
         return config.Image;

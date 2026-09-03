@@ -277,5 +277,4 @@ public class ContractPredictorTests {
         Assert.NotNull(thrown);
         Assert.True(thrown is NpgsqlException or InvalidOperationException, thrown.ToString());
     }
-
 }

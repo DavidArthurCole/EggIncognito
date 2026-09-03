@@ -32,7 +32,6 @@ public class HostAllowlistTests {
         Assert.False(AuxbrainHosts.IsAuxbrain(host));
     }
 
-
     [Fact]
     public void SelfHost_IsAllowed_OnlyWhenItMatches() {
         const string self = "eggincognito.davidarthurcole.me";

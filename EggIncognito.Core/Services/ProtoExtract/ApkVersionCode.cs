@@ -28,7 +28,6 @@ public static class ApkVersionCode {
         }
     }
 
-
     internal static string? ParseAxml(byte[] data) {
         try {
             if (data.Length < 8) return null;
@@ -60,7 +59,6 @@ public static class ApkVersionCode {
         }
     }
 
-
     public static string? ReadVersionName(byte[] data) {
         try {
             if (data.Length < 8 || ReadU16(data, 0) != ResXmlType) return null;
@@ -86,7 +84,6 @@ public static class ApkVersionCode {
             return null;
         }
     }
-
 
     private static string? ReadStartElementStringAttr(byte[] data, int chunkPos, int headerSize, string[] strings,
         string attr) {
@@ -115,7 +112,6 @@ public static class ApkVersionCode {
         return null;
     }
 
-
     private static string? ReadStartElementVersionCode(byte[] data, int chunkPos, int headerSize, string[] strings) {
         int ext = chunkPos + headerSize;
         if (ext + 20 > data.Length) return null;
@@ -139,7 +135,6 @@ public static class ApkVersionCode {
 
         return null;
     }
-
 
     private static string[] ReadStringPool(byte[] data, int chunkPos) {
         if (chunkPos < 0 || chunkPos + 28 > data.Length) return [];
@@ -168,7 +163,6 @@ public static class ApkVersionCode {
         return result;
     }
 
-
     private static string ReadUtf8String(byte[] data, int pos) {
         int p = pos;
         p = SkipUtf8Len(data, p);
@@ -187,7 +181,6 @@ public static class ApkVersionCode {
             return (((b & 0x7F) << 8) | data[pos + 1], pos + 2);
         return (b, pos + 1);
     }
-
 
     private static string ReadUtf16String(byte[] data, int pos) {
         int len = ReadU16(data, pos);

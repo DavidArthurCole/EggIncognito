@@ -79,7 +79,6 @@ public class WireForensicsTests {
         Assert.Contains(r.Salvaged, s => s.Text.Contains("corona-virus"));
     }
 
-
     [Fact]
     public void Schema_ResolvesFieldNames() {
         byte[] bytes = Bytes(0x18, 0x01);

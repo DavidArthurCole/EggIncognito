@@ -39,10 +39,8 @@
     [Parameter] public string? Initial { get; set; }
     [Parameter] public EventCallback<string> OnSaved { get; set; }
 
-
     const long MaxImageBytes = 5 * 1024 * 1024;
     static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
-
 
     static readonly (string Label, string Title, string Token)[] Buttons = [
         ("B", "Bold", "**bold**"),
@@ -63,12 +61,10 @@
     string? _seeded;
     bool _dirty;
 
-
     protected override void OnInitialized() {
         base.OnInitialized();
         _canEdit = User.IsAtLeast(UserRole.Contributor);
     }
-
 
     protected override void OnParametersSet() {
         if (!_dirty && Initial != _seeded) {

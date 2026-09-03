@@ -217,13 +217,11 @@ public class FeedDispatcherTests {
         return sub;
     }
 
-
     private static ProtoBuildEvent BrokenIosEvt(int id = 42) {
         var flaws = ProtoVersionQuality.Flaws("ios", "111340", null, "", false);
         return new ProtoBuildEvent(id, "ios", "1.36.4", "111340", null, "", true, true, "https://x/y",
             VersionDelta.Unknown, "1.37.0", "1.37.0.1", flaws);
     }
-
 
     [Fact]
     public async Task VersionUp_Fires_OnForward_Only() {
@@ -237,7 +235,6 @@ public class FeedDispatcherTests {
         await d.DispatchAsync(ProtoEvt(true) with { Delta = VersionDelta.Forward, ProtoVersionId = 2 });
         Assert.Equal(1, handler.Posts);
     }
-
 
     [Fact]
     public async Task Filters_Block_Flawed_Event_And_Record_Reason() {
@@ -253,7 +250,6 @@ public class FeedDispatcherTests {
         Assert.Contains(FeedEventKinds.FilterKnownDelta, blocked.Reason, StringComparison.Ordinal);
     }
 
-
     [Fact]
     public async Task Suspect_Fires_OnFlawed_NotOnClean() {
         var store = new FakeStore(Guarded(1, FeedEventKinds.TriggerSuspect, "android", "ios"));
@@ -268,7 +264,6 @@ public class FeedDispatcherTests {
         Assert.Empty(store.Suppressions);
     }
 
-
     [Fact]
     public async Task Clean_Forward_Event_Passes_Filters() {
         var store = new FakeStore(Guarded(1, FeedEventKinds.TriggerVersionUp, "android"));
@@ -279,7 +274,6 @@ public class FeedDispatcherTests {
         Assert.Equal(1, handler.Posts);
         Assert.Empty(store.Suppressions);
     }
-
 
     private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler {
         public int Posts { get; private set; }

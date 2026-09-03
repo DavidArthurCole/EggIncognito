@@ -24,7 +24,6 @@ public static class FarmPlacementRecovery {
         if (!Arm64Decode.SliceFunction(bin, fn.Start, fn.End, tvm, tfo, out byte[] code, out _))
             return new Vec3Model(false, fn.Name, null, null, null, 0, "function range out of bounds");
 
-
         var bases = new Dictionary<string, string> { ["x0"] = "fs", ["x1"] = "gc", ["x8"] = "ret" };
         var exec = Arm64SymbolicExecutor.Run(code, fn, syms, new Dictionary<string, ExprNode>(), bases,
             KnownCallModels.Resolve);
@@ -40,7 +39,6 @@ public static class FarmPlacementRecovery {
         string diag = ok ? "ok" : "out-param X not captured";
         return new Vec3Model(ok, fn.Name, x, y, z, exec.Opaque, diag);
     }
-
 
     private static ExprNode NameExtents(ExprNode n) {
         return n switch {

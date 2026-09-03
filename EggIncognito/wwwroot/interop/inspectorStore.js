@@ -1,5 +1,4 @@
 
-
 import { get as getRaw, set as setRaw } from "./uiPrefs.js";
 
 const SALT_KEY = "inspector.salt";
@@ -89,7 +88,6 @@ export function forgetEids() {
   setRaw(EIDS_KEY, "[]");
   return [];
 }
-
 
 export function getHistoryEnabled() {
   const raw = getRaw(HISTORY_ENABLED_KEY);

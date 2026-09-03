@@ -49,7 +49,6 @@ public class HostedCapturePageTests {
         public RouteInfo? Resolve(string path) => new(path, null, "PeriodicalsResponse", false, false, null, false, false);
     }
 
-
     [Collection(HostedAppCollection.Name)]
     public class HostedDefault(HostedAppFactory f) {
         [Fact]
@@ -85,7 +84,6 @@ public class HostedCapturePageTests {
             Assert.Equal(HttpStatusCode.Unauthorized, r.StatusCode);
         }
     }
-
 
     public class Component : BunitContext {
         private void Wire(TempDir tmp, bool authed, bool supporter, bool canCapture = false) {
@@ -161,7 +159,6 @@ public class HostedCapturePageTests {
             Assert.DoesNotContain("DM proxy profile", markup);
         }
     }
-
 
     public sealed class StartGate : IDisposable {
         private readonly TempDir _tmp = new();

@@ -27,7 +27,6 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
     private async Task<bool> ShaPendingAsync(string sha, CancellationToken ct) =>
         await db.StagedProtos.AnyAsync(s => s.ProtoSha == sha && s.Status == "pending", ct);
 
-
     private static int FieldScore(string? appVersion, string? build, string? clientVersion) =>
         (string.IsNullOrWhiteSpace(appVersion) ? 0 : 1)
         + (string.IsNullOrWhiteSpace(build) ? 0 : 1)

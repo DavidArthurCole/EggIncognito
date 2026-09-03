@@ -37,7 +37,6 @@ public class StoredEndpointRoleTests {
         public bool IsAtLeast(UserRole need) => UserRoles.IsAtLeast(role, need);
     }
 
-
     private sealed class EmptyServices : IServiceProvider {
         public object? GetService(Type serviceType) => null;
     }

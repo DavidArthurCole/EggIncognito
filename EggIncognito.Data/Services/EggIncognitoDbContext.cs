@@ -270,6 +270,7 @@ public class EggIncognitoDbContext(DbContextOptions<EggIncognitoDbContext> optio
         modelBuilder.Entity<AppSetting>(e => {
             e.HasKey(x => x.Key);
             e.Property(x => x.UpdatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
+            e.ToTable("app_settings", t => t.ExcludeFromMigrations());
         });
         modelBuilder.Entity<SymbolizedBinary>(e => {
             e.HasKey(x => x.Id);

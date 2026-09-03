@@ -73,7 +73,6 @@
         _isAdmin = User.IsAtLeast(UserRole.Admin);
         await LoadAsync();
 
-
         _timer = ComponentTimers.Every(TimeSpan.FromSeconds(30), () => InvokeAsync(TickAsync));
     }
 
@@ -109,7 +108,6 @@
         if (!_isAdmin || _reprobing || _disposed) return;
         _ = Task.Run(ReprobeStaleAsync);
     }
-
 
     async Task ReprobeStaleAsync() {
         if (!_isAdmin || _reprobing || _disposed) return;

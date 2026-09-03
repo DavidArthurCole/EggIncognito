@@ -15,7 +15,6 @@ public static class HeaderRedactor {
 
     public static bool IsSensitive(string name) => Sensitive.Contains(name);
 
-
     public static (IReadOnlyList<DashboardHeader> redacted, IReadOnlyList<DashboardHeader> raw) Build(
         IReadOnlyList<HttpHeader>? headers) {
         if (headers is null || headers.Count == 0)

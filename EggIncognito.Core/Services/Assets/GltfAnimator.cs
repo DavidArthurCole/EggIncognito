@@ -13,7 +13,6 @@ public static class GltfAnimator {
         HoverSpin
     }
 
-
     public static Result Animate(byte[] glb, Options? options = null) {
         var opts = options ?? new Options();
         if (glb is null || glb.Length < 12) return Fail("input glb too short", opts);
@@ -45,7 +44,6 @@ public static class GltfAnimator {
         return new Result(true, outGlb, "ok", name, opts.DurationSeconds);
     }
 
-
     private static Node? TargetNode(ModelRoot model) {
         var scene = model.DefaultScene ?? (model.LogicalScenes.Count > 0 ? model.LogicalScenes[0] : null);
         var fromScene = scene?.VisualChildren.FirstOrDefault(n => n.Mesh is not null)
@@ -57,7 +55,6 @@ public static class GltfAnimator {
 
     private static void ApplyAnimation(Node node, Options opts, string name) {
         float d = opts.DurationSeconds <= 0 ? 6f : opts.DurationSeconds;
-
 
         var pivot = RepivotToCenter(node);
 
@@ -78,7 +75,6 @@ public static class GltfAnimator {
         }
     }
 
-
     private static Node RepivotToCenter(Node node) {
         if (node.Mesh is null) return node;
         var center = MeshCenter(node.Mesh);
@@ -98,7 +94,6 @@ public static class GltfAnimator {
         return node;
     }
 
-
     private static Vector3? MeshCenter(Mesh mesh) {
         var min = new Vector3(float.MaxValue);
         var max = new Vector3(float.MinValue);
@@ -116,7 +111,6 @@ public static class GltfAnimator {
         return any ? (min + max) * 0.5f : null;
     }
 
-
     private static (float, Quaternion)[] SpinKeys(Vector3 axis, float duration) {
         var a = Vector3.Normalize(axis);
         const int steps = 4;
@@ -130,7 +124,6 @@ public static class GltfAnimator {
         return keys;
     }
 
-
     private static (float, Vector3)[] BobKeys(float amplitude, float duration, Vector3 baseTranslation) {
         float half = duration / 2f;
         return [
@@ -142,7 +135,6 @@ public static class GltfAnimator {
 
     private static Result Fail(string why, Options opts) =>
         new(false, null, why, opts.Kind.ToString(), opts.DurationSeconds);
-
 
     public static AnimationKind ParseKind(string? s) =>
         Enum.TryParse<AnimationKind>(s, true, out var k) ? k : AnimationKind.SpinY;

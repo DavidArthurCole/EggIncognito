@@ -7,7 +7,6 @@ public static class FunctionConstantExtractor {
             : ExtractWith(bin, BinaryImage.Load(bin)?.Symbols ?? [], nameNeedles);
     }
 
-
     public static ExtractResult ExtractWith(byte[] bin, IReadOnlyList<MachoSymbols.Symbol> syms, string[] nameNeedles) {
         if (bin is null || bin.Length < 64) return new ExtractResult(false, "", [], [], "binary too short");
         var img = BinaryImage.Load(bin);
@@ -22,7 +21,6 @@ public static class FunctionConstantExtractor {
         var calls = analysis.CallTargets.Select(t => ResolveCallName(syms, t)).Distinct().ToList();
         return new ExtractResult(true, fn.Name, floats, calls, "ok");
     }
-
 
     public static string ResolveCallName(IReadOnlyList<MachoSymbols.Symbol> syms, ulong target) {
         string? best = null;

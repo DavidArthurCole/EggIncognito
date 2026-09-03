@@ -23,7 +23,6 @@ public static class WireBody {
         return (Convert.ToBase64String(respBytes), shape + "raw");
     }
 
-
     private static bool DecodesToAuthMessage(string text) {
         try {
             byte[] bytes = ProtoFraming.FromBase64Loose(text);
@@ -33,7 +32,6 @@ public static class WireBody {
             return false;
         }
     }
-
 
     public static bool LooksLikeBase64Text(byte[] b) {
         if (b.Length == 0) return false;
@@ -48,7 +46,6 @@ public static class WireBody {
 
         return true;
     }
-
 
     public static string? ExtractDataParam(string body) {
         if (string.IsNullOrEmpty(body)) return null;

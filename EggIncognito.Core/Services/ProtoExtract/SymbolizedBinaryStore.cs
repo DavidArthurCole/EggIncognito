@@ -44,7 +44,6 @@ public sealed class SymbolizedBinaryStore(string ipaDir, Func<byte[], bool>? isS
         return map;
     }
 
-
     private static (int, int, int, int) VersionKey(string v) {
         string[] p = v.Split('.');
 

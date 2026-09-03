@@ -134,7 +134,6 @@ public sealed class OpenApiBuilderTests {
         Assert.False(string.IsNullOrEmpty(ok.GetProperty("description").GetString()));
     }
 
-
     [Fact]
     public void FullRealCatalog_Builds_AndEveryRefResolves() {
         string root = RepoRoot();

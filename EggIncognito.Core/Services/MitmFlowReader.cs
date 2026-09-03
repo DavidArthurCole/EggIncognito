@@ -45,7 +45,6 @@ public static class MitmFlowReader {
         return $"{scheme}://{authority}{path}";
     }
 
-
     private static string? ReadDataParam(byte[]? content) {
         if (content is null || content.Length == 0) return null;
         string body = Encoding.UTF8.GetString(content);

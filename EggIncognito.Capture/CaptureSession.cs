@@ -43,14 +43,11 @@ public sealed class CaptureSession(
     public CaptureHub Hub { get; } = new();
     public CaptureState State { get; private set; } = CaptureState.Stopped;
 
-
     public int Port => opts.Port;
     public string CaPath => opts.CaPath;
 
-
     public DateTimeOffset StartedUtc { get; internal set; }
     public DateTimeOffset LastFlowUtc { get; internal set; }
-
 
     public bool CaDmFailed { get; set; }
 
@@ -179,7 +176,6 @@ public sealed class CaptureSession(
         }
     }
 
-
     public CaptureTier Tier => opts.Tier;
 
     public bool AllowsDetail(string path) =>
@@ -201,7 +197,6 @@ public sealed class CaptureSession(
         return (r.Json, r.Type, r.Known);
     }
 
-
     public string? SaveEndpoint(string path, string method, int status, string? requestDataB64, string responseB64) {
         var ex = _extractor;
         if (ex is null) return null;
@@ -210,7 +205,6 @@ public sealed class CaptureSession(
         ex.Save();
         return written;
     }
-
 
     public string CurrentHar() => _har?.ToHar() ?? new HarWriter().ToHar();
 

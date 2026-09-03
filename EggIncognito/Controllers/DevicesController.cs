@@ -4,7 +4,6 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using EggIdentity.Contract;
-using EggIncognito.Core;
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
@@ -15,7 +14,6 @@ using EggIncognito.Services.Devices;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.EntityFrameworkCore;
 
 namespace EggIncognito.Controllers;
 
@@ -46,128 +44,76 @@ public sealed class DevicesController(
     private static async Task<DeviceEntry?> FleetEntryAsync(IDeviceFleet fleet, string id, CancellationToken ct) =>
         (await fleet.EnabledAsync(ct)).FirstOrDefault(d => d.Id == id);
 
-    private static string DeviceKey(string realId) =>
-        Hashes.Sha256HexShort(realId, 16);
-
     private async Task<string?> ResolveDeviceIdAsync(string incoming, CancellationToken ct) {
         if (currentUser.IsAtLeast(UserRole.Admin)) return incoming;
         var store = Store;
         if (store is null) return null;
         var enabled = await store.EnabledDevicesAsync(ct);
-        return enabled.FirstOrDefault(d => DeviceKey(d.Id) == incoming)?.Id;
+        return enabled.FirstOrDefault(d => DevicePublicKey.For(d.Id) == incoming)?.Id;
     }
 
     [HttpGet("status")]
     [EnableRateLimiting("fetch")]
     public async Task<IActionResult> Status() {
         var store = Store;
-        if (store is null || Timeline is not { } timeline) return Ok(Array.Empty<object>());
-        var devices = (await store.EnabledDevicesAsync()).ToDictionary(d => d.Id);
-        var ct0 = HttpContext.RequestAborted;
-        var virtualLive = new HashSet<string>(StringComparer.Ordinal);
-        if (Provisioners is { } provisioners && VirtualConfig is { } virtualConfig) {
-            foreach (var d in await VirtualDeviceMirror.RemoteLiveDevicesAsync(provisioners, virtualConfig, ct0)) {
-                if (devices.TryAdd(d.Id, d)) virtualLive.Add(d.Id);
-            }
-        }
+        if (store is null || Timeline is not { } timeline) return Ok(Array.Empty<DeviceStatusRow>());
+
+        var ct = HttpContext.RequestAborted;
+        var devices = (await store.EnabledDevicesAsync(ct)).ToDictionary(d => d.Id);
+        var virtualLive = await MergeVirtualDevicesAsync(devices, ct);
 
         var ids = devices.Keys.ToList();
-        var latest = await timeline.LatestPerDeviceAsync(ids, DeviceJobKinds.Probe, ct0);
-        var updates = (await timeline.LatestPerDeviceAsync(ids, DeviceJobKinds.StoreCheck, ct0))
-            .ToDictionary(u => u.DeviceId);
+        var probes = (await timeline.LatestPerDeviceAsync(ids, DeviceJobKinds.Probe, ct))
+            .ToDictionary(p => p.DeviceId, StringComparer.Ordinal);
+        var updates = (await timeline.LatestPerDeviceAsync(ids, DeviceJobKinds.StoreCheck, ct))
+            .ToDictionary(u => u.DeviceId, StringComparer.Ordinal);
 
-
+        var platforms = devices.Values.Select(d => d.Platform).Distinct().ToList();
         var db = Db;
-        var storeLatest = new Dictionary<string, string?>();
+        var versions = db is null
+            ? DeviceVersionIndex.Empty
+            : await DeviceVersionIndex.BuildAsync(db, platforms, ct);
+        var storeLatest = await StoreLatestPerPlatformAsync(db, platforms, ct);
 
+        var inputs = new DeviceStatusInputs(
+            currentUser.IsAtLeast(UserRole.Admin), probes, updates, storeLatest, virtualLive, versions,
+            await CapturedClientVersionsAsync(ct),
+            services.GetService(typeof(GameBinaryProvider)) as GameBinaryProvider);
 
-        var regLatestApp = new Dictionary<string, string?>();
-        var regLatestBuild = new Dictionary<string, string?>();
-        var regClientVersion = new Dictionary<(string Platform, string AppVersion), int>();
-        var regBuildClientVersion = new Dictionary<(string Platform, string Build), int>();
-        if (db is not null) {
-            foreach (string plat in devices.Values.Select(d => d.Platform).Distinct()) {
-                storeLatest[plat] = await StoreAheadCheck.StoreLatestAsync(db, plat, HttpContext.RequestAborted);
+        return Ok(devices.Values.Select(d => DeviceStatusProjector.Project(d, inputs)));
+    }
 
+    private async Task<HashSet<string>> MergeVirtualDevicesAsync(Dictionary<string, Device> devices,
+        CancellationToken ct) {
+        var live = new HashSet<string>(StringComparer.Ordinal);
+        if (Provisioners is not { } provisioners || VirtualConfig is not { } virtualConfig) return live;
 
-                var extracted = await db.ProtoVersions.AsNoTracking()
-                    .Where(v => v.Platform == plat && (v.DeletedAt == null || v.CanonicalId != null))
-                    .Select(v => new { v.Build, v.AppVersion, v.ClientVersion })
-                    .ToListAsync(HttpContext.RequestAborted);
-                foreach (var e in extracted.OrderBy(v => v.Build,
-                             Comparer<string>.Create((x, y) => DeviceParsing.CompareVersions(x, y)))) {
-                    if (!int.TryParse(e.ClientVersion, out int cvv)) continue;
-                    if (!string.IsNullOrEmpty(e.AppVersion)) regClientVersion[(plat, e.AppVersion)] = cvv;
-                    if (!string.IsNullOrEmpty(e.Build)) regBuildClientVersion[(plat, e.Build)] = cvv;
-                }
-
-                regLatestApp[plat] = extracted.Select(e => e.AppVersion)
-                    .OrderByDescending(v => v, Comparer<string>.Create((x, y) => DeviceParsing.CompareVersions(x, y)))
-                    .FirstOrDefault();
-                regLatestBuild[plat] = Platforms.Matches(plat, Platforms.Android)
-                    ? extracted.Select(e => e.Build).Where(b => long.TryParse(b, out _)).OrderByDescending(long.Parse)
-                        .FirstOrDefault()
-                    : null;
-            }
+        foreach (var d in await VirtualDeviceMirror.RemoteLiveDevicesAsync(provisioners, virtualConfig, ct)) {
+            if (devices.TryAdd(d.Id, d)) live.Add(d.Id);
         }
 
-        bool isAdmin = currentUser.IsAtLeast(UserRole.Admin);
-        var binaries = services.GetService(typeof(GameBinaryProvider)) as GameBinaryProvider;
+        return live;
+    }
 
-        var capturedClientVersion = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        if (services.GetService(typeof(DeviceStateStore)) is DeviceStateStore deviceStates) {
-            foreach (var s in await deviceStates.ListAsync(HttpContext.RequestAborted)) {
-                if (s.ClientVersion is { } scv) capturedClientVersion[s.DeviceId] = scv;
-            }
+    private static async Task<Dictionary<string, string?>> StoreLatestPerPlatformAsync(EggIncognitoDbContext? db,
+        IEnumerable<string> platforms, CancellationToken ct) {
+        var latest = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        if (db is null) return latest;
+
+        foreach (string platform in platforms)
+            latest[platform] = await StoreAheadCheck.StoreLatestAsync(db, platform, ct);
+        return latest;
+    }
+
+    private async Task<Dictionary<string, int>> CapturedClientVersionsAsync(CancellationToken ct) {
+        var captured = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        if (services.GetService(typeof(DeviceStateStore)) is not DeviceStateStore deviceStates) return captured;
+
+        foreach (var s in await deviceStates.ListAsync(ct)) {
+            if (s.ClientVersion is { } clientVersion) captured[s.DeviceId] = clientVersion;
         }
 
-        var probes = latest.ToDictionary(p => p.DeviceId, StringComparer.Ordinal);
-        var rows = devices.Values.Select(d => {
-            probes.TryGetValue(d.Id, out var p);
-            updates.TryGetValue(d.Id, out var up);
-            string? sl = storeLatest.GetValueOrDefault(d.Platform);
-
-            string liveResult = p?.Reachable == true && !string.IsNullOrEmpty(p.AppVersion)
-                ? DeviceProbeRunner.Classify(
-                    new DeviceProbeResult(true, p.AppVersion, p.Build, null),
-                    d.Platform, regLatestBuild.GetValueOrDefault(d.Platform),
-                    regLatestApp.GetValueOrDefault(d.Platform))
-                : p?.Outcome ?? "";
-            return new {
-                id = isAdmin ? d.Id : DeviceKey(d.Id),
-                platform = d.Platform,
-                label = d.Label,
-                target = isAdmin ? d.Target : null,
-                package = isAdmin ? d.Package : null,
-                reachable = p?.Reachable == true || virtualLive.Contains(d.Id),
-                installedAppVersion = p?.AppVersion,
-                installedBuild = p?.Build,
-                clientVersion = binaries?.CachedClientVersion(d.Platform, p?.AppVersion)
-                    ?? (p?.Build is { } ib &&
-                        regBuildClientVersion.TryGetValue((d.Platform, ib), out int bcv)
-                        ? bcv
-                        : p?.AppVersion is { } iv &&
-                          regClientVersion.TryGetValue((d.Platform, iv), out int rcv)
-                            ? rcv
-                            : capturedClientVersion.TryGetValue(d.Id, out int ccv)
-                                ? ccv
-                                : (int?)null),
-                storeLatest = sl,
-                storeAhead = StoreAheadCheck.IsAhead(sl, p?.AppVersion),
-                result = liveResult,
-                note = isAdmin ? p?.Message : null,
-                probedAt = p?.StartedAt,
-                lastUpdate = !isAdmin || up is null
-                    ? null
-                    : new {
-                        status = up.Outcome,
-                        note = up.Message,
-                        by = up.Trigger,
-                        at = up.StartedAt
-                    }
-            };
-        });
-        return Ok(rows);
+        return captured;
     }
 
     [HttpGet("{id}/history")]
@@ -357,7 +303,6 @@ public sealed class DevicesController(
         if (checker is null)
             return StatusCode(501, new { error = $"no store checker for platform {device.Platform}" });
 
-
         if (Jobs is not { } jobStore) return StatusCode(503, new { error = "no database configured" });
         var job = await jobStore.TryStartAsync(id, DeviceJobKinds.StoreCheck, $"admin:{who}", "checking store...",
             HttpContext.RequestAborted);
@@ -365,7 +310,6 @@ public sealed class DevicesController(
 
         logger.LogInformation("device check-update: {Id} start (by {Who})", id, who);
         var target = new DeviceTarget(device.Id, device.Platform, device.Target, device.Package);
-
 
         _ = Task.Run(() => RunCheckUpdateAsync(job, target, checker, who));
 
@@ -386,7 +330,6 @@ public sealed class DevicesController(
                 await jobs.FailAsync(job, "no database configured", CancellationToken.None);
                 return;
             }
-
 
             var result = await checker.CheckAndUpdateAsync(target, CancellationToken.None,
                 msg => jobs.ProgressAsync(job, msg).GetAwaiter().GetResult());
@@ -998,5 +941,4 @@ public sealed class DevicesController(
             ? Ok(new { found = true, v.DeviceId, v.Platform, v.Version, v.Build, v.ClientVersion, v.LastSeen, capture })
             : Ok(new { found = true, v.Platform, v.Version, v.Build, v.ClientVersion, capture });
     }
-
 }

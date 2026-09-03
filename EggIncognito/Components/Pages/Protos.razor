@@ -345,7 +345,6 @@
 
     List<ProtoRegistryRow> _rows = [];
 
-
     string _fPlatform = "";
     string _fVersion = "";
     string _fBuild = "";
@@ -354,7 +353,6 @@
     bool _loading = true;
     bool _isAdmin;
     bool _isContributor;
-
 
     string _sortCol = "appVersion";
     bool _sortDesc = true;
@@ -460,7 +458,6 @@
         ApplyRef(ProtoRefParser.Parse(tail));
     }
 
-
     bool AnyFilter => _fPlatform.Length > 0 || _fVersion.Length > 0 || _fBuild.Length > 0
                       || _fClient.Length > 0 || _fSha.Length > 0;
 
@@ -512,7 +509,6 @@
             return sorted;
         }
     }
-
 
     static List<Models.Registry.Release> ReleasesOf(IEnumerable<ProtoRegistryRow> rows) {
         var byKey = new Dictionary<long, List<ProtoRegistryRow>>();
@@ -628,14 +624,12 @@
         return an != bn ? an.CompareTo(bn) : CompareSemver(a, b);
     }
 
-
     static int CompareNumeric(string? a, string? b) {
         var ax = long.TryParse(a, out var al);
         var bx = long.TryParse(b, out var bl);
         if (ax && bx) return al.CompareTo(bl);
         return string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
     }
-
 
     static int CompareSemver(string? a, string? b) {
         var ap = (a ?? "").Split('.');
@@ -659,7 +653,6 @@
 
     protected override async Task OnInitializedAsync() {
         await Load();
-
 
         _refresh = ComponentTimers.Every(TimeSpan.FromSeconds(30), () => InvokeAsync(RefreshAll));
     }
@@ -689,7 +682,6 @@
 
     PageVisibility Vis => _vis ??= new PageVisibility(JS, Env);
 
-
     async Task RefreshAll() {
         if (_loading || _busyMutating) return;
         if (!await Vis.IsVisibleAsync()) return;
@@ -716,7 +708,6 @@
         if (!background) _loading = false;
     }
 
-
     async Task LoadSuggestions(bool background = false) {
         if (!_isAdmin) {
             _suggestions = [];
@@ -731,7 +722,6 @@
             if (!background) _suggestions = [];
         }
     }
-
 
     async Task AcceptSuggestion(MergeSuggestion s) {
         if (s.Members.Count < 2) return;
@@ -781,7 +771,6 @@
                 _selected.Add(new SelectionKey(r.Platform, r.Build));
     }
 
-
     void ToggleRelease(Release rel) {
         var allSelected = rel.Members.All(IsSelected);
         foreach (var m in rel.Members) {
@@ -795,7 +784,6 @@
     void ClearSelection() {
         _selected.Clear();
     }
-
 
     int EditColspan => 6 + (_isAdmin ? 1 : 0);
 

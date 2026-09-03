@@ -14,13 +14,11 @@ public class HeaderRedactorTests {
 
         var (redacted, raw) = HeaderRedactor.Build(headers);
 
-
         Assert.Equal("redacted", redacted[0].Value);
         Assert.True(redacted[0].Sensitive);
         Assert.Equal("application/x-www-form-urlencoded", redacted[1].Value);
         Assert.False(redacted[1].Sensitive);
         Assert.Equal("redacted", redacted[2].Value);
-
 
         Assert.Equal("Bearer secret-token", raw[0].Value);
         Assert.True(raw[0].Sensitive);
@@ -54,7 +52,6 @@ public class HeaderRedactorTests {
         var entry = doc.RootElement.GetProperty("log").GetProperty("entries")[0];
         var reqHeaders = entry.GetProperty("request").GetProperty("headers");
         var respHeaders = entry.GetProperty("response").GetProperty("headers");
-
 
         Assert.Equal("Authorization", reqHeaders[0].GetProperty("name").GetString());
         Assert.Equal("Bearer raw-secret", reqHeaders[0].GetProperty("value").GetString());

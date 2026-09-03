@@ -20,7 +20,6 @@ public static class Arm64SymbolicExecutor {
         Func<string, ExprNode[], ExprNode?> resolveCall)
         => Run(code, fn, syms, seedInputs, null, resolveCall);
 
-
     public static ExecResult Run(
         byte[] code, MachoSymbols.FuncRange fn,
         IReadOnlyList<MachoSymbols.Symbol> syms, IReadOnlyDictionary<string, ExprNode> seedInputs,
@@ -167,7 +166,6 @@ public static class Arm64SymbolicExecutor {
         string Diagnostics) {
         public ExprNode? Reg(string name) => Regs.GetValueOrDefault(NormKey(name));
     }
-
 
     private sealed class State {
         private readonly List<CallRecord> _calls = [];
@@ -387,7 +385,6 @@ public static class Arm64SymbolicExecutor {
 
         private ExprNode Slot(long off) => _stack.TryGetValue(off, out var e) ? e : new Field("stack", off);
 
-
         private bool MemTarget(Arm64Operand mem, out string space, out long off) {
             space = "";
             off = 0;
@@ -397,7 +394,6 @@ public static class Arm64SymbolicExecutor {
             off = p.Off + mem.Memory.Displacement;
             return true;
         }
-
 
         private void WriteSlot(string space, long off, ExprNode e) {
             if (space == "ret") _retVec[off] = e;
@@ -423,7 +419,6 @@ public static class Arm64SymbolicExecutor {
             SetScalar("x0", modeled);
         }
 
-
         public void IndirectCall() {
             Opaque++;
             if (_ptr.TryGetValue("x2", out var p) && p.Space == "sp") SinkStackPtr = p.Off;
@@ -443,7 +438,6 @@ public static class Arm64SymbolicExecutor {
             return best ?? $"0x{target:x}";
         }
 
-
         private static double ReinterpretFloat(long bits) => BitConverter.Int32BitsToSingle((int)(bits & 0xFFFFFFFF));
 
         private static bool IsVec(Arm64Operand op) =>
@@ -455,7 +449,6 @@ public static class Arm64SymbolicExecutor {
                 r.Name.StartsWith('d') ? 8 :
                 r.Name.StartsWith('s') || r.Name.StartsWith('w') ? 4 : 8;
         }
-
 
         private static string Norm(string name) =>
             name is "sp" or "wsp" ? "sp" : name is "wzr" or "xzr" ? "zr" : NormKey(name);

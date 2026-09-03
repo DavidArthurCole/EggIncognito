@@ -68,7 +68,6 @@ public abstract record ExprNode {
             op == BinOp.Div && b is ConstExpr { V: 1 } ? a : new Binary(op, a, b);
     }
 
-
     public static double Eval(ExprNode n, IReadOnlyDictionary<string, double> inputs) => n switch {
         ConstExpr c => c.V,
         Input i => inputs.GetValueOrDefault(i.Name, 0),
@@ -77,7 +76,6 @@ public abstract record ExprNode {
         SelectExpr s => Eval(s.Cond, inputs) != 0 ? Eval(s.A, inputs) : Eval(s.B, inputs),
         _ => 0
     };
-
 
     public static bool IsFullyResolved(ExprNode n) => n switch {
         Field => false,

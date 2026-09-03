@@ -25,7 +25,6 @@ public sealed class DynamicMockFactory : EgiTestFactory {
 }
 
 public class DynamicMockControllerTests(DynamicMockFactory f) : IClassFixture<DynamicMockFactory> {
-
     [Fact]
     public async Task DbOnlyRoute_IsServed() {
         var c = f.CreateClient();

@@ -10,7 +10,6 @@ public static class MachoFunctionStarts {
     private const uint LcFunctionStarts = 0x26;
     private const uint LcSegment64 = 0x19;
 
-
     public static IReadOnlyList<int> Read(byte[] bin) {
         var outp = new List<int>();
         if (bin is null || bin.Length < 32) return outp;
@@ -48,7 +47,6 @@ public static class MachoFunctionStarts {
 
             if (datasize == 0 || dataoff <= 0 || dataoff + datasize > bin.Length || !haveText) return outp;
 
-
             long off = textFileOff;
             int p = dataoff;
             int end = dataoff + datasize;
@@ -66,7 +64,6 @@ public static class MachoFunctionStarts {
 
         return outp;
     }
-
 
     public static bool TryEnclosingStart(byte[] bin, ulong targetVa, out ulong startVa, out ulong endVa) {
         startVa = 0;

@@ -16,7 +16,6 @@ public sealed class ApkPureDownloader(HttpClient http) {
         }
     }
 
-
     public static byte[]? ExtractArmSplit(byte[] downloaded) {
         if (downloaded is null || downloaded.Length == 0) return null;
         try {

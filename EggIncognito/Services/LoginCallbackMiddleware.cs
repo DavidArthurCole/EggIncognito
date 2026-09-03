@@ -33,7 +33,6 @@ public sealed class LoginCallbackMiddleware(RequestDelegate next) {
         ctx.Response.Redirect(StripAuthParams(ctx, !string.IsNullOrEmpty(error)));
     }
 
-
     private static string StripAuthParams(HttpContext ctx, bool loginError) {
         var kept = ctx.Request.Query
             .Where(kv => kv.Key is not ("code" or "error" or "state"))

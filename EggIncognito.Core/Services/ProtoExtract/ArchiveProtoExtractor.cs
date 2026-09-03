@@ -22,7 +22,6 @@ public static class ArchiveProtoExtractor {
             if (r.Ok) return r with { AppVersion = appVersion, Build = build };
         }
 
-
         var raw = DescriptorProtoCarver.Extract(archiveZipBytes);
         return raw.Ok ? raw with { AppVersion = appVersion, Build = build } : raw;
     }
@@ -66,7 +65,6 @@ public static class ArchiveProtoExtractor {
         return buf.ToArray();
     }
 
-
     private static (string? AppVersion, string? Build) ReadVersion(byte[] zipBytes) {
         try {
             using var ms = new MemoryStream(zipBytes, false);
@@ -85,7 +83,6 @@ public static class ArchiveProtoExtractor {
 
         return (null, null);
     }
-
 
     private static IEnumerable<byte[]> CandidateBinaries(byte[] archiveZipBytes) {
         ZipArchive zip;
@@ -112,7 +109,6 @@ public static class ArchiveProtoExtractor {
             }
         }
     }
-
 
     private static IEnumerable<ZipArchiveEntry> OrderedCandidates(ZipArchive zip) {
         bool IsArm64LibEggInc(ZipArchiveEntry e) {

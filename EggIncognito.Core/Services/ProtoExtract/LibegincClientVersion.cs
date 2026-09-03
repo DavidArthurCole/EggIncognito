@@ -189,7 +189,6 @@ public static class LibegincClientVersion {
     private static bool IsZip(byte[] b) =>
         b is { Length: > 4 } && b[0] == 0x50 && b[1] == 0x4B && b[2] == 0x03 && b[3] == 0x04;
 
-
     private static byte[]? ReadSoFromZip(byte[] zipBytes) {
         try {
             using var zip = new ZipArchive(new MemoryStream(zipBytes, false), ZipArchiveMode.Read);

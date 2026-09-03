@@ -17,7 +17,6 @@ public static class IosProtoExtractor {
             return 1;
         }
 
-
         bool isZip = bytes.Length > 4 && bytes[0] == 0x50 && bytes[1] == 0x4B && bytes[2] == 0x03 && bytes[3] == 0x04;
         var result = isZip ? ArchiveProtoExtractor.Extract(bytes) : DescriptorProtoCarver.Extract(bytes);
         Console.Error.WriteLine($"__extract-proto: {result.Diagnostics}"

@@ -7,7 +7,6 @@ namespace EggIncognito.Core.Services.Protos;
 public static class CrawlManifestReader {
     private static readonly JsonSerializerOptions ManifestJsonOptions = new(JsonSerializerDefaults.Web);
 
-
     private static int ConfidenceRank(string? c) => c switch {
         "version-file" => 3,
         "subject" => 2,
@@ -16,7 +15,6 @@ public static class CrawlManifestReader {
     };
 
     private static bool IsTrusted(string? c) => c is "version-file" or "subject";
-
 
     private static string NormalizePlatform(string? p) => p?.ToUpperInvariant() switch {
         "IOS" => "ios",

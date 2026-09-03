@@ -12,7 +12,6 @@ public static class MachoClientVersionReader {
         return new ClientVersionResult(chosen, sorted);
     }
 
-
     internal static Dictionary<int, int> Candidates(IReadOnlyList<Arm64Insn> insns) {
         var pair = new Dictionary<(int baseReg, long off, int val), HashSet<ulong>>();
         for (int i = 0; i < insns.Count; i++) {
@@ -35,7 +34,6 @@ public static class MachoClientVersionReader {
         return outp;
     }
 
-
     private static int? ResolveReg(IReadOnlyList<Arm64Insn> insns, int strIndex, int reg) {
         int value = 0;
         bool seeded = false;
@@ -55,7 +53,6 @@ public static class MachoClientVersionReader {
 
         return seeded ? value : null;
     }
-
 
     public static int? Pick(IReadOnlyDictionary<int, int> cands, int? prev) {
         if (prev is null) return null;

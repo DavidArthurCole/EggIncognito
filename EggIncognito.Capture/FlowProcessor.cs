@@ -8,7 +8,6 @@ public sealed class FlowProcessor {
     private readonly EndpointExtractor? _extractor;
     private readonly HarWriter? _har;
 
-
     public FlowProcessor(EndpointExtractor? extractor, FlowDecoder decoder, HarWriter? har, string contentRoot) {
         _extractor = extractor;
 
@@ -40,7 +39,6 @@ public sealed class FlowProcessor {
         var (reqHeaders, reqHeadersRaw) = HeaderRedactor.Build(flow.RequestHeaders);
         var (respHeaders, respHeadersRaw) = HeaderRedactor.Build(flow.ResponseHeaders);
 
-
         var observed = RinfoHarvester.TryHarvest(req.JsonRaw);
 
         return new DashboardFlow(
@@ -55,10 +53,8 @@ public sealed class FlowProcessor {
             resp.Ack, resp.Text, Observed: observed);
     }
 
-
     internal static (int wrote, int upd, int diff, int same, int loss) Snapshot(HarCounts c)
         => (c.Wrote, c.Upd, c.Diff, c.Same, c.Loss);
-
 
     internal static string OutcomeDelta(
         (int wrote, int upd, int diff, int same, int loss) a,
@@ -68,7 +64,6 @@ public sealed class FlowProcessor {
         if (b.diff > a.diff) return "diff";
         return b.loss > a.loss ? "loss" : b.same > a.same ? "same" : "";
     }
-
 
     internal static (int added, int removed) DiffCounts(string contentRoot, string path) {
         try {

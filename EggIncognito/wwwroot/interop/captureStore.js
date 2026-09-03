@@ -1,5 +1,4 @@
 
-
 import { get as getRaw, set as setRaw } from "./uiPrefs.js";
 
 const REDACTION_KEY = "capture.redaction";

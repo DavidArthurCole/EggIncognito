@@ -10,13 +10,11 @@ public sealed class FieldNode {
 
     public required string PathKey { get; init; }
 
-
     public string Value { get; set; } = "";
 
     public List<string> Items { get; set; } = [];
 
     public List<FieldNode> Children { get; set; } = [];
-
 
     public bool Locked { get; set; }
 
@@ -41,7 +39,6 @@ public static class FieldTreeBuilder {
 
     private static readonly HashSet<string> Floats = ["double", "float"];
 
-
     public static List<FieldNode> Build(SchemaMessage schema, Func<string, SchemaMessage?> schemaOf) =>
         [.. schema.Fields.Select(f => BuildNode(f, [], schemaOf))];
 
@@ -58,7 +55,6 @@ public static class FieldTreeBuilder {
         return node;
     }
 
-
     private static JsonValue? Coerce(string raw, string ptype) {
         if (string.IsNullOrEmpty(raw)) return null;
         if (ptype == "bool") return JsonValue.Create(raw == "true");
@@ -70,7 +66,6 @@ public static class FieldTreeBuilder {
                 ? double.TryParse(raw, out double d) ? JsonValue.Create(d) : JsonValue.Create(raw)
                 : JsonValue.Create(raw);
     }
-
 
     public static JsonObject Collect(IReadOnlyList<FieldNode> nodes) {
         var obj = new JsonObject();
@@ -95,7 +90,6 @@ public static class FieldTreeBuilder {
         return obj;
     }
 
-
     public static void Apply(IReadOnlyList<FieldNode> nodes, JsonObject obj) {
         foreach (var n in nodes) {
             obj.TryGetPropertyValue(n.Field.JsonName, out var v);
@@ -108,13 +102,11 @@ public static class FieldTreeBuilder {
         }
     }
 
-
     private static string ValueText(JsonNode? v) => v switch {
         null => "",
         JsonValue jv when jv.TryGetValue(out string? s) => s ?? "",
         _ => v.ToJsonString()
     };
-
 
     public static void ApplyEnvLock(IReadOnlyList<FieldNode> nodes, IReadOnlyDictionary<string, string> env) {
         var rinfo = nodes.FirstOrDefault(n => n.Field.JsonName == "rinfo" && n.IsMessage);
@@ -128,7 +120,6 @@ public static class FieldTreeBuilder {
             }
         }
     }
-
 
     public static void ApplyEnvDefaults(IReadOnlyList<FieldNode> nodes, IReadOnlyDictionary<string, string> env) {
         foreach (var n in nodes) {
@@ -151,7 +142,6 @@ public sealed partial class EnvRow {
     public IReadOnlyList<string>? Options { get; init; }
 
     public string? Hint { get; init; }
-
 
     public bool IsInvalid() {
         return !string.IsNullOrEmpty(Value) && Editor switch {

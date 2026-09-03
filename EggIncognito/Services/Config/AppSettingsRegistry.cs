@@ -1,0 +1,18 @@
+using EggIdentity.Settings;
+
+namespace EggIncognito.Services.Config;
+
+public static class AppSettingsRegistry {
+    public static SettingsRegistry Create() => new([
+        new BootstrapSettingsProvider(),
+        new CaptureSettingsProvider(),
+        new DeviceSettingsProvider(),
+        new DeviceRecertSettingsProvider(),
+        new DeviceTransportSettingsProvider(),
+        new FakeDeviceSettingsProvider(),
+        new IntegrationSettingsProvider(),
+        new PlatformSettingsProvider(),
+        new RateLimitSettingsProvider(),
+        new VirtualDeviceSettingsProvider()
+    ]);
+}

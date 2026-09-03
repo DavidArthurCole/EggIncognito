@@ -1,5 +1,4 @@
 
-
 (function () {
   const VERSION_URL = '/api/app/version';
   const POLL_MS = 2000;
@@ -54,9 +53,6 @@
     setTimeout(tick, POLL_MS);
   }
 
- 
- 
- 
   function observeDialog() {
     const modal = document.getElementById('components-reconnect-modal');
     if (!modal) {

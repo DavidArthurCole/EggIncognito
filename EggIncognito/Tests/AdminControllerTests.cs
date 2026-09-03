@@ -29,7 +29,6 @@ public class AdminControllerTests {
         Assert.Equal(400, ((IStatusCodeActionResult)r).StatusCode);
     }
 
-
     [Theory]
     [InlineData("superuser")]
     [InlineData("")]

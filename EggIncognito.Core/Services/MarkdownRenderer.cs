@@ -17,11 +17,9 @@ public static partial class MarkdownRenderer {
     private static readonly Regex Rule = RuleRegex();
     private static readonly Regex Heading = HeadingRegex();
 
-
     private static readonly Regex Quote = QuoteRegex();
     private static readonly Regex Ul = UlRegex();
     private static readonly Regex Ol = OlRegex();
-
 
     private static readonly Regex ParaStop = ParaStopRegex();
 
@@ -34,12 +32,10 @@ public static partial class MarkdownRenderer {
         _ => m.Value
     });
 
-
     private static string SafeUrl(string url) {
         string u = url.Trim();
         return SafeScheme.IsMatch(u) ? u : "#";
     }
-
 
     private static string Inline(string text) {
         text = InlineCode.Replace(text, m => $"<code>{m.Groups[1].Value}</code>");
@@ -53,7 +49,6 @@ public static partial class MarkdownRenderer {
         return text;
     }
 
-
     private static string FenceLanguage(string fenceLine) {
         string trimmed = fenceLine.Trim();
         int i = 0;
@@ -63,7 +58,6 @@ public static partial class MarkdownRenderer {
         string resolved = Syntax.SyntaxHighlighter.Resolve(info);
         return resolved == Syntax.SyntaxHighlighter.Fallback ? "" : resolved;
     }
-
 
     public static string Render(string? src) {
         string[] lines = SplitLines.Split(EscapeHtml(src ?? ""));
@@ -112,7 +106,6 @@ public static partial class MarkdownRenderer {
                 i++;
                 continue;
             }
-
 
             if (Quote.IsMatch(line)) {
                 CloseList();

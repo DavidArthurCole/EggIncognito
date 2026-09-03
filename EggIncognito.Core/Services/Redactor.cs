@@ -15,20 +15,16 @@ public static partial class Redactor {
         "userName", "requestingUserName", "username", "alias"
     ];
 
-
     private static readonly Regex FieldRegex = new(
         "\"(" + string.Join('|', SensitiveFields) + ")\":\\s*\"((?:[^\"\\\\]|\\\\.)+)\"",
         RegexOptions.Compiled, TimeSpan.FromSeconds(2));
 
-
     public static IReadOnlyList<string> SensitiveFieldNames => SensitiveFields;
-
 
     public static string Redact(string json) {
         string byField = FieldRegex.Replace(json, m => $"\"{m.Groups[1].Value}\": \"{Token(m.Groups[2].Value)}\"");
         return EidPattern().Replace(byField, m => "EI-" + Token(m.Value));
     }
-
 
     private static string Token(string value) =>
         "redacted-" + Hashes.Sha256HexShort(value);

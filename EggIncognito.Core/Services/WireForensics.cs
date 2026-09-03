@@ -25,10 +25,8 @@ public static class WireForensics {
         throw new WireException("truncated varint (hit end of buffer)", start);
     }
 
-
     private static bool LenFits(ulong declaredLen, int pos, int end) =>
         pos <= end && declaredLen <= (ulong)(end - pos);
-
 
     private static bool LooksLikeMessage(ReadOnlySpan<byte> buf, int start, int end) {
         if (start == end) return false;
@@ -139,7 +137,6 @@ public static class WireForensics {
         return new HexWindow(lo, hi, errorOffset - lo, Convert.ToHexString(buf[lo..hi]).ToLowerInvariant());
     }
 
-
     private static List<SalvagedString> SalvageStrings(ReadOnlySpan<byte> buf, int start, int end, int minLen = 4) {
         var outp = new List<SalvagedString>();
         int runLen = 0;
@@ -187,7 +184,6 @@ public static class WireForensics {
             }
         }
 
-
         Recovery? recovered = null;
         if (first is not null) {
             int recoverStart = EnclosingRegionStart(tree, first.Offset, 0);
@@ -210,7 +206,6 @@ public static class WireForensics {
             tree,
             recovered);
     }
-
 
     private static int EnclosingRegionStart(IReadOnlyList<WireNode> tree, int errorOffset, int fallbackStart) {
         foreach (var n in tree) {
@@ -286,7 +281,6 @@ public static class WireForensics {
         return true;
     }
 
-
     private static (List<RecoveredField> Fields, int CleanPrefix, int Skipped) RecoverLinear(ReadOnlySpan<byte> buf,
         int from, int end) {
         var fields = new List<RecoveredField>();
@@ -310,7 +304,6 @@ public static class WireForensics {
         return (fields, cleanPrefix, skip);
     }
 
-
     private static (IReadOnlyList<RecoveredField> Fields, int AlignedAt, int Skipped) RecoverFields(
         ReadOnlySpan<byte> buf, int start, int end, int maxProbe = 8) {
         (List<RecoveredField> f, int prefix, int skip, int off)? best = null;
@@ -324,7 +317,6 @@ public static class WireForensics {
 
         return best is { } bb ? (bb.f, bb.off, bb.skip) : ([], start, 0);
     }
-
 
     private static IReadOnlyList<RecoveredField> ResolveRecovered(IReadOnlyList<RecoveredField> fields,
         string brokenPath, MessageDescriptor? rootDesc) {
@@ -344,7 +336,6 @@ public static class WireForensics {
             return rf with { ResolvedName = fd?.Name };
         }).ToList();
     }
-
 
     private static int ExpectedWire(FieldDescriptor f) {
         return f.IsRepeated && f.IsPacked
@@ -402,7 +393,6 @@ public static class WireForensics {
 
     public sealed record SalvagedString(int Offset, string Text);
 
-
     public sealed record WireNode(
         string Path,
         string? ResolvedName,
@@ -415,9 +405,7 @@ public static class WireForensics {
         bool SchemaMismatch,
         IReadOnlyList<WireNode> Children);
 
-
     public sealed record RecoveredField(int Field, string? ResolvedName, string Wire, string Value, bool Bad);
-
 
     public sealed record Recovery(
         int AlignedAt,

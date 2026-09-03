@@ -33,7 +33,6 @@ public sealed partial class RoutesYamlEditor {
 
     public bool HasPath(string path) => FindRouteStart(path) >= 0;
 
-
     public bool SetFieldIfEmpty(string path, string key, string value) {
         (int start, int end) = RouteBlock(path);
         if (start < 0) return false;
@@ -58,7 +57,6 @@ public sealed partial class RoutesYamlEditor {
         return true;
     }
 
-
     public bool SetWrappedFlag(string path, string key) {
         (int start, int end) = RouteBlock(path);
         if (start < 0) return false;
@@ -74,7 +72,6 @@ public sealed partial class RoutesYamlEditor {
         return true;
     }
 
-
     public string CanonicalPath(string path) {
         if (HasPath(path)) return path;
         int slash = path.LastIndexOf('/');
@@ -84,7 +81,6 @@ public sealed partial class RoutesYamlEditor {
     }
 
     private bool HasPathParam(string path) => Info(path)?.PathParam == true;
-
 
     public bool AddRoute(string path, string? request, bool requestWrapped, string response, bool responseWrapped) {
         if (HasPath(path)) return false;
@@ -109,7 +105,6 @@ public sealed partial class RoutesYamlEditor {
         return true;
     }
 
-
     public bool RemoveFromNeedsCapture(string path) {
         int nc = _lines.FindIndex(l => l.StartsWith("needs_capture:", StringComparison.Ordinal));
         if (nc < 0) return false;
@@ -127,7 +122,6 @@ public sealed partial class RoutesYamlEditor {
         return false;
     }
 
-
     public bool MarkRequestNone(string path) {
         (int start, int end) = RouteBlock(path);
         if (start < 0) return false;
@@ -144,7 +138,6 @@ public sealed partial class RoutesYamlEditor {
         Mutated();
         return true;
     }
-
 
     public bool RequestUnresolved(string path) {
         (int start, int end) = RouteBlock(path);
@@ -175,7 +168,6 @@ public sealed partial class RoutesYamlEditor {
 
     private void Insert(int index, string line) => _lines.Insert(index, line);
 
-
     private string FieldIndent(int start, int end) {
         for (int k = start + 1; k < end; k++) {
             var m = IndentedLineRegex().Match(_lines[k]);
@@ -194,7 +186,6 @@ public sealed partial class RoutesYamlEditor {
     private int FindRouteStart(string path) =>
         _lines.FindIndex(l => Regex.IsMatch(l, @"^\s*-\s+path:\s+" + Regex.Escape(path) + @"\s*$",
             RegexOptions.None, TimeSpan.FromSeconds(2)));
-
 
     private (int start, int end) RouteBlock(string path) {
         int start = FindRouteStart(path);
@@ -219,7 +210,6 @@ public sealed partial class RoutesYamlEditor {
         return _lines.Count;
     }
 
-
     private int SectionInsertPoint(string ns) {
         int routes = _lines.FindIndex(l => l.StartsWith("routes:", StringComparison.Ordinal));
         if (routes < 0) return -1;
@@ -228,7 +218,6 @@ public sealed partial class RoutesYamlEditor {
         int comment = _lines.FindIndex(routes, l => l.Trim() == $"# {ns}/");
         if (comment < 0 || comment >= routesEnd)
             return routesEnd;
-
 
         int at = routesEnd;
         for (int k = comment + 1; k < routesEnd; k++) {

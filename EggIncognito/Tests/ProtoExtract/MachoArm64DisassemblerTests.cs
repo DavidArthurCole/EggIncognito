@@ -42,7 +42,6 @@ public class MachoArm64DisassemblerTests {
         Assert.Contains(res.Floats, f => f.Value == 0.0);
     }
 
-
     private static uint Adrp(int rd, ulong pc, ulong target) {
         long pageDelta = ((long)(target & ~0xFFFUL) - (long)(pc & ~0xFFFUL)) >> 12;
         uint immlo = (uint)(pageDelta & 0x3), immhi = (uint)((pageDelta >> 2) & 0x7FFFF);

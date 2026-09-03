@@ -18,10 +18,8 @@ public static class ContentRoot {
         return baseDir;
     }
 
-
     public static string RoutesYamlPath(string contentRoot) =>
         Path.Combine(contentRoot, "RouteMap", "routes.yaml");
-
 
     public static string ResolveRouteMapFile(string? configured, string fileName) {
         if (!string.IsNullOrEmpty(configured) && File.Exists(configured)) return configured;

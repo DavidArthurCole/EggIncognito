@@ -25,7 +25,9 @@ public sealed class DeviceResyncHandler {
             return new DeviceResyncResult(200, id, runner.RunOnce(force), null);
         } catch (Exception ex) {
             return new DeviceResyncResult(500, id, null, ex.Message);
-        } finally { gate.Release(); }
+        } finally {
+            gate.Release();
+        }
     }
 
     public IReadOnlyList<DeviceResyncResult> HandleAll(string? authorizationHeader, bool force) {

@@ -20,7 +20,6 @@ public class MachoProtoExtractorTests {
         if (!TryFixture(out byte[] fx)) return;
         var ei = MachoProtoExtractor.CarveAll(fx).First(c => c.Name == "ei.proto");
 
-
         var fdp = FileDescriptorProto.Parser.ParseFrom(ei.Bytes);
         Assert.Equal(152, fdp.MessageType.Count);
         Assert.Equal(8, fdp.EnumType.Count);
@@ -42,7 +41,6 @@ public class MachoProtoExtractorTests {
         Assert.Contains("enum Platform {", r.Proto);
         Assert.DoesNotContain("aux.Platform", r.Proto);
     }
-
 
     [Fact]
     public void Extract_TopLevelMessages_MatchFrozenSchema() {
@@ -77,7 +75,6 @@ public class MachoProtoExtractorTests {
         var r = MachoProtoExtractor.Extract(null!);
         Assert.False(r.Ok);
     }
-
 
     private static bool TryFixture(out byte[] bytes) =>
         TestFixtureFiles.TryRead("egginc-1.35.8-descriptors.bin", out bytes);

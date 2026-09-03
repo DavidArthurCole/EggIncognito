@@ -27,7 +27,6 @@ public class AdminPageTests {
         }
     }
 
-
     public class Component : BunitContext {
         private void Wire(UserRole role) {
             JSInterop.Mode = JSRuntimeMode.Loose;

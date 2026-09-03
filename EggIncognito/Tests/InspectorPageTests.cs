@@ -46,7 +46,6 @@ public class InspectorPageTests {
         }
     }
 
-
     public class FieldTreeComponent : BunitContext {
         private static SchemaMessage Inner() => new("Inner", new List<SchemaField> {
             new("flag", "flag", 1, "bool", false, false, null, null)
@@ -65,7 +64,6 @@ public class InspectorPageTests {
             var nodes = FieldTreeBuilder.Build(Root(),
                 t => t == "Inner" ? Inner() : null);
             var cut = Render<FieldTree>(p => p.Add(c => c.Nodes, nodes));
-
 
             Assert.NotEmpty(cut.FindAll("input.field-input"));
             Assert.NotEmpty(cut.FindAll("select.field-input"));
@@ -91,7 +89,6 @@ public class InspectorPageTests {
             Assert.Contains("\"ids\":[7]", json);
         }
 
-
         [Fact]
         public void Apply_MapsRawJsonBackOntoTree() {
             var nodes = FieldTreeBuilder.Build(Root(),
@@ -104,7 +101,6 @@ public class InspectorPageTests {
             Assert.Equal(new[] { "3", "4" }, nodes.First(n => n.Field.JsonName == "ids").Items);
             Assert.Equal("true", nodes.First(n => n.Field.JsonName == "inner").Children
                 .First(c => c.Field.JsonName == "flag").Value);
-
 
             FieldTreeBuilder.Apply(nodes, []);
             Assert.Equal("", nodes.First(n => n.Field.JsonName == "name").Value);

@@ -53,7 +53,6 @@ public class ProxyFrontDoorTests {
         }
     }
 
-
     public sealed class Integration : IDisposable {
         private const string UserId = "111222333";
         private readonly TempDir _tmp = new();
@@ -92,7 +91,6 @@ public class ProxyFrontDoorTests {
             return Encoding.ASCII.GetString(buf, 0, total);
         }
 
-
         [Fact]
         public async Task UnknownDestAddr_ConnectionClosed() {
             await using var door = (await NewDoorAsync(addrToUser: _ => Task.FromResult<string?>(null))).Door;
@@ -102,7 +100,6 @@ public class ProxyFrontDoorTests {
             await s.WriteAsync("CONNECT www.auxbrain.com:443 HTTP/1.1\r\n\r\n"u8.ToArray());
             byte[] buf = new byte[16];
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-
 
             try {
                 int n = await s.ReadAsync(buf, cts.Token);
@@ -178,7 +175,6 @@ public class ProxyFrontDoorTests {
                 Assert.Equal("world", Encoding.ASCII.GetString(answer));
 
                 (string seenByInner, string tunneled) = await innerSide.WaitAsync(TimeSpan.FromSeconds(5));
-
 
                 Assert.Equal("CONNECT www.auxbrain.com:443 HTTP/1.1\r\nHost: www.auxbrain.com:443\r\n\r\n",
                     seenByInner);

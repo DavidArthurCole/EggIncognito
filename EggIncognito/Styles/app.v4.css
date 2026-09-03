@@ -959,7 +959,6 @@ input[type="search"]::placeholder { @apply text-muted; }
 #detailPanel .detail-pane .jv { overflow-wrap: break-word; word-break: normal; hyphens: none; -webkit-hyphens: none; }
 .jtree-flat { @apply font-mono text-xs px-2 py-1.5; }
 
-
 .known-card { @apply border rounded-md px-3.5 py-2.5 flex flex-col gap-1 [border-color:var(--color-ok)]; background: color-mix(in oklab, var(--color-ok) 8%, transparent); }
 .known-card-title { @apply flex items-center gap-1.5 text-[0.8125rem] font-semibold text-ok mb-0.5; }
 .known-card-title::before {

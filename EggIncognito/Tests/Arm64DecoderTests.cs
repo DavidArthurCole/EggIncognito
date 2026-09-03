@@ -15,14 +15,11 @@ public class Arm64DecoderTests {
         return b;
     }
 
-
     private static uint Movz(int rd, int imm16, int hw = 0) =>
         0x52800000u | ((uint)hw << 21) | ((uint)imm16 << 5) | (uint)rd;
 
-
     private static uint Movk(int rd, int imm16, int hw) =>
         0x72800000u | ((uint)hw << 21) | ((uint)imm16 << 5) | (uint)rd;
-
 
     private static uint Str(int rt, int rn, int byteOff) =>
         0xB9000000u | (((uint)byteOff / 4) << 10) | ((uint)rn << 5) | (uint)rt;

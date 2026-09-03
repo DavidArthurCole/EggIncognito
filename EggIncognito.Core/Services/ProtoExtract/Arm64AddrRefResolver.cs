@@ -38,7 +38,6 @@ public static class Arm64AddrRefResolver {
         return outp;
     }
 
-
     private static int CountAddrRefs(CapstoneArm64Disassembler cs, byte[] bin, int fileStart, int len, ulong slide,
         ulong targetVa) {
         byte[] code = new byte[len];

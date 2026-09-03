@@ -15,11 +15,9 @@ public sealed record BuildInfo(string Version, string Sha, string ShortSha, stri
         return new BuildInfo(version, sha, shortSha, buildDate ?? "unknown", repoUrl);
     }
 
-
     public static BuildInfo FromAssembly(string repoUrl) {
         var asm = Assembly.GetEntryAssembly() ?? typeof(BuildInfo).Assembly;
         string iv = asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "0.0.0";
-
 
         string buildDate;
         try {

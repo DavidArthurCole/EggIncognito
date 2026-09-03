@@ -134,7 +134,6 @@ public static class OpenApiBuilder {
         return response;
     }
 
-
     private static JsonObject Ref(MessageDescriptor d, IDictionary<string, JsonObject> components) {
         string name = ComponentName(d);
         if (!components.ContainsKey(name)) {
@@ -148,7 +147,6 @@ public static class OpenApiBuilder {
 
         return new JsonObject { ["$ref"] = "#/components/schemas/" + name };
     }
-
 
     private static string ComponentName(MessageDescriptor d) =>
         d.FullName.StartsWith("ei.", StringComparison.Ordinal) ? d.FullName[3..] : d.FullName;
@@ -166,7 +164,6 @@ public static class OpenApiBuilder {
             ? new JsonObject { ["type"] = "array", ["items"] = SingleSchema(f, components) }
             : SingleSchema(f, components);
     }
-
 
     private static JsonObject SingleSchema(FieldDescriptor f, IDictionary<string, JsonObject> components) {
         return f.FieldType switch {

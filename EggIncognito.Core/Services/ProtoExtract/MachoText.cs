@@ -61,7 +61,6 @@ public static class MachoText {
         }
     }
 
-
     private static bool TryFindFatArm64Slice(byte[] b, out int offset) {
         offset = 0;
         if (b.Length < 8) return false;

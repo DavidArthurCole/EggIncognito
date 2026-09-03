@@ -105,7 +105,6 @@ public static class DataServices {
         builder.Services.AddScoped<UserThemeStore>();
         builder.Services.AddScoped<BuildBlobStore>();
         builder.Services.AddScoped<ImageBuildStore>();
-        builder.Services.AddScoped<AppSettingStore>();
         builder.Services.AddScoped<IProtoBackfillStore>(sp => sp.GetRequiredService<ProtoRegistryStore>());
 
         builder.Services.AddHostedService<GameDataAutoRebuildService>();

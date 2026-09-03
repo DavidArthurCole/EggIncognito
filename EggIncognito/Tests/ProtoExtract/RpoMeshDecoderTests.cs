@@ -104,7 +104,6 @@ public class RpoMeshDecoderTests {
         return ms.ToArray();
     }
 
-
     private static Dictionary<string, JsonElement> PrimitiveAttributes(byte[] glb) {
         int jsonLen = (int)BinaryPrimitives.ReadUInt32LittleEndian(glb.AsSpan(12));
         string json = Encoding.UTF8.GetString(glb, 20, jsonLen);

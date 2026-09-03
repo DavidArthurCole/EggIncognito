@@ -6,7 +6,6 @@ namespace EggIncognito.Core.Services.Devices;
 public sealed class AdbCaInstaller(IProcessRunner runner, string? installScriptTemplate = null) : IDeviceCaInstaller {
     private const string RemoteScript = "/data/local/tmp/eggincognito-ca-magisk.sh";
 
-
     private const string DefaultScript =
         "#!/system/bin/sh\n" +
         "MODID=eggincognito-ca\n" +
@@ -52,7 +51,6 @@ public sealed class AdbCaInstaller(IProcessRunner runner, string? installScriptT
 
         string certB64 = Convert.ToBase64String(Encoding.ASCII.GetBytes(pem));
 
-
         string tmpScript = DeviceShell.NewTempPath(".sh");
         string script = (installScriptTemplate ?? DefaultScript)
             .Replace("{hash}", hash)
@@ -71,7 +69,6 @@ public sealed class AdbCaInstaller(IProcessRunner runner, string? installScriptT
         } finally {
             DeviceShell.TryDelete(tmpScript);
         }
-
 
         var idProbe = await Adb(device.Target, ["shell", "id -u"], ct);
         bool alreadyRoot = idProbe.ExitCode == 0 && idProbe.Stdout.Trim() == "0";

@@ -19,7 +19,6 @@ public static class Arm64Signature {
             bool isRel = IsPcRelative(w);
             if (isRel) masked++;
 
-
             for (int byteIdx = 0; byteIdx < 4; byteIdx++) {
                 if (sb.Length > 0) sb.Append(' ');
                 bool keep = !isRel || byteIdx == 3;
@@ -30,7 +29,6 @@ public static class Arm64Signature {
 
         return new Pattern(true, sb.ToString(), words, masked, "ok");
     }
-
 
     private static bool IsPcRelative(uint w) {
         uint top6 = w >> 26;

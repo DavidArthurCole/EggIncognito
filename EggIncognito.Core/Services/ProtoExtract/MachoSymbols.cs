@@ -47,7 +47,6 @@ public static class MachoSymbols {
         return outp;
     }
 
-
     public static bool TryFindFunc(IReadOnlyList<Symbol> syms, string[] needles, out FuncRange range) {
         range = default;
         if (syms is null || needles is null || needles.Length == 0) return false;
@@ -71,7 +70,6 @@ public static class MachoSymbols {
         range = new FuncRange(hit.Value.Name, hit.Value.Value, EndOf(syms, hit.Value.Value));
         return true;
     }
-
 
     public static bool TryResolveVa(IReadOnlyList<Symbol> syms, ulong va, out FuncRange range, out ulong offset)
         => Index.Build(syms).TryResolve(va, out range, out offset);
@@ -97,7 +95,6 @@ public static class MachoSymbols {
         if (candidate.Name.Length != current.Name.Length) return candidate.Name.Length < current.Name.Length;
         return candidate.Value < current.Value;
     }
-
 
     public static bool IsLocalEntity(string name) {
         if (string.IsNullOrEmpty(name)) return false;
@@ -168,9 +165,7 @@ public static class MachoSymbols {
 
     public readonly record struct Symbol(string Name, ulong Value, byte Type, byte Sect);
 
-
     public readonly record struct FuncRange(string Name, ulong Start, ulong End);
-
 
     public sealed class Index {
         private readonly ulong[] _starts;

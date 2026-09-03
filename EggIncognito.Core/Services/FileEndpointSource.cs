@@ -8,7 +8,6 @@ public sealed class FileEndpointSource : IEndpointSource {
     public FileEndpointSource(string endpointsPath, ILogger<FileEndpointSource>? logger = null) {
         if (!Directory.Exists(endpointsPath)) return;
 
-
         var opts = new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true };
         foreach (string file in Directory.EnumerateFiles(endpointsPath, "*.json", opts)) {
             string relative = Path.GetRelativePath(endpointsPath, file).Replace('\\', '/').Replace(".json", "");

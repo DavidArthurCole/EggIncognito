@@ -7,18 +7,13 @@ namespace EggIncognito.RouteGenerator;
 public sealed class RouteModel : IEquatable<RouteModel> {
     public string Path { get; set; } = "";
 
-
     public string? Request { get; set; }
-
 
     public string? Response { get; set; }
 
-
     public bool RequestWrapped { get; set; }
 
-
     public bool ResponseWrapped { get; set; }
-
 
     public string? RawResponse { get; set; }
 
@@ -26,9 +21,7 @@ public sealed class RouteModel : IEquatable<RouteModel> {
 
     public bool PathParamOnly { get; set; }
 
-
     public string MockResponseType => Response ?? "AuthenticatedMessage";
-
 
     public bool Equals(RouteModel? other) =>
         other is not null
@@ -96,7 +89,6 @@ public static class RouteParser {
         foreach (string rawLine in yaml.Split('\n')) {
             string trimmed = rawLine.TrimStart().TrimEnd();
 
-
             if (IsTopLevelKey(rawLine, trimmed)) {
                 Flush();
                 inRoutes = trimmed == "routes:";
@@ -117,7 +109,6 @@ public static class RouteParser {
         Flush();
         return results;
     }
-
 
     private static bool IsTopLevelKey(string rawLine, string trimmed) {
         if (rawLine.Length == 0 || char.IsWhiteSpace(rawLine[0])) return false;
@@ -162,7 +153,6 @@ public static class RouteParser {
     }
 
     private static string? NullIfEmpty(string s) => s.Length == 0 ? null : s;
-
 
     private static RouteModel Emit(Block b) {
         (string? reqType, bool reqWrapDefault) = Normalize(b.HasRequest ? b.Request : b.LegacyReq);

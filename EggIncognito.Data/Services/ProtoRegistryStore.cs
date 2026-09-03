@@ -177,7 +177,6 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db, IEnumerable<IPr
         foreach (var observer in observers) await observer.OnUpsertAsync(notice, ct);
     }
 
-
     private async Task<ProtoVersion?> PreviousBestAsync(string platform, string build, CancellationToken ct) {
         var candidates = await db.ProtoVersions.AsNoTracking()
             .Where(p => p.Platform == platform && p.Build != build && p.DeletedAt == null)
@@ -203,7 +202,6 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db, IEnumerable<IPr
             .Where(p => p.DeletedAt == null)
             .OrderByDescending(p => p.CreatedAt).ToListAsync(ct);
 
-
     public Task<Dictionary<string, int>> ShaOrdersAsync(CancellationToken ct = default) =>
         db.ProtoShaOrders.AsNoTracking()
             .ToDictionaryAsync(o => o.ProtoSha, o => o.SortOrder, StringComparer.OrdinalIgnoreCase, ct);
@@ -228,7 +226,6 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db, IEnumerable<IPr
         await db.SaveChangesAsync(ct);
     }
 
-
     public async Task<List<MergeSuggestion>> SuggestMergesAsync(CancellationToken ct = default) {
         var rows = await db.ProtoVersions.AsNoTracking()
             .Where(p => p.DeletedAt == null && p.CanonicalId == null)
@@ -247,7 +244,6 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db, IEnumerable<IPr
                 .OrderBy(s => s.AppVersion)
         ];
     }
-
 
     public async Task<bool> SoftDeleteAsync(string platform, string build, CancellationToken ct = default) {
         var row = await db.ProtoVersions.FirstOrDefaultAsync(p => p.Platform == platform && p.Build == build, ct);
@@ -272,7 +268,6 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db, IEnumerable<IPr
         var row = await db.ProtoVersions.FirstOrDefaultAsync(p => p.Platform == platform && p.Build == build, ct);
         if (row is null) return MetadataUpdate.NotFound;
 
-
         if (!string.IsNullOrWhiteSpace(newBuild) && newBuild != build) {
             bool clash = await db.ProtoVersions.AnyAsync(
                 p => p.Platform == platform && p.Build == newBuild && p.Id != row.Id, ct);
@@ -286,7 +281,6 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db, IEnumerable<IPr
         await db.SaveChangesAsync(ct);
         return MetadataUpdate.Ok;
     }
-
 
     public async Task<int> MergeAsync(
         (string Platform, string Build) canonical, IReadOnlyList<(string Platform, string Build)> aliases,
@@ -310,7 +304,6 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db, IEnumerable<IPr
             alias.DeletedAt = null;
             linked++;
         }
-
 
         var stale = await db.ProtoVersions
             .Where(p => p.CanonicalId != null

@@ -6,7 +6,6 @@ namespace EggIncognito.Core.Services.ProtoExtract;
 public static class DescriptorProtoCarver {
     private static readonly string[] DescriptorFiles = ["ei.proto", "common.proto", "abb.proto"];
 
-
     public static IReadOnlyList<CarvedDescriptor> CarveAll(byte[] binary) {
         var found = new List<CarvedDescriptor>();
         if (binary is null || binary.Length < 16) return found;
@@ -23,7 +22,6 @@ public static class DescriptorProtoCarver {
         return found;
     }
 
-
     public static string? EmitProto(byte[] fileDescriptorProtoBytes) {
         var fdp = TryParse(fileDescriptorProtoBytes);
         if (fdp is null) return null;
@@ -32,13 +30,11 @@ public static class DescriptorProtoCarver {
         return sb.ToString();
     }
 
-
     public static string EmitProto(FileDescriptorProto fdp) {
         var sb = new StringBuilder();
         EmitFile(fdp, sb);
         return sb.ToString();
     }
-
 
     public static ExtractResult FromCarvedBase64(string? eiB64, string? commonB64, int? clientVersion) {
         byte[] ei;
@@ -120,7 +116,6 @@ public static class DescriptorProtoCarver {
         }
     }
 
-
     private static int FindAnchor(byte[] b, string protoName) {
         byte[] nb = Encoding.ASCII.GetBytes(protoName);
         byte[] pat = new byte[nb.Length + 2];
@@ -129,7 +124,6 @@ public static class DescriptorProtoCarver {
         Array.Copy(nb, 0, pat, 2, nb.Length);
         return IndexOf(b, pat);
     }
-
 
     internal static int WireWalkLength(byte[] b, int start) {
         int pos = start, lastGood = start;
@@ -183,7 +177,6 @@ public static class DescriptorProtoCarver {
 
         return result;
     }
-
 
     private static void EmitFile(FileDescriptorProto f, StringBuilder sb) {
         sb.Append("syntax = \"").Append(string.IsNullOrEmpty(f.Syntax) ? "proto2" : f.Syntax).Append("\";\n");

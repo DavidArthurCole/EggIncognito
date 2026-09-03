@@ -74,11 +74,9 @@ public partial class RedactorTests {
         Assert.Contains("\"keepMe\": \"visible\"", red);
     }
 
-
     [Fact]
     public void SensitiveFields_CoverEveryPiiLookingProtoStringField() {
         var piiShaped = PiiShapedRegex();
-
 
         var safe = new HashSet<string>(StringComparer.Ordinal) {
             "userId", "eiUserId", "coopUserId", "requestingUserId", "destUserId",

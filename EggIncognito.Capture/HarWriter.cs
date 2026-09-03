@@ -42,7 +42,6 @@ public sealed class HarWriter {
         lock (_gate) _entries.Add(entry);
     }
 
-
     private static object[] HarHeaders(IReadOnlyList<HttpHeader>? headers) =>
         headers is null ? [] : [.. headers.Select(h => new { name = h.Name, value = h.Value })];
 

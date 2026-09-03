@@ -29,12 +29,9 @@ public sealed record DecodeResult(
 public interface ITransportPipeline {
     bool CanSign { get; }
 
-
     BuildResult Build(byte[] innerProtoBytes, bool wrap);
 
-
     BuildResult Build(byte[] innerProtoBytes, bool wrap, string? salt);
-
 
     DecodeResult Decode(string responseBase64, MessageParser? responseParser, bool? responseWrapped = null);
 }
@@ -130,7 +127,6 @@ public sealed class TransportPipeline : ITransportPipeline {
         if (responseParser is null)
             return new DecodeResult(stages, null, "no parser for this endpoint's response type");
 
-
         if (responseWrapped != false) {
             var wrapped = TryDecodeWrapped(respBytes, responseParser, responseWrapped == true);
             if (wrapped is not null) {
@@ -207,7 +203,6 @@ public sealed class TransportPipeline : ITransportPipeline {
             return null;
         }
     }
-
 
     private static bool LooksLikeAuthEnvelope(byte[] bytes) {
         try {

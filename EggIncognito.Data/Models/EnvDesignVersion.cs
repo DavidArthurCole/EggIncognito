@@ -18,7 +18,6 @@ public class EnvDesignVersion {
 
     [Column("note")] public string? Note { get; set; }
 
-
     [Column("rolled_back_from")] public int? RolledBackFrom { get; set; }
 
     [Column("created_at")] public DateTimeOffset CreatedAt { get; set; }

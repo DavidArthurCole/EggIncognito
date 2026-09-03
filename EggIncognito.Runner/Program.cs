@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Core.Services.ProtoExtract;
 using EggIncognito.Data.Services;
@@ -15,148 +16,186 @@ namespace EggIncognito.Runner;
 
 public static class Program {
     public static async Task<int> Main(string[] args) {
-        static string Env(string k, string fb = "") =>
-            Environment.GetEnvironmentVariable(k) is { Length: > 0 } v ? v : fb;
-
-        var package = Env("PACKAGE", "com.auxbrain.egginc");
-        var apkStash = Env("APK_STASH_DIR", "apks");
-        var devicesDir = Env("DEVICES_DIR");
-        var interval = int.TryParse(Env("POLL_INTERVAL"), out var s) ? s : 300;
-        var eventUrl = Env("SYNC_EVENT_URL");
-        var eventSecret = Env("SYNC_EVENT_SECRET");
-        var triggerSecret = Env("RUNNER_TRIGGER_SECRET");
-        var triggerUrls = Env("RUNNER_TRIGGER_URLS", "http://127.0.0.1:5055");
-        var iosBinary = Env("IOS_BINARY_PATH", Path.Combine(apkStash, "ios-binary"));
-        int? prevCv = int.TryParse(Env("PREV_CLIENT_VERSION"), out var pcv) ? pcv : null;
-
-        Directory.CreateDirectory(apkStash);
+        var options = RunnerOptions.FromEnvironment();
+        Directory.CreateDirectory(options.ApkStashDir);
 
         using var shutdown = new CancellationTokenSource();
-        using var sigterm = System.Runtime.InteropServices.PosixSignalRegistration.Create(
-            System.Runtime.InteropServices.PosixSignal.SIGTERM, ctx => { ctx.Cancel = true; shutdown.Cancel(); });
-        Console.CancelKeyPress += (_, e) => { e.Cancel = true; shutdown.Cancel(); };
+        using var sigterm = PosixSignalRegistration.Create(PosixSignal.SIGTERM, ctx => {
+            ctx.Cancel = true;
+            shutdown.Cancel();
+        });
+        Console.CancelKeyPress += (_, e) => {
+            e.Cancel = true;
+            shutdown.Cancel();
+        };
         var ct = shutdown.Token;
 
         var http = new HttpClient();
-        var poster = new EventPoster(http, eventUrl, eventSecret);
+        var poster = new EventPoster(http, options.EventUrl, options.EventSecret);
         var clientVersion = new LibegincClientVersionReader();
-
         var deps = new RunnerDeps(
-            new CSharpProtoExtractor(), clientVersion, apkStash, iosBinary, prevCv, package,
+            new CSharpProtoExtractor(), clientVersion, options.ApkStashDir, options.IosBinaryPath,
+            options.PreviousClientVersion, options.Package,
             evt => poster.PostAsync(evt).GetAwaiter().GetResult());
-        var runnerDb = RunnerDb.FromEnv(k => Env(k));
 
-        var devices = RunnerDeviceSource.Read(devicesDir);
-        var set = RunnerSet.Build(devices, deps, () => LegacyRunner(Env, deps, package, iosBinary));
-
+        var runnerDb = RunnerDb.FromEnv(key => RunnerOptions.Env(key));
+        var devices = RunnerDeviceSource.Read(options.DevicesDir);
+        var set = RunnerSet.Build(devices, deps, () => LegacyRunner(deps, options));
         if (set.Runners.Count == 0) {
             Console.Error.WriteLine("no runnable devices configured (set DEVICES_DIR or PLATFORM+target)");
             return 1;
         }
 
-        var once = args.Contains("--once");
-        var force = args.Contains("--force");
-        var serve = args.Contains("--serve") || triggerSecret.Length > 0;
-
-        if (once) {
-            foreach (var r in set.Runners) {
-                var outcome = r.RunOnce(force);
-                Console.WriteLine($"{r.Platform} once force={force}: {outcome.Detail} build={outcome.Build}");
-            }
-            return 0;
-        }
+        if (args.Contains("--once")) return RunOnce(set, args.Contains("--force"));
 
         using var loggerFactory = LoggerFactory.Create(b => b.AddConsole());
-        var sweepLogger = loggerFactory.CreateLogger("RunnerProbeSweep");
-        var procRunner = new ProcessRunner();
+        var platforms = BuildPlatforms(loggerFactory);
+        var harvester = await StartHarvesterAsync(runnerDb, platforms, loggerFactory, ct);
+        var trigger = await StartTriggerAsync(options, set, poster, http, clientVersion, runnerDb, harvester, platforms,
+            loggerFactory, ct);
 
+        await WatchAsync(options, set, runnerDb, platforms, harvester, loggerFactory, ct);
+        Console.WriteLine("runner shutting down");
+        await StopTriggerAsync(trigger);
+        return 0;
+    }
+
+    private static int RunOnce(RunnerSet set, bool force) {
+        foreach (var r in set.Runners) {
+            var outcome = r.RunOnce(force);
+            Console.WriteLine($"{r.Platform} once force={force}: {outcome.Detail} build={outcome.Build}");
+        }
+
+        return 0;
+    }
+
+    private static DevicePlatforms BuildPlatforms(ILoggerFactory loggerFactory) {
+        var procRunner = new ProcessRunner();
         var appConfig = new ConfigurationBuilder().AddEnvironmentVariables().Build();
         var captureConfig = DeviceCaptureConfig.Bind(appConfig);
         var connections = new DeviceConnectionFactory(procRunner, captureConfig);
-        var devicePlatforms = new DevicePlatforms([
+        return new DevicePlatforms([
             new AndroidPlatform(procRunner, appConfig, [], [], [], [], loggerFactory.CreateLogger<AndroidPlatform>()),
             new IosPlatform(connections, captureConfig, procRunner, [], [], [], [],
                 loggerFactory.CreateLogger<IosPlatform>())
         ]);
+    }
 
-        HarvestScheduler? harvester = null;
-        if (runnerDb is not null) {
-            harvester = new HarvestScheduler(runnerDb, devicePlatforms, loggerFactory);
-            using var resetCtx = runnerDb.NewContext();
-            int stuck = await new DeviceStateStore(resetCtx).ResetRunningAsync(ct);
-            if (stuck > 0) Console.WriteLine($"cleared {stuck} interrupted harvest(s)");
+    private static async Task<HarvestScheduler?> StartHarvesterAsync(RunnerDb? runnerDb, DevicePlatforms platforms,
+        ILoggerFactory loggerFactory, CancellationToken ct) {
+        if (runnerDb is null) return null;
+
+        var harvester = new HarvestScheduler(runnerDb, platforms, loggerFactory);
+        using var resetCtx = runnerDb.NewContext();
+        int stuck = await new DeviceStateStore(resetCtx).ResetRunningAsync(ct);
+        if (stuck > 0) Console.WriteLine($"cleared {stuck} interrupted harvest(s)");
+        return harvester;
+    }
+
+    private static async Task<WebApplication?> StartTriggerAsync(RunnerOptions options, RunnerSet set,
+        EventPoster poster, HttpClient http, IClientVersionReader clientVersion, RunnerDb? runnerDb,
+        HarvestScheduler? harvester, DevicePlatforms platforms, ILoggerFactory loggerFactory, CancellationToken ct) {
+        if (options.TriggerSecret.Length == 0) return null;
+
+        var handler = new DeviceResyncHandler(options.TriggerSecret, set.ById);
+        var extractHandler = new ApkPureExtractHandler(
+            options.TriggerSecret, new ApkPureDownloader(http),
+            new CSharpProtoExtractor(), clientVersion,
+            new ClientVersionState(Path.Combine(options.ApkStashDir, "clientversion-apkpure.txt"),
+                options.PreviousClientVersion),
+            evt => poster.PostAsync(evt));
+
+        var trigger = runnerDb is not null && harvester is not null
+            ? TriggerListener.Build(options.TriggerUrls, handler, extractHandler,
+                new DeviceProbeApi(options.TriggerSecret, runnerDb, platforms, TimeProvider.System, loggerFactory),
+                new HarvestApi(options.TriggerSecret, runnerDb, harvester))
+            : TriggerListener.Build(options.TriggerUrls, handler, extractHandler);
+
+        await trigger.StartAsync(ct);
+        Console.WriteLine($"resync trigger listening on {options.TriggerUrls}");
+        return trigger;
+    }
+
+    private static async Task StopTriggerAsync(WebApplication? trigger) {
+        if (trigger is null) return;
+
+        using var stopCts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        try {
+            await trigger.StopAsync(stopCts.Token);
+        } catch (OperationCanceledException ex) {
+            Console.Error.WriteLine($"trigger listener did not stop in time: {ex.Message}");
         }
+    }
 
-        DeviceResyncHandler? handler = null;
-        WebApplication? trigger = null;
-        if (serve && triggerSecret.Length > 0) {
-            handler = new DeviceResyncHandler(triggerSecret, set.ById);
-            var extractHandler = new ApkPureExtractHandler(
-                triggerSecret, new ApkPureDownloader(http),
-                new CSharpProtoExtractor(), clientVersion,
-                new ClientVersionState(Path.Combine(apkStash, "clientversion-apkpure.txt"), prevCv),
-                evt => poster.PostAsync(evt));
-            if (runnerDb is not null && harvester is not null) {
-                var probeApi = new DeviceProbeApi(triggerSecret, runnerDb, devicePlatforms, TimeProvider.System, loggerFactory);
-                var harvestApi = new HarvestApi(triggerSecret, runnerDb, harvester);
-                trigger = TriggerListener.Build(triggerUrls, handler, extractHandler, probeApi, harvestApi);
-            } else {
-                trigger = TriggerListener.Build(triggerUrls, handler, extractHandler);
-            }
-            await trigger.StartAsync(ct);
-            Console.WriteLine($"resync trigger listening on {triggerUrls}");
-        }
-
-        Console.WriteLine($"runner watching {set.Runners.Count} device(s) every {interval}s");
+    private static async Task WatchAsync(RunnerOptions options, RunnerSet set, RunnerDb? runnerDb,
+        DevicePlatforms platforms, HarvestScheduler? harvester, ILoggerFactory loggerFactory, CancellationToken ct) {
+        var sweepLogger = loggerFactory.CreateLogger("RunnerProbeSweep");
+        Console.WriteLine($"runner watching {set.Runners.Count} device(s) every {options.PollIntervalSeconds}s");
         while (!ct.IsCancellationRequested) {
-            foreach (var r in set.Runners) {
-                if (ct.IsCancellationRequested) break;
-                try {
-                    var tick = Task.Run(() => r.RunOnce(force: false));
-                    var done = await Task.WhenAny(tick, Task.Delay(Timeout.Infinite, ct));
-                    if (done != tick) break;
-                    var outcome = await tick;
-                    if (outcome.Emitted) Console.WriteLine($"{r.Platform} emitted build {outcome.Build}");
-                } catch (OperationCanceledException) { break; } catch (Exception ex) {
-                    Console.Error.WriteLine($"{r.Platform} tick error: {ex.Message}");
-                }
-            }
+            if (!await TickRunnersAsync(set, ct)) break;
             if (runnerDb is not null) {
-                try { await RunnerProbeSweep.RunAsync(runnerDb, devicePlatforms, TimeProvider.System, sweepLogger, ct); } catch (OperationCanceledException) { throw; } catch (Exception ex) {
+                try {
+                    await RunnerProbeSweep.RunAsync(runnerDb, platforms, TimeProvider.System, sweepLogger, ct);
+                } catch (OperationCanceledException) {
+                    throw;
+                } catch (Exception ex) {
                     Console.Error.WriteLine($"probe sweep error: {ex.Message}");
                 }
             }
+
             if (harvester is not null) {
-                try { await harvester.PokeAllAsync(ct); } catch (OperationCanceledException) { throw; } catch (Exception ex) {
+                try {
+                    await harvester.PokeAllAsync(ct);
+                } catch (OperationCanceledException) {
+                    throw;
+                } catch (Exception ex) {
                     Console.Error.WriteLine($"harvest poke error: {ex.Message}");
                 }
             }
-            try { await Task.Delay(interval * 1000, ct); } catch (OperationCanceledException) { break; }
-        }
-        Console.WriteLine("runner shutting down");
-        if (trigger is not null) {
-            using var stopCts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-            try { await trigger.StopAsync(stopCts.Token); } catch (OperationCanceledException ex) {
-                Console.Error.WriteLine($"trigger listener did not stop in time: {ex.Message}");
+
+            try {
+                await Task.Delay(options.PollIntervalSeconds * 1000, ct);
+            } catch (OperationCanceledException) {
+                break;
             }
         }
-        return 0;
     }
 
-    private static IDeviceRunner? LegacyRunner(
-        Func<string, string, string> env, RunnerDeps deps, string package, string iosBinary) {
-        var platform = env("PLATFORM", "");
+    private static async Task<bool> TickRunnersAsync(RunnerSet set, CancellationToken ct) {
+        foreach (var r in set.Runners) {
+            if (ct.IsCancellationRequested) return false;
+            try {
+                var tick = Task.Run(() => r.RunOnce(force: false));
+                var done = await Task.WhenAny(tick, Task.Delay(Timeout.Infinite, ct));
+                if (done != tick) return false;
+                var outcome = await tick;
+                if (outcome.Emitted) Console.WriteLine($"{r.Platform} emitted build {outcome.Build}");
+            } catch (OperationCanceledException) {
+                return false;
+            } catch (Exception ex) {
+                Console.Error.WriteLine($"{r.Platform} tick error: {ex.Message}");
+            }
+        }
+
+        return true;
+    }
+
+    private static IDeviceRunner? LegacyRunner(RunnerDeps deps, RunnerOptions options) {
+        string platform = RunnerOptions.Env("PLATFORM");
         if (platform.Length == 0) return null;
-        var target = env("ADB_TARGET", "127.0.0.1:5555");
-        var stateFile = env("STATE_FILE", $"state-{platform}.json");
+
+        string target = RunnerOptions.Env("ADB_TARGET", "127.0.0.1:5555");
+        string stateFile = RunnerOptions.Env("STATE_FILE", $"state-{platform}.json");
         return platform switch {
             "android" => new AndroidRunner(
                 new AdbClient(target), deps.Proto, new VersionState(stateFile),
                 deps.ClientVersion,
-                new ClientVersionState(Path.Combine(deps.ApkStashDir, $"clientversion-{platform}.txt"), deps.PrevClientVersion),
-                package, deps.ApkStashDir, deps.OnNewVersion),
-            "ios" => new IosRunner(iosBinary, new VersionState(stateFile), package, deps.OnNewVersion),
-            _ => null,
+                new ClientVersionState(Path.Combine(deps.ApkStashDir, $"clientversion-{platform}.txt"),
+                    deps.PrevClientVersion),
+                options.Package, deps.ApkStashDir, deps.OnNewVersion),
+            "ios" => new IosRunner(options.IosBinaryPath, new VersionState(stateFile), options.Package,
+                deps.OnNewVersion),
+            _ => null
         };
     }
 }

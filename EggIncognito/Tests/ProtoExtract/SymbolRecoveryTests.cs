@@ -33,7 +33,6 @@ public class SymbolRecoveryTests {
     public void Recover_Tier1_RecoversRelocatedUnchangedFunction_NotChangedOne() {
         const ulong vm = SyntheticMacho.TextVm;
 
-
         byte[] refFuncA = Words(Bl((long)vm, (long)vm + 0x500), Nop(), Nop(), Nop(), Nop(), Nop(), Nop(), Ret());
         byte[] refFuncB = Words(MovZ(0, 7), Nop(), Nop(), Nop(), Nop(), Nop(), Nop(), Ret());
         byte[] refText = [.. refFuncA, .. refFuncB];
@@ -41,7 +40,6 @@ public class SymbolRecoveryTests {
             new SyntheticMacho.Sym("__ZN6FuncA2goEv", vm),
             new SyntheticMacho.Sym("__ZN6FuncB2goEv", vm + (ulong)refFuncA.Length)
         });
-
 
         byte[] pad = Words(Nop(), Nop());
         byte[] tgtFuncA = Words(Bl((long)vm + 8, (long)vm + 0x900), Nop(), Nop(), Nop(), Nop(), Nop(), Nop(), Ret());

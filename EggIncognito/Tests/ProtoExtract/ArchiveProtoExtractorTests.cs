@@ -61,7 +61,6 @@ public class ArchiveProtoExtractorTests {
         Assert.True(r.Ok, r.Diagnostics);
         Assert.Equal("1.35.6", r.AppVersion);
 
-
         Assert.Null(r.Build);
     }
 

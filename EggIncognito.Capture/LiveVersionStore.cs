@@ -14,7 +14,6 @@ public sealed class LiveVersionStore(string capturePath)
         return null;
     }
 
-
     public void Observe(RinfoHarvester.ObservedVersion v, string nowIso) {
         if (string.IsNullOrEmpty(v.Platform)) return;
         string key = NormalizePlatform(v.Platform);
@@ -31,7 +30,6 @@ public sealed class LiveVersionStore(string capturePath)
             else rows.Add(merged);
         });
     }
-
 
     private static string NormalizePlatform(string p) => (p ?? "").Trim().ToLowerInvariant();
 }

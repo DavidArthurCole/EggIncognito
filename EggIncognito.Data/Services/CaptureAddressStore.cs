@@ -46,7 +46,6 @@ public sealed class CaptureAddressStore(EggIncognitoDbContext db) {
         return row is not null ? IPAddress.Parse(row.Addr) : await MintAsync(prefixCidr, userId, ct);
     }
 
-
     public async Task<IPAddress> RotateAsync(string prefixCidr, Guid userId, CancellationToken ct = default)
         => await MintAsync(prefixCidr, userId, ct);
 

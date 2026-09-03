@@ -25,17 +25,14 @@ public interface IProtoReflection {
     MessageParser? FindParser(string typeName);
     SchemaMessage? Schema(string typeName);
 
-
     IReadOnlyList<string> AllMessageTypeNames();
 }
 
 public sealed class ProtoReflection : IProtoReflection {
     private static readonly Assembly EiAssembly = typeof(AuthenticatedMessage).Assembly;
 
-
     private static readonly ConcurrentDictionary<string, (MessageDescriptor Descriptor, MessageParser Parser)> Cache =
         new(StringComparer.Ordinal);
-
 
     private static readonly Lazy<IReadOnlyList<string>> AllNames = new(() =>
         EiAssembly.GetTypes()
@@ -61,7 +58,6 @@ public sealed class ProtoReflection : IProtoReflection {
         var fields = desc.Fields.InFieldNumberOrder().Select(ToSchemaField).ToList();
         return new SchemaMessage(desc.Name, fields);
     }
-
 
     private static string Short(string typeName) =>
         typeName.StartsWith("Ei.", StringComparison.Ordinal) ? typeName[3..] : typeName;

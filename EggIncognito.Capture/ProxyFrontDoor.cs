@@ -18,7 +18,6 @@ public sealed class ProxyFrontDoor(
 
     private TcpListener? _listener;
 
-
     public int Port { get; private set; }
 
     public async ValueTask DisposeAsync() {
@@ -52,7 +51,6 @@ public sealed class ProxyFrontDoor(
         log?.Invoke($"capture-frontdoor: listening on {Port}");
         return Task.CompletedTask;
     }
-
 
     public async Task StopAsync(CancellationToken cancellationToken) {
         try {
@@ -94,7 +92,6 @@ public sealed class ProxyFrontDoor(
             (var first, byte[] raw, int rawLen) = await ReadFirstRequestAsync(stream, ct);
             if (first is null) return;
 
-
             if (!AuxbrainHosts.IsAuxbrain(first.TargetHost) && !opts.IsExtraAllowed(first.TargetHost)) {
                 log?.Invoke($"capture-frontdoor: {user} rejected host {first.TargetHost}");
                 await WriteAsciiAsync(stream, "HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n", ct);
@@ -120,7 +117,6 @@ public sealed class ProxyFrontDoor(
         }
     }
 
-
     private async Task TunnelAsync(
         NetworkStream stream, CaptureSession session, ProxyFirstRequest first,
         byte[] raw, int rawLen, string user, CancellationToken ct) {
@@ -128,11 +124,9 @@ public sealed class ProxyFrontDoor(
         await inner.ConnectAsync(IPAddress.Loopback, session.Port + 1, ct);
         var innerStream = inner.GetStream();
 
-
         byte[] cleanConnect = Encoding.ASCII.GetBytes(
             $"CONNECT {first.TargetHost}:{first.TargetPort} HTTP/1.1\r\nHost: {first.TargetHost}:{first.TargetPort}\r\n\r\n");
         await innerStream.WriteAsync(cleanConnect, ct);
-
 
         byte[] respBuf = new byte[8 * 1024];
         int respLen = 0;
@@ -148,7 +142,6 @@ public sealed class ProxyFrontDoor(
 
         long up = cleanConnect.Length, down = respLen;
 
-
         int connectHeaderLen = first.RawBytes.Length;
         int leftover = rawLen - connectHeaderLen;
         if (leftover > 0) {
@@ -156,14 +149,12 @@ public sealed class ProxyFrontDoor(
             up += leftover;
         }
 
-
         var pumpUp = PumpAsync(stream, innerStream, inner.Client, n => Interlocked.Add(ref up, n), ct);
         var pumpDown = PumpAsync(innerStream, stream, stream.Socket, n => Interlocked.Add(ref down, n), ct);
         await Task.WhenAll(pumpUp, pumpDown);
         log?.Invoke(
             $"capture-frontdoor: {user} {first.TargetHost} {Interlocked.Read(ref up)}/{Interlocked.Read(ref down)}");
     }
-
 
     private static int FindHeaderEnd(ReadOnlySpan<byte> b) {
         for (int i = 0; i + 3 < b.Length; i++) {
@@ -173,7 +164,6 @@ public sealed class ProxyFrontDoor(
 
         return -1;
     }
-
 
     private async Task<(ProxyFirstRequest? First, byte[] Buffer, int Length)> ReadFirstRequestAsync(
         NetworkStream stream, CancellationToken ct) {
@@ -195,7 +185,6 @@ public sealed class ProxyFrontDoor(
 
         return (null, buffer, total);
     }
-
 
     private static async Task PumpAsync(Stream from, Stream to, Socket dstSocket, Action<long> count,
         CancellationToken ct) {
@@ -224,7 +213,6 @@ public sealed class ProxyFrontDoor(
 
     private static Task WriteAsciiAsync(Stream stream, string text, CancellationToken ct) =>
         stream.WriteAsync(Encoding.ASCII.GetBytes(text), ct).AsTask();
-
 
     private static void GracefulClose(TcpClient c) {
         try {

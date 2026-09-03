@@ -46,7 +46,6 @@ public static class MachoArm64Disassembler {
 
                 case Arm64InstructionId.ARM64_INS_FMOV:
 
-
                     if (ops.Length == 2 && ops[0].Type == Arm64OperandType.Register
                                         && ops[1].Type == Arm64OperandType.FloatingPoint &&
                                         ops[0].Register is { } fmovRd) {
@@ -57,7 +56,6 @@ public static class MachoArm64Disassembler {
                     break;
 
                 case Arm64InstructionId.ARM64_INS_MOVI:
-
 
                     if (ops.Length == 2 && ops[1].Type == Arm64OperandType.Immediate && ops[1].Immediate == 0)
                         floats.Add(new FloatConst((ulong)insn.Address, 0.0, false));

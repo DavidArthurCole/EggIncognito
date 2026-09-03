@@ -38,7 +38,6 @@ public static class ProtoCleanup {
 
         var lines = SplitKeepEnds(eiProto);
 
-
         lines = [.. lines.Where(l => !l.TrimStart().StartsWith("import \"common.proto\";", StringComparison.Ordinal))];
 
         int packageIndex = lines.FindIndex(l => l.TrimStart().StartsWith("package ei;", StringComparison.Ordinal));
@@ -49,7 +48,6 @@ public static class ProtoCleanup {
 
         return string.Concat(lines);
     }
-
 
     private static List<string> SplitKeepEnds(string text) {
         string normalized = text.Replace("\r\n", "\n").Replace("\r", "\n");

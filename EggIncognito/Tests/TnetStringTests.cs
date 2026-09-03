@@ -63,7 +63,6 @@ public class TnetStringTests {
     public void Decode_MissingDelimiter_Throws()
         => Assert.Throws<FormatException>(() => TnetString.Decode(Enc("nodelim"), 0));
 
-
     internal static string BytesStr(string s) => $"{Encoding.UTF8.GetByteCount(s)}:{s},";
 
     internal static string Int(long n) {

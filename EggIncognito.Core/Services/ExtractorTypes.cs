@@ -11,7 +11,6 @@ public sealed class HarCounts {
     public int Err { get; set; }
     public int Loss { get; set; }
 
-
     public List<string> Learned { get; } = [];
     public List<string> Flagged { get; } = [];
     public bool WroteYaml { get; set; }
@@ -52,7 +51,6 @@ public static class ExtractorConfig {
     ];
 
     public static readonly Assembly EiAssembly = typeof(AuthenticatedMessage).Assembly;
-
 
     public static AutoWriteVerdict ClassifyAutoWrite(int bestScore, int secondBestScore) {
         if (bestScore < ExactBonus) return AutoWriteVerdict.Reject;

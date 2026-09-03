@@ -5,9 +5,7 @@ namespace EggIncognito.Core.Services.ProtoExtract;
 public static class ShellCatalog {
     private const string CdnBase = AuxbrainHosts.Origin + "/dlc";
 
-
     public static readonly IReadOnlyList<double> DefaultChickenAnchor = [0.0, 0.428, -0.11, 1.06];
-
 
     public static IReadOnlyList<Shell> FromCatalog(DLCCatalog catalog) {
         var shells = new List<Shell>();
@@ -34,11 +32,9 @@ public static class ShellCatalog {
         return shells;
     }
 
-
     public static IReadOnlyList<Shell> ForAssetType(DLCCatalog catalog, string assetType) =>
         FromCatalog(catalog).Where(s => string.Equals(s.AssetType, assetType, StringComparison.OrdinalIgnoreCase))
             .ToList();
-
 
     public static Shell? ById(DLCCatalog catalog, string identifier) =>
         FromCatalog(catalog).FirstOrDefault(s => string.Equals(s.Identifier, identifier, StringComparison.Ordinal));
@@ -106,7 +102,6 @@ public static class ShellCatalog {
     private static string AssetTypeName(ShellSpec.Types.AssetType t) => t.ToString();
     private static string? NullIfEmpty(string? s) => string.IsNullOrEmpty(s) ? null : s;
 
-
     public sealed record Shell(
         string Identifier,
         string? Name,
@@ -116,7 +111,6 @@ public static class ShellCatalog {
         bool ModifiedGeometry,
         string? SetIdentifier = null);
 
-
     public sealed record ShellObject(
         string Identifier,
         string? Name,
@@ -125,7 +119,6 @@ public static class ShellCatalog {
         string? Checksum,
         IReadOnlyList<double> Anchor,
         bool NoHats);
-
 
     public sealed record ShellSet(string Identifier, string? Name, bool Decorator, IReadOnlyList<Shell> Members);
 }

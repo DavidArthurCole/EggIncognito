@@ -14,7 +14,6 @@ public static class CaCertPrep {
         return h.ToString("x8", CultureInfo.InvariantCulture);
     }
 
-
     public static string ToPem(X509Certificate2 cert) {
         string b64 = Convert.ToBase64String(cert.RawData);
         var sb = new StringBuilder();
@@ -25,19 +24,15 @@ public static class CaCertPrep {
         return sb.ToString();
     }
 
-
     public static string IosCertSha256Hex(X509Certificate2 cert) => Hashes.Sha256Hex(cert.RawData);
-
 
 #pragma warning disable CA5350
     public static string IosCertSha1Hex(X509Certificate2 cert) =>
         Convert.ToHexString(SHA1.HashData(cert.RawData)).ToLowerInvariant();
 #pragma warning restore CA5350
 
-
     public static string IosSubjectDerHex(X509Certificate2 cert) =>
         Convert.ToHexString(cert.SubjectName.RawData).ToLowerInvariant();
-
 
     public static string DerHex(X509Certificate2 cert) => Convert.ToHexString(cert.RawData).ToLowerInvariant();
 }

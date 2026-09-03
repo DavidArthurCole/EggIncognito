@@ -1,6 +1,4 @@
 
-
-
 const GAP = 6;
 const WIDTH = 200;
 let active = null;
@@ -38,7 +36,6 @@ function place(button, menu, placement) {
     left = placement.endsWith("Right") ? b.right - mw : b.left;
   }
 
- 
   left = Math.min(Math.max(GAP, left), Math.max(GAP, vw - mw - GAP));
   top = Math.min(Math.max(GAP, top), Math.max(GAP, vh - mh - GAP));
 

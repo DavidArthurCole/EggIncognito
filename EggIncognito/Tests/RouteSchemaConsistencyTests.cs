@@ -24,7 +24,6 @@ public sealed class RouteSchemaConsistencyTests {
         var gen = RouteParser.Parse(yaml).ToDictionary(e => e.Path);
         var cat = RouteCatalog.Parse(yaml).ToDictionary(e => e.Path);
 
-
         Assert.Equal(gen.Keys.OrderBy(k => k), cat.Keys.OrderBy(k => k));
 
         foreach (string path in gen.Keys) {
@@ -109,7 +108,6 @@ public sealed class RouteSchemaConsistencyTests {
 
         var g = RouteParser.Parse(yaml);
         var c = RouteCatalog.Parse(yaml);
-
 
         Assert.Single(g);
         Assert.Equal("ei/real", g[0].Path);

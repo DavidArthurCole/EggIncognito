@@ -24,7 +24,6 @@ public class ProtoReflectionEnumTests {
     public void AllMessageTypeNames_AreResolvable() {
         var refl = new ProtoReflection();
 
-
         foreach (string name in refl.AllMessageTypeNames().Take(25))
             Assert.NotNull(refl.Schema(name));
     }

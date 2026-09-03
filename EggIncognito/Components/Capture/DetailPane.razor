@@ -54,7 +54,6 @@
     string _saveMsg = "";
     string _saveCls = "";
 
-
     readonly CodeRevealState _reveal = new();
 
     long _renderedFlowId = -1;
@@ -123,7 +122,6 @@
                                                                              <span class="known-card-label">@label</span>
                                                                              <span class="known-card-val @(unknown ? "unknown" : "")">@value</span>
                                                                          </div>;
-
 
     RenderFragment DiffCounts(int added, int removed) => @<text>
                                                               @if (added > 0) {
@@ -202,7 +200,6 @@
                                                                        <CodeSurface Text="@text" Language="text"/>
                                                                    </div>;
 
-
     static string? ImageMime(DashboardFlow f) {
         var b64 = f.ResponseB64;
         if (string.IsNullOrEmpty(b64)) return null;
@@ -247,7 +244,6 @@
 
         builder.CloseElement();
     };
-
 
     RenderFragment? BuildParams(DashboardFlow flow) {
         var parsed = ParseFlowUrl(flow);
@@ -359,7 +355,6 @@
 
         return (path, query, pathParams);
     }
-
 
     RenderFragment? BuildHeaders(string keyPrefix, IReadOnlyList<DashboardHeader>? redacted, IReadOnlyList<DashboardHeader>? raw) {
         var headers = View.IsBlurMode || View.ShowRawHeaders ? raw ?? redacted ?? [] : redacted ?? [];

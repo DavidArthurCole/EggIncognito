@@ -60,6 +60,8 @@ public sealed class ApkPureExtractHandler(
             return new ExtractResult(200, build, protoSha, null, "extracted and posted");
         } catch (Exception ex) {
             return new ExtractResult(500, null, null, ex.Message, null);
-        } finally { _lock.Release(); }
+        } finally {
+            _lock.Release();
+        }
     }
 }

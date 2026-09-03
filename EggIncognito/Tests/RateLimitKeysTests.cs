@@ -28,7 +28,6 @@ public class RateLimitKeysTests {
         Assert.Equal("10.0.0.9", RateLimitKeys.ClientIp(CtxWith(), false));
     }
 
-
     [Fact]
     public void ClientIp_Hosted_IgnoresXff_UsesSharedBucket() {
         Assert.Equal(RateLimitKeys.NoCfKey, RateLimitKeys.ClientIp(CtxWith(null, "9.9.9.9"), true));

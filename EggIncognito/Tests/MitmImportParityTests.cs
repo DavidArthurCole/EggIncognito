@@ -40,14 +40,12 @@ public sealed class MitmImportParityTests : IDisposable {
         byte[] respBytes = WrappedResponse();
         string respB64 = Convert.ToBase64String(respBytes);
 
-
         string harRoot = MakeRepo();
         string harFile = Path.Combine(harRoot, "session.har");
         File.WriteAllText(harFile, BuildHar(Url, respB64), new UTF8Encoding(false));
         var har = EndpointExtractor.ForRepo(harRoot, null, "EI0000000000000000", false);
         har.RunFromHar(harFile);
         har.Save();
-
 
         string mitmRoot = MakeRepo();
         string mitmFile = Path.Combine(mitmRoot, "session.mitm");
@@ -82,7 +80,6 @@ public sealed class MitmImportParityTests : IDisposable {
         return JsonSerializer.Serialize(har);
     }
 
-
     private static byte[] BuildMitm(string url, string requestBody, byte[] responseContent) {
         var uri = new Uri(url);
         byte[] req = TnetDict(
@@ -97,7 +94,6 @@ public sealed class MitmImportParityTests : IDisposable {
             ("content", TnetBytes(responseContent)));
         return TnetDict(("type", TnetStr("http")), ("request", req), ("response", res));
     }
-
 
     private static byte[] TnetStr(string s) => TnetBytes(Encoding.UTF8.GetBytes(s));
 

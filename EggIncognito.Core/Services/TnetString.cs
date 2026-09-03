@@ -43,7 +43,6 @@ public static class TnetString {
         return items;
     }
 
-
     private static Dictionary<string, object?> DecodeDict(byte[] data, int start, int len) {
         var dict = new Dictionary<string, object?>(StringComparer.Ordinal);
         int end = start + len;

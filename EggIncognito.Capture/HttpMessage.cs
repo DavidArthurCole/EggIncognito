@@ -24,7 +24,6 @@ internal sealed class HttpMessage {
 
     private bool IsRequest => !StartLine.StartsWith("HTTP/", StringComparison.OrdinalIgnoreCase);
 
-
     public static async Task<HttpMessage?> ReadAsync(Stream s, CancellationToken ct) {
         byte[]? headBytes = await ReadHeadAsync(s, ct);
         if (headBytes is null) return null;
@@ -43,7 +42,6 @@ internal sealed class HttpMessage {
         byte[] body = await ReadBodyAsync(s, headers, ct);
         return new HttpMessage { StartLine = startLine, Headers = headers, Body = body };
     }
-
 
     public async Task WriteAsync(Stream s, CancellationToken ct) {
         var sb = new StringBuilder();
@@ -70,10 +68,8 @@ internal sealed class HttpMessage {
         await s.FlushAsync(ct);
     }
 
-
     private bool HasBodySemantics() =>
         IsRequest ? Method is "POST" or "PUT" or "PATCH" : StatusCode is not (204 or 304);
-
 
     private static async Task<byte[]?> ReadHeadAsync(Stream s, CancellationToken ct) {
         var buf = new List<byte>(1024);

@@ -8,7 +8,6 @@ namespace EggIncognito.Components.Capture;
 public sealed partial class CaptureViewState {
     public static readonly Regex EidRe = EidPattern.Contains;
 
-
     public HashSet<string> SensitiveKeys { get; } = [with(StringComparer.Ordinal), "eiUserId", "userId"];
 
     public string RedactionMode { get; set; } = "blur";
@@ -22,7 +21,6 @@ public sealed partial class CaptureViewState {
 
     public bool ShowRawHeaders => RedactionMode == "off";
 
-
     public string? PickJson(string? redacted, string? raw) =>
         RedactionMode == "redact" ? redacted : raw ?? redacted;
 
@@ -31,12 +29,10 @@ public sealed partial class CaptureViewState {
 
     public bool LooksLikeEid(string s) => EidRe.IsMatch(s);
 
-
     public (string Text, bool Blur) RedactParamValue(string value) {
         if (RedactionMode == "redact" && EidRe.IsMatch(value)) return ("redacted-eid", false);
         return (value, RedactionMode == "blur" && EidRe.IsMatch(value));
     }
-
 
     public IEnumerable<(string Text, bool Blur)> RenderRedactedPath(string path) {
         string[] parts = MyRegex().Split(path);
@@ -54,7 +50,6 @@ public sealed partial class CaptureViewState {
             }
         }
     }
-
 
     public HashSet<string> CollectSensitiveValues(JsonNode? value) {
         var outSet = new HashSet<string>(StringComparer.Ordinal);

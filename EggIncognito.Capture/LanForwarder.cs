@@ -20,9 +20,7 @@ public sealed class LanForwarder : IAsyncDisposable {
         _proxyPort = proxyPort;
     }
 
-
     public Action<string>? Trace { get; set; }
-
 
     public Action<string, int>? DeviceConnected { get; set; }
     public Action<string, int>? DeviceDisconnected { get; set; }
@@ -73,7 +71,6 @@ public sealed class LanForwarder : IAsyncDisposable {
         }
     }
 
-
     internal static bool IsFatalAcceptError(SocketException ex, bool cancelRequested) =>
         cancelRequested || ex.SocketErrorCode is SocketError.Interrupted or SocketError.OperationAborted;
 
@@ -95,10 +92,8 @@ public sealed class LanForwarder : IAsyncDisposable {
                 var cs = client.GetStream();
                 var us = upstream.GetStream();
 
-
                 if (!await ForwardCleanedConnectAsync(cs, us, ct))
                     return;
-
 
                 var c2u = PumpAsync(cs, us, upstream, "c2u", ct);
                 var u2c = PumpAsync(us, cs, client, "u2c", ct);
@@ -113,7 +108,6 @@ public sealed class LanForwarder : IAsyncDisposable {
         }
     }
 
-
     private void OnDeviceConnectionOpened(string ip) {
         bool firstForIp;
         int deviceCount;
@@ -125,7 +119,6 @@ public sealed class LanForwarder : IAsyncDisposable {
 
         if (firstForIp) DeviceConnected?.Invoke(ip, deviceCount);
     }
-
 
     private void OnDeviceConnectionClosed(string ip) {
         lock (_devLock) {
@@ -155,7 +148,6 @@ public sealed class LanForwarder : IAsyncDisposable {
         DeviceDisconnected?.Invoke(ip, deviceCount);
     }
 
-
     private async Task<bool> ForwardCleanedConnectAsync(NetworkStream cs, NetworkStream us, CancellationToken ct) {
         byte[] buf = new byte[8192];
         int len = 0;
@@ -177,7 +169,6 @@ public sealed class LanForwarder : IAsyncDisposable {
         byte[] cleanedBytes = Encoding.ASCII.GetBytes(cleaned);
         await us.WriteAsync(cleanedBytes, ct);
 
-
         int rest = len - (headerEnd + 4);
         if (rest > 0) await us.WriteAsync(buf.AsMemory(headerEnd + 4, rest), ct);
         await us.FlushAsync(ct);
@@ -186,14 +177,12 @@ public sealed class LanForwarder : IAsyncDisposable {
         return true;
     }
 
-
     internal static string CleanConnectHead(string head) {
         string[] lines = head.Split("\r\n");
         string requestLine = lines[0];
         string[] parts = requestLine.Split(' ');
         string method = parts.Length >= 1 ? parts[0] : "";
         string target = parts.Length >= 2 ? parts[1] : "";
-
 
         string authority;
         if (method.Equals("CONNECT", StringComparison.OrdinalIgnoreCase))
@@ -228,10 +217,8 @@ public sealed class LanForwarder : IAsyncDisposable {
         return string.Join("\r\n", kept) + "\r\n\r\n";
     }
 
-
     private static string DeviceIp(TcpClient client) =>
         client.Client.RemoteEndPoint is IPEndPoint ep ? DeviceIp(ep.Address) : "unknown";
-
 
     internal static string DeviceIp(IPAddress addr) =>
         (addr.IsIPv4MappedToIPv6 ? addr.MapToIPv4() : addr).ToString();
@@ -244,7 +231,6 @@ public sealed class LanForwarder : IAsyncDisposable {
 
         return -1;
     }
-
 
     private async Task PumpAsync(NetworkStream src, NetworkStream dst, TcpClient dstClient, string dir,
         CancellationToken ct) {
@@ -274,7 +260,6 @@ public sealed class LanForwarder : IAsyncDisposable {
             }
         }
     }
-
 
     private static string Preview(byte[] b, int n) {
         int len = Math.Min(n, 300);

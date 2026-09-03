@@ -24,7 +24,6 @@ public sealed class RoutesYamlEditorTests : IDisposable {
                                       - ei/unknown
                                   """;
 
-
     private const string DeepIndent = """
                                       routes:
                                           - path: ei/deep
@@ -132,7 +131,6 @@ public sealed class RoutesYamlEditorTests : IDisposable {
         string root = MakeRepo(Sample);
         var ed = new Svc.RoutesYamlEditor(root);
         Assert.True(ed.SetFieldIfEmpty("ei/unknown", "request", "FoundRequest"));
-
 
         string p = Path.Combine(root, "RouteMap", "routes.yaml");
         File.WriteAllText(p, Sample + "\n# concurrent edit\n");

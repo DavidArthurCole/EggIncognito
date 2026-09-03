@@ -1,0 +1,92 @@
+using EggIdentity.Settings;
+
+namespace EggIncognito.Services.Config;
+
+public sealed class DeviceRecertSettingsProvider : ISettingsProvider {
+    private const string Recert = "Devices: recert";
+    private const string Gms = "Devices: GMS first run";
+
+    private static readonly IReadOnlyList<SettingDescriptor> Descriptors = [
+        new("device_recert.enabled", "DeviceRecert__Enabled", "Recert enabled", Recert,
+            SettingKind.Bool, ApplyTier.RestartRequired, Sensitivity.Plain) { Default = "false" },
+        new("device_recert.ksu_web_ui_package", "DeviceRecert__KsuWebUiPackage", "KSU WebUI package", Recert,
+            SettingKind.Text, ApplyTier.RestartRequired, Sensitivity.Plain),
+        new("device_recert.magisk_package", "DeviceRecert__MagiskPackage", "Magisk package", Recert,
+            SettingKind.Text, ApplyTier.RestartRequired, Sensitivity.Plain) { Default = "com.topjohnwu.magisk" },
+        new("device_recert.play_package", "DeviceRecert__PlayPackage", "Play Store package", Recert,
+            SettingKind.Text, ApplyTier.RestartRequired, Sensitivity.Plain) { Default = "com.android.vending" },
+        new("device_recert.integrity_hub_label", "DeviceRecert__IntegrityHubLabel", "Integrity Hub label", Recert,
+            SettingKind.Text, ApplyTier.RestartRequired, Sensitivity.Plain) { Default = "Integrity Hub" },
+        new("device_recert.repair_mode_label", "DeviceRecert__RepairModeLabel", "Repair Mode label", Recert,
+            SettingKind.Text, ApplyTier.RestartRequired, Sensitivity.Plain) { Default = "Repair Mode" },
+        new("device_recert.repair_complete_text", "DeviceRecert__RepairCompleteText", "Repair complete text", Recert,
+            SettingKind.Text, ApplyTier.RestartRequired, Sensitivity.Plain) {
+            Default = "repair complete OR check play integrity now"
+        },
+        new("device_recert.magisk_modules_label", "DeviceRecert__MagiskModulesLabel", "Magisk Modules label", Recert,
+            SettingKind.Text, ApplyTier.RestartRequired, Sensitivity.Plain) { Default = "Modules" },
+        new("device_recert.integrity_box_label", "DeviceRecert__IntegrityBoxLabel", "Integrity box label", Recert,
+            SettingKind.Text, ApplyTier.RestartRequired, Sensitivity.Plain) { Default = "Integrity box" },
+        new("device_recert.magisk_action_label", "DeviceRecert__MagiskActionLabel", "Magisk Action label", Recert,
+            SettingKind.Text, ApplyTier.RestartRequired, Sensitivity.Plain) { Default = "Action" },
+        new("device_recert.power_button_resource_id", "DeviceRecert__PowerButtonResourceId",
+            "Power button resource id", Recert,
+            SettingKind.Text, ApplyTier.RestartRequired, Sensitivity.Plain),
+        new("device_recert.power_button_desc", "DeviceRecert__PowerButtonDesc", "Power button description", Recert,
+            SettingKind.Text, ApplyTier.RestartRequired, Sensitivity.Plain),
+        new("device_recert.power_button_x", "DeviceRecert__PowerButtonX", "Power button X", Recert,
+            SettingKind.Number, ApplyTier.RestartRequired, Sensitivity.Plain),
+        new("device_recert.power_button_y", "DeviceRecert__PowerButtonY", "Power button Y", Recert,
+            SettingKind.Number, ApplyTier.RestartRequired, Sensitivity.Plain),
+        new("device_recert.magisk_close_resource_id", "DeviceRecert__MagiskCloseResourceId",
+            "Magisk close resource id", Recert,
+            SettingKind.Text, ApplyTier.RestartRequired, Sensitivity.Plain),
+        new("device_recert.magisk_close_x", "DeviceRecert__MagiskCloseX", "Magisk close X", Recert,
+            SettingKind.Number, ApplyTier.RestartRequired, Sensitivity.Plain),
+        new("device_recert.magisk_close_y", "DeviceRecert__MagiskCloseY", "Magisk close Y", Recert,
+            SettingKind.Number, ApplyTier.RestartRequired, Sensitivity.Plain),
+        new("device_recert.expiry_field_name", "DeviceRecert__ExpiryFieldName", "Expiry field name", Recert,
+            SettingKind.Text, ApplyTier.RestartRequired, Sensitivity.Plain) { Default = "expiry" },
+        new("device_recert.expiry_field_resource_id", "DeviceRecert__ExpiryFieldResourceId",
+            "Expiry field resource id", Recert,
+            SettingKind.Text, ApplyTier.RestartRequired, Sensitivity.Plain),
+        new("device_recert.expiry_field_text", "DeviceRecert__ExpiryFieldText", "Expiry field text", Recert,
+            SettingKind.Text, ApplyTier.RestartRequired, Sensitivity.Plain),
+        new("device_recert.expiry_file_path", "DeviceRecert__ExpiryFilePath", "Expiry file path", Recert,
+            SettingKind.Path, ApplyTier.RestartRequired, Sensitivity.Plain),
+        new("device_recert.expiry_warn_days", "DeviceRecert__ExpiryWarnDays", "Expiry warning (days)", Recert,
+            SettingKind.Number, ApplyTier.RestartRequired, Sensitivity.Plain) { Default = "3" },
+        new("device_recert.repair_timeout_seconds", "DeviceRecert__RepairTimeoutSeconds",
+            "Repair timeout (seconds)", Recert,
+            SettingKind.Number, ApplyTier.RestartRequired, Sensitivity.Plain) { Default = "180" },
+        new("device_recert.magisk_action_wait_seconds", "DeviceRecert__MagiskActionWaitSeconds",
+            "Magisk action wait (seconds)", Recert,
+            SettingKind.Number, ApplyTier.RestartRequired, Sensitivity.Plain) { Default = "30" },
+        new("device_recert.verify_cert", "DeviceRecert__VerifyCert", "Verify cert after recert", Recert,
+            SettingKind.Bool, ApplyTier.RestartRequired, Sensitivity.Plain) { Default = "false" },
+        new("device_recert.play_protect_certified_text", "DeviceRecert__PlayProtectCertifiedText",
+            "Play Protect certified text", Recert,
+            SettingKind.Text, ApplyTier.RestartRequired, Sensitivity.Plain) { Default = "Device is certified" },
+        new("device_recert.profile_desc", "DeviceRecert__ProfileDesc", "Profile description", Recert,
+            SettingKind.Text, ApplyTier.RestartRequired, Sensitivity.Plain),
+        new("device_recert.settings_label", "DeviceRecert__SettingsLabel", "Settings label", Recert,
+            SettingKind.Text, ApplyTier.RestartRequired, Sensitivity.Plain),
+        new("device_recert.about_label", "DeviceRecert__AboutLabel", "About label", Recert,
+            SettingKind.Text, ApplyTier.RestartRequired, Sensitivity.Plain),
+
+        new("gms_first_run.tos_text", "GmsFirstRun__TosText", "Terms of Service text", Gms,
+            SettingKind.Text, ApplyTier.RestartRequired, Sensitivity.Plain) { Default = "Terms of Service" },
+        new("gms_first_run.accept_label", "GmsFirstRun__AcceptLabel", "Accept label", Gms,
+            SettingKind.Text, ApplyTier.RestartRequired, Sensitivity.Plain) { Default = "Accept" },
+        new("gms_first_run.backup_prompt_text", "GmsFirstRun__BackupPromptText", "Backup prompt text", Gms,
+            SettingKind.Text, ApplyTier.RestartRequired, Sensitivity.Plain) { Default = "Copy apps & data" },
+        new("gms_first_run.skip_backup_label", "GmsFirstRun__SkipBackupLabel", "Skip backup label", Gms,
+            SettingKind.Text, ApplyTier.RestartRequired, Sensitivity.Plain) { Default = "Skip" },
+        new("gms_first_run.sign_in_prompt_text", "GmsFirstRun__SignInPromptText", "Sign in prompt text", Gms,
+            SettingKind.Text, ApplyTier.RestartRequired, Sensitivity.Plain) { Default = "Sign in" },
+        new("gms_first_run.skip_sign_in_label", "GmsFirstRun__SkipSignInLabel", "Skip sign in label", Gms,
+            SettingKind.Text, ApplyTier.RestartRequired, Sensitivity.Plain) { Default = "Skip" }
+    ];
+
+    public IReadOnlyList<SettingDescriptor> Describe() => Descriptors;
+}

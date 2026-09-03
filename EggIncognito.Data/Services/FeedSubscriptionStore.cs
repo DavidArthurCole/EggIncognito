@@ -79,7 +79,6 @@ public sealed class FeedSubscriptionStore(EggIncognitoDbContext db) : IFeedSubsc
             .Where(s => s.Id == id && s.OwnerUserId == ownerUserId)
             .ExecuteDeleteAsync(ct) > 0;
 
-
     public async Task<bool> UpdateAsync(
         int id, Guid ownerUserId, string[] platforms, string trigger, bool active, string? messageTemplate,
         string[] filters, CancellationToken ct = default) {

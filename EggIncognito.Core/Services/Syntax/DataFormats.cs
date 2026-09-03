@@ -36,7 +36,6 @@ public static partial class DataFormats {
 
     private static bool IsContainer(JsonNode? v) => v is JsonObject or JsonArray;
 
-
     public static string JsonToText(string? jsonStr, string fmt) {
         if (string.IsNullOrEmpty(jsonStr)) return "";
         JsonNode? value;
@@ -165,7 +164,6 @@ public static partial class DataFormats {
 
     private static string JsonString(string s) => JsonSerializer.Serialize(s);
 
-
     public static byte[] BytesFromBase64(string? b64) {
         if (string.IsNullOrEmpty(b64)) return [];
         string s = b64.Trim().Replace(' ', '+');
@@ -177,7 +175,6 @@ public static partial class DataFormats {
             return [];
         }
     }
-
 
     public static DumpText HexDump(byte[] bytes) {
         if (bytes.Length == 0) return new DumpText("(empty)", [""]);
@@ -207,7 +204,6 @@ public static partial class DataFormats {
 
         return new DumpText(string.Join("\n", lines), labels);
     }
-
 
     public static DumpText BinDump(byte[] bytes) {
         if (bytes.Length == 0) return new DumpText("(empty)", [""]);

@@ -33,7 +33,6 @@ public class TarReaderTests {
         Assert.Equal("Atlas", r.Assets[0].Key);
     }
 
-
     private static byte[] BuildTar(params (string Name, byte[] Data)[] files) {
         using var ms = new MemoryStream();
         foreach ((string name, byte[] data) in files) {

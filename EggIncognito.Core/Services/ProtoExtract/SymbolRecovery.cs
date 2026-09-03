@@ -19,13 +19,11 @@ public static class SymbolRecovery {
         var refSyms = MachoSymbols.Read(symbolizedRef);
         if (refSyms.Count == 0) return None(interestNeedles, "reference has no symbols");
 
-
         if (rSize == tSize && rSize > 0 && SpanEqual(symbolizedRef, rOff, strippedTarget, tOff, rSize)) {
             var (found0, missing0) = Partition(refSyms, interestNeedles);
             return new RecoveryReport("exact-transplant", refSyms.Count, refSyms, found0, missing0,
                 "ok: identical __text");
         }
-
 
         (var recovered, int looseCount) =
             ContentHashRecover(symbolizedRef, rOff, rVm, refSyms, strippedTarget, tOff, tSize, tVm);
@@ -37,13 +35,11 @@ public static class SymbolRecovery {
         return new RecoveryReport(tier, recovered.Count, recovered, found, missing, diag);
     }
 
-
     private static (List<MachoSymbols.Symbol> Recovered, int LooseCount) ContentHashRecover(
         byte[] refBin, int rOff, ulong rVm, IReadOnlyList<MachoSymbols.Symbol> refSyms,
         byte[] tgtBin, int tOff, int tSize, ulong tVm) {
         ulong rSlide = rVm - (ulong)rOff;
         var ranges = FunctionRanges(refSyms, rVm, rVm + (ulong)refBin.Length);
-
 
         var byPrefix = new Dictionary<ulong, List<RefFunc>>();
         foreach ((string name, ulong start, ulong end) in ranges) {
@@ -63,7 +59,6 @@ public static class SymbolRecovery {
         var recovered = new List<MachoSymbols.Symbol>();
         var usedNames = new HashSet<string>(StringComparer.Ordinal);
         var usedFullHashes = new HashSet<ulong>();
-
 
         var starts = MachoFunctionStarts.Read(tgtBin);
 
@@ -96,7 +91,6 @@ public static class SymbolRecovery {
         int looseCount = LooseRecover(refBin, rSlide, ranges, tgtBin, tOff, tEnd, tVm, Offsets, usedNames, recovered);
         return (recovered, looseCount);
     }
-
 
     private static int LooseRecover(byte[] refBin, ulong rSlide,
         List<(string Name, ulong Start, ulong End)> ranges, byte[] tgtBin, int tOff, int tEnd, ulong tVm,
@@ -141,7 +135,6 @@ public static class SymbolRecovery {
         return looseCount;
     }
 
-
     private static ulong FnvFull(byte[] norm) {
         ulong h = 1469598103934665603UL;
         for (int i = 0; i < norm.Length; i++) {
@@ -151,7 +144,6 @@ public static class SymbolRecovery {
 
         return h;
     }
-
 
     private static ulong FnvPrefix(byte[] norm) {
         ulong h = 1469598103934665603UL;
@@ -163,7 +155,6 @@ public static class SymbolRecovery {
 
         return h;
     }
-
 
     private static ulong FnvNormalizedPrefixAt(byte[] bin, int off, bool loose) {
         ulong h = 1469598103934665603UL;
@@ -183,7 +174,6 @@ public static class SymbolRecovery {
         return h;
     }
 
-
     private static bool NormalizedEquals(byte[] tgt, int off, byte[] norm, bool loose) {
         for (int i = 0; i + 4 <= norm.Length; i += 4) {
             uint w = NormalizeWord((uint)(tgt[off + i] | (tgt[off + i + 1] << 8) | (tgt[off + i + 2] << 16) |
@@ -196,7 +186,6 @@ public static class SymbolRecovery {
 
         return true;
     }
-
 
     private static List<(string Name, ulong Start, ulong End)> FunctionRanges(
         IReadOnlyList<MachoSymbols.Symbol> syms, ulong textVm, ulong textEnd) {
@@ -215,7 +204,6 @@ public static class SymbolRecovery {
     private static int CountTextFuncs(IReadOnlyList<MachoSymbols.Symbol> syms, ulong textVm, int textSize)
         => FunctionRanges(syms, textVm, textVm + (ulong)textSize).Count;
 
-
     private static byte[] NormalizeRange(byte[] bin, int off, int len, bool loose) {
         byte[] c = new byte[len];
         Array.Copy(bin, off, c, 0, len);
@@ -230,7 +218,6 @@ public static class SymbolRecovery {
 
         return c;
     }
-
 
     private static uint NormalizeWord(uint w, bool loose) {
         uint top6 = w >> 26;

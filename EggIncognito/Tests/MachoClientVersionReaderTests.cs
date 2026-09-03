@@ -33,7 +33,6 @@ public class MachoClientVersionReaderTests {
         Assert.Null(MachoClientVersionReader.Pick(cands, null));
     }
 
-
     [Fact]
     public void Candidates_RequiresThreeDistinctSites() {
         var insns = new List<Arm64Insn>();

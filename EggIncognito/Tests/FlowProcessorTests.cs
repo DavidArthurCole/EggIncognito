@@ -58,7 +58,6 @@ public sealed class FlowProcessorTests : IDisposable {
         var decoder = new FlowDecoder(root);
         var proc = new FlowProcessor(extractor, decoder, new HarWriter(), root);
 
-
         var dash = proc.Process(new CapturedFlow(Url, "POST", 404, null, WrappedResponseB64()));
 
         Assert.Equal(Slug, dash.Path);

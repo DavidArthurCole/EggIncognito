@@ -1,8 +1,10 @@
+using EggIdentity.Settings.Store;
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using EggIncognito.Models.Devices;
 using EggIncognito.Services.Auth;
+using EggIncognito.Services.Config;
 using EggIncognito.Services.Devices;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -36,8 +38,11 @@ public sealed class VirtualDevicesController(
     private ImageBuildStore? BuildStore =>
         services.GetService(typeof(ImageBuildStore)) as ImageBuildStore;
 
-    private AppSettingStore? Settings =>
-        services.GetService(typeof(AppSettingStore)) as AppSettingStore;
+    private SettingsStore? Settings =>
+        services.GetService(typeof(SettingsStore)) as SettingsStore;
+
+    private SettingsAdminService? SettingsAdmin =>
+        services.GetService(typeof(SettingsAdminService)) as SettingsAdminService;
 
     [HttpGet]
     [EnableRateLimiting("read")]
@@ -125,7 +130,9 @@ public sealed class VirtualDevicesController(
     [EnableRateLimiting("read")]
     public async Task<IActionResult> ListImages(CancellationToken ct) {
         if (Images is not { } images) return StatusCode(503, new { error = "image builds are not registered here" });
-        string? active = Settings is { } s ? await s.GetAsync(AppSettingStore.VirtualImageOverrideKey, ct) : null;
+        string? active = Settings is { } s
+            ? (await s.GetAsync(SettingKeys.VirtualImageOverride, ct))?.Value
+            : null;
         var listed = await images.ListAsync("redroid/redroid:*", ct);
         var rows = new List<ImageRow>();
         foreach (var img in listed.Value ?? []) {
@@ -164,9 +171,11 @@ public sealed class VirtualDevicesController(
 
     [HttpPost("images/use")]
     public async Task<IActionResult> UseImage([FromBody] ImageUseRequest? request, CancellationToken ct) {
-        if (Settings is not { } settings) return StatusCode(503, new { error = "no database configured" });
+        if (SettingsAdmin is not { } admin) return StatusCode(503, new { error = "no database configured" });
         if (request?.Tag is not { Length: > 0 } tag) return BadRequest(new { error = "a tag is required" });
-        await settings.SetAsync(AppSettingStore.VirtualImageOverrideKey, tag, ct);
+
+        var saved = await admin.SaveAsync(SettingKeys.VirtualImageOverride, tag, User.Identity?.Name, ct);
+        if (!saved.Ok) return BadRequest(new VirtualActionResult(false, DeviceOutcomes.Error, tag, saved.Error));
         return Ok(new VirtualActionResult(true, DeviceOutcomes.Ok, null, $"active image set to {tag}"));
     }
 
@@ -176,10 +185,10 @@ public sealed class VirtualDevicesController(
         if (request?.Tag is not { Length: > 0 } tag) return BadRequest(new { error = "a tag is required" });
 
         var removed = await images.RemoveAsync(tag, ct);
-        if (removed.Ok && Settings is { } settings) {
-            string? active = await settings.GetAsync(AppSettingStore.VirtualImageOverrideKey, ct);
-            if (string.Equals(active, tag, StringComparison.Ordinal))
-                await settings.ClearAsync(AppSettingStore.VirtualImageOverrideKey, ct);
+        if (removed.Ok && Settings is { } settings && SettingsAdmin is { } admin) {
+            var active = await settings.GetAsync(SettingKeys.VirtualImageOverride, ct);
+            if (string.Equals(active?.Value, tag, StringComparison.Ordinal))
+                await admin.SaveAsync(SettingKeys.VirtualImageOverride, null, User.Identity?.Name, ct);
         }
 
         var payload = new VirtualActionResult(removed.Ok, DeviceOutcomes.Label(removed.Outcome), tag, removed.Note);

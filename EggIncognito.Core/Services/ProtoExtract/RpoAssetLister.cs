@@ -5,7 +5,6 @@ namespace EggIncognito.Core.Services.ProtoExtract;
 public static class RpoAssetLister {
     private const long MaxEntryBytes = 50_000_000L;
 
-
     public static IReadOnlyList<string> ListStems(byte[] archiveZipBytes) {
         var stems = new SortedSet<string>(StringComparer.Ordinal);
         ForEachRpoEntry(archiveZipBytes, (stem, _) => {
@@ -14,7 +13,6 @@ public static class RpoAssetLister {
         });
         return stems.ToList();
     }
-
 
     public static byte[]? ReadStem(byte[] archiveZipBytes, string stem) {
         byte[]? found = null;
@@ -25,7 +23,6 @@ public static class RpoAssetLister {
         });
         return found;
     }
-
 
     private static void ForEachRpoEntry(byte[] zipBytes, Func<string, Func<byte[]>, bool> visit) {
         if (zipBytes is null || zipBytes.Length == 0) return;

@@ -17,10 +17,8 @@ public sealed class CaptureHub {
 
     private readonly Lock _gate = new();
 
-
     private readonly Dictionary<string, RememberedDevice> _known = [with(StringComparer.Ordinal)];
     private readonly List<Channel<CaptureEnvelope>> _subscribers = [];
-
 
     private int _activeConnections;
     private long _bytesCaptured;
@@ -31,18 +29,15 @@ public sealed class CaptureHub {
     private string? _lastError;
     private string? _lastGameVersion;
 
-
     private string? _lastOs;
     private long _nextId;
     private int _passthrough;
     private int _proxyPort;
 
-
     private bool _proxyRunning;
     private bool _sawAuxbrainConnect;
 
     public Action? DevicesChanged { get; set; }
-
 
     public bool Paused { get; set; }
 
@@ -51,7 +46,6 @@ public sealed class CaptureHub {
             lock (_gate) return _subscribers.Count > 0;
         }
     }
-
 
     public DashboardFlow? Publish(DashboardFlow flow, string timestamp, bool isAuxbrain = true) {
         DashboardFlow? stored = null;
@@ -67,7 +61,6 @@ public sealed class CaptureHub {
                 if (os is not null) _lastOs = os;
                 if (gameVersion is not null) _lastGameVersion = gameVersion;
 
-
                 if (_devices.Count == 1 && (os is not null || gameVersion is not null)) {
                     var only = _devices.Values.First();
                     only.Os = os ?? only.Os;
@@ -78,7 +71,6 @@ public sealed class CaptureHub {
                 _bytesCaptured += bytes;
                 if (!string.IsNullOrEmpty(flow.Path))
                     _bytesByEndpoint[flow.Path] = _bytesByEndpoint.GetValueOrDefault(flow.Path) + bytes;
-
 
                 if (_certState != CertState.Trusted) {
                     _certState = CertState.Trusted;
@@ -106,7 +98,6 @@ public sealed class CaptureHub {
 
         return stored;
     }
-
 
     public void RecordConnection(int activeCount, string? ip, string timestamp) {
         CaptureEvent? notice = null;
@@ -144,7 +135,6 @@ public sealed class CaptureHub {
         lock (_gate) {
             _activeConnections = activeCount;
 
-
             if (activeCount == 0) {
                 foreach (var d in _devices.Values)
                     d.Online = false;
@@ -156,7 +146,6 @@ public sealed class CaptureHub {
         DevicesChanged?.Invoke();
         BroadcastStats();
     }
-
 
     private async Task ResolveHostnameAsync(string ip) {
         string? host = null;
@@ -177,12 +166,10 @@ public sealed class CaptureHub {
         BroadcastStats();
     }
 
-
     public void RecordAuxbrainConnect() {
         lock (_gate) _sawAuxbrainConnect = true;
         BroadcastStats();
     }
-
 
     public void RecordDecryptError(string message, string timestamp) {
         lock (_gate) {
@@ -264,7 +251,6 @@ public sealed class CaptureHub {
             _proxyPort);
     }
 
-
     private static (string? Os, string? GameVersion) ParseRInfo(string? requestJson) {
         if (string.IsNullOrEmpty(requestJson)) return (null, null);
         try {
@@ -285,7 +271,6 @@ public sealed class CaptureHub {
         }
     }
 
-
     private static string OsLabel(string? platform) => platform?.ToUpperInvariant() switch {
         "IOS" => "iOS",
         "DROID" or "ANDROID" => "Android",
@@ -293,14 +278,12 @@ public sealed class CaptureHub {
         _ => platform
     };
 
-
     public void SeedKnownDevices(IReadOnlyList<RememberedDevice> devices) {
         lock (_gate) {
             _known.Clear();
             foreach (var d in devices) _known[d.Ip] = d;
         }
     }
-
 
     public IReadOnlyList<RememberedDevice> SnapshotRememberedDevices() {
         lock (_gate) {
@@ -333,7 +316,6 @@ public sealed class CaptureHub {
         }
     }
 
-
     public void MarkSaved(long id) {
         DashboardFlow? updated = null;
         lock (_gate) {
@@ -360,7 +342,6 @@ public sealed class CaptureHub {
 
         BroadcastStats();
     }
-
 
     public void PostNotice(CaptureEvent notice) =>
         Broadcast(new CaptureEnvelope(KindNotice, null, null, notice));
@@ -397,10 +378,8 @@ public sealed class CaptureHub {
         ch.Writer.TryComplete();
     }
 
-
     private static long ApproxBytes(DashboardFlow flow) =>
         (flow.ResponseB64?.Length ?? 0) + (flow.RequestDataB64?.Length ?? 0);
-
 
     private sealed class Device(string ip, string firstSeen) {
         public string Ip { get; } = ip;

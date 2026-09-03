@@ -12,7 +12,6 @@ public static class ProtoFraming {
         return Convert.FromBase64String(s);
     }
 
-
     public static byte[] Decompress(byte[] compressed) {
         if (compressed.Length >= 2 && compressed[0] == 0x1f && compressed[1] == 0x8b)
             return Inflate(compressed, input => new GZipStream(input, CompressionMode.Decompress));
@@ -22,7 +21,6 @@ public static class ProtoFraming {
                ?? compressed;
     }
 
-
     private static byte[] Inflate(byte[] compressed, Func<Stream, Stream> wrap) {
         using var input = new MemoryStream(compressed);
         using var decompressor = wrap(input);
@@ -30,7 +28,6 @@ public static class ProtoFraming {
         decompressor.CopyTo(output);
         return output.ToArray();
     }
-
 
     private static byte[]? TryInflate(byte[] compressed, Func<Stream, Stream> wrap) {
         try {
@@ -40,12 +37,10 @@ public static class ProtoFraming {
         }
     }
 
-
     public static byte[] Unwrap(byte[] bytes) {
         var outer = AuthenticatedMessage.Parser.ParseFrom(bytes);
         return outer.Compressed ? Decompress(outer.Message.ToByteArray()) : outer.Message.ToByteArray();
     }
-
 
     public static byte[]? TryUnwrap(byte[] bytes) {
         try {

@@ -60,7 +60,6 @@ public static class ParticleCaptureModel {
         }
     }
 
-
     private static Cluster Summarize(string mesh, List<Sample> samples) {
         int n = samples.Count;
         double cx = 0, cy = 0, cz = 0, sizeSum = 0;
@@ -95,11 +94,9 @@ public static class ParticleCaptureModel {
         return new Cluster(mesh, n, centroid, (float)(radSum / n), bob, (float)(sizeSum / n));
     }
 
-
     private static (float X, float Y, float Z) Translation(float[] m) => (m[9], m[10], m[11]);
 
     public readonly record struct Sample(int T, string Mesh, float[] Transform, float Size);
-
 
     public readonly record struct Cluster(
         string Mesh,

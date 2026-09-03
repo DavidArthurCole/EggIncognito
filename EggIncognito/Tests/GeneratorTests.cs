@@ -46,7 +46,6 @@ public class GeneratorTests {
         Assert.True(e[0].RequestWrapped);
         Assert.True(e[0].ResponseWrapped);
 
-
         Assert.Null(e[1].Request);
         Assert.True(e[1].PathParamOnly);
         Assert.Equal("UserSubscriptionInfo", e[1].Response);
@@ -71,7 +70,6 @@ public class GeneratorTests {
 
         var e = RouteParser.Parse(yaml);
 
-
         Assert.Equal("SomeRequest", e[0].Request);
         Assert.Null(e[0].Response);
         Assert.Equal("AuthenticatedMessage", e[0].MockResponseType);
@@ -92,7 +90,6 @@ public class GeneratorTests {
                             """;
 
         var e = RouteParser.Parse(yaml)[0];
-
 
         Assert.Null(e.Request);
         Assert.True(e.RequestWrapped);

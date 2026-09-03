@@ -74,7 +74,6 @@ public class CapturePageTests {
 
             cut.Find(".jtree-search").Input("alpha");
 
-
             cut.WaitForAssertion(() => {
                 Assert.Contains("<mark>", cut.Markup);
                 Assert.Contains("jtree-dim", cut.Markup);

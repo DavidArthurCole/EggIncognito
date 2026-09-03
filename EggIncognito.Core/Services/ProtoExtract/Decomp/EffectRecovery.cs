@@ -19,7 +19,6 @@ public static class EffectRecovery {
         var seed = new Dictionary<string, ExprNode> { ["s0"] = new Input("t"), ["x1"] = new Input("particleIndex") };
         var exec = Arm64SymbolicExecutor.Run(code, fn, syms, seed, KnownCallModels.Resolve);
 
-
         ExprNode? placement = null;
         if (exec.SinkStackPtr is { } baseOff) {
             var cells = new ExprNode[16];

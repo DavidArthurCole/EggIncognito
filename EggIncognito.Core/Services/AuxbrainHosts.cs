@@ -11,7 +11,6 @@ public static class AuxbrainHosts {
         "auxbrainhome.appspot.com"
     ];
 
-
     public static string OriginForPath(string? path) {
         if (string.IsNullOrEmpty(path)) return Origin;
         string trimmed = path.TrimStart('/');
@@ -21,7 +20,6 @@ public static class AuxbrainHosts {
 
         return Origin;
     }
-
 
     public static bool IsAuxbrain(string host) {
         host = NormalizeHost(host);
@@ -46,10 +44,8 @@ public static class AuxbrainHosts {
         return false;
     }
 
-
     public static string NormalizeHost(string authority) {
         if (string.IsNullOrEmpty(authority) || authority.Contains('/')) return "";
-
 
         if (authority[0] == '[') {
             int close = authority.IndexOf(']');

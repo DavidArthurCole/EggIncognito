@@ -13,7 +13,6 @@ public class WireBodyTests {
         return o.ToArray();
     }
 
-
     private static string AuthMessageB64() =>
         Convert.ToBase64String(new AuthenticatedMessage { Message = ByteString.CopyFrom([1, 2, 3]) }.ToByteArray());
 

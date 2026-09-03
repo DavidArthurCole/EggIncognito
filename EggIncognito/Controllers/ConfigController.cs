@@ -54,7 +54,6 @@ public sealed class ConfigController(
             return Ok(new { ok = false, diagnostics = $"not valid base64: {ex.Message}" });
         }
 
-
         var cfg = BestConfig(bytes);
         return cfg is null
             ? Ok(new { ok = false, diagnostics = "could not parse as a ConfigResponse (wrapped or direct)" })

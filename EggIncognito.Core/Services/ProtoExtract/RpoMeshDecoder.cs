@@ -12,7 +12,6 @@ public static class RpoMeshDecoder {
 
     public static DecodeResult Decode(byte[] data) => Decode(data, null);
 
-
     public static DecodeResult Decode(byte[] data, string? name) {
         if (data is null || data.Length < 12) return Fail("input too short");
 
@@ -43,11 +42,9 @@ public static class RpoMeshDecoder {
         bool hasEmission = strides.Count >= 2 && strides[1] >= 3;
         byte[] glb = BuildGlb(rpo, strides, vertexCount, indexCount, dataStart, vertexBytes, indexBytes, bounds, name);
 
-
         long trailing = rpo.Length - (dataStart + vertexBytes + indexBytes);
         return new DecodeResult(true, glb, "ok", vertexCount, indexCount, bounds, hasEmission, trailing);
     }
-
 
     private static byte[] Inflate(byte[] data) {
         bool zlib = data.Length >= 2 && data[0] == 0x78 && (data[1] == 0x9C || data[1] == 0x01 || data[1] == 0xDA);
@@ -73,7 +70,6 @@ public static class RpoMeshDecoder {
             return data;
         }
     }
-
 
     private static bool ScanStrides(byte[] rpo, int indexCount, out List<int> strides, out int dataStart) {
         strides = [];
@@ -116,7 +112,6 @@ public static class RpoMeshDecoder {
         return new BBox(new Vec3(minX, minY, minZ), new Vec3(maxX, maxY, maxZ));
     }
 
-
     private static byte[] BuildGlb(byte[] rpo, List<int> strides, int vertexCount, int indexCount,
         int dataStart, long vertexBytes, long indexBytes, BBox bounds, string? name) {
         int binLen = (int)(vertexBytes + indexBytes);
@@ -132,7 +127,6 @@ public static class RpoMeshDecoder {
         var bufferViews = new List<object>();
         var accessors = new List<object>();
         var attributes = new Dictionary<string, int>();
-
 
         int vertexView = bufferViews.Count;
         bufferViews.Add(new Dictionary<string, object> {
@@ -162,7 +156,6 @@ public static class RpoMeshDecoder {
 
             int accessorIndex = accessors.Count;
             accessors.Add(accessor);
-
 
             if (i == 0) attributes["POSITION"] = accessorIndex;
             else if (i == 1 && s >= 3) attributes["COLOR_0"] = accessorIndex;
@@ -216,7 +209,6 @@ public static class RpoMeshDecoder {
         return PackGlb(json, jsonPad, bin);
     }
 
-
     private static byte[] PackGlb(byte[] json, int jsonPad, byte[] bin) {
         int jsonChunkLen = json.Length + jsonPad;
         int total = 12 + 8 + jsonChunkLen + 8 + bin.Length;
@@ -243,7 +235,6 @@ public static class RpoMeshDecoder {
     public sealed record Vec3(float X, float Y, float Z);
 
     public sealed record BBox(Vec3 Min, Vec3 Max);
-
 
     public sealed record DecodeResult(
         bool Ok,

@@ -3,6 +3,7 @@
 @using EggIncognito.Core.Services.Devices
 @using EggIncognito.Models.Devices
 @inherits BrowserApiComponentBase
+@inject AdminWorkbenchState State
 
 <div class="admin-pane-head">
     <h2 class="admin-pane-title">Virtual devices</h2>
@@ -260,7 +261,7 @@
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
         try {
             while (await timer.WaitForNextTickAsync(ct)) {
-                if (_busy || !await Vis.IsVisibleAsync()) continue;
+                if (_busy || State.SelectedPane != AdminPanes.VirtualDevices || !await Vis.IsVisibleAsync()) continue;
                 await Load(true);
                 await InvokeAsync(StateHasChanged);
             }

@@ -48,7 +48,6 @@ public sealed record HostedCaptureOptions(
     private static int Int(string? raw, int fallback) =>
         int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out int v) ? v : fallback;
 
-
     public bool IsExtraAllowed(string host) {
         foreach (string h in ExtraAllowedHosts) {
             if (host.Equals(h, StringComparison.OrdinalIgnoreCase) ||

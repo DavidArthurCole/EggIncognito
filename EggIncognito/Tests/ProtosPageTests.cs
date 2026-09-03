@@ -29,7 +29,6 @@ public class ProtosPageTests {
             Assert.Contains("blazor.web.js", await r.Content.ReadAsStringAsync());
         }
 
-
         [Fact]
         public async Task ProtoDataRoute_StillResponds() =>
             Assert.Equal(HttpStatusCode.OK, (await _f.CreateClient().GetAsync("/protodata")).StatusCode);
@@ -38,7 +37,6 @@ public class ProtosPageTests {
         public async Task SubscribeRoute_StillResponds() =>
             Assert.Equal(HttpStatusCode.OK, (await _f.CreateClient().GetAsync("/protos/subscribe")).StatusCode);
     }
-
 
     public class Component : BunitContext {
         private void Wire(UserRole role) {

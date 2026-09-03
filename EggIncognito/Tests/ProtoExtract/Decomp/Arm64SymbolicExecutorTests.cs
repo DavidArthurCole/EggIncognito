@@ -49,7 +49,6 @@ public class Arm64SymbolicExecutorTests {
         Assert.Equal(1, opaque);
     }
 
-
     private static uint MovReg(int d, int m) => 0xAA0003E0u | ((uint)(m & 31) << 16) | (uint)(d & 31);
 
     private static uint StrS(int t, int n, uint imm) =>
