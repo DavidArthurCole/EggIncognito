@@ -14,4 +14,5 @@ public sealed record DeviceRow(
     string Result,
     string? Note,
     DateTimeOffset ProbedAt,
-    int? ClientVersion);
+    int? ClientVersion,
+    bool Virtual = false);

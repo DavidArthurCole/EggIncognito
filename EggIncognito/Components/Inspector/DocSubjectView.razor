@@ -1,15 +1,34 @@
 @using System.Text.Json
 @using EggIncognito.Services.Inspector
 @inherits SelfCallComponentBase
+@inject ICurrentUser User
+@inject AdminNotifier Notifier
 
 <div class="doc-head">
     <h2 class="doc-title">@Title</h2>
     <span class="tag-chips">
         @foreach (var t in _tags) {
-            <span class="doc-tag" style="@TagStyle(t.Color)">@t.Label</span>
+            @if (_canTag) {
+                <button type="button" class="doc-tag doc-tag-btn" style="@TagStyle(t.Color)"
+                        title="Detach @t.Label" disabled="@_busy" @onclick="() => Detach(t.Id)">
+                    @t.Label &times;
+                </button>
+            } else {
+                <span class="doc-tag" style="@TagStyle(t.Color)">@t.Label</span>
+            }
+        }
+        @if (_canTag && Attachable().Count > 0) {
+            <select @key="@_tags.Count" class="doc-tag-add" aria-label="Attach a tag" value=""
+                    disabled="@_busy" @onchange="Attach">
+                <option value="">attach...</option>
+                @foreach (var t in Attachable()) {
+                    <option value="@t.Id">@t.Label</option>
+                }
+            </select>
         }
     </span>
 </div>
+<PaneNotice @ref="_notice"/>
 
 @if (Aside is not null) {
     @Aside
@@ -38,13 +57,23 @@
 
     static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
+    PaneNotice? _notice;
+
     string? _bodyMd;
     List<TagRow> _tags = [];
+    List<TagRow> _allTags = [];
     string? _loadedFor;
+    bool _canTag;
+    bool _busy;
 
     string Slug => DocSubjectKinds.Slug(Kind);
 
     string _editorKey = "";
+
+    protected override void OnInitialized() {
+        base.OnInitialized();
+        _canTag = User.IsAtLeast(UserRole.Admin);
+    }
 
     protected override async Task OnParametersSetAsync() {
         var subject = Slug + "/" + Key;
@@ -55,6 +84,53 @@
         _tags = [];
         await LoadAsync($"/api/docs/doc/{Slug}/{Uri.EscapeDataString(Key)}",
             $"/api/docs/subject-tags/{Slug}/{Uri.EscapeDataString(Key)}");
+        if (_canTag) await LoadAllTags();
+    }
+
+    List<TagRow> Attachable() {
+        return _allTags.Where(t => _tags.TrueForAll(a => a.Id != t.Id)).ToList();
+    }
+
+    async Task LoadAllTags() {
+        try {
+            _allTags = await Client().GetFromJsonAsync<List<TagRow>>("/api/docs/tags", JsonOpts) ?? [];
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException) {
+            _allTags = [];
+        }
+    }
+
+    Task Attach(ChangeEventArgs e) {
+        if (!long.TryParse(e.Value?.ToString(), out long id)) return Task.CompletedTask;
+        return SetTags([.. _tags.Select(t => t.Id), id]);
+    }
+
+    Task Detach(long id) {
+        return SetTags([.. _tags.Select(t => t.Id).Where(x => x != id)]);
+    }
+
+    async Task SetTags(long[] tagIds) {
+        _busy = true;
+        _notice?.Clear();
+        try {
+            var res = await Client().PostAsJsonAsync("/api/docs/subject-tags",
+                new { subjectKind = Slug, subjectKey = Key, tagIds }, JsonOpts);
+            if (res.IsSuccessStatusCode) {
+                _tags = _allTags.Where(t => tagIds.Contains(t.Id)).OrderBy(t => t.Label, StringComparer.Ordinal)
+                    .ToList();
+                Notifier.Publish(AdminTopics.Tags);
+            } else {
+                _notice?.Fail((int)res.StatusCode == 403
+                    ? "Not authorized."
+                    : $"Tag update failed: HTTP {(int)res.StatusCode}");
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException) {
+            _notice?.Fail($"Tag update failed: {ex.Message}");
+        }
+        finally {
+            _busy = false;
+        }
     }
 
     async Task LoadAsync(string docUrl, string tagsUrl) {

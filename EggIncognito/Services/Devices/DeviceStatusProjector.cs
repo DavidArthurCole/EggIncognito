@@ -39,7 +39,8 @@ public static class DeviceStatusProjector {
             probe?.StartedAt,
             !isAdmin || update is null
                 ? null
-                : new DeviceUpdateSummary(update.Outcome, update.Message, update.Trigger, update.StartedAt));
+                : new DeviceUpdateSummary(update.Outcome, update.Message, update.Trigger, update.StartedAt),
+            DeviceOrigins.IsVirtual(device.Origin));
     }
 
     private static string LiveResult(Device device, DeviceJobRow? probe, DeviceVersionIndex versions) {

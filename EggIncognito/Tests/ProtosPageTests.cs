@@ -3,11 +3,7 @@ using Bunit;
 using EggIdentity.Contract;
 using EggIncognito.Core.Services;
 using EggIncognito.Services;
-using EggIncognito.Services.Api;
-using EggIncognito.Services.Devices;
-using EggIncognito.Services.Events;
-using EggIncognito.Services.Notifications;
-using EggIncognito.Services.Protos;
+using EggIncognito.Services.Workbench;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -48,11 +44,7 @@ public class ProtosPageTests {
             Services.AddSingleton<IProtoReflection, ProtoReflection>();
             Services.AddSingleton<IAppMode>(new FakeAppMode());
             Services.AddSingleton<ISealedProxy>(new FakeSealedProxy());
-            Services.AddScoped<ProtoWorkbenchState>();
-            Services.AddScoped<DeviceWorkbenchState>();
-            Services.AddScoped<NotificationsWorkbenchState>();
-            Services.AddScoped<ApiWorkbenchState>();
-            Services.AddScoped<EventsWorkbenchState>();
+            Services.AddWorkbenchStates();
             Services.AddHttpClient();
 
             JSInterop.Mode = JSRuntimeMode.Loose;

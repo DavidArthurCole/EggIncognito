@@ -10,11 +10,14 @@ public sealed class DeviceTimelineCache(IServiceScopeFactory scopes) : IDeviceJo
     private sealed class Entry {
         public List<DeviceJobRow> Jobs = [];
         public ConcurrentDictionary<long, IReadOnlyList<DeviceJobLineRow>> Lines = new();
-        public long Watermark;
         public bool Loaded;
     }
 
     private readonly ConcurrentDictionary<string, Entry> _byDevice = new(StringComparer.OrdinalIgnoreCase);
+
+    private readonly ConcurrentDictionary<string, (long Mark, int Unfinished)> _observed =
+        new(StringComparer.OrdinalIgnoreCase);
+
     private readonly SemaphoreSlim _gate = new(1, 1);
 
     public static bool NeedsRefill(long cached, long observed) => cached != observed;
@@ -32,6 +35,13 @@ public sealed class DeviceTimelineCache(IServiceScopeFactory scopes) : IDeviceJo
         var e = await LoadAsync(deviceId, ct);
         var rows = string.IsNullOrEmpty(kind) ? e.Jobs : [.. e.Jobs.Where(j => j.Kind == kind)];
         return [.. rows.Take(n)];
+    }
+
+    public async Task<IReadOnlyList<DeviceJobRow>> PageAsync(string deviceId, int n, long? before,
+        CancellationToken ct) {
+        using var scope = scopes.CreateScope();
+        var store = scope.ServiceProvider.GetRequiredService<DeviceJobStore>();
+        return await store.PageAsync(deviceId, n, before, null, ct);
     }
 
     public async Task<IReadOnlyList<DeviceJobLineRow>> LinesAsync(string deviceId, long jobId,
@@ -85,13 +95,20 @@ public sealed class DeviceTimelineCache(IServiceScopeFactory scopes) : IDeviceJo
         return outRows;
     }
 
-    public async Task RefreshMovedAsync(CancellationToken ct) {
+    public async Task<bool> RefreshMovedAsync(CancellationToken ct) {
         using var scope = scopes.CreateScope();
         var store = scope.ServiceProvider.GetRequiredService<DeviceJobStore>();
         var marks = await store.WatermarksAsync(ct);
-        foreach (var (deviceId, mark) in marks) {
-            if (_byDevice.TryGetValue(deviceId, out var e) && NeedsRefill(e.Watermark, mark)) e.Loaded = false;
+        var moved = false;
+        foreach (var (deviceId, mark, unfinished) in marks) {
+            bool first = !_observed.TryGetValue(deviceId, out var prev);
+            _observed[deviceId] = (mark, unfinished);
+            if (first || (!NeedsRefill(prev.Mark, mark) && prev.Unfinished == unfinished)) continue;
+            if (_byDevice.TryGetValue(deviceId, out var e)) e.Loaded = false;
+            moved = true;
         }
+
+        return moved;
     }
 
     private async Task<Entry> LoadAsync(string deviceId, CancellationToken ct) {
@@ -105,7 +122,6 @@ public sealed class DeviceTimelineCache(IServiceScopeFactory scopes) : IDeviceJo
             var jobs = await store.HistoryAsync(deviceId, Keep, null, ct);
             e.Jobs = [.. jobs];
             e.Lines = new();
-            e.Watermark = jobs.Count == 0 ? 0 : jobs[0].Id;
             e.Loaded = true;
             return e;
         } finally {

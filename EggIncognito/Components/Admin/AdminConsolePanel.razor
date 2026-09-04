@@ -77,12 +77,15 @@
     string? _blobUrl;
     string? _downloadName;
 
-    protected override IReadOnlyList<string> Topics => [];
+    protected override IReadOnlyList<string> Topics => [AdminTopics.Console];
 
     protected override async Task LoadAsync() {
         if (Api is null) return;
         var res = await Api.GetAsync("/api/console/endpoints");
         _endpoints = res.Ok ? res.Json<ConsoleEndpointList>()?.Endpoints?.ToList() ?? [] : [];
+        if (_selected is null) return;
+        string key = Key(_selected);
+        _selected = _endpoints.FirstOrDefault(x => Key(x) == key);
     }
 
     IEnumerable<IGrouping<string, ConsoleEndpoint>> Grouped() {

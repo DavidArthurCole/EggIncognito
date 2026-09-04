@@ -9,6 +9,7 @@
 @using EggIdentity.UI
 @using EggIncognito.Components.Shared.Editor
 @using EggIncognito.Models.Notifications
+@using EggIncognito.Models.Protos
 @using EggIncognito.Services.Feed
 @using EggIncognito.Services.Notifications
 @implements IAsyncDisposable
@@ -139,6 +140,9 @@
     List<KindInfo> _kinds = [];
     List<NotificationRow>? _rows;
     List<PreviewRow>? _preview;
+
+    readonly Dictionary<int, List<FeedActivityRow>> _activity = [];
+    readonly HashSet<int> _activityOpen = [];
 
     NotificationRow? Current => State.Creating ? null : _rows?.FirstOrDefault(s => s.Id == State.SelectedId);
 
@@ -331,6 +335,9 @@
                                                                                              ValueChanged="@(v => OnTemplateChanged(d, v))"
                                                                                              Tokens="@VarsOf(d.EventKind)" Rows="4"/>
                                                                              @Preview()
+                                                                             @if (row is not null) {
+                                                                                 @Activity(row.Id, d.EventKind)
+                                                                             }
                                                                          </text>;
 
     RenderFragment Preview() => @<div class="nwb-preview">
@@ -356,6 +363,52 @@
                                         </WorkbenchLoad>
                                     </div>
                                 </div>;
+
+    RenderFragment Activity(int id, string? kind) => @<div class="nwb-preview">
+                                                         <div class="nwb-preview-head">
+                                                             <span class="nwb-k">Activity</span>
+                                                             <button type="button"
+                                                                     class="@(_activityOpen.Contains(id) ? "nwb-view on" : "nwb-view")"
+                                                                     aria-expanded="@(_activityOpen.Contains(id) ? "true" : "false")"
+                                                                     @onclick="@(() => ToggleActivity(id))">
+                                                                 @(_activityOpen.Contains(id) ? "Hide" : "History")
+                                                             </button>
+                                                         </div>
+                                                         @if (_activityOpen.Contains(id)) {
+                                                             <div class="nwb-preview-body">
+                                                                 @if (ActivityRows(id) is not { } rows) {
+                                                                     <div class="nwb-empty">Loading...</div>
+                                                                 } else if (rows.Count == 0) {
+                                                                     <div class="nwb-empty">
+                                                                         Nothing delivered or suppressed yet. The event this watches has not fired since
+                                                                         the subscription was created.
+                                                                     </div>
+                                                                 } else {
+                                                                     <div class="overflow-x-auto">
+                                                                         <table class="data-table">
+                                                                             <thead>
+                                                                             <tr>
+                                                                                 <th>When</th><th>Outcome</th><th>Event</th><th>Detail</th>
+                                                                             </tr>
+                                                                             </thead>
+                                                                             <tbody>
+                                                                             @foreach (var r in rows) {
+                                                                                 <tr>
+                                                                                     <td class="text-muted text-xs whitespace-nowrap">
+                                                                                         @r.At.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")
+                                                                                     </td>
+                                                                                     <td class="text-xs">@Outcome(r)</td>
+                                                                                     <td class="text-xs">@r.Event</td>
+                                                                                     <td class="text-muted text-xs">@Detail(kind, r)</td>
+                                                                                 </tr>
+                                                                             }
+                                                                             </tbody>
+                                                                         </table>
+                                                                     </div>
+                                                                 }
+                                                             </div>
+                                                         }
+                                                     </div>;
 
     RenderFragment AdminDetail() => @<text>
                                          @if (AdminCurrent is { } row) {
@@ -425,6 +478,7 @@
                                                      @(_confirmDelete ? "Confirm delete" : "Delete")
                                                  </button>
                                              </div>
+                                             @Activity(row.Id, row.EventKind)
                                          } else {
                                              <div class="text-muted text-sm">Select a notification.</div>
                                          }
@@ -605,6 +659,64 @@
         return LoadPreview();
     }
 
+    List<FeedActivityRow>? ActivityRows(int id) {
+        return _activity.GetValueOrDefault(id);
+    }
+
+    void ResetActivity() {
+        _activityOpen.Clear();
+        _activity.Clear();
+    }
+
+    static string Outcome(FeedActivityRow r) => r.Status switch {
+        "sent" => "delivered",
+        "failed" => "webhook rejected",
+        "blocked" => "suppressed by filter",
+        _ => r.Status
+    };
+
+    string Detail(string? kind, FeedActivityRow r) {
+        if (r.Reason is { Length: > 0 } reason) return FilterLabels(kind, reason);
+        if (r.ResponseCode is { } code) return $"HTTP {code}";
+        return r.Status == "failed" ? "no response from Discord" : "";
+    }
+
+    string FilterLabels(string? kind, string reason) {
+        var opts = FiltersOf(kind);
+        return string.Join(", ", reason
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(k => opts.FirstOrDefault(f => f.Key == k)?.Label ?? k));
+    }
+
+    async Task ToggleActivity(int id) {
+        if (!_activityOpen.Add(id)) {
+            _activityOpen.Remove(id);
+            return;
+        }
+
+        await LoadActivity(id);
+    }
+
+    async Task LoadActivity(int id) {
+        _activity.Remove(id);
+        StateHasChanged();
+        string url = AdminScope
+            ? $"/api/protos/feed/admin/{id}/activity"
+            : $"/api/protos/feed/{id}/activity";
+        try {
+            var res = await Client().GetAsync(url);
+            _activity[id] = res.IsSuccessStatusCode
+                ? await res.Content.ReadFromJsonAsync<List<FeedActivityRow>>(SelfCallJson.Web) ?? []
+                : [];
+            if (!res.IsSuccessStatusCode) Note($"Activity load failed ({(int)res.StatusCode}).", false);
+        }
+        catch (Exception ex) {
+            Logger.LogWarning(ex, "loading activity for notification {NotificationId} failed", id);
+            _activity[id] = [];
+            Note("Activity load failed.", false);
+        }
+    }
+
     void OnRailFilter(string value) {
         State.RailFilter = value;
     }
@@ -633,6 +745,7 @@
         State.SelectedId = null;
         _notice = null;
         _armed = false;
+        ResetActivity();
         await LoadPreview();
         await WriteHash();
     }
@@ -642,6 +755,7 @@
         State.SelectedId = row.Id;
         _notice = null;
         _armed = false;
+        ResetActivity();
         State.Edits.Remove(row.Id);
         Seed(row);
         await LoadPreview();
@@ -770,6 +884,7 @@
         _notice = null;
         _confirmDelete = false;
         _confirmTest = false;
+        ResetActivity();
     }
 
     async Task AdminTest(int id) {
@@ -829,6 +944,7 @@
             Note(res.IsSuccessStatusCode ? "Deleted." : "Delete failed.", res.IsSuccessStatusCode);
             if (res.IsSuccessStatusCode) {
                 _adminSelectedId = null;
+                ResetActivity();
                 await LoadAdmin();
             }
         }

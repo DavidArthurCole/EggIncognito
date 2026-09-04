@@ -10,15 +10,23 @@ public sealed class CaptureSessionManager(
     private readonly Lock _lock = new();
     private readonly Dictionary<string, CaptureSession> _sessions = [];
 
+    public event Action? Changed;
+
+    public event Action? StatsChanged;
+
     public CaptureSession GetOrCreate(string key, CaptureTier tier = CaptureTier.Full) {
+        CaptureSession created;
         lock (_lock) {
             if (_sessions.TryGetValue(key, out var s)) return s;
             if (key != LocalKey && AtCapacity(tier)) throw new CaptureCapacityException();
             int basePort = NextFreeBasePort();
-            var session = factory(key, basePort, tier);
-            _sessions[key] = session;
-            return session;
+            created = factory(key, basePort, tier);
+            created.Hub.StatsChanged += RaiseStatsChanged;
+            _sessions[key] = created;
         }
+
+        Changed?.Invoke();
+        return created;
     }
 
     public CaptureSession? Get(string key) {
@@ -30,8 +38,14 @@ public sealed class CaptureSessionManager(
     }
 
     public void Remove(string key) {
-        lock (_lock) _sessions.Remove(key);
+        CaptureSession? removed;
+        lock (_lock) _sessions.Remove(key, out removed);
+        if (removed is null) return;
+        removed.Hub.StatsChanged -= RaiseStatsChanged;
+        Changed?.Invoke();
     }
+
+    private void RaiseStatsChanged() => StatsChanged?.Invoke();
 
     private bool AtCapacity(CaptureTier tier) {
         int cap = tier == CaptureTier.Limited ? opts.MaxLimitedSessions : opts.MaxConcurrentSessions;

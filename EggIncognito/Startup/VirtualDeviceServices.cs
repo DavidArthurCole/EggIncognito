@@ -18,6 +18,7 @@ public static class VirtualDeviceServices {
         if (!boot.DbEnabled || boot.FakeDevices) return;
         builder.Services.AddScoped<ProvisionedInstanceStore>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<VirtualDeviceLifecycle>());
+        builder.Services.AddHostedService<DockerEventWatcher>();
 
         builder.Services.AddHttpClient(ImageBuilder.HttpClientName, c => {
             c.Timeout = TimeSpan.FromMinutes(10);

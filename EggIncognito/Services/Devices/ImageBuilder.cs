@@ -5,6 +5,7 @@ using System.Text;
 using EggIncognito.Core;
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Services;
+using EggIncognito.Services.Admin;
 using SharpCompress.Compressors.LZMA;
 
 namespace EggIncognito.Services.Devices;
@@ -15,6 +16,7 @@ public sealed class ImageBuilder(
     IImageBuildExecutor executor,
     IHttpClientFactory httpFactory,
     VirtualDeviceConfig config,
+    AdminNotifier notifier,
     ILogger<ImageBuilder> logger) {
     public const string HttpClientName = "image-build";
 
@@ -40,7 +42,7 @@ public sealed class ImageBuilder(
         string tarPath = Path.Combine(Path.GetTempPath(), $"egi-imgctx-{Guid.NewGuid():N}.tar");
         var execPaths = new HashSet<string>(StringComparer.Ordinal);
         try {
-            await builds.SetStateAsync(buildId, ImageBuildStates.Downloading, "resolving components", ct);
+            await AdvanceAsync(buildId, ImageBuildStates.Downloading, "resolving components", ct);
 
             if (spec.Ndk) {
                 await Log(buildId, "ndk: downloading + unpacking", ct);
@@ -61,24 +63,33 @@ public sealed class ImageBuilder(
             await Log(buildId, $"assembling build context for {spec.ResolvedTag}", ct);
             AssembleTar(contextDir, tarPath, execPaths);
 
-            await builds.SetStateAsync(buildId, ImageBuildStates.Building, "streaming to docker", ct);
+            await AdvanceAsync(buildId, ImageBuildStates.Building, "streaming to docker", ct);
             await using var tar = File.OpenRead(tarPath);
             var outcome = await executor.BuildAsync(
                 tar, spec.ResolvedTag, null,
                 line => builds.AppendAsync(buildId, line, CancellationToken.None).GetAwaiter().GetResult(), ct);
 
-            await builds.FinishAsync(buildId,
+            await SettleAsync(buildId,
                 outcome.Ok ? ImageBuildStates.Ready : ImageBuildStates.Failed, outcome.Tag, outcome.Note, ct);
             return outcome;
         } catch (Exception ex) when (ex is not OperationCanceledException) {
             logger.LogError(ex, "image build {Id} for {Tag} failed", buildId, spec.ResolvedTag);
-            await builds.FinishAsync(buildId, ImageBuildStates.Failed, spec.ResolvedTag, ex.Message,
-                CancellationToken.None);
+            await SettleAsync(buildId, ImageBuildStates.Failed, spec.ResolvedTag, ex.Message, CancellationToken.None);
             return new ImageBuildOutcome(false, spec.ResolvedTag, ex.Message);
         } finally {
             TryDelete(tarPath);
             TryDeleteDir(contextDir);
         }
+    }
+
+    private async Task AdvanceAsync(long buildId, string state, string note, CancellationToken ct) {
+        await builds.SetStateAsync(buildId, state, note, ct);
+        notifier.Publish(AdminTopics.ImageBuilds);
+    }
+
+    private async Task SettleAsync(long buildId, string state, string tag, string? note, CancellationToken ct) {
+        await builds.FinishAsync(buildId, state, tag, note, ct);
+        notifier.Publish(AdminTopics.ImageBuilds);
     }
 
     private async Task BuildNdkAsync(string contextDir, long buildId, CancellationToken ct) {

@@ -1,4 +1,5 @@
 using System.Text;
+using EggIdentity.Contract;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using EggIncognito.Models.Protos;
@@ -18,9 +19,9 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
     private FeedSubscriptionStore? Store =>
         services.GetService(typeof(FeedSubscriptionStore)) as FeedSubscriptionStore;
 
-    private Guid? OwnerUserId =>
-        (services.GetService(typeof(ICurrentUser))
-            as ICurrentUser)?.UserId;
+    private ICurrentUser? CurrentUser => services.GetService(typeof(ICurrentUser)) as ICurrentUser;
+
+    private Guid? OwnerUserId => CurrentUser?.UserId;
 
     [HttpGet("kinds")]
     public IActionResult Kinds() => Ok(FeedEventKinds.All.Select(k => new {
@@ -64,6 +65,7 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
             OwnerUserId = (services.GetService(typeof(ICurrentUser))
                 as ICurrentUser)?.UserId
         }, ct);
+        FeedSubscriptionNotify.Changed(services);
         return Ok(new { sub.Id, sub.EventKind, sub.Platforms, sub.Trigger });
     }
 
@@ -99,6 +101,7 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
 
         bool ok = await Store.DeleteAsync(id, owner.Value, ct);
         if (!ok) return NotFound(new { error = "subscription not found" });
+        FeedSubscriptionNotify.Changed(services);
         return Ok(new { deleted = true });
     }
 
@@ -168,6 +171,7 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
             req.MessageTemplate,
             ResolveFilters(sub, req.Filters), ct);
         if (!ok) return NotFound(new { error = "subscription not found" });
+        FeedSubscriptionNotify.Changed(services);
         return Ok(new { updated = true });
     }
 
@@ -179,18 +183,31 @@ public sealed class ProtoFeedController(IServiceProvider services, IHttpClientFa
 
         var sub = (await store.ByOwnerAsync(owner.Value, ct)).FirstOrDefault(s => s.Id == id);
         if (sub is null) return NotFound(new { error = "subscription not found" });
+        return Ok(await ActivityRowsAsync(store, id, ct));
+    }
 
+    [HttpGet("admin/{id:int}/activity")]
+    [ApiAccess(ApiAccessLevel.Admin)]
+    public async Task<IActionResult> AdminActivity(int id, CancellationToken ct) {
+        if (CurrentUser is not { } user || !user.IsAtLeast(UserRole.Admin))
+            return StatusCode(403, new { error = "admin role required" });
+        if (Store is not { } store) return StatusCode(503, new { error = "no database configured" });
+        if (await store.AdminByIdAsync(id, ct) is null) return NotFound(new { error = "subscription not found" });
+        return Ok(await ActivityRowsAsync(store, id, ct));
+    }
+
+    private static async Task<List<FeedActivityRow>> ActivityRowsAsync(
+        FeedSubscriptionStore store, int id, CancellationToken ct) {
         var deliveries = await store.DeliveriesAsync(id, ActivityTake, ct);
         var suppressions = await store.SuppressionsAsync(id, ActivityTake, ct);
 
-        var rows = deliveries
+        return [.. deliveries
             .Select(d => new FeedActivityRow(d.AttemptedAt, d.Status,
                 string.IsNullOrEmpty(d.Summary) ? d.DedupKey : d.Summary, d.ResponseCode, null))
             .Concat(suppressions.Select(s => new FeedActivityRow(s.CreatedAt, "blocked",
                 string.IsNullOrEmpty(s.Summary) ? s.DedupKey : s.Summary, null, s.Reason)))
             .OrderByDescending(r => r.At)
-            .Take(ActivityTake);
-        return Ok(rows);
+            .Take(ActivityTake)];
     }
 
     private const int ActivityTake = 25;

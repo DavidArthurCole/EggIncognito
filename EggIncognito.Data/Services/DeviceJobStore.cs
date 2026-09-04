@@ -99,7 +99,7 @@ public sealed class DeviceJobStore(EggIncognitoDbContext db, TimeProvider time, 
         };
         db.DeviceJobs.Add(job);
         await db.SaveChangesAsync(ct);
-        sink?.Touched(deviceId);
+        await TouchedAsync(deviceId, ct);
         return new JobRef(job.Id, deviceId, kind);
     }
 
@@ -110,7 +110,7 @@ public sealed class DeviceJobStore(EggIncognitoDbContext db, TimeProvider time, 
         var row = await db.DeviceJobs.FirstOrDefaultAsync(j => j.Id == job.Id, ct);
         row?.Message = text;
         await db.SaveChangesAsync(ct);
-        sink?.Touched(job.DeviceId);
+        await TouchedAsync(job.DeviceId, ct);
     }
 
     public async Task LineAsync(JobRef job, string entry, string outcome, string? note, long bytes, string? sha256,
@@ -125,7 +125,7 @@ public sealed class DeviceJobStore(EggIncognitoDbContext db, TimeProvider time, 
             Sha256 = sha256
         });
         await db.SaveChangesAsync(ct);
-        sink?.Touched(job.DeviceId);
+        await TouchedAsync(job.DeviceId, ct);
     }
 
     public async Task FinishAsync(JobRef job, string outcome, string? message, DeviceJobFacts? facts = null,
@@ -138,7 +138,7 @@ public sealed class DeviceJobStore(EggIncognitoDbContext db, TimeProvider time, 
         row.FinishedAt = time.GetUtcNow();
         Apply(row, facts);
         await db.SaveChangesAsync(ct);
-        sink?.Touched(job.DeviceId);
+        await TouchedAsync(job.DeviceId, ct);
         await PruneAsync(ct);
     }
 
@@ -150,7 +150,7 @@ public sealed class DeviceJobStore(EggIncognitoDbContext db, TimeProvider time, 
         row.Message = message;
         row.FinishedAt = time.GetUtcNow();
         await db.SaveChangesAsync(ct);
-        sink?.Touched(job.DeviceId);
+        await TouchedAsync(job.DeviceId, ct);
     }
 
     public async Task CancelAsync(JobRef job, string message, CancellationToken ct = default) {
@@ -161,7 +161,7 @@ public sealed class DeviceJobStore(EggIncognitoDbContext db, TimeProvider time, 
         row.Message = message;
         row.FinishedAt = time.GetUtcNow();
         await db.SaveChangesAsync(ct);
-        sink?.Touched(job.DeviceId);
+        await TouchedAsync(job.DeviceId, ct);
     }
 
     public async Task<long> RecordAsync(string deviceId, string kind, string trigger, string outcome,
@@ -180,9 +180,14 @@ public sealed class DeviceJobStore(EggIncognitoDbContext db, TimeProvider time, 
         Apply(row, facts);
         db.DeviceJobs.Add(row);
         await db.SaveChangesAsync(ct);
-        sink?.Touched(deviceId);
+        await TouchedAsync(deviceId, ct);
         await PruneAsync(ct);
         return row.Id;
+    }
+
+    private async Task TouchedAsync(string deviceId, CancellationToken ct) {
+        sink?.Touched(deviceId);
+        await PgNotify.SendAsync(db, PgChannels.DeviceJobs, deviceId, ct);
     }
 
     public async Task<IReadOnlyList<DeviceJobRow>> HistoryAsync(string deviceId, int n, string? kind = null,
@@ -190,6 +195,15 @@ public sealed class DeviceJobStore(EggIncognitoDbContext db, TimeProvider time, 
         var q = db.DeviceJobs.AsNoTracking().Where(j => j.DeviceId == deviceId);
         if (!string.IsNullOrEmpty(kind)) q = q.Where(j => j.Kind == kind);
         var rows = await q.OrderByDescending(j => j.Id).Take(Math.Clamp(n, 1, 200)).ToListAsync(ct);
+        return [.. rows.Select(Map)];
+    }
+
+    public async Task<IReadOnlyList<DeviceJobRow>> PageAsync(string deviceId, int n, long? before,
+        string? kind = null, CancellationToken ct = default) {
+        var q = db.DeviceJobs.AsNoTracking().Where(j => j.DeviceId == deviceId);
+        if (!string.IsNullOrEmpty(kind)) q = q.Where(j => j.Kind == kind);
+        if (before is { } cursor) q = q.Where(j => j.Id < cursor);
+        var rows = await q.OrderByDescending(j => j.Id).Take(Math.Clamp(n, 1, 500)).ToListAsync(ct);
         return [.. rows.Select(Map)];
     }
 
@@ -237,13 +251,17 @@ public sealed class DeviceJobStore(EggIncognitoDbContext db, TimeProvider time, 
             cutoff))];
     }
 
-    public async Task<IReadOnlyList<(string DeviceId, long Watermark)>> WatermarksAsync(
+    public async Task<IReadOnlyList<(string DeviceId, long Watermark, int Unfinished)>> WatermarksAsync(
         CancellationToken ct = default) {
         var rows = await db.DeviceJobs.AsNoTracking()
             .GroupBy(j => j.DeviceId)
-            .Select(g => new { DeviceId = g.Key, Mark = g.Max(x => x.Id) })
+            .Select(g => new {
+                DeviceId = g.Key,
+                Mark = g.Max(x => x.Id),
+                Unfinished = g.Count(x => x.FinishedAt == null)
+            })
             .ToListAsync(ct);
-        return [.. rows.Select(r => (r.DeviceId, r.Mark))];
+        return [.. rows.Select(r => (r.DeviceId, r.Mark, r.Unfinished))];
     }
 
     private async Task PruneAsync(CancellationToken ct) {

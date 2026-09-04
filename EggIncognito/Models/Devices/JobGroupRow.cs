@@ -1,6 +1,6 @@
 namespace EggIncognito.Models.Devices;
 
-public sealed record JobRow(
+public sealed record JobGroupRow(
     long Id,
     string Kind,
     string State,
@@ -12,4 +12,5 @@ public sealed record JobRow(
     string? AppVersion,
     string? Build,
     string? Revision,
-    List<JobLineRow> Lines);
+    int Repeat,
+    DateTimeOffset LastAt);

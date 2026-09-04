@@ -1,0 +1,149 @@
+@rendermode @(RenderModes.InteractiveServer)
+@using EggIdentity.UI
+@using EggIncognito.Components.Playground
+@using EggIncognito.Components.Protos
+@inject AdminWorkbenchState State
+@inject ICurrentUser User
+
+<WorkbenchModal Open="@_open" Title="Admin" TitleId="adminWorkbenchTitle" Size="WorkbenchSize.Wide"
+                CardClass="admin-wb-card" BodyId="adminWorkbench" OnClose="Close">
+    <Rail>
+        <WorkbenchRail>
+            @foreach (var group in AdminPanes.All.GroupBy(p => p.Group)) {
+                <WorkbenchSection Label="@group.Key">
+                    @foreach (var pane in group) {
+                        var key = pane.Key;
+                        <WorkbenchEntry Selected="@(State.SelectedPane == key)" OnClick="@(() => Select(key))">
+                            <Name>@pane.Label</Name>
+                        </WorkbenchEntry>
+                    }
+                </WorkbenchSection>
+            }
+        </WorkbenchRail>
+    </Rail>
+    <ChildContent>
+        @if (_mounted) {
+            <div class="admin-wb-host">
+                @foreach (var pane in AdminPanes.All.Where(p => State.Visited.Contains(p.Key))) {
+                    <section class="admin-pane" hidden="@(State.SelectedPane != pane.Key)" @key="pane.Key">
+                        @switch (pane.Key) {
+                            case AdminPanes.Traffic:
+                                <AdminTrafficPanel/>
+                                break;
+                            case AdminPanes.Users:
+                                <AdminUsersPanel/>
+                                break;
+                            case AdminPanes.Notifications:
+                                <AdminNotificationsPanel/>
+                                break;
+                            case AdminPanes.ThemePolicy:
+                                <AdminThemePolicyPanel/>
+                                break;
+                            case AdminPanes.DataStatus:
+                                <AdminDataStatusPanel/>
+                                break;
+                            case AdminPanes.Binaries:
+                                <AdminBinariesPanel/>
+                                break;
+                            case AdminPanes.Apks:
+                                <AdminApksPanel/>
+                                break;
+                            case AdminPanes.Tags:
+                                <AdminTagsPanel/>
+                                break;
+                            case AdminPanes.GameData:
+                                <AdminGameDataPanel/>
+                                break;
+                            case AdminPanes.Events:
+                                <AdminEventsPanel/>
+                                break;
+                            case AdminPanes.Contracts:
+                                <AdminContractsPanel/>
+                                break;
+                            case AdminPanes.Staged:
+                                <AdminStagedPanel/>
+                                break;
+                            case AdminPanes.Contributions:
+                                <AdminContributionsPanel/>
+                                break;
+                            case AdminPanes.Sessions:
+                                <AdminSessionsPanel/>
+                                break;
+                            case AdminPanes.Console:
+                                <AdminConsolePanel/>
+                                break;
+                            case AdminPanes.BotConfig:
+                                <AdminBotConfigPanel/>
+                                break;
+                            case AdminPanes.Maintenance:
+                                <AdminMaintenancePanel/>
+                                break;
+                            case AdminPanes.Settings:
+                                <AdminSettingsPanel/>
+                                break;
+                            case AdminPanes.Playground:
+                                <AdminPlaygroundPanel OnOpen="OpenPlayground"/>
+                                break;
+                        }
+                    </section>
+                }
+            </div>
+        }
+    </ChildContent>
+</WorkbenchModal>
+
+@if (_mounted) {
+    <PlaygroundWorkbenchModal @ref="_playground"/>
+}
+
+@code {
+    PlaygroundWorkbenchModal? _playground;
+
+    bool _open;
+    bool _mounted;
+    bool _wantPlayground;
+
+    public bool IsAdmin => User.IsAtLeast(UserRole.Admin);
+
+    public void Open() {
+        if (!IsAdmin) return;
+        _mounted = true;
+        _open = true;
+        StateHasChanged();
+    }
+
+    public void OpenPane(string key) {
+        if (!IsAdmin) return;
+        State.Select(key);
+        Open();
+    }
+
+    public void OpenPlaygroundPane() {
+        if (!IsAdmin) return;
+        _wantPlayground = true;
+        OpenPane(AdminPanes.Playground);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender) {
+        if (_wantPlayground && _playground is not null) {
+            _wantPlayground = false;
+            await _playground.Open();
+        }
+    }
+
+    public void Close() {
+        _open = false;
+        _mounted = false;
+        _wantPlayground = false;
+        StateHasChanged();
+    }
+
+    void Select(string key) {
+        State.Select(key);
+    }
+
+    Task OpenPlayground() {
+        return _playground?.Open() ?? Task.CompletedTask;
+    }
+
+}

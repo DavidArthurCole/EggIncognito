@@ -21,6 +21,9 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
         AlreadyInRegistry
     }
 
+    private Task NotifyStagedAsync(string key, CancellationToken ct) =>
+        PgNotify.SendAsync(db, PgChannels.StagedProtos, key, ct);
+
     private async Task<bool> ShaInRegistryAsync(string sha, CancellationToken ct) =>
         await db.ProtoVersions.AnyAsync(p => p.ProtoSha == sha && p.DeletedAt == null, ct);
 
@@ -65,10 +68,11 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
             rejected.ReviewNote = null;
             rejected.SubmittedAt = now;
             await db.SaveChangesAsync(ct);
+            await NotifyStagedAsync($"revive:{rejected.Id}", ct);
             return StageOutcome.Revived;
         }
 
-        db.StagedProtos.Add(new StagedProto {
+        var fresh = new StagedProto {
             Platform = platform,
             AppVersion = appVersion,
             Build = build,
@@ -85,8 +89,10 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
             OriginCommit = originCommit,
             OriginDate = originDate,
             Confidence = confidence
-        });
+        };
+        db.StagedProtos.Add(fresh);
         await db.SaveChangesAsync(ct);
+        await NotifyStagedAsync($"stage:{fresh.Id}", ct);
         return StageOutcome.Staged;
     }
 
@@ -189,6 +195,7 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
         row.ReviewedBy = reviewedBy;
         row.ReviewedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(ct);
+        await NotifyStagedAsync($"approve:{row.Id}", ct);
         return result;
     }
 
@@ -200,6 +207,7 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
         row.ReviewedBy = reviewedBy;
         row.ReviewedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(ct);
+        await NotifyStagedAsync($"reject:{row.Id}", ct);
         return true;
     }
 
@@ -229,7 +237,11 @@ public sealed class StagedProtoStore(EggIncognitoDbContext db, ProtoRegistryStor
             row.ReviewedAt = now;
         }
 
-        if (rows.Count > 0) await db.SaveChangesAsync(ct);
+        if (rows.Count > 0) {
+            await db.SaveChangesAsync(ct);
+            await NotifyStagedAsync($"bulk-reject:{rows.Count}", ct);
+        }
+
         return rows.Count;
     }
 

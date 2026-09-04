@@ -1,0 +1,106 @@
+@rendermode @(RenderModes.InteractiveServer)
+@using EggIncognito.Core
+@using EggIncognito.Models.Devices
+@inherits AdminPaneBase
+
+<div class="admin-pane-head">
+    <h2 class="admin-pane-title">Stored APKs</h2>
+    <div class="admin-pane-tools">
+        <span class="text-muted text-xs">@_rows.Count versions / @SplitCount splits / @ByteFormat.Mb(TotalBytes, "F1")</span>
+        <button type="button" class="btn-mini" disabled="@_busy" @onclick="Load">Refresh</button>
+    </div>
+</div>
+<PaneNotice @ref="_notice"/>
+@if (_rows.Count == 0) {
+    <p class="text-muted text-sm m-0">No stored APKs. Splits land here from device harvest and from the install-app cookbook when it pulls off a physical android device.</p>
+} else {
+    <div class="reg-wrap">
+        <table class="data-table">
+            <thead>
+            <tr>
+                <th>Split</th><th>SHA-256</th><th>Size</th><th>Source</th><th>Captured</th><th></th>
+            </tr>
+            </thead>
+            @foreach (var v in _rows) {
+                <tbody>
+                <tr class="apk-version-row">
+                    <td colspan="5">
+                        <div class="apk-version-cell">
+                            <PlatformIcon Platform="@v.Platform"/>
+                            <VersionLine App="@v.AppVersion" Build="@v.Build"/>
+                            <span class="mono text-xs text-muted">@v.Package</span>
+                            <span class="text-muted text-xs">@v.Splits.Count splits, @ByteFormat.Mb(v.ByteSize, "F1")</span>
+                            @if (!v.Installable) {
+                                <span class="text-xs text-red-400">no base split, not installable</span>
+                            }
+                        </div>
+                    </td>
+                    <td>
+                        <div class="flex gap-1 justify-end">
+                            <button type="button" class="btn-mini btn-danger" disabled="@_busy" @onclick="() => Delete(v)">Delete</button>
+                        </div>
+                    </td>
+                </tr>
+                @foreach (var s in v.Splits) {
+                    <tr>
+                        <td class="mono text-xs apk-split-cell">@s.Split</td>
+                        <td class="mono text-xs">@ShaShort(s.Sha256)</td>
+                        <td class="mono text-xs">@ByteFormat.Mb(s.ByteSize, "F1")</td>
+                        <td class="text-xs">@(s.SourceDeviceId ?? "unknown")</td>
+                        <td class="text-muted text-xs">@s.CapturedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
+                        <td></td>
+                    </tr>
+                }
+                </tbody>
+            }
+        </table>
+    </div>
+}
+
+@code {
+    PaneNotice? _notice;
+
+    List<StoredApkVersionRow> _rows = [];
+    bool _busy;
+
+    protected override IReadOnlyList<string> Topics => [AdminTopics.Apks];
+
+    protected override Task LoadAsync() => Load();
+
+    int SplitCount => _rows.Sum(r => r.Splits.Count);
+
+    long TotalBytes => _rows.Sum(r => r.ByteSize);
+
+    async Task Load() {
+        if (Api is null) return;
+        var res = await Api.GetAsync("/api/apks");
+        if (!res.Ok) {
+            _notice?.Fail($"load failed: {res.Describe()}");
+            return;
+        }
+
+        _rows = res.Json<StoredApkList>()?.Versions ?? [];
+    }
+
+    async Task Delete(StoredApkVersionRow v) {
+        if (Api is null) return;
+        _busy = true;
+        _notice?.Clear();
+        string url = $"/api/apks?platform={Uri.EscapeDataString(v.Platform)}"
+                     + $"&package={Uri.EscapeDataString(v.Package)}"
+                     + $"&appVersion={Uri.EscapeDataString(v.AppVersion)}"
+                     + $"&build={Uri.EscapeDataString(v.Build)}";
+        var res = await Api.DeleteAsync(url);
+        _notice?.Result(res.Ok, res.Ok
+            ? $"deleted {v.AppVersion} ({v.Build}), {v.Splits.Count} split(s)"
+            : $"delete failed: {res.Describe()}");
+        await Load();
+        _busy = false;
+        if (res.Ok) Notifier.Publish(AdminTopics.Apks);
+    }
+
+    static string ShaShort(string sha) {
+        return sha.Length >= 12 ? sha[..12] : sha;
+    }
+
+}

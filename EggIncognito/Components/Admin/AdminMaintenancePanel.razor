@@ -8,6 +8,7 @@
     <h2 class="admin-pane-title">Maintenance</h2>
     <span class="text-muted text-xs">@Stat</span>
 </div>
+<PaneNotice @ref="_notice"/>
 <div class="reg-wrap">
     <table class="data-table">
         <tbody>
@@ -106,6 +107,44 @@
     </table>
 </div>
 
+<div class="admin-panel-head mt-4">
+    <div class="sub-section-head">Stored icons</div>
+    <div class="flex gap-1 items-center">
+        <span class="text-muted text-xs">@_icons.Count stored</span>
+        <button type="button" class="btn-mini" disabled="@_iconBusy" @onclick="LoadIcons">Refresh</button>
+    </div>
+</div>
+@if (_icons.Count == 0) {
+    <p class="text-muted text-sm m-0">No stored icons. Import one above; the name is how the app asks for it.</p>
+} else {
+    <div class="reg-wrap">
+        <table class="data-table">
+            <thead>
+            <tr>
+                <th>Name</th><th>Platform</th><th>Type</th><th>Bytes</th><th>SHA-256</th><th>Updated</th><th></th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var icon in _icons) {
+                <tr>
+                    <td class="mono text-xs">@icon.Name</td>
+                    <td class="text-xs">@icon.Platform</td>
+                    <td class="text-xs">@icon.ContentType</td>
+                    <td class="mono text-xs">@icon.Bytes.ToString("N0")</td>
+                    <td class="mono text-xs">@ShaShort(icon.Sha256)</td>
+                    <td class="text-muted text-xs">@icon.UpdatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
+                    <td>
+                        <div class="flex gap-1 justify-end">
+                            <button type="button" class="btn-mini btn-danger" disabled="@_iconBusy" @onclick="() => DeleteIcon(icon.Name)">Delete</button>
+                        </div>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+}
+
 @code {
     const int ToolCount = 9;
 
@@ -118,25 +157,29 @@
     string _iconName = "";
     byte[]? _iconBytes;
     string? _iconFileName;
+    List<IconRow> _icons = [];
+    bool _iconBusy;
+    PaneNotice? _notice;
     readonly Dictionary<string, string> _results = new(StringComparer.Ordinal);
 
     string Stat => $"{ToolCount} tools";
 
-    protected override IReadOnlyList<string> Topics => [];
+    protected override IReadOnlyList<string> Topics => [AdminTopics.Maintenance];
 
-    protected override Task LoadAsync() => Task.CompletedTask;
+    protected override Task LoadAsync() => LoadIcons();
 
     string Result(string key) {
         return _results.GetValueOrDefault(key, "");
     }
 
-    async Task Run(string key, Func<Task<BrowserResponse>> call) {
-        if (Api is null) return;
+    async Task<bool> Run(string key, Func<Task<BrowserResponse>> call) {
+        if (Api is null) return false;
         _realignArmed = false;
         _busy = true;
         var res = await call();
         _results[key] = res.Ok ? "ok" : res.Describe();
         _busy = false;
+        return res.Ok;
     }
 
     async Task RunConfig(string key, Func<Task<BrowserResponse>> call) {
@@ -173,8 +216,10 @@
         _realignArmed = false;
     }
 
-    Task RefreshEndpoints() {
-        return Run("refresh-endpoints", () => Api!.PostAsync("/api/config/refresh-endpoints", TimeSpan.FromMinutes(2)));
+    async Task RefreshEndpoints() {
+        bool ok = await Run("refresh-endpoints",
+            () => Api!.PostAsync("/api/config/refresh-endpoints", TimeSpan.FromMinutes(2)));
+        if (ok) Notifier.Publish(AdminTopics.Console);
     }
 
     Task RefreshLive() {
@@ -223,14 +268,49 @@
         _iconFileName = e.File.Name;
     }
 
-    Task ImportIcon() {
+    async Task ImportIcon() {
         if (_iconBytes is null || string.IsNullOrWhiteSpace(_iconName)) {
             _results["icon-import"] = "select a name and file first";
-            return Task.CompletedTask;
+            return;
         }
 
-        return Run("icon-import", () => Api!.SendFileAsync(
-            "POST", $"/api/admin/icons/{Uri.EscapeDataString(_iconName.Trim())}", "file", _iconFileName ?? "icon.png", _iconBytes));
+        bool ok = await Run("icon-import", () => Api!.SendFileAsync(
+            "POST", $"/api/admin/icons/{Uri.EscapeDataString(_iconName.Trim())}", "file", _iconFileName ?? "icon.png",
+            _iconBytes));
+        if (!ok) return;
+        _iconName = "";
+        _iconBytes = null;
+        _iconFileName = null;
+        await LoadIcons();
+        Notifier.Publish(AdminTopics.Maintenance);
+    }
+
+    async Task LoadIcons() {
+        if (Api is null) return;
+        _iconBusy = true;
+        var res = await Api.GetAsync("/api/admin/icons");
+        if (res.Ok) {
+            _icons = res.Json<IconList>()?.Icons?.ToList() ?? [];
+        } else {
+            _notice?.Fail($"icon load failed: {res.Describe()}");
+        }
+
+        _iconBusy = false;
+    }
+
+    async Task DeleteIcon(string name) {
+        if (Api is null) return;
+        _iconBusy = true;
+        _notice?.Clear();
+        var res = await Api.DeleteAsync($"/api/admin/icons/{Uri.EscapeDataString(name)}");
+        _notice?.Result(res.Ok, res.Ok ? $"deleted {name}" : $"delete failed: {res.Describe()}");
+        _iconBusy = false;
+        await LoadIcons();
+        if (res.Ok) Notifier.Publish(AdminTopics.Maintenance);
+    }
+
+    static string ShaShort(string sha) {
+        return sha.Length >= 12 ? sha[..12] : sha;
     }
 
 }

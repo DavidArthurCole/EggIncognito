@@ -36,6 +36,7 @@ public sealed class DevicesController(
     private IDeviceStatusStore? Store => services.GetService(typeof(IDeviceStatusStore)) as IDeviceStatusStore;
     private DeviceJobStore? Jobs => services.GetService(typeof(DeviceJobStore)) as DeviceJobStore;
     private DeviceTimelineCache? Timeline => services.GetService(typeof(DeviceTimelineCache)) as DeviceTimelineCache;
+    private DeviceJobFeed? JobFeed => services.GetService(typeof(DeviceJobFeed)) as DeviceJobFeed;
     private EggIncognitoDbContext? Db => services.GetService(typeof(EggIncognitoDbContext)) as EggIncognitoDbContext;
 
     private ObjectResult? RequireAdmin() =>
@@ -59,8 +60,14 @@ public sealed class DevicesController(
         if (store is null || Timeline is not { } timeline) return Ok(Array.Empty<DeviceStatusRow>());
 
         var ct = HttpContext.RequestAborted;
-        var devices = (await store.EnabledDevicesAsync(ct)).ToDictionary(d => d.Id);
-        var virtualLive = await MergeVirtualDevicesAsync(devices, ct);
+        bool isAdmin = currentUser.IsAtLeast(UserRole.Admin);
+        var enabled = (await store.EnabledDevicesAsync(ct))
+            .Where(d => isAdmin || !DeviceOrigins.IsVirtual(d.Origin));
+
+        var devices = enabled.ToDictionary(d => d.Id);
+        HashSet<string> virtualLive = isAdmin
+            ? await MergeVirtualDevicesAsync(devices, ct)
+            : [with(StringComparer.Ordinal)];
 
         var ids = devices.Keys.ToList();
         var probes = (await timeline.LatestPerDeviceAsync(ids, DeviceJobKinds.Probe, ct))
@@ -76,7 +83,7 @@ public sealed class DevicesController(
         var storeLatest = await StoreLatestPerPlatformAsync(db, platforms, ct);
 
         var inputs = new DeviceStatusInputs(
-            currentUser.IsAtLeast(UserRole.Admin), probes, updates, storeLatest, virtualLive, versions,
+            isAdmin, probes, updates, storeLatest, virtualLive, versions,
             await CapturedClientVersionsAsync(ct),
             services.GetService(typeof(GameBinaryProvider)) as GameBinaryProvider);
 
@@ -116,61 +123,25 @@ public sealed class DevicesController(
         return captured;
     }
 
-    [HttpGet("{id}/history")]
-    [ApiAccess(ApiAccessLevel.Admin)]
-    public async Task<IActionResult> History(string id, [FromQuery] int n = 20) {
-        if (RequireAdmin() is { } no) return no;
-        if (Timeline is not { } timeline) return Ok(Array.Empty<object>());
-        var rows = await timeline.HistoryAsync(id, Math.Clamp(n, 1, 100), DeviceJobKinds.Probe,
-            HttpContext.RequestAborted);
-        return Ok(rows.Select(p => new {
-            probedAt = p.StartedAt,
-            reachable = p.Reachable == true,
-            installedAppVersion = p.AppVersion,
-            installedBuild = p.Build,
-            result = p.Outcome ?? "",
-            triggeredBy = p.Trigger,
-            note = p.Message
-        }));
-    }
-
     [HttpGet("{id}/jobs")]
     [ApiAccess(ApiAccessLevel.Admin)]
     [EnableRateLimiting("read")]
-    public async Task<IActionResult> JobHistory(string id, [FromQuery] int n = 50, [FromQuery] string? kind = null,
-        CancellationToken ct = default) {
+    public async Task<IActionResult> JobHistory(string id, [FromQuery] int take = JobGroupCollapser.DefaultTake,
+        [FromQuery] long? before = null, CancellationToken ct = default) {
         if (RequireAdmin() is { } no) return no;
-        if (Timeline is not { } cache) return StatusCode(503, new { error = "no database configured" });
+        if (JobFeed is not { } feed) return StatusCode(503, new { error = "no database configured" });
 
-        var rows = await cache.HistoryAsync(id, Math.Clamp(n, 1, 200), kind, ct);
-        var outRows = new List<object>();
-        foreach (var j in rows) {
-            var lines = await cache.LinesAsync(id, j.Id, ct);
-            outRows.Add(new {
-                id = j.Id,
-                kind = j.Kind,
-                state = j.State,
-                trigger = j.Trigger,
-                startedAt = j.StartedAt,
-                finishedAt = j.FinishedAt,
-                outcome = j.Outcome,
-                message = j.Message,
-                appVersion = j.AppVersion,
-                build = j.Build,
-                revision = j.Revision,
-                detail = j.Detail,
-                lines = lines.Select(l => new {
-                    at = l.At,
-                    level = l.Level,
-                    text = l.Text,
-                    entry = l.Entry,
-                    bytes = l.Bytes,
-                    sha256 = l.Sha256
-                })
-            });
-        }
+        return Ok(await feed.PageAsync(id, take, before, ct));
+    }
 
-        return Ok(outRows);
+    [HttpGet("{id}/jobs/{jobId:long}/lines")]
+    [ApiAccess(ApiAccessLevel.Admin)]
+    [EnableRateLimiting("read")]
+    public async Task<IActionResult> JobLines(string id, long jobId, CancellationToken ct = default) {
+        if (RequireAdmin() is { } no) return no;
+        if (JobFeed is not { } feed) return StatusCode(503, new { error = "no database configured" });
+
+        return Ok(await feed.LinesAsync(id, jobId, ct));
     }
 
     [HttpGet("jobs/live")]
@@ -178,18 +149,9 @@ public sealed class DevicesController(
     [EnableRateLimiting("fetch")]
     public async Task<IActionResult> LiveJobs(CancellationToken ct) {
         if (RequireAdmin() is { } no) return no;
-        var store = Store;
-        if (store is null || Timeline is not { } cache) return Ok(Array.Empty<object>());
+        if (JobFeed is not { } feed) return Ok(Array.Empty<LiveJob>());
 
-        var ids = (await store.EnabledDevicesAsync(ct)).Select(d => d.Id).ToList();
-        var running = await cache.RunningAsync(ids, ct);
-        return Ok(running.Select(j => new {
-            device = j.DeviceId,
-            id = j.Id,
-            kind = j.Kind,
-            message = j.Message,
-            startedAt = j.StartedAt
-        }));
+        return Ok(await feed.LiveAsync(ct));
     }
 
     [HttpPost("{id}/refresh")]

@@ -4,6 +4,7 @@ using EggIncognito.Capture;
 using EggIncognito.Core.Services;
 using EggIncognito.Data.Services;
 using EggIncognito.Services;
+using EggIncognito.Services.Admin;
 using EggIncognito.Services.Contributions;
 using EggIncognito.Services.DataApi;
 using EggIncognito.Services.Devices;
@@ -18,6 +19,8 @@ public static class CaptureServices {
         builder.Services.AddSingleton(sp => SessionManager(sp, boot));
         builder.Services.AddSingleton(sp =>
             sp.GetRequiredService<CaptureSessionManager>().GetOrCreate(CaptureSessionManager.LocalKey));
+        builder.Services.AddHostedService(sp => new CaptureCountersBridge(
+            sp, boot.DeviceCaptureConfig.Enabled, sp.GetRequiredService<ILogger<CaptureCountersBridge>>()));
 
         if (!boot.HostedCaptureOn) return;
 
@@ -36,7 +39,7 @@ public static class CaptureServices {
         var config = sp.GetRequiredService<IConfiguration>();
         string contentRoot = ContentRoot.Resolve(config["ContentRoot"]);
         var routeCatalog = sp.GetRequiredService<IRouteCatalog>();
-        return new CaptureSessionManager(boot.HostedCapture, (key, basePort, tier) => {
+        var manager = new CaptureSessionManager(boot.HostedCapture, (key, basePort, tier) => {
             var liveRoutes = sp.GetRequiredService<DataCatalog>().WireRoutes();
             var writeObserver = sp.GetService<ConfigChangeNotifier>();
             if (key == CaptureSessionManager.LocalKey) {
@@ -74,6 +77,10 @@ public static class CaptureServices {
                     TrustCaInOsStore = false
                 }, routeCatalog);
         });
+
+        if (sp.GetService<AdminNotifier>() is { } notifier)
+            manager.Changed += () => notifier.Publish(AdminTopics.Sessions);
+        return manager;
     }
 
     private static ProxyFrontDoor FrontDoor(IServiceProvider sp, BootFlags boot) {

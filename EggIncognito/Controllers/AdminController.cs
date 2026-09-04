@@ -336,6 +336,20 @@ public sealed partial class AdminController(ICurrentUser currentUser, IServicePr
         return Ok(new { name, bytes = data.Length });
     }
 
+    [HttpDelete("icons/{name}")]
+    public async Task<IActionResult> DeleteIcon(string name, CancellationToken ct) {
+        if (RequireAdmin() is { } no) return no;
+        var db = Db;
+        if (db is null) return StatusCode(503, new { error = "no database configured" });
+        if (!IconNameRegex().IsMatch(name)) return BadRequest(new { error = "invalid icon name" });
+
+        int removed = await db.DeviceAssets
+            .Where(a => a.Kind == DeviceAssetKinds.Icon && a.Name == name)
+            .ExecuteDeleteAsync(ct);
+        if (removed == 0) return NotFound(new { error = "icon not found" });
+        return Ok(new { deleted = name, rows = removed });
+    }
+
     [HttpDelete("sessions/{key}")]
     public async Task<IActionResult> KillSession(string key) {
         if (RequireAdmin() is { } no) return no;
@@ -386,32 +400,6 @@ public sealed partial class AdminController(ICurrentUser currentUser, IServicePr
         if (identity is null) return StatusCode(503, new { error = "identity api not configured" });
         int updated = await OwnerAuthorUserIdBackfill.RunAsync(db, identity, ct);
         return Ok(new { updated });
-    }
-
-    [HttpDelete("endpoint/{id:long}")]
-    public async Task<IActionResult> DeleteEndpoint(long id) {
-        if (RequireAdmin() is { } no) return no;
-        var db = Db;
-        if (db is null) return StatusCode(503, new { error = "no database configured" });
-        var row = await db.StoredEndpoints.FindAsync(id);
-        if (row is null) return NotFound();
-        db.StoredEndpoints.Remove(row);
-        await db.SaveChangesAsync();
-        return Ok(new { deleted = id });
-    }
-
-    [HttpDelete("route/{id:long}")]
-    public async Task<IActionResult> DeleteRoute(long id) {
-        if (RequireAdmin() is { } no) return no;
-        var db = Db;
-        if (db is null) return StatusCode(503, new { error = "no database configured" });
-        var row = await db.StoredRoutes.FindAsync(id);
-        if (row is null) return NotFound();
-        if (row.Source != "db") return BadRequest(new { error = "cannot delete a yaml-sourced route" });
-        db.StoredRoutes.Remove(row);
-        await db.SaveChangesAsync();
-        (services.GetService(typeof(IDbRouteProvider)) as IDbRouteProvider)?.Invalidate();
-        return Ok(new { deleted = id });
     }
 
     [HttpPost("tag")]

@@ -1,13 +1,15 @@
 using System.Text;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
+using EggIncognito.Services.Admin;
 
 namespace EggIncognito.Services.Feed;
 
 public sealed class FeedDispatcher(
     IFeedSubscriptionStore store,
     IHttpClientFactory httpFactory,
-    ILogger<FeedDispatcher> logger) {
+    ILogger<FeedDispatcher> logger,
+    AdminNotifier? notifier = null) {
     private const int DeadAfterFailures = 5;
 
     public const string DefaultPageBaseUrl = "https://eggincognito.davidarthurcole.me";
@@ -39,7 +41,7 @@ public sealed class FeedDispatcher(
                     new StringContent(body, Encoding.UTF8, "application/json"), ct);
                 code = (int)res.StatusCode;
                 ok = res.IsSuccessStatusCode;
-                if (code is 404 or 410) await store.SetActiveAsync(sub.Id, false, ct);
+                if (code is 404 or 410) await DeactivateAsync(sub.Id, ct);
             } catch (Exception ex) {
                 logger.LogWarning(ex, "feed dispatch to sub {Id} threw", sub.Id);
             }
@@ -61,8 +63,13 @@ public sealed class FeedDispatcher(
                 await store.BumpFailAsync(sub.Id, ct);
                 var refreshed = (await store.ActiveAsync(ct)).FirstOrDefault(s => s.Id == sub.Id);
                 if (refreshed is not null && refreshed.FailCount >= DeadAfterFailures)
-                    await store.SetActiveAsync(sub.Id, false, ct);
+                    await DeactivateAsync(sub.Id, ct);
             }
         }
+    }
+
+    private async Task DeactivateAsync(int subId, CancellationToken ct) {
+        await store.SetActiveAsync(subId, false, ct);
+        notifier?.Publish(AdminTopics.Notifications);
     }
 }

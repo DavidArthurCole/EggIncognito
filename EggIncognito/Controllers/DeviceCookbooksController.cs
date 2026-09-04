@@ -1,4 +1,3 @@
-using System.Text.Json;
 using EggIdentity.Contract;
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Models;
@@ -23,6 +22,9 @@ public sealed class DeviceCookbooksController(
 
     private DeviceTimelineCache? Timeline =>
         services.GetService(typeof(DeviceTimelineCache)) as DeviceTimelineCache;
+
+    private DeviceCookbookFeed? Cookbooks =>
+        services.GetService(typeof(DeviceCookbookFeed)) as DeviceCookbookFeed;
 
     private ObjectResult? RequireAdmin() =>
         currentUser.IsAtLeast(UserRole.Admin) ? null : StatusCode(403, new { error = "admin role required" });
@@ -92,44 +94,11 @@ public sealed class DeviceCookbooksController(
     [HttpGet("{id}/cookbooks/run/{jobId:long}")]
     public async Task<IActionResult> Run(string id, long jobId, CancellationToken ct) {
         if (RequireAdmin() is { } no) return no;
-        if (Timeline is not { } timeline) return StatusCode(503, new { error = "no database configured" });
+        if (Cookbooks is not { } feed) return StatusCode(503, new { error = "no database configured" });
 
-        var history = await timeline.HistoryAsync(id, 50, DeviceJobKinds.Cookbook, ct);
-        if (history.FirstOrDefault(j => j.Id == jobId) is not { } job)
+        if (await feed.RunAsync(id, jobId, ct) is not { } status)
             return NotFound(new { error = "unknown cookbook run for this device" });
 
-        var lines = await timeline.LinesAsync(id, job.Id, ct);
-        return Ok(new DeviceCookbookRunView(
-            job.Id, job.DeviceId, job.State, job.Outcome, job.Message, job.StartedAt, job.FinishedAt,
-            job.State == DeviceJobStates.Running,
-            [.. lines.Select(l => l.Text)],
-            ParseSteps(job.Detail)));
-    }
-
-    private static List<CookbookStepResult>? ParseSteps(string? detail) {
-        if (string.IsNullOrWhiteSpace(detail)) return null;
-        try {
-            using var doc = JsonDocument.Parse(detail);
-            if (!doc.RootElement.TryGetProperty("steps", out var arr) || arr.ValueKind != JsonValueKind.Array)
-                return null;
-
-            var list = new List<CookbookStepResult>();
-            foreach (var el in arr.EnumerateArray()) {
-                string stepId = el.TryGetProperty("id", out var i) ? i.GetString() ?? "" : "";
-                string title = el.TryGetProperty("title", out var t) ? t.GetString() ?? "" : "";
-                string? note = el.TryGetProperty("note", out var n) && n.ValueKind == JsonValueKind.String
-                    ? n.GetString()
-                    : null;
-                var status = el.TryGetProperty("status", out var s)
-                             && Enum.TryParse<CookbookStepStatus>(s.GetString(), out var parsed)
-                    ? parsed
-                    : CookbookStepStatus.Ok;
-                list.Add(new CookbookStepResult(stepId, title, status, note, []));
-            }
-
-            return list.Count > 0 ? list : null;
-        } catch (JsonException) {
-            return null;
-        }
+        return Ok(status);
     }
 }

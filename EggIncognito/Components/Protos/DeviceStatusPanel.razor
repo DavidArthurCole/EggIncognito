@@ -2,6 +2,7 @@
 @inject ICurrentUser User
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env
+@inject AdminNotifier Notifier
 @using System.Globalization
 @implements IDisposable
 
@@ -67,28 +68,52 @@
 
     bool _isAdmin;
     bool _disposed;
-    Timer? _timer;
+    bool _loading;
+    bool _missed;
+    IDisposable? _topics;
 
-    protected override async Task OnInitializedAsync() {
+    protected override Task OnInitializedAsync() {
         _isAdmin = User.IsAtLeast(UserRole.Admin);
-        await LoadAsync();
-
-        _timer = ComponentTimers.Every(TimeSpan.FromSeconds(30), () => InvokeAsync(TickAsync));
+        return LoadAsync();
     }
 
     PageVisibility? _vis;
 
     PageVisibility Vis => _vis ??= new PageVisibility(JS, Env);
 
-    protected override Task OnAfterRenderAsync(bool firstRender) {
-        if (firstRender) KickReprobe();
-        return Task.CompletedTask;
+    protected override async Task OnAfterRenderAsync(bool firstRender) {
+        if (!firstRender) return;
+        _topics ??= Notifier.Subscribe(OnTopic);
+        await Vis.ListenAsync(OnVisibleAsync);
+        KickReprobe();
+    }
+
+    void OnTopic(string topic) {
+        if (_disposed || topic != AdminTopics.DeviceStatus) return;
+        _ = InvokeAsync(TickAsync);
+    }
+
+    async Task OnVisibleAsync(bool visible) {
+        if (_disposed || !visible || !_missed) return;
+        _missed = false;
+        await InvokeAsync(TickAsync);
     }
 
     async Task TickAsync() {
-        if (_disposed || !await Vis.IsVisibleAsync()) return;
-        await LoadAsync();
-        KickReprobe();
+        if (_disposed || _loading) return;
+        if (!await Vis.IsVisibleAsync()) {
+            _missed = true;
+            return;
+        }
+
+        _loading = true;
+        try {
+            await LoadAsync();
+            KickReprobe();
+        }
+        finally {
+            _loading = false;
+        }
     }
 
     public async Task LoadAsync() {
@@ -102,10 +127,16 @@
         }
     }
 
+    static readonly TimeSpan ReprobeGap = TimeSpan.FromSeconds(60);
+
     bool _reprobing;
+    DateTimeOffset _reprobedAt = DateTimeOffset.MinValue;
 
     void KickReprobe() {
         if (!_isAdmin || _reprobing || _disposed) return;
+        var now = DateTimeOffset.UtcNow;
+        if (now - _reprobedAt < ReprobeGap) return;
+        _reprobedAt = now;
         _ = Task.Run(ReprobeStaleAsync);
     }
 
@@ -123,12 +154,6 @@
                     /* device still down; ignore */
                 }
             }
-
-            var rows = await Client().GetFromJsonAsync<List<Models.Registry.DeviceStatus>>("/api/devices/status");
-            if (rows is not null) {
-                _devices = rows;
-                await InvokeAsync(StateHasChanged);
-            }
         }
         finally {
             _reprobing = false;
@@ -137,7 +162,8 @@
 
     public void Dispose() {
         _disposed = true;
-        _timer?.Dispose();
+        _topics?.Dispose();
+        _topics = null;
         _ = _vis?.DisposeAsync();
     }
 

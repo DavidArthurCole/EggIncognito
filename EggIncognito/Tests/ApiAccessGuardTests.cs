@@ -90,7 +90,7 @@ public class ApiAccessGuardTests {
         var devices = typeof(DevicesController);
         var designs = typeof(EnvDesignController);
 
-        Assert.Equal(ApiAccessLevel.Admin, GateOf(devices, devices.GetMethod(nameof(DevicesController.History))!));
+        Assert.Equal(ApiAccessLevel.Admin, GateOf(devices, devices.GetMethod(nameof(DevicesController.JobHistory))!));
         Assert.Equal(ApiAccessLevel.Contributor,
             GateOf(designs, designs.GetMethod(nameof(EnvDesignController.Save))!));
         Assert.Equal(ApiAccessLevel.Contributor,

@@ -1,5 +1,6 @@
 @using System.Text.Json
 @using EggIdentity.UI
+@using EggIncognito.Models.Protos
 @using EggIncognito.Models.Registry
 @using EggIncognito.Services.Protos
 @inherits SelfCallComponentBase
@@ -16,6 +17,12 @@
                     @onclick="@(() => SetTab(TabEdit))">
                 Edit version
             </button>
+            @if (IsAdmin) {
+                <button type="button" class="seg-btn @(_tab == TabDeleted ? "active" : "")"
+                        @onclick="@(() => SetTab(TabDeleted))">
+                    Deleted
+                </button>
+            }
         </div>
         <button type="button" class="reg-edit-btn pwb-admin-close" aria-label="Close registry admin"
                 @onclick="@(() => OnClose.InvokeAsync())">
@@ -56,11 +63,53 @@
         <div class="flex items-center gap-2">
             <button type="button" class="btn-primary" disabled="@_busy" @onclick="Add">@(_busy ? "Saving..." : "Save")</button>
         </div>
-        @if (_msg.Length > 0) {
-            <StatusNote Severity="@(_msg == "saved" ? StatusNoteKind.Ok : StatusNoteKind.Error)"
-                        OnDismiss="@(() => _msg = string.Empty)">
-                @_msg
-            </StatusNote>
+    } else if (_tab == TabDeleted) {
+        <div class="flex items-center gap-2 mb-2">
+            <span class="text-xs text-muted">@_deleted.Count soft-deleted</span>
+            <button type="button" class="btn-mini" disabled="@_busy" @onclick="LoadDeleted">Reload</button>
+        </div>
+        @if (_deleted.Count == 0) {
+            <div class="text-xs text-muted">Nothing deleted.</div>
+        } else {
+            <div class="reg-scroll">
+                <table class="data-table">
+                    <thead>
+                    <tr>
+                        <th>Platform</th>
+                        <th>App version</th>
+                        <th>Build</th>
+                        <th>Client</th>
+                        <th>Proto SHA</th>
+                        <th>Deleted</th>
+                        <th class="w-20"></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var d in _deleted) {
+                        <tr>
+                            <td>
+                                <PlatformIcon Platform="@d.Platform"/>
+                            </td>
+                            <td>@d.AppVersion</td>
+                            <td class="reg-num">@d.Build</td>
+                            <td class="reg-num">@d.ClientVersion</td>
+                            <td class="text-xs text-muted font-mono">@Short(d.ProtoSha)</td>
+                            <td class="text-xs text-muted">
+                                @if (d.DeletedAt is { } at) {
+                                    <TimeAgo Value="@at"/>
+                                }
+                            </td>
+                            <td>
+                                <button type="button" class="btn-mini" disabled="@_busy"
+                                        @onclick="@(() => Restore(d))">
+                                    Restore
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
         }
     } else {
         <label class="text-xs text-muted block mb-2">
@@ -79,11 +128,19 @@
                              OnChanged="OnChanged" OnClose="@(() => _editKey = string.Empty)"/>
         }
     }
+
+    @if (_msg.Length > 0) {
+        <StatusNote Severity="@(_ok ? StatusNoteKind.Ok : StatusNoteKind.Error)"
+                    OnDismiss="@(() => _msg = string.Empty)">
+            @_msg
+        </StatusNote>
+    }
 </div>
 
 @code {
     const string TabAdd = "add";
     const string TabEdit = "edit";
+    const string TabDeleted = "deleted";
 
     static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
@@ -91,13 +148,17 @@
 
     [Parameter] public bool CanOrder { get; set; }
 
+    [Parameter] public bool IsAdmin { get; set; }
+
     [Parameter] public EventCallback OnChanged { get; set; }
 
     [Parameter] public EventCallback OnClose { get; set; }
 
     string _tab = TabAdd;
     bool _busy;
+    bool _ok;
     string _msg = "";
+    List<DeletedVersionRow> _deleted = [];
     string _platform = "android";
     string _appVersion = "";
     string _build = "";
@@ -115,9 +176,44 @@
         return $"{r.Platform}/{r.Build}";
     }
 
-    void SetTab(string tab) {
+    static string Short(string? sha) {
+        return string.IsNullOrEmpty(sha) ? "" : sha.Length <= 12 ? sha : sha[..12];
+    }
+
+    async Task SetTab(string tab) {
         _tab = tab;
         _msg = "";
+        if (tab == TabDeleted) await LoadDeleted();
+    }
+
+    async Task LoadDeleted() {
+        _busy = true;
+        try {
+            _deleted = await Client().GetFromJsonAsync<List<DeletedVersionRow>>(
+                "/api/protos/versions/deleted", JsonOpts) ?? [];
+        }
+        catch (Exception ex) when (ex is HttpRequestException or NotSupportedException or JsonException) {
+            _deleted = [];
+            _ok = false;
+            _msg = "could not load deleted versions";
+        }
+        finally {
+            _busy = false;
+        }
+    }
+
+    async Task Restore(DeletedVersionRow row) {
+        _busy = true;
+        _msg = "";
+        var ok = await PostJson(
+            $"/api/protos/versions/{Uri.EscapeDataString(row.Platform)}/{Uri.EscapeDataString(row.Build)}/restore",
+            new { });
+        _busy = false;
+        _ok = ok;
+        _msg = ok ? $"restored {row.Platform} {row.Build}" : "restore failed (admin only?)";
+        if (!ok) return;
+        await LoadDeleted();
+        await OnChanged.InvokeAsync();
     }
 
     void OnPickVersion(ChangeEventArgs e) {
@@ -131,6 +227,7 @@
     async Task Add() {
         if (string.IsNullOrWhiteSpace(_platform) || string.IsNullOrWhiteSpace(_appVersion) ||
             string.IsNullOrWhiteSpace(_build)) {
+            _ok = false;
             _msg = "platform, app version, build required";
             return;
         }
@@ -146,6 +243,7 @@
             proto = string.IsNullOrWhiteSpace(_proto) ? null : _proto
         });
         _busy = false;
+        _ok = ok;
         if (!ok) {
             _msg = "failed (contributor+? build taken?)";
             return;

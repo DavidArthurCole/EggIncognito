@@ -133,16 +133,6 @@ public sealed class ThemeController(ICurrentUser currentUser, IServiceProvider s
         return Ok(new { deactivated = true });
     }
 
-    [HttpGet("{slug}/export")]
-    [EnableRateLimiting("read")]
-    public async Task<IActionResult> Export(string slug) {
-        if (currentUser.UserId is not { } uid) return Unauthorized(new { error = "login required" });
-        var store = Store;
-        if (store is null) return NotFound(new { error = "no database configured" });
-        var row = await store.GetAsync(uid, slug, HttpContext.RequestAborted);
-        return row is null ? NotFound(new { error = "unknown theme" }) : Content(row.Model, "application/json");
-    }
-
     [HttpPost("import")]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> Import() {

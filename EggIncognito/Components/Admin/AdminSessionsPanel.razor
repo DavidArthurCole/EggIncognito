@@ -1,8 +1,6 @@
 @rendermode @(RenderModes.InteractiveServer)
-@inherits BrowserApiComponentBase
 @using EggIncognito.Models.AdminUi
-@implements IDisposable
-@inject AdminWorkbenchState State
+@inherits AdminPaneBase
 
 <div class="admin-pane-head">
     <h2 class="admin-pane-title">Capture sessions</h2>
@@ -52,20 +50,15 @@
     PaneNotice? _notice;
     List<SessionRow> _rows = [];
     bool _busy;
-    Timer? _timer;
+    bool _stale;
 
-    protected override async Task OnApiReadyAsync() {
-        await Load();
-        _timer = ComponentTimers.Every(TimeSpan.FromSeconds(15), () => InvokeAsync(async () => {
-            if (State.SelectedPane != AdminPanes.Sessions || !await Vis.IsVisibleAsync()) return;
-            await Load();
-            StateHasChanged();
-        }));
+    protected override IReadOnlyList<string> Topics => [AdminTopics.Sessions, AdminTopics.DeviceStatus];
+
+    protected override Task LoadAsync() => Load();
+
+    protected override async Task OnParametersSetAsync() {
+        if (_stale && State.SelectedPane == AdminPanes.Sessions) await Load();
     }
-
-    PageVisibility? _vis;
-
-    PageVisibility Vis => _vis ??= new PageVisibility(Js, Env);
 
     string KindBreakdown() {
         var user = _rows.Count(r => r.Kind == "user");
@@ -79,7 +72,13 @@
     }
 
     async Task Load() {
+        if (State.SelectedPane != AdminPanes.Sessions) {
+            _stale = true;
+            return;
+        }
+
         if (Api is null) return;
+        _stale = false;
         var res = await Api.GetAsync("/api/admin/sessions");
         if (res.Ok) _rows = res.Json<List<SessionRow>>() ?? [];
     }
@@ -108,11 +107,6 @@
             "device" => "sess-kind-device",
             _ => "sess-kind-local"
         };
-    }
-
-    public void Dispose() {
-        _timer?.Dispose();
-        _ = _vis?.DisposeAsync();
     }
 
 }

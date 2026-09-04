@@ -11,6 +11,7 @@
 @inject ILogger<Protos> Logger
 @inject ProtoWorkbenchState State
 @inject NavigationManager Nav
+@inject AdminNotifier Notifier
 @using System.Text.Json
 @using EggIdentity.UI
 @using EggIncognito.Components.Api
@@ -36,7 +37,8 @@
 
     <div class="pd-grid">
         <div class="pd-mod pd-identity">
-            <IdentityPanel OnOpenSupport="OpenSupport" OnOpenTerms="OpenTerms" OnOpenPrivacy="OpenPrivacy"/>
+            <IdentityPanel OnOpenSupport="OpenSupport" OnOpenTerms="OpenTerms" OnOpenPrivacy="OpenPrivacy"
+                           OnOpenAdmin="OpenAdmin"/>
         </div>
         <div class="pd-mod pd-main pd-stack">
             @if (_isAdmin || _isContributor) {
@@ -300,6 +302,7 @@
 <DeviceWorkbenchModal @ref="_deviceWorkbench" OnChanged="OnMutated"/>
 <ApiWorkbenchModal @ref="_apiWorkbench"/>
 <EventsWorkbenchModal @ref="_eventsModal"/>
+<AdminWorkbenchModal @ref="_adminWorkbench"/>
 <SupportModal @ref="_supportModal"/>
 <TermsModal @ref="_termsModal"/>
 <PrivacyModal @ref="_privacyModal"/>
@@ -308,6 +311,7 @@
     ProtoWorkbenchModal? _workbench;
     DeviceWorkbenchModal? _deviceWorkbench;
     ApiWorkbenchModal? _apiWorkbench;
+    AdminWorkbenchModal? _adminWorkbench;
     EventsWorkbenchModal? _eventsModal;
     SupportModal? _supportModal;
     TermsModal? _termsModal;
@@ -315,6 +319,10 @@
 
     void OpenSupport() {
         _supportModal?.Open();
+    }
+
+    void OpenAdmin() {
+        _adminWorkbench?.Open();
     }
 
     void OpenTerms() {
@@ -651,14 +659,12 @@
         _isContributor = User.IsAtLeast(UserRole.Contributor);
     }
 
-    protected override async Task OnInitializedAsync() {
-        await Load();
-
-        _refresh = ComponentTimers.Every(TimeSpan.FromSeconds(30), () => InvokeAsync(RefreshAll));
-    }
+    protected override Task OnInitializedAsync() => Load();
 
     protected override async Task OnAfterRenderAsync(bool firstRender) {
         if (!firstRender) return;
+        _topics ??= Notifier.Subscribe(OnTopic);
+        await Vis.ListenAsync(OnVisibleAsync);
         try {
             _protoDrop ??= await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/protoStrip.js"));
             await _protoDrop.InvokeAsync<bool>("wireDrop", "protoPageDrop", "wbFile");
@@ -674,20 +680,62 @@
         });
         await _routeSync.StartAsync();
         ApplyPath();
+        await ApplyFragmentAsync();
     }
 
-    Timer? _refresh;
+    Task ApplyFragmentAsync() {
+        var fragment = new Uri(Nav.Uri).Fragment.TrimStart('#');
+        if (fragment.Length == 0) return Task.CompletedTask;
+        if (string.Equals(fragment, "console", StringComparison.OrdinalIgnoreCase))
+            return _deviceWorkbench?.OpenScreen() ?? Task.CompletedTask;
+        if (string.Equals(fragment, "devices", StringComparison.OrdinalIgnoreCase))
+            return _deviceWorkbench?.Open() ?? Task.CompletedTask;
+        if (string.Equals(fragment, "fleet", StringComparison.OrdinalIgnoreCase))
+            return _deviceWorkbench?.OpenFleet() ?? Task.CompletedTask;
+
+        if (_adminWorkbench is not { } admin) return Task.CompletedTask;
+        if (string.Equals(fragment, "admin", StringComparison.OrdinalIgnoreCase)) admin.Open();
+        else if (string.Equals(fragment, "playground", StringComparison.OrdinalIgnoreCase)) admin.OpenPlaygroundPane();
+        return Task.CompletedTask;
+    }
+
     PageVisibility? _vis;
     IJSObjectReference? _protoDrop;
+    IDisposable? _topics;
+    bool _disposed;
+    bool _missed;
+    bool _refreshing;
 
     PageVisibility Vis => _vis ??= new PageVisibility(JS, Env);
 
+    void OnTopic(string topic) {
+        if (_disposed) return;
+        if (topic != AdminTopics.ProtoRegistry && topic != AdminTopics.Staged) return;
+        _ = InvokeAsync(RefreshAll);
+    }
+
+    async Task OnVisibleAsync(bool visible) {
+        if (_disposed || !visible || !_missed) return;
+        _missed = false;
+        await InvokeAsync(RefreshAll);
+    }
+
     async Task RefreshAll() {
-        if (_loading || _busyMutating) return;
-        if (!await Vis.IsVisibleAsync()) return;
-        await Load(true);
-        if (_stagedPanel is not null) await _stagedPanel.Load();
-        StateHasChanged();
+        if (_disposed || _loading || _busyMutating || _refreshing) return;
+        _refreshing = true;
+        try {
+            if (!await Vis.IsVisibleAsync()) {
+                _missed = true;
+                return;
+            }
+
+            await Load(true);
+            if (_stagedPanel is not null) await _stagedPanel.Load();
+            StateHasChanged();
+        }
+        finally {
+            _refreshing = false;
+        }
     }
 
     bool _busyMutating;
@@ -796,7 +844,9 @@
     }
 
     public async ValueTask DisposeAsync() {
-        if (_refresh is not null) await _refresh.DisposeAsync();
+        _disposed = true;
+        _topics?.Dispose();
+        _topics = null;
         if (_vis is not null) await _vis.DisposeAsync();
         await _protoDrop.DisposeModuleAsync(logger: Logger);
         if (_routeSync is not null) await _routeSync.DisposeAsync();

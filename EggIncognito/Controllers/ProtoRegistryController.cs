@@ -128,6 +128,16 @@ public sealed class ProtoRegistryController(IServiceProvider services, ICurrentU
         return Ok(new { ok = true, protoSha = req.ProtoSha, order = req.Order });
     }
 
+    [HttpGet("deleted")]
+    [ApiAccess(ApiAccessLevel.Admin)]
+    public async Task<IActionResult> Deleted(CancellationToken ct) {
+        if (Require(UserRole.Admin) is { } no) return no;
+        if (Store is not { } store) return Ok(Array.Empty<DeletedVersionRow>());
+        var rows = await store.DeletedAsync(ct);
+        return Ok(rows.Select(r => new DeletedVersionRow(
+            r.Platform, r.Build, r.AppVersion, r.ClientVersion, r.Source, r.ProtoSha, r.DeletedAt)));
+    }
+
     [HttpPost("{platform}/{build}/restore")]
     public async Task<IActionResult> Restore(string platform, string build, CancellationToken ct) {
         if (Require(UserRole.Admin) is { } no) return no;

@@ -11,6 +11,7 @@ public static class AdminTopics {
     public const string Events = "events";
     public const string Contracts = "contracts";
     public const string Staged = "staged";
+    public const string ProtoRegistry = "proto-registry";
     public const string Contributions = "contributions";
     public const string Sessions = "sessions";
     public const string Console = "console";
@@ -19,6 +20,8 @@ public static class AdminTopics {
     public const string VirtualDevices = "virtual-devices";
     public const string ImageBuilds = "image-builds";
     public const string DeviceStatus = "device-status";
+    public const string Apks = "apks";
+    public const string Tags = "tags";
 }
 
 public sealed class AdminNotifier {

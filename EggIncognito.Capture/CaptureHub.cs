@@ -39,6 +39,8 @@ public sealed class CaptureHub {
 
     public Action? DevicesChanged { get; set; }
 
+    public event Action? StatsChanged;
+
     public bool Paused { get; set; }
 
     public bool HasSubscribers {
@@ -371,6 +373,7 @@ public sealed class CaptureHub {
         }
 
         foreach (var ch in targets) ch.Writer.TryWrite(env);
+        StatsChanged?.Invoke();
     }
 
     private void Unsubscribe(Channel<CaptureEnvelope> ch) {

@@ -45,11 +45,43 @@ public sealed record DockerImage(
     long Size,
     DateTimeOffset Created);
 
+public sealed record DockerEvent(string Type, string Action, string Id, string Name);
+
+public sealed class DockerEventReader : IAsyncDisposable {
+    private readonly HttpResponseMessage _response;
+    private readonly Stream _body;
+    private readonly StreamReader _reader;
+
+    internal DockerEventReader(HttpResponseMessage response, Stream body) {
+        _response = response;
+        _body = body;
+        _reader = new StreamReader(body, Encoding.UTF8);
+    }
+
+    public async Task<DockerEvent?> ReadAsync(CancellationToken ct) {
+        while (!ct.IsCancellationRequested) {
+            string? line = await _reader.ReadLineAsync(ct);
+            if (line is null) return null;
+            if (line.Length == 0) continue;
+            if (DockerEngineClient.ParseEvent(line) is { } ev) return ev;
+        }
+
+        return null;
+    }
+
+    public async ValueTask DisposeAsync() {
+        _reader.Dispose();
+        await _body.DisposeAsync();
+        _response.Dispose();
+    }
+}
+
 public sealed partial class DockerEngineClient : IDisposable {
     public const string HostNetwork = "host";
     private static readonly string[] ReservedNetworks = ["bridge", "host", "none"];
     private readonly HttpClient _http;
     private readonly HttpClient _build;
+    private readonly HttpClient _stream;
     private readonly SocketsHttpHandler _handler;
 
     public DockerEngineClient(string socketPath) {
@@ -76,6 +108,11 @@ public sealed partial class DockerEngineClient : IDisposable {
             Timeout = Timeout.InfiniteTimeSpan
         };
         _build.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        _stream = new HttpClient(_handler, false) {
+            BaseAddress = new Uri("http://docker/"),
+            Timeout = Timeout.InfiniteTimeSpan
+        };
+        _stream.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
     }
 
     public string SocketPath { get; }
@@ -85,7 +122,67 @@ public sealed partial class DockerEngineClient : IDisposable {
     public void Dispose() {
         _http.Dispose();
         _build.Dispose();
+        _stream.Dispose();
         _handler.Dispose();
+    }
+
+    public async Task<DeviceResult<DockerEventReader>> OpenEventsAsync(string? label, CancellationToken ct) {
+        if (!SocketPresent)
+            return DeviceResult<DockerEventReader>.Unsupported($"docker socket {SocketPath} is not present");
+
+        string filters = string.IsNullOrEmpty(label)
+            ? "{\"type\":[\"container\"]}"
+            : $"{{\"type\":[\"container\"],\"label\":[\"{label}\"]}}";
+        using var req = new HttpRequestMessage(HttpMethod.Get, "events?filters=" + Uri.EscapeDataString(filters));
+
+        HttpResponseMessage? res = null;
+        Stream? body = null;
+        try {
+            res = await _stream.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+            if (!res.IsSuccessStatusCode) {
+                int code = (int)res.StatusCode;
+                string text = await res.Content.ReadAsStringAsync(ct);
+                return DeviceResult<DockerEventReader>.Error($"docker {code}: {Trim(text)}");
+            }
+
+            body = await res.Content.ReadAsStreamAsync(ct);
+            var opened = new DockerEventReader(res, body);
+            res = null;
+            body = null;
+            return DeviceResult<DockerEventReader>.Success(opened);
+        } catch (HttpRequestException ex) {
+            return DeviceResult<DockerEventReader>.Unsupported($"docker socket unreachable: {ex.Message}");
+        } catch (SocketException ex) {
+            return DeviceResult<DockerEventReader>.Unsupported($"docker socket unreachable: {ex.Message}");
+        } catch (IOException ex) {
+            return DeviceResult<DockerEventReader>.Unreachable($"docker event stream broke: {ex.Message}");
+        } finally {
+            if (body is not null) await body.DisposeAsync();
+            res?.Dispose();
+        }
+    }
+
+    internal static DockerEvent? ParseEvent(string line) {
+        try {
+            using var doc = JsonDocument.Parse(line);
+            var root = doc.RootElement;
+            if (root.ValueKind != JsonValueKind.Object) return null;
+
+            string action = Str(root, "Action");
+            if (action.Length == 0) action = Str(root, "status");
+            if (action.Length == 0) return null;
+
+            string id = Str(root, "id");
+            string name = "";
+            if (root.TryGetProperty("Actor", out var actor) && actor.ValueKind == JsonValueKind.Object) {
+                if (id.Length == 0) id = Str(actor, "ID");
+                if (actor.TryGetProperty("Attributes", out var attrs)) name = Str(attrs, "name");
+            }
+
+            return new DockerEvent(Str(root, "Type"), action, id, name);
+        } catch (JsonException) {
+            return null;
+        }
     }
 
     public async Task<DeviceResult> PingAsync(CancellationToken ct) {

@@ -10,6 +10,10 @@
         <span class="auth-nav">
             @if (User.IsAuthenticated) {
                 <AccountModal OnProfileChanged="LoadProfile"/>
+                @if (User.IsAtLeast(UserRole.Admin)) {
+                    <button type="button" class="auth-btn" @onclick="@(() => OnOpenAdmin.InvokeAsync())">Admin</button>
+                }
+
                 @if (Auth.Enabled) {
                     <form method="post" action="/logout" style="margin:0;">
                         <button type="submit" class="auth-btn">Log out</button>
@@ -97,6 +101,8 @@
     [Parameter] public EventCallback OnOpenTerms { get; set; }
 
     [Parameter] public EventCallback OnOpenPrivacy { get; set; }
+
+    [Parameter] public EventCallback OnOpenAdmin { get; set; }
 
     string _timezone = "";
     string _language = "";

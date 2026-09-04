@@ -37,6 +37,8 @@ public sealed class DeviceCaptureManager(
     private Task? _rescan;
     public DeviceRinfoStore Rinfo { get; } = new(capturePath);
 
+    public event Action? CountersChanged;
+
     public async Task StartAsync(CancellationToken cancellationToken) {
         if (!config.Enabled) {
             logger.LogInformation("device capture: disabled (DeviceCapture:Enabled=false)");
@@ -129,6 +131,7 @@ public sealed class DeviceCaptureManager(
             var pump = pipeline.StartPump(hub, Now, null, obs => {
                 Rinfo.Observe(d.Id, obs, DateTimeOffset.UtcNow.ToString("O"));
                 if (_diag.TryGetValue(d.Id, out var dg)) dg.BumpRinfoHarvests();
+                CountersChanged?.Invoke();
             }, flowObserver is { } observer ? dash => observer.OnFlowProcessed(d.Id, dash) : null, ct);
 
             var diag = _diag.GetOrAdd(d.Id, _ => new DeviceCaptureDiag());
@@ -139,9 +142,13 @@ public sealed class DeviceCaptureManager(
             if (config.Verbose)
                 proxy.Trace += line => logger.LogDebug("device capture: {Id} trace: {Line}", d.Id, line);
             pipeline.Attach(proxy, hub, Now,
-                onFlowCaptured: _ => diag.BumpFlows(),
+                onFlowCaptured: _ => {
+                    diag.BumpFlows();
+                    CountersChanged?.Invoke();
+                },
                 onClientConnected: (count, ip) => {
                     diag.BumpClientConnects();
+                    CountersChanged?.Invoke();
                     logger.LogInformation("device capture: {Id} client connected (active={Count}, ip={Ip})", d.Id,
                         count, ip ?? "?");
                 },
@@ -151,10 +158,12 @@ public sealed class DeviceCaptureManager(
                 },
                 onDecryptError: msg => {
                     diag.LastDecryptError = msg;
+                    CountersChanged?.Invoke();
                     logger.LogWarning("device capture: {Id} decrypt error: {Msg}", d.Id, msg);
                 },
                 onTrustRestored: () => {
                     diag.LastDecryptError = null;
+                    CountersChanged?.Invoke();
                     logger.LogInformation("device capture: {Id} decryption recovered", d.Id);
                 });
             proxy.ConnectSeen += (host, willDecrypt) => diag.NoteConnect(host, willDecrypt);
@@ -162,6 +171,7 @@ public sealed class DeviceCaptureManager(
             hub.SetProxyState(true, port);
 
             _captures[d.Id] = new DeviceCapture(proxy, port, pipeline.Queue, pump, hub);
+            CountersChanged?.Invoke();
             logger.LogInformation("device capture: {Id} listening on :{Port} (CA {Ca}, freshCa={Fresh})",
                 d.Id, port, caPath, proxy.FreshCa);
 
@@ -194,6 +204,7 @@ public sealed class DeviceCaptureManager(
 
     private async Task TeardownAsync(string id) {
         if (!_captures.TryRemove(id, out var c)) return;
+        CountersChanged?.Invoke();
         c.Hub.SetProxyState(false, c.Port);
         try {
             await c.Proxy.StopAsync();

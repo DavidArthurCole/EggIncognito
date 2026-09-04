@@ -3,12 +3,7 @@
 @using EggIncognito.Core.Services.Devices
 @using EggIncognito.Models.Devices
 @inherits BrowserApiComponentBase
-@inject AdminWorkbenchState State
-
-<div class="admin-pane-head">
-    <h2 class="admin-pane-title">Virtual devices</h2>
-</div>
-<PaneNotice @ref="_notice"/>
+@inject AdminNotifier Notifier
 
 <div class="vd-sub">
     <div class="vd-head">
@@ -211,6 +206,13 @@
 </div>
 
 @code {
+
+    [Parameter] public bool Active { get; set; }
+
+    [Parameter] public EventCallback<DeviceNotice> OnNotice { get; set; }
+
+    [Parameter] public EventCallback OnChanged { get; set; }
+
     [Parameter] public EventCallback<string> OnConsole { get; set; }
 
     VirtualDevicesStatus? _status;
@@ -219,14 +221,18 @@
     string? _imagesErr;
     List<ModuleCacheRow>? _modules;
     ImageBuildStatusView? _build;
+    long? _buildId;
     string _buildVer = "11.0.0";
     bool _gapps = true;
     bool _magisk = true;
     bool _ndk = true;
-    PaneNotice? _notice;
     bool _busy;
-    int _ticks;
-    CancellationTokenSource? _loopCts;
+    bool _loaded;
+    bool _loading;
+    bool _visible = true;
+    bool _pendingFleet;
+    bool _pendingBuild;
+    IDisposable? _topics;
     PageVisibility? _vis;
 
     PageVisibility Vis => _vis ??= new PageVisibility(Js, Env);
@@ -253,54 +259,107 @@
     }
 
     protected override async Task OnApiReadyAsync() {
-        await Load();
-        _loopCts = new CancellationTokenSource();
-        _ = RunLoopAsync(_loopCts.Token);
+        _topics ??= Notifier.Subscribe(OnTopic);
+        await Vis.ListenAsync(OnVisibilityAsync);
+        await EnsureLoadedAsync();
     }
 
-    async Task RunLoopAsync(CancellationToken ct) {
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+    void OnTopic(string topic) {
+        if (topic != AdminTopics.VirtualDevices && topic != AdminTopics.ImageBuilds) return;
+        _ = InvokeAsync(() => PushedAsync(topic));
+    }
+
+    async Task PushedAsync(string topic) {
+        if (Api is null || !Active) return;
+        if (topic == AdminTopics.ImageBuilds) _pendingBuild = true;
+        else _pendingFleet = true;
+        if (!_visible) return;
+        await DrainAsync();
+    }
+
+    async Task OnVisibilityAsync(bool visible) {
+        _visible = visible;
+        if (!visible) return;
+        await InvokeAsync(DrainAsync);
+    }
+
+    async Task DrainAsync() {
+        if (Api is null || !Active || _busy || _loading) return;
+        _loading = true;
         try {
-            while (await timer.WaitForNextTickAsync(ct)) {
-                if (_busy || State.SelectedPane != AdminPanes.VirtualDevices || !await Vis.IsVisibleAsync()) continue;
-                _ticks++;
-                await Load(true);
-                if (_ticks % 4 == 0) await LoadReadiness();
-                if (_ticks % 12 == 0) await LoadImages();
-                await InvokeAsync(StateHasChanged);
+            while (_pendingFleet || _pendingBuild) {
+                bool fleet = _pendingFleet;
+                bool build = _pendingBuild;
+                _pendingFleet = false;
+                _pendingBuild = false;
+                if (fleet) await LoadFleet();
+                if (build) await LoadBuild();
             }
         }
-        catch (OperationCanceledException) {
+        finally {
+            _loading = false;
         }
+
+        StateHasChanged();
+    }
+
+    protected override Task OnParametersSetAsync() {
+        return EnsureLoadedAsync();
+    }
+
+    async Task EnsureLoadedAsync() {
+        if (!Active || Api is null || _loaded) return;
+        _loaded = true;
+        await Load();
     }
 
     public override async ValueTask DisposeAsync() {
-        if (_loopCts is not null) {
-            await _loopCts.CancelAsync();
-            _loopCts.Dispose();
-        }
-
+        _topics?.Dispose();
+        _topics = null;
         if (_vis is not null) await _vis.DisposeAsync();
         await base.DisposeAsync();
     }
 
-    Task Load() {
-        return Load(false);
-    }
-
-    async Task Load(bool quiet) {
+    async Task Load() {
         if (Api is null) return;
+        _pendingFleet = false;
+        _pendingBuild = false;
         var res = await Api.GetAsync("/api/devices/virtual");
         if (!res.Ok) {
-            if (!quiet) Say($"load failed: {res.Describe()}", StatusNoteKind.Error);
+            await Say($"load failed: {res.Describe()}", StatusNoteKind.Error);
             return;
         }
 
         _status = res.Json<VirtualDevicesStatus>();
-        if (quiet) return;
         await LoadReadiness();
         await LoadImages();
         await LoadModules();
+    }
+
+    async Task LoadFleet() {
+        if (Api is null) return;
+        var res = await Api.GetAsync("/api/devices/virtual");
+        if (!res.Ok) return;
+        _status = res.Json<VirtualDevicesStatus>();
+        await LoadNewReadiness();
+    }
+
+    async Task LoadBuild() {
+        if (Api is null) return;
+        if (_buildId is { } id) {
+            var res = await Api.GetAsync($"/api/devices/virtual/images/build/{id}");
+            if (res.Ok && res.Json<ImageBuildStatusView>() is { } b) {
+                _build = b;
+                if (ImageBuildStates.IsTerminal(b.State)) {
+                    _buildId = null;
+                    bool ok = b.State == ImageBuildStates.Ready;
+                    await Say(ok ? $"image {b.Tag} built" : $"build failed: {b.Note ?? "see log"}",
+                        ok ? StatusNoteKind.Ok : StatusNoteKind.Error);
+                }
+            }
+        }
+
+        await LoadImages();
     }
 
     async Task LoadImages() {
@@ -330,6 +389,20 @@
         }
     }
 
+    async Task LoadNewReadiness() {
+        if (Api is null || _status is null) return;
+        var known = _status.Instances.Select(i => i.DeviceId).OfType<string>().ToList();
+        foreach (string gone in _readiness.Keys.Where(k => !known.Contains(k, StringComparer.Ordinal)).ToList())
+            _readiness.Remove(gone);
+
+        foreach (var i in _status.Instances) {
+            if (i.DeviceId is not { Length: > 0 } did) continue;
+            if (i.State != ProvisionStates.Ready || _readiness.ContainsKey(did)) continue;
+            var res = await Api.GetAsync($"/api/devices/{did}/readiness");
+            if (res.Ok && res.Json<DeviceReadiness>() is { } r) _readiness[did] = r;
+        }
+    }
+
     async Task Create() {
         if (Api is null || _busy) return;
         _busy = true;
@@ -337,7 +410,7 @@
             var res = await Api.PostJsonAsync("/api/devices/virtual", new VirtualCreateRequest(null),
                 TimeSpan.FromMinutes(2));
             var body = res.Json<VirtualActionResult>();
-            Say(res.Ok
+            await Say(res.Ok
                     ? $"provisioned {body?.InstanceId ?? "instance"}"
                     : $"provision failed: {body?.Note ?? res.Describe()}",
                 res.Ok ? StatusNoteKind.Ok : StatusNoteKind.Error);
@@ -347,6 +420,7 @@
         }
 
         await Load();
+        await Changed();
     }
 
     async Task Destroy(string instanceId) {
@@ -355,7 +429,7 @@
         try {
             var res = await Api.DeleteAsync($"/api/devices/virtual/{instanceId}");
             var body = res.Json<VirtualActionResult>();
-            Say(res.Ok ? $"destroyed {instanceId}" : $"destroy refused: {body?.Note ?? res.Describe()}",
+            await Say(res.Ok ? $"destroyed {instanceId}" : $"destroy refused: {body?.Note ?? res.Describe()}",
                 res.Ok ? StatusNoteKind.Ok : StatusNoteKind.Error);
         }
         finally {
@@ -363,6 +437,7 @@
         }
 
         await Load();
+        await Changed();
     }
 
     async Task Reconcile() {
@@ -371,7 +446,7 @@
         try {
             var res = await Api.PostAsync("/api/devices/virtual/reconcile", TimeSpan.FromMinutes(2));
             var body = res.Json<VirtualActionResult>();
-            Say(res.Ok ? body?.Note ?? "reconciled" : $"reconcile failed: {res.Describe()}",
+            await Say(res.Ok ? body?.Note ?? "reconciled" : $"reconcile failed: {res.Describe()}",
                 res.Ok ? StatusNoteKind.Ok : StatusNoteKind.Error);
         }
         finally {
@@ -379,49 +454,32 @@
         }
 
         await Load();
+        await Changed();
     }
 
     async Task BuildImage() {
         if (Api is null || _busy) return;
         _busy = true;
         _build = null;
-        long? id = null;
+        _buildId = null;
         try {
             var req = new ImageBuildRequest(_buildVer, _gapps, _magisk, _ndk, null);
             var res = await Api.PostJsonAsync("/api/devices/virtual/images/build", req, TimeSpan.FromMinutes(2));
             var start = res.Json<ImageBuildStartResult>();
             if (!res.Ok || start is not { Ok: true, Id: { } sid }) {
-                Say($"build refused: {start?.Note ?? res.Describe()}", StatusNoteKind.Error);
+                await Say($"build refused: {start?.Note ?? res.Describe()}", StatusNoteKind.Error);
                 return;
             }
 
-            id = sid;
-            Say($"build {start.Tag} started, running in the background", StatusNoteKind.Ok);
+            _buildId = sid;
+            await Say($"build {start.Tag} started, running in the background", StatusNoteKind.Ok);
         }
         finally {
             _busy = false;
         }
 
-        if (id is { } bid) _ = PollBuild(bid);
-    }
-
-    async Task PollBuild(long id) {
-        for (var i = 0; i < 300; i++) {
-            await Task.Delay(2000);
-            if (Api is null) return;
-            var res = await Api.GetAsync($"/api/devices/virtual/images/build/{id}");
-            if (!res.Ok || res.Json<ImageBuildStatusView>() is not { } b) continue;
-
-            _build = b;
-            await InvokeAsync(StateHasChanged);
-            if (!ImageBuildStates.IsTerminal(b.State)) continue;
-
-            Say(b.State == ImageBuildStates.Ready ? $"image {b.Tag} built" : $"build failed: {b.Note ?? "see log"}",
-                b.State == ImageBuildStates.Ready ? StatusNoteKind.Ok : StatusNoteKind.Error);
-            await LoadImages();
-            await InvokeAsync(StateHasChanged);
-            return;
-        }
+        _pendingBuild = true;
+        await DrainAsync();
     }
 
     async Task UseImage(string tag) {
@@ -430,7 +488,7 @@
         try {
             var res = await Api.PostJsonAsync("/api/devices/virtual/images/use", new ImageUseRequest(tag));
             var body = res.Json<VirtualActionResult>();
-            Say(res.Ok ? body?.Note ?? $"active image set to {tag}" : $"use failed: {res.Describe()}",
+            await Say(res.Ok ? body?.Note ?? $"active image set to {tag}" : $"use failed: {res.Describe()}",
                 res.Ok ? StatusNoteKind.Ok : StatusNoteKind.Error);
         }
         finally {
@@ -446,7 +504,7 @@
         try {
             var res = await Api.PostJsonAsync("/api/devices/virtual/images/remove", new ImageRemoveRequest(tag));
             var body = res.Json<VirtualActionResult>();
-            Say(res.Ok ? $"removed {tag}" : $"remove refused: {body?.Note ?? res.Describe()}",
+            await Say(res.Ok ? $"removed {tag}" : $"remove refused: {body?.Note ?? res.Describe()}",
                 res.Ok ? StatusNoteKind.Ok : StatusNoteKind.Error);
         }
         finally {
@@ -463,9 +521,9 @@
             var res = await Api.PostAsync("/api/devices/virtual/modules/refresh", TimeSpan.FromMinutes(2));
             if (res.Ok) {
                 _modules = res.Json<List<ModuleCacheRow>>();
-                Say("module cache refreshed", StatusNoteKind.Ok);
+                await Say("module cache refreshed", StatusNoteKind.Ok);
             } else {
-                Say($"refresh failed: {res.Describe()}", StatusNoteKind.Error);
+                await Say($"refresh failed: {res.Describe()}", StatusNoteKind.Error);
             }
         }
         finally {
@@ -473,8 +531,12 @@
         }
     }
 
-    void Say(string message, StatusNoteKind kind) {
-        _notice?.Say(message, kind);
+    Task Changed() {
+        return OnChanged.HasDelegate ? OnChanged.InvokeAsync() : Task.CompletedTask;
+    }
+
+    Task Say(string message, StatusNoteKind kind) {
+        return OnNotice.InvokeAsync(new DeviceNotice(message, kind));
     }
 
 }

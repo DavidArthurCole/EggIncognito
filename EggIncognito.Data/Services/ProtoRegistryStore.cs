@@ -51,7 +51,12 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db, IEnumerable<IPr
             row.ProtoSha = protoSha ?? "";
             await UpsertProtoProtoAsync(row.Id, protoText, messageIndex ?? "[]", row.ProtoSha, ct);
         }
+
+        await NotifyRegistryAsync($"backfill:{platform}:{build}", ct);
     }
+
+    private Task NotifyRegistryAsync(string key, CancellationToken ct) =>
+        PgNotify.SendAsync(db, PgChannels.ProtoRegistry, key, ct);
 
     private async Task UpsertProtoProtoAsync(int protoVersionId, string protoText, string? messageIndex,
         string protoSha, CancellationToken ct) {
@@ -170,6 +175,7 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db, IEnumerable<IPr
             row.Id, platform, appVersion, build, clientVersion, protoSha,
             !string.IsNullOrEmpty(protoText), created, protoChanged, delta,
             prevLatest?.AppVersion, prevLatest?.Build), ct);
+        await NotifyRegistryAsync($"upsert:{platform}:{build}", ct);
         return outcome;
     }
 
@@ -212,6 +218,7 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db, IEnumerable<IPr
             if (row is null) return;
             db.ProtoShaOrders.Remove(row);
             await db.SaveChangesAsync(ct);
+            await NotifyRegistryAsync($"sha-order:{protoSha}", ct);
             return;
         }
 
@@ -224,6 +231,7 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db, IEnumerable<IPr
         row.UpdatedAt = DateTimeOffset.UtcNow;
         row.UpdatedBy = who;
         await db.SaveChangesAsync(ct);
+        await NotifyRegistryAsync($"sha-order:{protoSha}", ct);
     }
 
     public async Task<List<MergeSuggestion>> SuggestMergesAsync(CancellationToken ct = default) {
@@ -245,11 +253,18 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db, IEnumerable<IPr
         ];
     }
 
+    public Task<List<ProtoVersion>> DeletedAsync(CancellationToken ct = default) =>
+        db.ProtoVersions.AsNoTracking()
+            .Where(p => p.DeletedAt != null)
+            .OrderByDescending(p => p.DeletedAt)
+            .ToListAsync(ct);
+
     public async Task<bool> SoftDeleteAsync(string platform, string build, CancellationToken ct = default) {
         var row = await db.ProtoVersions.FirstOrDefaultAsync(p => p.Platform == platform && p.Build == build, ct);
         if (row is null) return false;
         row.DeletedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(ct);
+        await NotifyRegistryAsync($"delete:{platform}:{build}", ct);
         return true;
     }
 
@@ -259,6 +274,7 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db, IEnumerable<IPr
         row.DeletedAt = null;
         row.CanonicalId = null;
         await db.SaveChangesAsync(ct);
+        await NotifyRegistryAsync($"restore:{platform}:{build}", ct);
         return true;
     }
 
@@ -279,6 +295,7 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db, IEnumerable<IPr
         if (clientVersion is not null) row.ClientVersion = clientVersion;
         if (source is not null) row.Source = source;
         await db.SaveChangesAsync(ct);
+        await NotifyRegistryAsync($"metadata:{platform}:{row.Build}", ct);
         return MetadataUpdate.Ok;
     }
 
@@ -288,7 +305,8 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db, IEnumerable<IPr
         var canon = await db.ProtoVersions
             .FirstOrDefaultAsync(p => p.Platform == canonical.Platform && p.Build == canonical.Build, ct);
         if (canon is null) return 0;
-        if (canon.CanonicalId is not null) {
+        bool promoted = canon.CanonicalId is not null;
+        if (promoted) {
             canon.CanonicalId = null;
             canon.DeletedAt = null;
         }
@@ -316,6 +334,7 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db, IEnumerable<IPr
         }
 
         await db.SaveChangesAsync(ct);
+        if (promoted || linked > 0) await NotifyRegistryAsync($"merge:{canonical.Platform}:{canonical.Build}", ct);
         return linked;
     }
 
@@ -326,6 +345,7 @@ public sealed class ProtoRegistryStore(EggIncognitoDbContext db, IEnumerable<IPr
         var norm = ProtoCanonicalForm.Normalize(protoText);
         row.ProtoSha = norm.Ok ? norm.Sha! : ProtoHash.Of(protoText);
         await UpsertProtoProtoAsync(row.Id, protoText, null, row.ProtoSha, ct);
+        await NotifyRegistryAsync($"proto:{platform}:{build}", ct);
         return row.ProtoSha;
     }
 

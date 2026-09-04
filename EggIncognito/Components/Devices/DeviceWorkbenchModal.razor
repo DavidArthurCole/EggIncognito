@@ -3,6 +3,7 @@
 @inject ICurrentUser User
 @inject IServiceProvider Services
 @inject DeviceWorkbenchState State
+@inject AdminNotifier Notifier
 @inject ILogger<DeviceWorkbenchModal> Logger
 @using System.Globalization
 @using System.Net
@@ -16,125 +17,158 @@
 @using EggIncognito.Services.Devices
 @implements IDisposable
 
-<WorkbenchModal Open="@(_open && _isAdmin)" Title="Devices" TitleId="deviceWorkbenchTitle" OnClose="CloseModal">
+<WorkbenchModal Open="@(_open && _isAdmin)" Title="Devices" TitleId="deviceWorkbenchTitle"
+                Size="WorkbenchSize.Wide" CardClass="dwb-card" BodyId="deviceWorkbench" OnClose="CloseModal">
     <Notice>
         @if (_notice is { } n) {
-            <StatusNote Severity="@n.Severity" OnDismiss="ClearNotice">@n.Text</StatusNote>
+            <StatusNote Severity="@n.Kind" OnDismiss="ClearNotice">@n.Text</StatusNote>
         }
     </Notice>
     <HeadTools>
         <button type="button" class="btn-mini" disabled="@_bulkBusy" @onclick="ProbeAll">Probe all</button>
         <button type="button" class="btn-mini" disabled="@_bulkBusy" @onclick="PokeAll">Poke all</button>
     </HeadTools>
+    <Rail>
+        <WorkbenchRail>
+            @if (Physical().Any()) {
+                <WorkbenchSection Label="Physical">
+                    @foreach (var d in Physical()) {
+                        @DeviceEntry(d)
+                    }
+                </WorkbenchSection>
+            }
+            @if (Virtual().Any()) {
+                <WorkbenchSection Label="Virtual">
+                    @foreach (var d in Virtual()) {
+                        @DeviceEntry(d)
+                    }
+                </WorkbenchSection>
+            }
+            <WorkbenchSection Label="Fleet">
+                <WorkbenchEntry Selected="@State.FleetSelected" OnClick="SelectFleet">
+                    <Name>Virtual fleet</Name>
+                    <MetaLine>provision, images, integrity</MetaLine>
+                </WorkbenchEntry>
+            </WorkbenchSection>
+        </WorkbenchRail>
+    </Rail>
     <ChildContent>
-        @if (_devices.Count == 0) {
-            <div class="wb-note">No devices declared on this host.</div>
+        @if (State.FleetSelected) {
+            <DeviceFleetPane Active="true" OnNotice="Notice" OnChanged="ReloadDevices" OnConsole="OpenScreenFor"/>
+        } else if (Current is not { } dev) {
+            <div class="wb-note">@(_devices.Count == 0 ? "No devices declared on this host." : "Pick a device.")</div>
         } else {
-            <div class="dwb-devices" role="group" aria-label="Devices">
-                @foreach (var d in Ordered()) {
-                    <button type="button" class="dwb-dev @(State.SelectedId == d.Id ? "dwb-dev-on" : "")"
-                            @key="d.Id" @onclick="@(() => Select(d.Id))">
-                        <span class="@(d.Reachable ? "dwb-dot-ok" : "dwb-dot-bad")"></span>
-                        <PlatformIcon Platform="@d.Platform"/>
-                        <span class="dwb-dev-name">@d.Label</span>
-                        <VersionLine App="@d.InstalledAppVersion" Build="@d.InstalledBuild"
-                                     Client="@Number(d.ClientVersion)"/>
-                        @if (RunningFor(d.Id) is { } busy) {
-                            <span class="wb-st-run">@busy.Kind</span>
-                        }
-                    </button>
-                }
-            </div>
-        }
-
-        @if (Current is { } dev) {
-            <div class="dwb-head">
-                <div class="dwb-facts">
-                    <div class="dwb-fact">
-                        <span class="dwb-fact-k">Status</span>
-                        <span class="dwb-fact-v @(dev.Reachable ? "text-ok" : "text-err")">
-                            @(dev.Reachable ? "reachable" : "unreachable")
-                        </span>
-                    </div>
-                    <div class="dwb-fact">
-                        <span class="dwb-fact-k">Probed</span>
-                        <span class="dwb-fact-v">
-                            <TimeAgo Value="@dev.ProbedAt"/>
-                        </span>
-                    </div>
-                    <div class="dwb-fact">
-                        <span class="dwb-fact-k">Store</span>
-                        <span class="dwb-fact-v @(dev.StoreAhead ? "dwb-warn" : "")">
-                            @(dev.StoreLatest is { Length: > 0 } ? dev.StoreLatest : "unknown")
-                        </span>
-                    </div>
-                    <div class="dwb-fact">
-                        <span class="dwb-fact-k">Harvest</span>
-                        <span class="dwb-fact-v">@HarvestLine()</span>
-                    </div>
-                    <div class="dwb-fact">
-                        <span class="dwb-fact-k">Capture</span>
-                        <span class="dwb-fact-v">@CaptureLine()</span>
-                    </div>
-                    <div class="dwb-fact dwb-fact-wide">
-                        <span class="dwb-fact-k">Package</span>
-                        <span class="dwb-fact-v font-mono truncate">@(dev.Package ?? "?")</span>
-                    </div>
-                    <div class="dwb-fact dwb-fact-wide">
-                        <span class="dwb-fact-k">Target</span>
-                        <span class="dwb-fact-v font-mono truncate">@(dev.Target ?? "?")</span>
-                    </div>
-                </div>
-                <div class="dwb-actions">
-                    <button type="button" class="btn-mini" disabled="@Busy" @onclick="ProbeNow">Probe now</button>
-                    <button type="button" class="btn-mini" disabled="@Busy" @onclick="CheckStore">Check store</button>
-                    <button type="button" class="btn-mini" disabled="@Busy" @onclick="RestartApp">Restart app</button>
-                    @if (dev.Platform == "android") {
-                        <button type="button" class="btn-mini" disabled="@Busy" @onclick="Recert">Recert</button>
-                    }
-                    @if (_harvest is { InRegistry: false }) {
-                        <button type="button" class="btn-mini" disabled="@Busy" @onclick="SaveToRegistry">Save to registry</button>
-                    }
-                    <button type="button" class="btn-mini" disabled="@Busy" @onclick="Poke">Poke harvest</button>
-                </div>
-            </div>
-            @if (!string.IsNullOrEmpty(dev.Note)) {
-                <div class="font-mono text-xs text-muted mt-1">@dev.Note</div>
-            }
-
-            @if (RunningFor(dev.Id) is { } run) {
-                <div class="wb-st-run text-xs mt-2">@run.Kind: @run.Message</div>
-            }
-
-            @if (_recert is { } rc) {
-                <div class="dwb-job-lines mt-2">
-                    <div class="dwb-job-line @(rc.Ok ? "text-ok" : "text-err")">
-                        @(rc.Ok ? "recert ok" : $"recert failed at {rc.FailedStep ?? "?"}")
-                    </div>
-                    @if (rc.Fields.TryGetValue("expiry", out var expiry)) {
-                        <div class="dwb-job-line text-muted">expiry @expiry</div>
-                    }
-                    @foreach (var line in rc.Log) {
-                        <div class="dwb-job-line font-mono text-xs text-muted">@line</div>
-                    }
-                </div>
-            }
-
             <div class="dwb-tabs">
                 <WorkbenchModes Modes="@Tabs()" Current="@State.Mode" CurrentChanged="SelectTab" Label="Device view"/>
             </div>
 
             <div class="dwb-pane">
+                @if (State.Mode == DeviceWorkbenchState.TabOverview) {
+                    <div class="dwb-groups">
+                        <div class="dwb-group">
+                            <div class="dwb-group-head">Reachability</div>
+                            <dl class="dwb-facts">
+                                <dt>state</dt>
+                                <dd class="@(dev.Reachable ? "text-ok" : "text-err")">
+                                    @(dev.Reachable ? "reachable" : "unreachable")
+                                </dd>
+                                <dt>probed</dt>
+                                <dd>
+                                    <TimeAgo Value="@dev.ProbedAt"/>
+                                </dd>
+                                <dt>target</dt>
+                                <dd class="font-mono truncate" title="@dev.Target">@(dev.Target ?? "?")</dd>
+                            </dl>
+                        </div>
+                        <div class="dwb-group">
+                            <div class="dwb-group-head">App</div>
+                            <dl class="dwb-facts">
+                                <dt>package</dt>
+                                <dd class="font-mono truncate" title="@dev.Package">@(dev.Package ?? "?")</dd>
+                                <dt>installed</dt>
+                                <dd>
+                                    <VersionLine App="@dev.InstalledAppVersion" Build="@dev.InstalledBuild"
+                                                 Client="@Number(dev.ClientVersion)"/>
+                                </dd>
+                                <dt>store</dt>
+                                <dd class="@(dev.StoreAhead ? "dwb-warn" : "")">
+                                    @(dev.StoreLatest is { Length: > 0 } ? dev.StoreLatest : "unknown")@(dev.StoreAhead ? " (ahead)" : "")
+                                </dd>
+                            </dl>
+                        </div>
+                        <div class="dwb-group">
+                            <div class="dwb-group-head">Pipelines</div>
+                            <dl class="dwb-facts">
+                                <dt>harvest</dt>
+                                <dd>@HarvestLine()</dd>
+                                <dt>capture</dt>
+                                <dd>@CaptureLine()</dd>
+                                <dt>last job</dt>
+                                <dd>@LastJobLine()</dd>
+                            </dl>
+                        </div>
+                    </div>
+
+                    <div class="dwb-actions">
+                        <button type="button" class="btn-mini" disabled="@Busy" @onclick="ProbeNow">Probe now</button>
+                        <button type="button" class="btn-mini" disabled="@Busy" @onclick="CheckStore">Check store</button>
+                        <button type="button" class="btn-mini" disabled="@Busy" @onclick="RestartApp">Restart app</button>
+                        @if (dev.Platform == "android") {
+                            <button type="button" class="btn-mini" disabled="@Busy" @onclick="Recert">Recert</button>
+                        }
+                        @if (_harvest is { InRegistry: false }) {
+                            <button type="button" class="btn-mini" disabled="@Busy" @onclick="SaveToRegistry">
+                                Save to registry
+                            </button>
+                        }
+                        <button type="button" class="btn-mini" disabled="@Busy" @onclick="Poke">Poke harvest</button>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(dev.Note)) {
+                        <div class="font-mono text-xs text-muted mt-2">@dev.Note</div>
+                    }
+
+                    @if (RunningFor(dev.Id) is { } run) {
+                        <div class="wb-st-run text-xs mt-2">@run.Kind: @run.Message</div>
+                    }
+
+                    @if (_recert is { } rc) {
+                        <div class="dwb-job-lines mt-2">
+                            <div class="dwb-job-line @(rc.Ok ? "text-ok" : "text-err")">
+                                @(rc.Ok ? "recert ok" : $"recert failed at {rc.FailedStep ?? "?"}")
+                            </div>
+                            @if (rc.Fields.TryGetValue("expiry", out var expiry)) {
+                                <div class="dwb-job-line text-muted">expiry @expiry</div>
+                            }
+                            @foreach (var line in rc.Log) {
+                                <div class="dwb-job-line font-mono text-xs text-muted">@line</div>
+                            }
+                        </div>
+                    }
+                }
+
+                @if (State.Mode == DeviceWorkbenchState.TabScreen) {
+                    <DeviceScreenPane DeviceId="@dev.Id" Platform="@dev.Platform" Active="true" OnNotice="Notice"/>
+                }
+
+                @if (State.Mode == DeviceWorkbenchState.TabRecipes) {
+                    <DeviceRecipesPane DeviceId="@dev.Id" Active="true" OnNotice="Notice"
+                                       OnRunFinished="ReloadDevices"/>
+                }
+
                 @if (State.Mode == DeviceWorkbenchState.TabJobs) {
-                    <WorkbenchLoad T="JobRow" Items="_jobs" EmptyText="No jobs yet." Context="jobs">
+                    <WorkbenchLoad T="JobGroupRow" Items="_jobs" EmptyText="No jobs yet." Context="jobs">
                         <div class="dwb-jobs">
                             @foreach (var j in jobs) {
                                 var open = State.Expanded.Contains(j.Id);
                                 <div class="dwb-job @(open ? "dwb-job-open" : "")" @key="j.Id">
-                                    <button type="button" class="dwb-job-head" @onclick="@(() => ToggleJob(j.Id))">
-                                        <span class="dwb-job-at">@j.StartedAt.ToLocalTime().ToString("MM-dd HH:mm:ss")</span>
+                                    <button type="button" class="dwb-job-head" @onclick="@(() => ToggleJob(j))">
+                                        <span class="dwb-job-at">@Stamp(j.LastAt)</span>
                                         <span class="dwb-job-kind">@j.Kind</span>
                                         <span class="@StateClass(j.State)">@(j.Outcome ?? j.State)</span>
+                                        @if (j.Repeat > 1) {
+                                            <span class="dwb-job-rep">x@(j.Repeat), since @Stamp(j.StartedAt)</span>
+                                        }
                                         <span class="dwb-job-dur">@Duration(j)</span>
                                         <span class="dwb-job-trigger">@j.Trigger</span>
                                     </button>
@@ -143,7 +177,7 @@
                                             @if (!string.IsNullOrEmpty(j.Message)) {
                                                 <div class="dwb-job-line text-muted">@j.Message</div>
                                             }
-                                            @foreach (var l in j.Lines) {
+                                            @foreach (var l in LinesFor(j.Id)) {
                                                 <div class="dwb-job-line">
                                                     <span class="font-mono text-muted">@l.At.ToLocalTime().ToString("HH:mm:ss")</span>
                                                     @if (l.Entry is not null) {
@@ -160,6 +194,11 @@
                                 </div>
                             }
                         </div>
+                        @if (_jobsMore is not null) {
+                            <button type="button" class="btn-mini mt-2" disabled="@_jobsBusy" @onclick="LoadMoreJobsAsync">
+                                @(_jobsBusy ? "Loading..." : "Older jobs")
+                            </button>
+                        }
                     </WorkbenchLoad>
                 }
 
@@ -170,7 +209,7 @@
                         <div class="dwb-capture">
                             <div class="dwb-capture-bar">
                                 <StatsPanel Stats="_stats" FlowCount="_flows.Count" Running="_capturing" Port="_port"/>
-                                <a class="btn-mini no-underline" href="/capture/device/@Current!.Id">Open full capture</a>
+                                <a class="btn-mini no-underline" href="/capture/device/@dev.Id">Open full capture</a>
                             </div>
                             <div class="dwb-capture-body">
                                 <FlowList Flows="_flows" SelectedId="_selectedFlowId" Connected="true"
@@ -190,7 +229,7 @@
                             </tr>
                             </thead>
                             <tbody>
-                            @foreach (var b in (_binaries ?? []).Where(x => x.Platform == Current!.Platform)) {
+                            @foreach (var b in (_binaries ?? []).Where(x => x.Platform == dev.Platform)) {
                                 <tr>
                                     <td>
                                         <VersionLine App="@b.Version"/>
@@ -242,12 +281,16 @@
     bool _isAdmin;
     bool _bulkBusy;
     bool _disposed;
-    (string Text, StatusNoteKind Severity)? _notice;
-    Timer? _timer;
+    bool _jobsBusy;
+    bool _refreshing;
+    DeviceNotice? _notice;
+    IDisposable? _topics;
 
     List<DeviceRow> _devices = [];
     List<LiveJob> _live = [];
-    List<JobRow>? _jobs;
+    List<JobGroupRow>? _jobs;
+    long? _jobsMore;
+    readonly Dictionary<long, List<JobLineRow>> _jobLines = [];
     List<StoredBinaryRow>? _binaries;
     HarvestInfo? _harvest;
     RecertResultDto? _recert;
@@ -263,7 +306,9 @@
     long? _selectedFlowId;
     DashboardFlow? _selectedFlow;
 
-    DeviceRow? Current => _devices.FirstOrDefault(d => d.Id == State.SelectedId);
+    DeviceRow? Current => State.FleetSelected ? null : _devices.FirstOrDefault(d => d.Id == State.SelectedId);
+
+    DeviceJobFeed? Feed => Services.GetService(typeof(DeviceJobFeed)) as DeviceJobFeed;
 
     bool Busy => Current is not null && RunningFor(Current.Id) is not null;
 
@@ -271,21 +316,58 @@
         return _live.FirstOrDefault(j => j.Device == id);
     }
 
-    IReadOnlyList<(string Key, string Label, int? Count)> Tabs() {
-        return [.. State.Modes.Select(m => (m.Key, m.Label, (int?)TabCount(m.Key)))];
+    IEnumerable<DeviceRow> Physical() {
+        return Ordered().Where(d => !d.Virtual);
     }
 
-    int TabCount(string key) {
+    IEnumerable<DeviceRow> Virtual() {
+        return Ordered().Where(d => d.Virtual);
+    }
+
+    RenderFragment DeviceEntry(DeviceRow d) => @<WorkbenchEntry Selected="@(State.SelectedId == d.Id)" @key="d.Id"
+                                                                Tone="@(d.Reachable ? WorkbenchTone.Normal : WorkbenchTone.Muted)"
+                                                                OnClick="@(() => Select(d.Id))">
+                                                   <Lead>
+                                                       <span class="@(d.Reachable ? "dwb-dot-ok" : "dwb-dot-bad")"></span>
+                                                       <PlatformIcon Platform="@d.Platform"/>
+                                                   </Lead>
+                                                   <Name>@d.Label</Name>
+                                                   <MetaLine>
+                                                       <VersionLine App="@d.InstalledAppVersion" Build="@d.InstalledBuild" Client="@Number(d.ClientVersion)"/>
+                                                   </MetaLine>
+                                                   <Foot>
+                                                       @if (RunningFor(d.Id) is { } busy) {
+                                                           <span class="wb-st-run">@busy.Kind</span>
+                                                       }
+                                                   </Foot>
+                                               </WorkbenchEntry>;
+
+    IReadOnlyList<(string Key, string Label, int? Count)> Tabs() {
+        return [.. State.Modes.Select(m => (m.Key, m.Label, TabCount(m.Key)))];
+    }
+
+    int? TabCount(string key) {
         return key switch {
-            DeviceWorkbenchState.TabJobs => _jobs?.Count ?? 0,
+            DeviceWorkbenchState.TabJobs => _jobs?.Count,
             DeviceWorkbenchState.TabCapture => _flows.Count,
-            _ => _binaries?.Count(x => x.Platform == Current?.Platform) ?? 0
+            DeviceWorkbenchState.TabBinaries => _binaries?.Count(x => x.Platform == Current?.Platform),
+            _ => null
         };
     }
 
     string CaptureLine() {
         if (_hub is null) return "not configured";
         return _capturing ? $"running :{_port}" : "idle";
+    }
+
+    string LastJobLine() {
+        if (_jobs is not { Count: > 0 } jobs) return "none";
+        var j = jobs[0];
+        return $"{j.Kind} {j.Outcome ?? j.State}, {Stamp(j.LastAt)}";
+    }
+
+    static string Stamp(DateTimeOffset at) {
+        return at.ToLocalTime().ToString("MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
     }
 
     static string? Number(int? value) {
@@ -311,16 +393,30 @@
         State.SelectedId ??= Ordered().FirstOrDefault()?.Id;
         await LoadForDeviceAsync();
         await LoadBinariesAsync();
-        _timer ??= ComponentTimers.Every(TimeSpan.FromSeconds(2), () => InvokeAsync(TickAsync));
+        _topics ??= Notifier.Subscribe(OnTopic);
         StateHasChanged();
+    }
+
+    public async Task OpenScreen(string? deviceId = null) {
+        State.Mode = DeviceWorkbenchState.TabScreen;
+        await Open(deviceId);
+    }
+
+    public async Task OpenFleet() {
+        State.SelectedId = DeviceWorkbenchState.FleetId;
+        await Open(DeviceWorkbenchState.FleetId);
     }
 
     void CloseModal() {
         _open = false;
-        _timer?.Dispose();
-        _timer = null;
+        Unsubscribe();
         DetachCapture();
         StateHasChanged();
+    }
+
+    void Unsubscribe() {
+        _topics?.Dispose();
+        _topics = null;
     }
 
     async Task Select(string id) {
@@ -328,8 +424,23 @@
         State.SelectedId = id;
         _notice = null;
         _recert = null;
+        _jobs = null;
+        _jobsMore = null;
+        _jobLines.Clear();
         DetachCapture();
         await LoadForDeviceAsync();
+    }
+
+    void SelectFleet() {
+        if (State.FleetSelected) return;
+        State.SelectedId = DeviceWorkbenchState.FleetId;
+        _notice = null;
+        DetachCapture();
+    }
+
+    async Task OpenScreenFor(string deviceId) {
+        State.Mode = DeviceWorkbenchState.TabScreen;
+        await Select(deviceId);
     }
 
     async Task SelectTab(string tab) {
@@ -338,12 +449,23 @@
         if (State.Mode == DeviceWorkbenchState.TabJobs) await LoadJobsAsync();
     }
 
-    async Task TickAsync() {
-        if (_disposed || !_open) return;
-        await LoadLiveAsync();
-        if (State.Mode == DeviceWorkbenchState.TabJobs) await LoadJobsAsync();
-        if (_subscription is null) ResolveHub();
-        StateHasChanged();
+    void OnTopic(string topic) {
+        if (_disposed || !_open || topic != AdminTopics.DeviceStatus) return;
+        _ = InvokeAsync(RefreshAsync);
+    }
+
+    async Task RefreshAsync() {
+        if (_disposed || !_open || _refreshing) return;
+        _refreshing = true;
+        try {
+            await LoadLiveAsync();
+            if (State.Mode == DeviceWorkbenchState.TabJobs && !State.FleetSelected) await RefreshJobsAsync();
+            if (_subscription is null) ResolveHub();
+            StateHasChanged();
+        }
+        finally {
+            _refreshing = false;
+        }
     }
 
     async Task LoadAsync() {
@@ -351,7 +473,14 @@
         await LoadLiveAsync();
     }
 
+    async Task ReloadDevices() {
+        await LoadAsync();
+        if (OnChanged.HasDelegate) await OnChanged.InvokeAsync();
+        StateHasChanged();
+    }
+
     async Task LoadForDeviceAsync() {
+        if (Current is null) return;
         ResolveHub();
         await LoadHarvestAsync();
         await LoadJobsAsync();
@@ -359,17 +488,82 @@
     }
 
     async Task LoadLiveAsync() {
-        _live = await Client().ListAsync<LiveJob>("/api/devices/jobs/live", Logger);
+        if (!_isAdmin || Feed is not { } feed) {
+            _live = [];
+            return;
+        }
+
+        _live = [.. await feed.LiveAsync(CancellationToken.None)];
     }
 
     async Task LoadJobsAsync() {
-        if (Current is null) return;
-        _jobs = await Client().ListAsync<JobRow>($"/api/devices/{Current.Id}/jobs?n=50", Logger);
+        if (!_isAdmin || Current is not { } dev || Feed is not { } feed) return;
+        var page = await feed.PageAsync(dev.Id, JobGroupCollapser.DefaultTake, null, CancellationToken.None);
+        _jobs = [.. page.Rows];
+        _jobsMore = page.NextBefore;
+    }
+
+    async Task RefreshJobsAsync() {
+        if (!_isAdmin || Current is not { } dev || Feed is not { } feed) return;
+        var page = await feed.PageAsync(dev.Id, JobGroupCollapser.DefaultTake, null, CancellationToken.None);
+        if (_jobs is not { Count: > 0 } loaded) {
+            _jobs = [.. page.Rows];
+            _jobsMore = page.NextBefore;
+        } else if (page.Rows.Count == 0) {
+            _jobs = [];
+            _jobsMore = null;
+        } else {
+            long oldest = page.Rows[^1].Id;
+            _jobs = [.. page.Rows, .. loaded.Where(g => g.Id < oldest)];
+        }
+
+        PruneJobState();
+        await RefreshOpenLinesAsync(dev.Id, feed);
+    }
+
+    void PruneJobState() {
+        if (_jobs is not { } jobs) return;
+        var ids = jobs.Select(j => j.Id).ToHashSet();
+        State.Expanded.RemoveWhere(id => !ids.Contains(id));
+        foreach (long id in _jobLines.Keys.Where(id => !ids.Contains(id)).ToList()) _jobLines.Remove(id);
+    }
+
+    async Task RefreshOpenLinesAsync(string deviceId, DeviceJobFeed feed) {
+        if (_jobs is not { } jobs) return;
+        foreach (var job in jobs.Where(j => j.FinishedAt is null && State.Expanded.Contains(j.Id))) {
+            _jobLines[job.Id] = [.. await feed.LinesAsync(deviceId, job.Id, CancellationToken.None)];
+        }
+    }
+
+    async Task LoadMoreJobsAsync() {
+        if (!_isAdmin || Current is not { } dev || Feed is not { } feed) return;
+        if (_jobsMore is not { } before || _jobsBusy) return;
+        _jobsBusy = true;
+        try {
+            var page = await feed.PageAsync(dev.Id, JobGroupCollapser.DefaultTake, before, CancellationToken.None);
+            _jobs = [.. _jobs ?? [], .. page.Rows];
+            _jobsMore = page.NextBefore;
+        }
+        finally {
+            _jobsBusy = false;
+        }
+    }
+
+    IReadOnlyList<JobLineRow> LinesFor(long jobId) {
+        return _jobLines.TryGetValue(jobId, out var lines) ? lines : [];
+    }
+
+    async Task ToggleJob(JobGroupRow job) {
+        if (State.Expanded.Remove(job.Id)) return;
+        State.Expanded.Add(job.Id);
+        if (!_isAdmin || Current is not { } dev || Feed is not { } feed) return;
+        if (_jobLines.ContainsKey(job.Id)) return;
+        _jobLines[job.Id] = [.. await feed.LinesAsync(dev.Id, job.Id, CancellationToken.None)];
     }
 
     async Task LoadHarvestAsync() {
-        if (Current is null) return;
-        _harvest = await Client().OneAsync<HarvestInfo>($"/api/devices/{Current.Id}/harvest", Logger);
+        if (Current is not { } dev) return;
+        _harvest = await Client().OneAsync<HarvestInfo>($"/api/devices/{dev.Id}/harvest", Logger);
     }
 
     async Task LoadBinariesAsync() {
@@ -395,22 +589,23 @@
         };
     }
 
-    static string Duration(JobRow j) {
+    static string Duration(JobGroupRow j) {
         if (j.FinishedAt is not { } end) return "running";
-        var span = end - j.StartedAt;
+        var span = end - j.LastAt;
         return span.TotalSeconds < 1 ? "<1s" : $"{(int)span.TotalSeconds}s";
-    }
-
-    void ToggleJob(long id) {
-        if (!State.Expanded.Remove(id)) State.Expanded.Add(id);
     }
 
     void ClearNotice() {
         _notice = null;
     }
 
+    void Notice(DeviceNotice notice) {
+        _notice = notice;
+        StateHasChanged();
+    }
+
     void Note(string text, bool ok) {
-        _notice = (text, ok ? StatusNoteKind.Ok : StatusNoteKind.Error);
+        _notice = new DeviceNotice(text, ok ? StatusNoteKind.Ok : StatusNoteKind.Error);
     }
 
     async Task Act(string url, string ok) {
@@ -441,8 +636,8 @@
     }
 
     async Task RestartApp() {
-        if (Current is null) return;
-        var id = Current.Id;
+        if (Current is not { } dev) return;
+        var id = dev.Id;
         _notice = null;
         var res = await Client().PostAsync($"/api/devices/{id}/restart-app", null);
         if (!res.IsSuccessStatusCode) {
@@ -465,8 +660,8 @@
     }
 
     async Task Recert() {
-        if (Current is null) return;
-        var id = Current.Id;
+        if (Current is not { } dev) return;
+        var id = dev.Id;
         _notice = null;
         _recert = null;
         var res = await Client().PostAsync($"/api/devices/{id}/recert", null);
@@ -503,9 +698,9 @@
     }
 
     void ResolveHub() {
-        if (Current is null) return;
+        if (Current is not { } dev) return;
         if (Services.GetService(typeof(DeviceCaptureManager)) is not DeviceCaptureManager dcm) return;
-        if (dcm.HubFor(Current.Id) is not { } hub) return;
+        if (dcm.HubFor(dev.Id) is not { } hub) return;
         _hub = hub;
         foreach (var f in hub.Snapshot()) AddOrUpdateFlow(f);
         ApplyStats(hub.StatsSnapshot());
@@ -599,7 +794,7 @@
 
     public void Dispose() {
         _disposed = true;
-        _timer?.Dispose();
+        Unsubscribe();
         DetachCapture();
     }
 

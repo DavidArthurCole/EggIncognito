@@ -1,32 +1,17 @@
-using System.Net;
 using Bunit;
 using EggIdentity.Contract;
-using EggIncognito.Components.Pages;
+using EggIncognito.Components.Admin;
 using EggIncognito.Services;
 using EggIncognito.Services.Admin;
 using EggIncognito.Services.Devices;
 using EggIncognito.Services.Notifications;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace EggIncognito.Tests;
 
 public class AdminPageTests {
-    [Collection(SharedAppCollection.Name)]
-    public class Integration(SharedAppFactory f) {
-        private readonly WebApplicationFactory<Program> _f = f;
-
-        [Fact]
-        public async Task Admin_Anonymous_ServesTheShell() {
-            var c = _f.CreateClient();
-            var r = await c.GetAsync("/admin");
-            Assert.Equal(HttpStatusCode.OK, r.StatusCode);
-            Assert.Contains("blazor.web.js", await r.Content.ReadAsStringAsync());
-        }
-    }
-
     public class Component : BunitContext {
         private void Wire(UserRole role) {
             JSInterop.Mode = JSRuntimeMode.Loose;
@@ -42,23 +27,39 @@ public class AdminPageTests {
         }
 
         [Fact]
-        public void Anonymous_ShowsDenied_NotPanel() {
-            Wire(UserRole.Viewer);
-            var cut = Render<Admin>();
-            Assert.NotNull(cut.Find("#adminMain"));
-            Assert.NotNull(cut.Find("#denied"));
-            Assert.Contains("Login is not configured.", cut.Markup);
-            Assert.Empty(cut.FindAll("h2"));
+        public void Closed_RendersNothing() {
+            Wire(UserRole.Admin);
+            var cut = Render<AdminWorkbenchModal>();
+            Assert.Empty(cut.FindAll(".wb-body"));
         }
 
         [Fact]
-        public void Admin_ShowsPanel_NotDenied() {
+        public void NonAdmin_CannotOpen() {
+            Wire(UserRole.Viewer);
+            var cut = Render<AdminWorkbenchModal>();
+            cut.InvokeAsync(() => cut.Instance.Open());
+            Assert.Empty(cut.FindAll(".wb-body"));
+        }
+
+        [Fact]
+        public void Admin_Open_ShowsRailAndPanes() {
             Wire(UserRole.Admin);
-            var cut = Render<Admin>();
-            Assert.Empty(cut.FindAll("#denied"));
+            var cut = Render<AdminWorkbenchModal>();
+            cut.InvokeAsync(() => cut.Instance.Open());
+            Assert.NotNull(cut.Find("#adminWorkbench"));
+            Assert.Equal(4, cut.FindAll(".wb-sec").Count);
+            Assert.Equal(AdminPanes.All.Count, cut.FindAll(".wb-entry").Count);
             Assert.Contains("Users", cut.Markup);
-            Assert.NotNull(cut.Find(".admin-wb-rail"));
-            Assert.Equal(4, cut.FindAll(".admin-wb-group").Count);
+        }
+
+        [Fact]
+        public void Admin_OpenPane_MarksItVisited() {
+            Wire(UserRole.Admin);
+            var cut = Render<AdminWorkbenchModal>();
+            cut.InvokeAsync(() => cut.Instance.OpenPane(AdminPanes.Sessions));
+            var state = Services.GetRequiredService<AdminWorkbenchState>();
+            Assert.Equal(AdminPanes.Sessions, state.SelectedPane);
+            Assert.Contains(AdminPanes.Sessions, state.Visited);
         }
     }
 

@@ -169,6 +169,7 @@
     <ChildContent>
         @if (_adminOpen && User.IsAtLeast(UserRole.Contributor)) {
             <RegistryAdminPanel Rows="State.Registry" CanOrder="@User.IsAtLeast(UserRole.Admin)"
+                                IsAdmin="@User.IsAtLeast(UserRole.Admin)"
                                 OnChanged="OnAdminChanged" OnClose="@(() => _adminOpen = false)"/>
         }
         <div class="pwb-slots">

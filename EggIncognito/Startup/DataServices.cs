@@ -1,6 +1,7 @@
 using EggIncognito.Core.Services;
 using EggIncognito.Data.Services;
 using EggIncognito.Services;
+using EggIncognito.Services.Admin;
 using EggIncognito.Services.Contracts;
 using EggIncognito.Services.DataApi;
 using EggIncognito.Services.Devices;
@@ -44,6 +45,7 @@ public static class DataServices {
             .PersistKeysToDbContext<EggIncognitoDbContext>();
 
         builder.Services.AddScoped<GameBinaryStore>();
+        builder.Services.AddScoped<IApkStoreObserver, ApkChangeNotifier>();
         builder.Services.AddScoped<ApkStore>();
         builder.Services.AddScoped<DeviceModuleStore>();
         builder.Services.AddScoped<SymbolizedReferenceStore>();
@@ -53,7 +55,13 @@ public static class DataServices {
         builder.Services.AddScoped<DeviceJobStore>();
         builder.Services.AddSingleton<DeviceTimelineCache>();
         builder.Services.AddSingleton<IDeviceJobSink>(sp => sp.GetRequiredService<DeviceTimelineCache>());
-        builder.Services.AddHostedService<DeviceTimelineWatcher>();
+        builder.Services.AddSingleton<DeviceJobFeed>();
+        builder.Services.AddSingleton<DeviceCookbookFeed>();
+        builder.Services.AddHostedService(sp => new PgChangeListener(
+            boot.PgConn!,
+            sp.GetRequiredService<DeviceTimelineCache>(),
+            sp.GetRequiredService<AdminNotifier>(),
+            sp.GetRequiredService<ILogger<PgChangeListener>>()));
         builder.Services.AddScoped<DbEndpointSource>();
         builder.Services.AddScoped(sp => new DbEndpointSourceMarker(sp.GetRequiredService<DbEndpointSource>()));
 

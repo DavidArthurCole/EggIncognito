@@ -1,11 +1,13 @@
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Services;
 using EggIncognito.Models.Devices;
+using EggIncognito.Services.Admin;
 
 namespace EggIncognito.Services.Devices;
 
 public sealed class ImageBuildRunner(
     IServiceScopeFactory scopeFactory,
+    AdminNotifier notifier,
     ILogger<ImageBuildRunner> logger) {
     private int _running;
 
@@ -25,6 +27,7 @@ public sealed class ImageBuildRunner(
             throw;
         }
 
+        notifier.Publish(AdminTopics.ImageBuilds);
         _ = Task.Run(() => RunDetachedAsync(id, spec), CancellationToken.None);
         return new ImageBuildStartResult(true, id, spec.ResolvedTag, null);
     }
@@ -43,6 +46,7 @@ public sealed class ImageBuildRunner(
             await store.FinishAsync(id, ImageBuildStates.Failed, spec.ResolvedTag, ex.Message, CancellationToken.None);
         } finally {
             Interlocked.Exchange(ref _running, 0);
+            notifier.Publish(AdminTopics.ImageBuilds);
         }
     }
 }

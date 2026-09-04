@@ -7,7 +7,7 @@
     <div class="flex items-center gap-3 flex-wrap">
         <span class="text-fg text-sm font-semibold">@Selected.Count selected</span>
 
-        <button type="button" class="btn-mini" disabled="@_busy" @onclick="DeleteSelected">Delete</button>
+        <button type="button" class="btn-mini" disabled="@_busy" @onclick="ArmDelete">Delete</button>
 
         @if (Selected.Count >= 2) {
             <button type="button" class="btn-mini" disabled="@_busy" @onclick="MergeSelected">Merge</button>
@@ -15,6 +15,17 @@
 
         <button type="button" class="btn-mini" @onclick="@(() => OnClear.InvokeAsync())">Clear</button>
     </div>
+    @if (_armed) {
+        <StatusNote Severity="StatusNoteKind.Info" OnDismiss="Disarm">
+            <ChildContent>
+                Delete @Selected.Count @(Selected.Count == 1 ? "version" : "versions")?
+                They stay restorable from Registry admin, Deleted.
+            </ChildContent>
+            <Actions>
+                <button type="button" class="btn-mini" disabled="@_busy" @onclick="DeleteSelected">Confirm delete</button>
+            </Actions>
+        </StatusNote>
+    }
     @if (_msg.Length > 0) {
         <StatusNote Severity="@(_ok ? StatusNoteKind.Ok : StatusNoteKind.Error)" OnDismiss="@(() => _msg = string.Empty)">@_msg</StatusNote>
     }
@@ -28,19 +39,40 @@
 
     bool _busy;
     bool _ok;
+    bool _armed;
+    int _armedCount;
     string _msg = "";
 
+    protected override void OnParametersSet() {
+        if (_armed && Selected.Count != _armedCount) Disarm();
+    }
+
+    void ArmDelete() {
+        if (Selected.Count == 0) return;
+        _armed = true;
+        _armedCount = Selected.Count;
+        _msg = "";
+    }
+
+    void Disarm() {
+        _armed = false;
+        _armedCount = 0;
+    }
+
     async Task DeleteSelected() {
+        Disarm();
         _busy = true;
         _msg = "";
+        var count = Selected.Count;
         var ok = await Post("/api/protos/versions/delete", new { versions = Selected });
         _ok = ok;
-        _msg = ok ? $"deleted {Selected.Count}" : "delete failed (admin only?)";
+        _msg = ok ? $"deleted {count}, restore from Registry admin" : "delete failed (admin only?)";
         _busy = false;
         if (ok) await OnChanged.InvokeAsync();
     }
 
     async Task MergeSelected() {
+        Disarm();
         _busy = true;
         _msg = "";
         var ordered = Selected

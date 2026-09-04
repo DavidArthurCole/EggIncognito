@@ -2,6 +2,7 @@ using EggIdentity.Settings.Store;
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
+using EggIncognito.Services.Admin;
 using EggIncognito.Services.Config;
 
 namespace EggIncognito.Services.Devices;
@@ -12,6 +13,7 @@ public sealed class VirtualDeviceLifecycle(
     VirtualDeviceConfig config,
     VirtualDeviceReadinessProbe readiness,
     IProcessRunner runner,
+    AdminNotifier notifier,
     TimeProvider time,
     ILogger<VirtualDeviceLifecycle> logger) : BackgroundService {
     private const string Package = "com.auxbrain.egginc";
@@ -187,12 +189,13 @@ public sealed class VirtualDeviceLifecycle(
         if (sp.GetService(typeof(IDeviceStatusStore)) is not IDeviceStatusStore devices) return 0;
 
         var byId = containers.ToDictionary(c => c.InstanceId, StringComparer.Ordinal);
+        var changed = new List<string>();
         int touched = 0;
 
         foreach (var row in await store.ReconcilableAsync(ct)) {
             if (!byId.TryGetValue(row.InstanceId, out var container)) {
                 if (row.State == ProvisionStates.Failed) continue;
-                await store.SetStateAsync(row.InstanceId, ProvisionStates.Failed, "container is gone", ct);
+                await SetStateAsync(store, changed, row, ProvisionStates.Failed, "container is gone", ct);
                 logger.LogWarning("virtual devices: {Id} container vanished, marked failed", row.InstanceId);
                 touched++;
                 continue;
@@ -203,55 +206,69 @@ public sealed class VirtualDeviceLifecycle(
 
             if (container.State == ProvisionStates.Stopped) {
                 if (row.State != ProvisionStates.Stopped)
-                    await store.SetStateAsync(row.InstanceId, ProvisionStates.Stopped, "container is not running", ct);
+                    await SetStateAsync(store, changed, row, ProvisionStates.Stopped, "container is not running", ct);
                 continue;
             }
 
             if ((container.AdbSerial ?? row.AdbSerial) is not { Length: > 0 } serial) {
                 if (row.State != ProvisionStates.Booting)
-                    await store.SetStateAsync(row.InstanceId, ProvisionStates.Booting,
+                    await SetStateAsync(store, changed, row, ProvisionStates.Booting,
                         "waiting for the container to get an address", ct);
                 continue;
             }
 
             if (!await BootCompletedAsync(serial, ct)) {
                 if (row.State == ProvisionStates.Creating)
-                    await store.SetStateAsync(row.InstanceId, ProvisionStates.Booting,
+                    await SetStateAsync(store, changed, row, ProvisionStates.Booting,
                         "waiting for sys.boot_completed", ct);
                 continue;
             }
 
             if (row.State != ProvisionStates.Ready)
-                await store.SetStateAsync(row.InstanceId, ProvisionStates.Ready, "android boot completed", ct);
+                await SetStateAsync(store, changed, row, ProvisionStates.Ready, "android boot completed", ct);
 
-            if (!await EnsureRootAsync(row.InstanceId, serial, store, ct)) continue;
+            if (!await EnsureRootAsync(row, serial, store, changed, ct)) continue;
 
-            string deviceId = await EnsureDeviceRowAsync(row, serial, devices, store, ct);
-            if (await EnsureAppInstalledAsync(row.InstanceId, deviceId, serial, store, ct))
+            string deviceId = await EnsureDeviceRowAsync(row, serial, devices, store, changed, ct);
+            if (await EnsureAppInstalledAsync(row, deviceId, serial, store, changed, ct))
                 await EnsureIntegrityAsync(row.InstanceId, deviceId, serial, ct);
         }
 
+        if (changed.Count > 0) notifier.Publish(AdminTopics.VirtualDevices);
         return touched;
+    }
+
+    private static async Task SetStateAsync(ProvisionedInstanceStore store, List<string> changed,
+        ProvisionedInstanceRow row, string state, string note, CancellationToken ct) {
+        await store.SetStateAsync(row.InstanceId, state, note, ct);
+        if (row.State != state) changed.Add(row.InstanceId);
     }
 
     private async Task<string> EnsureDeviceRowAsync(
         ProvisionedInstanceRow row, string serial, IDeviceStatusStore devices, ProvisionedInstanceStore store,
-        CancellationToken ct) {
+        List<string> changed, CancellationToken ct) {
         string deviceId = row.DeviceId ?? row.InstanceId;
         var existing = await devices.GetAsync(deviceId, ct);
         if (existing is null || !existing.Enabled || existing.Target != serial) {
             await devices.UpsertDeviceAsync(deviceId, Platforms.Android, deviceId, serial, Package,
                 DeviceOrigins.Virtual, ct);
+            changed.Add(deviceId);
             logger.LogInformation("virtual devices: registered {Id} as an android device on {Serial}",
                 deviceId, serial);
         }
 
-        if (row.DeviceId is null) await store.SetDeviceAsync(row.InstanceId, deviceId, ct);
+        if (row.DeviceId is null) {
+            await store.SetDeviceAsync(row.InstanceId, deviceId, ct);
+            changed.Add(row.InstanceId);
+        }
+
         return deviceId;
     }
 
     private async Task<bool> EnsureAppInstalledAsync(
-        string instanceId, string deviceId, string serial, ProvisionedInstanceStore store, CancellationToken ct) {
+        ProvisionedInstanceRow row, string deviceId, string serial, ProvisionedInstanceStore store,
+        List<string> changed, CancellationToken ct) {
+        string instanceId = row.InstanceId;
         var pm = await Adb(["-s", serial, "shell", $"pm path {Package}"], AdbTimeout, ct);
         if (pm.ExitCode == 0 && pm.Stdout.Contains("package:", StringComparison.Ordinal)) {
             _lastBootstrap.Remove(instanceId);
@@ -273,12 +290,12 @@ public sealed class VirtualDeviceLifecycle(
         var run = await cookbookRunner.RunNowAsync(
             deviceId, new DeviceCookbookRequest(DeviceCookbookIds.BringUp, null), "auto:provision", ct);
         if (!run.Ok) {
-            await store.SetStateAsync(instanceId, ProvisionStates.Failed,
+            await SetStateAsync(store, changed, row, ProvisionStates.Failed,
                 run.Note ?? $"bring-up failed at {run.FailedStep ?? "?"}", ct);
             return false;
         }
 
-        await store.SetStateAsync(instanceId, ProvisionStates.Ready, run.Note ?? "egg inc brought up", ct);
+        await SetStateAsync(store, changed, row, ProvisionStates.Ready, run.Note ?? "egg inc brought up", ct);
         logger.LogInformation("virtual devices: {Id} brought up egg inc on {Device}", instanceId, deviceId);
         return true;
     }
@@ -318,14 +335,15 @@ public sealed class VirtualDeviceLifecycle(
     }
 
     private async Task<bool> EnsureRootAsync(
-        string instanceId, string serial, ProvisionedInstanceStore store, CancellationToken ct) {
+        ProvisionedInstanceRow row, string serial, ProvisionedInstanceStore store, List<string> changed,
+        CancellationToken ct) {
         if (await IsRootAsync(serial, ct)) return true;
 
         await Adb(["-s", serial, "root"], AdbTimeout, ct);
         await Adb(["connect", serial], AdbTimeout, ct);
         if (await IsRootAsync(serial, ct)) return true;
 
-        await store.SetStateAsync(instanceId, ProvisionStates.Failed,
+        await SetStateAsync(store, changed, row, ProvisionStates.Failed,
             "adb root did not reach uid=0; the image may not be rooted (use the magisk gapps image)", ct);
         return false;
     }

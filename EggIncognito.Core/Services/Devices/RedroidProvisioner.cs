@@ -13,7 +13,7 @@ public sealed class RedroidProvisioner(
     public const string NamePrefix = "egi-vd-";
     public const int AdbPort = 5555;
 
-    private const string OwnerFilter = OwnerLabel + "=1";
+    public const string OwnerFilter = OwnerLabel + "=1";
 
     private string? _network;
 

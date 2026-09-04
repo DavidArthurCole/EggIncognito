@@ -15,4 +15,5 @@ public sealed record DeviceStatusRow(
     string Result,
     string? Note,
     DateTimeOffset? ProbedAt,
-    DeviceUpdateSummary? LastUpdate);
+    DeviceUpdateSummary? LastUpdate,
+    bool Virtual = false);

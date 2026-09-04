@@ -1,0 +1,200 @@
+@rendermode @(RenderModes.InteractiveServer)
+@inherits AdminPaneBase
+
+<div class="admin-pane-head">
+    <h2 class="admin-pane-title">Tags</h2>
+    <div class="admin-pane-tools">
+        <span class="text-muted text-xs">@_tags.Count tags / @Attachments() attachments</span>
+        <button type="button" class="btn-mini" disabled="@_busy" @onclick="LoadAsync">Refresh</button>
+    </div>
+</div>
+<PaneNotice @ref="_notice"/>
+@if (_tags.Count == 0) {
+    <p class="text-muted text-sm m-0">No tags yet. Create one below, then attach it from any documented subject.</p>
+} else {
+    <div class="reg-wrap">
+        <table class="data-table">
+            <thead>
+            <tr>
+                <th>Label</th><th>Slug</th><th>Colour</th><th>Attached to</th><th></th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var t in _tags) {
+                <tr>
+                    <td style="@TagStyle(t.Color)">@t.Label</td>
+                    <td class="mono text-xs">@t.Slug</td>
+                    <td class="mono text-xs">@(string.IsNullOrEmpty(t.Color) ? "inherit" : t.Color)</td>
+                    <td>
+                        @if (Subjects(t.Id).Count == 0) {
+                            <span class="text-muted text-xs">nothing</span>
+                        } else {
+                            <button type="button" class="btn-mini" @onclick="() => Expand(t.Id)">
+                                @Subjects(t.Id).Count subject@(Subjects(t.Id).Count == 1 ? "" : "s")
+                            </button>
+                        }
+                    </td>
+                    <td>
+                        <div class="flex gap-1 justify-end">
+                            <button type="button" class="btn-mini btn-danger" disabled="@_busy"
+                                    @onclick="() => Delete(t)">
+                                @(_confirmId == t.Id ? "Confirm, detaches too" : "Delete")
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                @if (_expandedId == t.Id) {
+                    <tr>
+                        <td colspan="5">
+                            <div class="flex flex-col gap-0.5">
+                                @foreach (var s in Subjects(t.Id)) {
+                                    <span class="mono text-xs">@s</span>
+                                }
+                            </div>
+                        </td>
+                    </tr>
+                }
+            }
+            </tbody>
+        </table>
+    </div>
+}
+
+<div class="admin-panel-head mt-4">
+    <div class="sub-section-head">New tag</div>
+</div>
+<div class="flex gap-1 items-center flex-wrap">
+    <input class="reg-filter-input w-auto" placeholder="slug" value="@_newSlug" @oninput="OnSlug"/>
+    <input class="reg-filter-input w-auto" placeholder="label" value="@_newLabel" @oninput="OnLabel"/>
+    <input class="reg-filter-input w-auto" placeholder="#rrggbb (optional)" value="@_newColor" @oninput="OnColor"/>
+    <button type="button" class="btn-mini" disabled="@(_busy || !CanCreate())" @onclick="Create">
+        @(_busy ? "Working..." : "Create")
+    </button>
+</div>
+
+@code {
+    PaneNotice? _notice;
+
+    List<TagRow> _tags = [];
+    Dictionary<long, List<string>> _usage = [];
+    bool _busy;
+    long? _expandedId;
+    long? _confirmId;
+
+    string _newSlug = "";
+    string _newLabel = "";
+    string _newColor = "";
+
+    protected override IReadOnlyList<string> Topics => [AdminTopics.Tags];
+
+    protected override async Task LoadAsync() {
+        await LoadTags();
+        await LoadUsage();
+    }
+
+    int Attachments() {
+        return _usage.Values.Sum(v => v.Count);
+    }
+
+    List<string> Subjects(long tagId) {
+        return _usage.TryGetValue(tagId, out var list) ? list : [];
+    }
+
+    bool CanCreate() {
+        return _newSlug.Trim().Length > 0 && _newLabel.Trim().Length > 0;
+    }
+
+    static string TagStyle(string? color) {
+        return string.IsNullOrEmpty(color) ? "" : $"color: {color};";
+    }
+
+    void OnSlug(ChangeEventArgs e) {
+        _newSlug = e.Value?.ToString() ?? "";
+    }
+
+    void OnLabel(ChangeEventArgs e) {
+        _newLabel = e.Value?.ToString() ?? "";
+    }
+
+    void OnColor(ChangeEventArgs e) {
+        _newColor = e.Value?.ToString() ?? "";
+    }
+
+    void Expand(long tagId) {
+        _expandedId = _expandedId == tagId ? null : tagId;
+    }
+
+    async Task LoadTags() {
+        if (Api is null) return;
+        var res = await Api.GetAsync("/api/docs/tags");
+        if (!res.Ok) {
+            _notice?.Fail($"load tags failed: {res.Describe()}");
+            return;
+        }
+
+        _tags = res.Json<List<TagRow>>() ?? [];
+    }
+
+    async Task LoadUsage() {
+        if (Api is null) return;
+        var res = await Api.GetAsync("/api/docs/tags-map");
+        if (!res.Ok) {
+            _notice?.Fail($"load attachments failed: {res.Describe()}");
+            return;
+        }
+
+        var map = res.Json<Dictionary<string, List<TagRow>>>() ?? [];
+        var usage = new Dictionary<long, List<string>>();
+        foreach (var (subject, tags) in map) {
+            foreach (var t in tags) {
+                if (!usage.TryGetValue(t.Id, out var list)) usage[t.Id] = list = [];
+                list.Add(subject);
+            }
+        }
+
+        foreach (var list in usage.Values) list.Sort(StringComparer.Ordinal);
+        _usage = usage;
+    }
+
+    async Task Create() {
+        if (Api is null || !CanCreate()) return;
+        _busy = true;
+        _notice?.Clear();
+        string color = _newColor.Trim();
+        var res = await Api.PostJsonAsync("/api/admin/tag", new {
+            slug = _newSlug.Trim(),
+            label = _newLabel.Trim(),
+            color = color.Length == 0 ? null : color
+        });
+        _notice?.Result(res.Ok, res.Ok ? $"created {_newSlug.Trim()}" : $"create failed: {res.Describe()}");
+        if (res.Ok) {
+            _newSlug = "";
+            _newLabel = "";
+            _newColor = "";
+        }
+
+        await LoadAsync();
+        _busy = false;
+        if (res.Ok) Notifier.Publish(AdminTopics.Tags);
+    }
+
+    async Task Delete(TagRow tag) {
+        if (Api is null) return;
+        if (_confirmId != tag.Id) {
+            _confirmId = tag.Id;
+            _notice?.Say($"deleting {tag.Slug} also detaches it from {Subjects(tag.Id).Count} subject(s)");
+            return;
+        }
+
+        _confirmId = null;
+        _busy = true;
+        _notice?.Clear();
+        var res = await Api.DeleteAsync($"/api/admin/tag/{tag.Id}");
+        _notice?.Result(res.Ok, res.Ok ? $"deleted {tag.Slug}" : $"delete failed: {res.Describe()}");
+        if (_expandedId == tag.Id) _expandedId = null;
+        await LoadAsync();
+        _busy = false;
+        if (res.Ok) Notifier.Publish(AdminTopics.Tags);
+    }
+
+}

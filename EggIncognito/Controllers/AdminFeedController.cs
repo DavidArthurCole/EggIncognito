@@ -34,17 +34,17 @@ public sealed class AdminFeedController(IServiceProvider services, IHttpClientFa
     [HttpPost("subscriptions/{id:int}/deactivate")]
     public async Task<IActionResult> Deactivate(int id, CancellationToken ct) {
         if (Store is null) return StatusCode(503, new { error = "no database configured" });
-        return await Store.AdminDeactivateAsync(id, ct)
-            ? Ok(new { deactivated = true })
-            : NotFound(new { error = "subscription not found" });
+        if (!await Store.AdminDeactivateAsync(id, ct)) return NotFound(new { error = "subscription not found" });
+        FeedSubscriptionNotify.Changed(services);
+        return Ok(new { deactivated = true });
     }
 
     [HttpDelete("subscriptions/{id:int}")]
     public async Task<IActionResult> Delete(int id, CancellationToken ct) {
         if (Store is null) return StatusCode(503, new { error = "no database configured" });
-        return await Store.AdminDeleteAsync(id, ct)
-            ? Ok(new { deleted = true })
-            : NotFound(new { error = "subscription not found" });
+        if (!await Store.AdminDeleteAsync(id, ct)) return NotFound(new { error = "subscription not found" });
+        FeedSubscriptionNotify.Changed(services);
+        return Ok(new { deleted = true });
     }
 
     [HttpPost("subscriptions/{id:int}/test")]
