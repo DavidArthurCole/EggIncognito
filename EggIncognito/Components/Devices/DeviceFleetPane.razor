@@ -8,7 +8,7 @@
 <div class="vd-pane">
     <div class="vd-head">
         <div class="sub-section-head">Fleet</div>
-        <span class="text-xs text-muted">@(_status?.LiveCount ?? 0) of @(_status?.MaxInstances ?? 0) live</span>
+        <span class="text-xs text-muted">@(_status is { } head ? $"{head.LiveCount} of {head.MaxInstances} live" : "loading")</span>
         <div class="vd-head-actions">
             <button type="button" class="btn-mini" disabled="@(_busy || _status?.Enabled != true)" @onclick="Create">
                 Provision
@@ -22,7 +22,9 @@
         <div class="text-xs text-muted">@note</div>
     }
 
-    @if (_status is null || _status.Instances.Count == 0) {
+    @if (_status is null) {
+        <div class="wb-note">loading</div>
+    } else if (_status.Instances.Count == 0) {
         <div class="wb-note">No instances provisioned.</div>
     } else {
         <div class="reg-wrap">
@@ -37,7 +39,7 @@
                     <tr @key="i.InstanceId">
                         <td class="font-mono text-xs">@i.InstanceId</td>
                         <td class="text-xs @StateCss(i)" title="@i.Note">@StateLabel(i)</td>
-                        <td class="text-xs text-muted">@i.Activity</td>
+                        <td class="text-xs text-muted">@(i.Activity ?? i.Note)</td>
                         <td class="font-mono text-xs">@i.Target</td>
                         <td class="text-xs text-muted">
                             <TimeAgo Value="@i.CreatedAt" Hover="false"/>
@@ -299,8 +301,10 @@
         }
 
         _status = res.Json<VirtualDevicesStatus>();
+        StateHasChanged();
         await LoadImages();
         await LoadModules();
+        StateHasChanged();
         await LoadAssets();
     }
 
@@ -348,7 +352,7 @@
 
     async Task LoadAssets() {
         if (Api is null) return;
-        var res = await Api.SendAsync("GET", "/api/devices/virtual/integrity", timeout: TimeSpan.FromMinutes(3));
+        var res = await Api.GetAsync("/api/devices/virtual/integrity");
         if (res.Ok) _assets = res.Json<IntegrityAssetsView>();
     }
 

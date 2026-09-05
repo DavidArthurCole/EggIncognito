@@ -20,10 +20,13 @@ public sealed class VirtualDeviceLifecycle(
     private const string Package = "com.auxbrain.egginc";
     private static readonly TimeSpan AdbTimeout = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan BootstrapBackoff = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan SeedStartTimeout = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan SeedInstallTimeout = TimeSpan.FromMinutes(25);
     private readonly SemaphoreSlim _gate = new(1, 1);
 #pragma warning disable IDE0028
     private readonly Dictionary<string, DateTimeOffset> _lastBootstrap = new(StringComparer.Ordinal);
     private readonly Dictionary<string, DateTimeOffset> _lastIntegrity = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, DateTimeOffset> _seedSeen = new(StringComparer.Ordinal);
 #pragma warning restore IDE0028
 
     public bool Supported { get; private set; }
@@ -244,7 +247,9 @@ public sealed class VirtualDeviceLifecycle(
     private static async Task SetStateAsync(ProvisionedInstanceStore store, List<string> changed,
         ProvisionedInstanceRow row, string state, string note, CancellationToken ct) {
         await store.SetStateAsync(row.InstanceId, state, note, ct);
-        if (row.State != state) changed.Add(row.InstanceId);
+        if (row.State != state || !string.Equals(row.Note, note, StringComparison.Ordinal)) changed.Add(row.InstanceId);
+        row.State = state;
+        row.Note = note ?? row.Note;
     }
 
     private async Task<string> EnsureDeviceRowAsync(
@@ -360,22 +365,38 @@ public sealed class VirtualDeviceLifecycle(
         CancellationToken ct) {
         var probe = await Adb(["-s", serial, "shell", IntegritySeed.ProbeCommand], AdbTimeout, ct);
         var seed = IntegritySeed.Parse(probe.Stdout);
-        if (!seed.SeededImage || seed.State == IntegritySeed.StateDone) return false;
+        if (!seed.SeededImage || seed.State == IntegritySeed.StateDone) {
+            _seedSeen.Remove(row.InstanceId);
+            return false;
+        }
 
-        if (seed.State == IntegritySeed.StateFailed) {
-            if (row.State != ProvisionStates.Failed) {
-                await SetStateAsync(store, changed, row, ProvisionStates.Failed,
-                    $"first-boot seed failed; see {IntegritySeed.LogFile} on the device", ct);
-            }
+        var now = time.GetUtcNow();
+        if (!_seedSeen.TryGetValue(row.InstanceId, out var firstSeen)) {
+            firstSeen = now;
+            _seedSeen[row.InstanceId] = now;
+        }
 
+        var waited = now - firstSeen;
+        string? failure = seed.State switch {
+            IntegritySeed.StateFailed => $"first-boot seed failed; see {IntegritySeed.LogFile} on the device",
+            null when waited > SeedStartTimeout =>
+                $"first-boot seed never wrote {IntegritySeed.StateFile} within {SeedStartTimeout.TotalMinutes:F0} min; "
+                + $"{IntegritySeed.RcFile} did not run on this image",
+            _ when waited > SeedInstallTimeout =>
+                $"first-boot seed still {seed.State} after {SeedInstallTimeout.TotalMinutes:F0} min; see {IntegritySeed.LogFile}",
+            _ => null
+        };
+
+        if (failure is not null) {
+            if (row.State != ProvisionStates.Failed) await SetStateAsync(store, changed, row, ProvisionStates.Failed, failure, ct);
             return true;
         }
 
-        if (row.State != ProvisionStates.Booting) {
-            await SetStateAsync(store, changed, row, ProvisionStates.Booting,
-                "first-boot seed installing the integrity chain, reboots when done", ct);
-        }
-
+        string note = seed.State is null
+            ? $"first-boot seed starting ({waited.TotalSeconds:F0}s)"
+            : $"first-boot seed installing the integrity chain ({waited.TotalSeconds:F0}s), reboots when done";
+        if (row.State != ProvisionStates.Booting || !string.Equals(row.Note, note, StringComparison.Ordinal))
+            await SetStateAsync(store, changed, row, ProvisionStates.Booting, note, ct);
         return true;
     }
 

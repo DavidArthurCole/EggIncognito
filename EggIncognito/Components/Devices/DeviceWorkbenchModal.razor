@@ -39,12 +39,28 @@
                     <Name>Fleet</Name>
                     <MetaLine>
                         <span class="dwb-meta-vd">
-                            <span>@(Virtual().Count() == 0 ? "no instances" : $"{Virtual().Count()} instance{(Virtual().Count() == 1 ? "" : "s")}")</span>
+                            <span>@(_fleet is { } fleet ? $"{fleet.LiveCount} of {fleet.MaxInstances} live" : "")</span>
                         </span>
                     </MetaLine>
                 </WorkbenchEntry>
                 @foreach (var d in Virtual()) {
                     @DeviceEntry(d)
+                }
+                @foreach (var i in PendingInstances()) {
+                    <WorkbenchEntry Selected="false" Tone="WorkbenchTone.Muted" OnClick="ShowFleet" @key="i.InstanceId">
+                        <Lead>
+                            <span class="dwb-lead">
+                                <span class="dwb-dot-bad"></span>
+                                <PlatformIcon Platform="android"/>
+                            </span>
+                        </Lead>
+                        <Name>@i.InstanceId</Name>
+                        <MetaLine>
+                            <span class="dwb-meta-vd">
+                                <span>@i.State@(i.Note is { Length: > 0 } ? $", {i.Note}" : "")</span>
+                            </span>
+                        </MetaLine>
+                    </WorkbenchEntry>
                 }
             </WorkbenchSection>
         </WorkbenchRail>
@@ -301,6 +317,14 @@
         return Ordered().Where(d => d.Virtual);
     }
 
+    IEnumerable<VirtualInstanceRow> PendingInstances() {
+        if (_fleet is null) return [];
+        return _fleet.Instances
+            .Where(i => ProvisionStates.IsLive(i.State) || i.State == ProvisionStates.Failed)
+            .Where(i => i.DeviceId is null || _devices.All(d => d.Id != i.DeviceId))
+            .OrderBy(i => i.InstanceId, StringComparer.Ordinal);
+    }
+
     RenderFragment DeviceEntry(DeviceRow d) => @<WorkbenchEntry Selected="@(State.SelectedId == d.Id && !State.FleetOpen)" @key="d.Id"
                                                                 Tone="@(d.Reachable ? WorkbenchTone.Normal : WorkbenchTone.Muted)"
                                                                 Foot="@FootFor(d)"
@@ -461,8 +485,16 @@
     }
 
     void OnTopic(string topic) {
-        if (_disposed || !_open || topic != AdminTopics.DeviceStatus) return;
-        _ = InvokeAsync(RefreshAsync);
+        if (_disposed || !_open) return;
+        if (topic == AdminTopics.DeviceStatus) _ = InvokeAsync(RefreshAsync);
+        else if (topic == AdminTopics.VirtualDevices) _ = InvokeAsync(RefreshFleetAsync);
+    }
+
+    async Task RefreshFleetAsync() {
+        if (_disposed || !_open) return;
+        await LoadAsync();
+        await LoadFleetAsync();
+        StateHasChanged();
     }
 
     async Task RefreshAsync() {
@@ -485,6 +517,7 @@
         if (ok) _devices = rows;
         _devicesFailed = !ok;
         await LoadLiveAsync();
+        await LoadFleetAsync();
     }
 
     async Task ReloadDevices() {
@@ -499,7 +532,6 @@
         ResolveHub();
         await LoadHarvestAsync();
         await LoadJobsAsync();
-        await LoadFleetAsync();
         if (State.Mode == DeviceWorkbenchState.TabCapture) AttachCapture();
     }
 
@@ -583,7 +615,7 @@
     }
 
     async Task LoadFleetAsync() {
-        if (Current is not { Virtual: true }) return;
+        if (!_isAdmin) return;
         _fleet = await Client().OneAsync<VirtualDevicesStatus>("/api/devices/virtual", Logger);
     }
 

@@ -136,7 +136,7 @@ public sealed class VirtualDevicesController(
     [HttpGet("integrity")]
     [EnableRateLimiting("read")]
     public async Task<IActionResult> Integrity(CancellationToken ct) =>
-        Ok(IntegrityView(await integrityAssets.ResolveAsync(false, ct)));
+        Ok(IntegrityView(await integrityAssets.PeekAsync(ct)));
 
     [HttpPost("integrity/refresh")]
     public async Task<IActionResult> RefreshIntegrity(CancellationToken ct) =>

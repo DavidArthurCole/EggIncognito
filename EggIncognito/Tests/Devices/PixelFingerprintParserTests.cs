@@ -100,6 +100,31 @@ public class PixelFingerprintParserTests {
     }
 
     [Fact]
+    public void Canary_ReadsFlashStationShape_WithCanaryUnderPreviewMetadata() {
+        const string json = """
+            {"flashstationBuild":[
+              {"product":"oriole_beta","buildId":"15760424","releaseCandidateName":"ZP11.260618.005",
+               "factoryImageDownloadUrl":"https://dl.google.com/developers/android/CANARY/images/factory/a.zip",
+               "target":"oriole_beta-user",
+               "previewMetadata":{"id":"canary-202607","releaseTrackName":"Android Canary","releaseTrackVersionName":"Canary 202607","active":false,"canary":true}},
+              {"product":"oriole_beta","buildId":"16064790","releaseCandidateName":"CP31.260623.012",
+               "previewMetadata":{"id":"beta","releaseTrackName":"Android Beta","releaseTrackVersionName":"Beta 3","active":true}},
+              {"product":"oriole_beta","buildId":"16004061","releaseCandidateName":"ZP11.260717.006",
+               "factoryImageDownloadUrl":"https://dl.google.com/developers/android/CANARY/images/factory/b.zip",
+               "previewMetadata":{"id":"canary-202608","releaseTrackName":"Android Canary","releaseTrackVersionName":"Canary 202608","active":true,"canary":true}}
+            ]}
+            """;
+
+        var canary = PixelFingerprintParser.Canary(json);
+
+        Assert.NotNull(canary);
+        Assert.Equal("ZP11.260717.006", canary.ReleaseCandidateName);
+        Assert.Equal("16004061", canary.BuildId);
+        Assert.Equal("Canary 202608", canary.ReleaseTrackVersionName);
+        Assert.EndsWith("/b.zip", canary.FactoryImageDownloadUrl, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Canary_HandlesBareArrayRoot() {
         const string json = """
             [{"releaseCandidateName":"X","buildId":"1","canary":true},{"releaseCandidateName":"Y","buildId":"2","canary":true}]

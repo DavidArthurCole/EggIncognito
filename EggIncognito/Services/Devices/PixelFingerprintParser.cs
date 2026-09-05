@@ -54,15 +54,24 @@ public static partial class PixelFingerprintParser {
         using var doc = JsonDocument.Parse(buildsJson);
         PixelCanary? last = null;
         foreach (var build in Builds(doc.RootElement)) {
-            if (!build.TryGetProperty("canary", out var canary) || canary.ValueKind != JsonValueKind.True) continue;
+            if (!IsCanary(build)) continue;
             string? id = Str(build, "releaseCandidateName");
             string? incremental = Str(build, "buildId");
             if (id is null || incremental is null) continue;
-            last = new PixelCanary(id, incremental, Str(build, "releaseTrackVersionName"),
-                Str(build, "factoryImageDownloadUrl"));
+            string? track = Str(build, "releaseTrackVersionName")
+                            ?? (build.TryGetProperty("previewMetadata", out var meta) ? Str(meta, "releaseTrackVersionName") : null);
+            last = new PixelCanary(id, incremental, track, Str(build, "factoryImageDownloadUrl"));
         }
 
         return last;
+    }
+
+    private static bool IsCanary(JsonElement build) {
+        if (build.TryGetProperty("canary", out var flat)) return flat.ValueKind == JsonValueKind.True;
+        return build.TryGetProperty("previewMetadata", out var meta)
+               && meta.ValueKind == JsonValueKind.Object
+               && meta.TryGetProperty("canary", out var nested)
+               && nested.ValueKind == JsonValueKind.True;
     }
 
     public static DateOnly Expiry(DateOnly releasedOn) => releasedOn.AddDays(CanaryLifetimeDays);

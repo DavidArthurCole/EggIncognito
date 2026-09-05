@@ -19,6 +19,54 @@ public sealed class IntegrityAssets(
 
     public Task<IntegrityBundle> DescribeAsync(CancellationToken ct) => ResolveAsync(false, ct);
 
+    public async Task<IntegrityBundle> PeekAsync(CancellationToken ct) {
+        using var scope = scopeFactory.CreateScope();
+        if (scope.ServiceProvider.GetService(typeof(DeviceModuleStore)) is not DeviceModuleStore store)
+            return IntegrityBundle.Fail("no database configured");
+
+        var warnings = new List<string>();
+        var modules = new List<IntegrityModuleAsset>();
+        foreach (var spec in config.IntegrityModules) {
+            var row = await store.LatestAsync(spec.Name, ct);
+            if (row is null) return IntegrityBundle.Fail($"module '{spec.Name}' is not cached yet; press Refresh cache");
+            string? id = MagiskModules.IdFromZip(row.Bytes);
+            if (id is null) return IntegrityBundle.Fail($"cached module '{spec.Name}' has no module.prop id");
+            modules.Add(new IntegrityModuleAsset(spec, id, row.Version, row.Bytes));
+        }
+
+        var ib = modules.FirstOrDefault(m => m.ModuleId.Equals(IntegrityBoxModuleId, StringComparison.Ordinal));
+        if (ib is null) return IntegrityBundle.Fail("the module chain has no Integrity-Box (module id playintegrityfix)");
+        string? patchDate = IntegrityBoxModule.PatchDate(ib.Zip);
+        if (patchDate is null) return IntegrityBundle.Fail("Integrity-Box zip carries no security patch date");
+
+        PifProfile? profile = null;
+        if (await store.LatestAsync(ProfileEntry, ct) is { } cachedProfile)
+            profile = PifProp.Parse(Encoding.UTF8.GetString(cachedProfile.Bytes)) is { } parsed ? parsed with { SecurityPatch = patchDate } : null;
+        if (profile is null) {
+            profile = IntegrityBoxModule.LegacyProfile(ib.Zip) is { } legacy ? legacy with { SecurityPatch = patchDate } : null;
+            if (profile is null) return IntegrityBundle.Fail("no fingerprint cached and Integrity-Box ships no legacy profile; press Refresh cache");
+            warnings.Add($"no fingerprint fetched yet; showing Integrity-Box's bundled profile {profile.Id}");
+        }
+
+        string? xml;
+        string source;
+        if (config.IntegrityKeyboxPath is { Length: > 0 } path) {
+            var operatorKeybox = await KeyboxAsync(store, false, warnings, ct);
+            if (operatorKeybox.Error is not null) return IntegrityBundle.Fail(operatorKeybox.Error);
+            xml = operatorKeybox.Xml;
+            source = operatorKeybox.Source ?? "operator:" + path;
+        } else if (await store.LatestAsync(KeyboxEntry, ct) is { } cachedKeybox) {
+            xml = Encoding.UTF8.GetString(cachedKeybox.Bytes);
+            source = "shared:" + cachedKeybox.Source;
+        } else {
+            return IntegrityBundle.Fail("no keybox cached yet; press Refresh cache");
+        }
+
+        var serials = KeyboxRevocation.Serials(xml!);
+        return new IntegrityBundle(true, null, profile, PifProp.Render(profile), xml, source, serials,
+            "revocation checked on refresh and before every activation", patchDate, modules, warnings);
+    }
+
     public async Task<IntegrityBundle> ResolveAsync(bool forceRefresh, CancellationToken ct) {
         using var scope = scopeFactory.CreateScope();
         if (scope.ServiceProvider.GetService(typeof(DeviceModuleStore)) is not DeviceModuleStore store)
