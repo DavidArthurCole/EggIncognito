@@ -1,5 +1,4 @@
 using EggIdentity.Settings;
-using EggIdentity.Settings.AdminUi;
 using EggIdentity.Settings.Store;
 using EggIncognito.Services.Config;
 using Npgsql;
@@ -18,7 +17,6 @@ public static class SettingsServices {
     public static void AddAppSettingsFramework(
         this WebApplicationBuilder builder, BootFlags boot, SettingsRegistry registry) {
         builder.Services.AddSingleton(registry);
-        builder.Services.AddSingleton<IStackEnvSource, ProcessStackEnvSource>();
 
         if (!boot.DbEnabled) return;
 

@@ -57,7 +57,7 @@
                 <h3 class="text-sm font-semibold m-0">Game events</h3>
                 <button type="button" class="dropzone-open" aria-label="Open the events calendar"
                         @onclick="@(() => OnOpenEvents.InvokeAsync())">
-                    <Icon Name="chevronRight" Class="icon-sm"/>
+                    <Icon Name="chevron-right" Class="icon-sm"/>
                 </button>
             </div>
             <EventsMiniCalendar OnOpen="OnOpenEvents"/>
@@ -73,12 +73,12 @@
                         <button type="button" class="reg-edit-btn disabled:opacity-40 disabled:cursor-default disabled:hover:border-border"
                                 disabled="@(_seasonIx >= seasonList.Count - 1)"
                                 aria-label="Older season" @onclick="() => MoveSeason(1)">
-                            <Icon Name="chevronLeft"/>
+                            <Icon Name="chevron-left"/>
                         </button>
                         <button type="button" class="reg-edit-btn disabled:opacity-40 disabled:cursor-default disabled:hover:border-border"
                                 disabled="@(_seasonIx <= 0)"
                                 aria-label="Newer season" @onclick="() => MoveSeason(-1)">
-                            <Icon Name="chevronRight"/>
+                            <Icon Name="chevron-right"/>
                         </button>
                     </div>
                 </div>

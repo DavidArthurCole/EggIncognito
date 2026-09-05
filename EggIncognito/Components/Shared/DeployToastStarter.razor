@@ -1,0 +1,12 @@
+@rendermode @(RenderModes.InteractiveServer)
+@using EggIdentity.Deploy.AdminUi
+@using Microsoft.Extensions.DependencyInjection
+@inject IServiceProvider Services
+
+@code {
+
+    protected override void OnInitialized() {
+        Services.GetService<DeployToastBridge>()?.Start();
+    }
+
+}

@@ -1,5 +1,4 @@
 @using System.Text.Json
-@using EggIdentity.UI
 @using EggIncognito.Models.Protos
 @using EggIncognito.Models.Registry
 @using EggIncognito.Services.Protos
@@ -27,7 +26,7 @@
         </div>
         <button type="button" class="reg-edit-btn pwb-admin-close" aria-label="Close registry admin"
                 @onclick="@(() => OnClose.InvokeAsync())">
-            <EggIncognito.Components.Shared.Icon Name="x"/>
+            <Icon Name="x"/>
         </button>
     </div>
 

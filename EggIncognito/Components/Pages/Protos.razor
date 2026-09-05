@@ -66,12 +66,12 @@
                     <BrandPanel Rows="_rows" OnOpenVersion="OpenVersion"/>
                     <div class="reg-toolbar-end">
                         <label id="protoPageDrop" class="reg-drop" for="wbFile">
-                            <EggIncognito.Components.Shared.Icon Name="arrow-up" Class="icon-sm"/>
+                            <Icon Name="upload" Class="icon-sm"/>
                             <span>Drop a build</span>
                         </label>
                         <button type="button" class="reg-intake"
                                 aria-label="Open the proto workbench" @onclick="@(() => _workbench?.Open())">
-                            <EggIncognito.Components.Shared.Icon Name="chevronRight" Class="icon-sm"/>
+                            <Icon Name="chevron-right" Class="icon-sm"/>
                         </button>
                         @if (_isAdmin) {
                             <button type="button" class="reg-add-toggle" aria-label="Add a version in the proto workbench"

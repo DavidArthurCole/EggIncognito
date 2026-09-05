@@ -1,9 +1,9 @@
 using Bunit;
 using EggIdentity.Contract;
+using EggIdentity.UI;
 using EggIncognito.Components.Protos;
 using EggIncognito.Services;
 using EggIncognito.Services.Notifications;
-using EggIncognito.Services.Shared;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,7 +19,7 @@ public class NotificationsAdminScopeTests : BunitContext {
         Services.AddSingleton<IHttpContextAccessor>(new HttpContextAccessor());
         Services.AddSingleton<IWebHostEnvironment>(new FakeWebHostEnvironment());
         Services.AddScoped<NotificationsWorkbenchState>();
-        Services.AddScoped<ToastService>();
+        Services.AddEggIdentityToasts();
         Services.AddHttpClient();
     }
 

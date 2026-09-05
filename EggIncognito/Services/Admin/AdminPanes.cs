@@ -20,6 +20,7 @@ public static class AdminPanes {
     public const string Console = "console";
     public const string BotConfig = "bot-config";
     public const string Maintenance = "maintenance";
+    public const string Deploy = "deploy";
     public const string Settings = "settings";
     public const string Playground = "playground";
 
@@ -41,6 +42,7 @@ public static class AdminPanes {
         new(Console, "Ops", "Console"),
         new(BotConfig, "Ops", "Bot config"),
         new(Maintenance, "Ops", "Maintenance"),
+        new(Deploy, "Ops", "Deploy"),
         new(Settings, "Ops", "Settings"),
         new(Playground, "Ops", "Playground")
     ];

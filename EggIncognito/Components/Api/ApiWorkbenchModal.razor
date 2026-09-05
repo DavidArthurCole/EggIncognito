@@ -3,7 +3,6 @@
 @using System.Net
 @using System.Text.Json
 @using System.Text.Json.Nodes
-@using EggIdentity.UI
 @using EggIncognito.Components.Inspector
 @using EggIncognito.Core
 @using EggIncognito.Models.Data
@@ -151,7 +150,7 @@
                                             </button>
                                             @if (sel.RequestWrapped) {
                                                 <span class="ep-signed">
-                                                    <EggIncognito.Components.Shared.Icon Name="lock" Class="icon-sm"/>
+                                                    <Icon Name="lock" Class="icon-sm"/>
                                                 </span>
                                             }
                                         } else {
@@ -173,7 +172,7 @@
                             }
                             <button type="button" class="btn-mini insp-docs-btn" disabled="@(State.Selected is null)"
                                     @onclick="@(() => SelectDocsSubject((DocSubjectKinds.Endpoint, State.Selected!.Path)))">
-                                <EggIncognito.Components.Shared.Icon Name="log" Class="icon-sm"/> Docs
+                                <Icon Name="scroll-text" Class="icon-sm"/> Docs
                             </button>
                         </div>
                         <div class="insp-reader-body">

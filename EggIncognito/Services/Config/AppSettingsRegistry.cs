@@ -3,7 +3,7 @@ using EggIdentity.Settings;
 namespace EggIncognito.Services.Config;
 
 public static class AppSettingsRegistry {
-    public static SettingsRegistry Create() => new([
+    public static SettingsRegistry Create() => SettingsRegistry.Compose([
         new BootstrapSettingsProvider(),
         new CaptureSettingsProvider(),
         new DeviceSettingsProvider(),
@@ -14,5 +14,5 @@ public static class AppSettingsRegistry {
         new PlatformSettingsProvider(),
         new RateLimitSettingsProvider(),
         new VirtualDeviceSettingsProvider()
-    ]);
+    ], []);
 }

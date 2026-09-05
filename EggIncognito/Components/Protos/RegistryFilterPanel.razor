@@ -1,5 +1,8 @@
 @using EggIncognito.Models.Registry
 @using EggIncognito.Services.Protos
+@using FilterFieldDef = EggIncognito.Services.Protos.FilterFieldDef
+@using FilterOption = EggIncognito.Services.Protos.FilterOption
+@using FilterValueKind = EggIncognito.Services.Protos.FilterValueKind
 <div class="pwb-fil">
     @for (var g = 0; g < _groups.Count; g++) {
         var groupIndex = g;

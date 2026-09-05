@@ -45,6 +45,7 @@ public sealed class Program {
         builder.AddEndpointAndRouteSources(boot);
         builder.AddDatabaseServices(boot);
         builder.AddAppSettingsFramework(boot, settings);
+        builder.AddDeployServices();
         builder.AddIdentityServices(boot);
         builder.AddBotServices(boot);
         builder.AddSyncIngest(boot);

@@ -1,16 +1,16 @@
+using EggIdentity.UI;
 using EggIncognito.Services.Admin;
 using EggIncognito.Services.Api;
 using EggIncognito.Services.Devices;
 using EggIncognito.Services.Events;
 using EggIncognito.Services.Notifications;
 using EggIncognito.Services.Protos;
-using EggIncognito.Services.Shared;
 
 namespace EggIncognito.Services.Workbench;
 
 public static class WorkbenchRegistration {
     public static IServiceCollection AddWorkbenchStates(this IServiceCollection services) {
-        services.AddScoped<ToastService>();
+        services.AddEggIdentityToasts();
         services.AddScoped<ProtoWorkbenchState>();
         services.AddScoped<DeviceWorkbenchState>();
         services.AddScoped<NotificationsWorkbenchState>();

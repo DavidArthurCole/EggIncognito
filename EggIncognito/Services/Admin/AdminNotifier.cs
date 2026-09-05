@@ -17,6 +17,7 @@ public static class AdminTopics {
     public const string Console = "console";
     public const string BotConfig = "bot-config";
     public const string Maintenance = "maintenance";
+    public const string Deploy = "deploy";
     public const string VirtualDevices = "virtual-devices";
     public const string ImageBuilds = "image-builds";
     public const string DeviceStatus = "device-status";

@@ -1,7 +1,6 @@
 @inherits SelfCallComponentBase
 @using System.Globalization
 @using System.Text.Json
-@using EggIdentity.UI
 @using EggIncognito.Models.Contracts
 @using EggIncognito.Models.Events
 @using EggIncognito.Services.Assets
@@ -107,7 +106,7 @@
                 <div class="evcal-pop-head">
                     <span class="evcal-pop-title">@PopTitle(picked)</span>
                     <button type="button" class="reg-edit-btn" aria-label="Close details" @onclick="ClearSelection">
-                        <EggIncognito.Components.Shared.Icon Name="x"/>
+                        <Icon Name="x"/>
                     </button>
                 </div>
                 @if (picked.Event is { } pickedEvent) {
@@ -239,7 +238,7 @@
                 <div class="evchart-head">
                     <span class="evchart-title">@Pretty(cadenceType) @(_cadenceUltra ? "Ultra" : "Standard")</span>
                     <button type="button" class="reg-edit-btn" aria-label="Close cadence chart" @onclick="CloseCadence">
-                        <EggIncognito.Components.Shared.Icon Name="x"/>
+                        <Icon Name="x"/>
                     </button>
                 </div>
                 @if (_cadenceLoading) {

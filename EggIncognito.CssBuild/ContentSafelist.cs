@@ -6,6 +6,9 @@ public static class ContentSafelist {
         "wb-rail", "wb-entry", "selected", "compare", "tone-muted", "tone-warn",
         "tone-bad", "wb-entry-head", "wb-entry-name", "wb-entry-meta", "wb-entry-foot",
         "wb-sec", "wb-sec-head", "wb-sec-tools", "wb-sec-body", "wb-scroll", "wb-note",
-        "segmented", "segmented-opt", "active", "wb-seg-count"
+        "segmented", "segmented-opt", "active", "wb-seg-count",
+        "toast-host", "toast", "toast-text", "toast-info", "toast-busy", "toast-ok",
+        "toast-error", "status-note-x", "icon", "icon-xs", "icon-sm", "icon-md",
+        "icon-lg", "icon-btn"
     ];
 }

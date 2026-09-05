@@ -1,4 +1,3 @@
-@using EggIdentity.UI
 @using EggIncognito.Models.Inspector
 @using EggIncognito.Services.Api
 @using Microsoft.AspNetCore.Components.Web.Virtualization
@@ -8,15 +7,15 @@
 <div class="insp-rail-top">
     <a class="icon-btn icon-btn-sm" href="/api/tools/postman-collection" download
        aria-label="Download Postman collection">
-        <EggIncognito.Components.Shared.Icon Name="postman"/>
+        <Icon Name="send"/>
     </a>
     <button type="button" class="icon-btn icon-btn-sm @(StatusLoading ? "spinning" : "")"
             aria-label="Endpoint status" @onclick="OnOpenStatus">
-        <EggIncognito.Components.Shared.Icon Name="refresh"/>
+        <Icon Name="refresh-cw"/>
     </button>
     <button type="button" class="icon-btn icon-btn-sm ml-auto"
             aria-label="Inspector settings" @onclick="OnOpenSettings">
-        <EggIncognito.Components.Shared.Icon Name="gear"/>
+        <Icon Name="settings"/>
     </button>
 </div>
 
@@ -46,7 +45,7 @@
                         <span class="ep-name">@row.Label</span>
                         @if (row.Route.RequestWrapped) {
                             <span class="ep-signed">
-                                <EggIncognito.Components.Shared.Icon Name="lock" Class="icon-sm"/>
+                                <Icon Name="lock" Class="icon-sm"/>
                             </span>
                         }
                     </div>

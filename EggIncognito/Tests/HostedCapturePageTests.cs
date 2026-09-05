@@ -1,13 +1,13 @@
 using System.Net;
 using Bunit;
 using EggIdentity.Contract;
+using EggIdentity.UI;
 using EggIncognito.Capture;
 using EggIncognito.Components.Api;
 using EggIncognito.Controllers;
 using EggIncognito.Core.Services;
 using EggIncognito.Models.Capture;
 using EggIncognito.Services;
-using EggIncognito.Services.Shared;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
@@ -86,7 +86,7 @@ public class HostedCapturePageTests {
             Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
             Services.AddSingleton(new AuthState(false));
             Services.AddSingleton<ICaptureContributionKinds>(new CaptureContributionKinds([]));
-            Services.AddScoped<ToastService>();
+            Services.AddEggIdentityToasts();
             Services.AddHttpClient();
         }
 

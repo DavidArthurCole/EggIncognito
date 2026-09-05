@@ -144,22 +144,26 @@ jobs:
     secrets:
       PACKAGES_PAT: ${{ secrets.PACKAGES_PAT }}
 
-  fast-deploy:
-    uses: EggIncTools/EggIdentity/.github/workflows/fast-deploy-trigger.yml@main
-    permissions:
-      contents: read
+  notify-app:
+    needs: docker
+    uses: EggIncTools/EggIdentity/.github/workflows/notify-agent.yml@main
     with:
-      app: EggIncognito
+      app: eggincognito
       agent-url: https://eggidentity.davidarthurcole.me/agent
+      digest: ${{ needs.docker.outputs.digest }}
+      revision: ${{ github.sha }}
+      version: ${{ github.ref_name }}
     secrets:
-      deploy-secret: ${{ secrets.EGI_DEPLOY_AGENT_SECRET }}
+      hook-secret: ${{ secrets.DEPLOY_HOOK_SECRET }}
 
-  fast-deploy-runner:
-    uses: EggIncTools/EggIdentity/.github/workflows/fast-deploy-trigger.yml@main
-    permissions:
-      contents: read
+  notify-runner:
+    needs: docker-runner
+    uses: EggIncTools/EggIdentity/.github/workflows/notify-agent.yml@main
     with:
-      app: EggIncognitoRunner
+      app: eggincognito-runner
       agent-url: https://eggidentity.davidarthurcole.me/agent
+      digest: ${{ needs.docker-runner.outputs.digest }}
+      revision: ${{ github.sha }}
+      version: ${{ github.ref_name }}
     secrets:
-      deploy-secret: ${{ secrets.EGI_RUNNER_DEPLOY_AGENT_SECRET }}
+      hook-secret: ${{ secrets.DEPLOY_HOOK_SECRET }}

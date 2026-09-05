@@ -10,7 +10,6 @@
 @using System.Globalization
 @using System.Text
 @using System.Text.Json
-@using EggIdentity.UI
 @using EggIncognito.Core
 @using EggIncognito.Core.Services.ProtoExtract
 @using EggIncognito.Models.Registry
@@ -35,7 +34,7 @@
         }
         @if (offerAllCount > 0) {
             <button type="button" class="btn-mini" disabled="@_offerBusy" @onclick="@(() => OfferAll(groups))">
-                <EggIncognito.Components.Shared.Icon Name="arrow-up" Class="icon-sm"/> Offer all (@offerAllCount)
+                <Icon Name="upload" Class="icon-sm"/> Offer all (@offerAllCount)
             </button>
         }
     </HeadTools>
@@ -78,7 +77,7 @@
                                     aria-label="Conditions"
                                     aria-expanded="@(_filterOpen ? "true" : "false")"
                                     @onclick="@(() => _filterOpen = !_filterOpen)">
-                                <EggIncognito.Components.Shared.Icon Name="filter" Class="icon-sm"/>
+                                <Icon Name="funnel" Class="icon-sm"/>
                             </button>
                         </div>
                         @if (_filterOpen) {
@@ -94,7 +93,7 @@
                                         <span class="pwb-cond-text">@line.Text</span>
                                         <button type="button" class="wb-x" aria-label="Remove condition"
                                                 @onclick="@(() => RemoveCondition(line.Group, line.Index))">
-                                            <EggIncognito.Components.Shared.Icon Name="x" Class="icon-sm"/>
+                                            <Icon Name="x" Class="icon-sm"/>
                                         </button>
                                     </div>
                                 }
@@ -144,7 +143,7 @@
                                     <VersionLine App="@g.AppVersion" Build="@g.Build" Client="@g.ClientVersionText"/>
                                     @if (g is { Conflict: false, Status.Offerable: true }) {
                                         <span>
-                                            <EggIncognito.Components.Shared.Icon Name="arrow-up" Class="icon-sm wb-st-offer"/>
+                                            <Icon Name="upload" Class="icon-sm wb-st-offer"/>
                                         </span>
                                     } else {
                                         <span class="pwb-note-inline @GroupStatusTone(g)">@GroupStatusText(g)</span>
@@ -152,7 +151,7 @@
                                     @if (g.Status is { Failed: true }) {
                                         <button type="button" class="btn-mini ml-auto" aria-label="Retry check"
                                                 @onclick="@(() => RetryCheck(g))">
-                                            <EggIncognito.Components.Shared.Icon Name="refresh" Class="icon-sm"/> Retry
+                                            <Icon Name="refresh-cw" Class="icon-sm"/> Retry
                                         </button>
                                     }
                                 </div>
@@ -194,7 +193,7 @@
             </div>
             <button type="button" class="pwb-swap" aria-label="Swap A and B"
                     disabled="@(State.B is null)" @onclick="SwapRefs">
-                <EggIncognito.Components.Shared.Icon Name="swap" Class="icon-sm"/>
+                <Icon Name="arrow-left-right" Class="icon-sm"/>
             </button>
             <div class="@SlotClass(State.B)">
                 <VersionCombo Label="B" Items="ComboItems(State.A)" Selected="@State.B?.Format()"
@@ -249,7 +248,7 @@
                         <span class="pwb-note-inline pwb-err">check failed</span>
                         <button type="button" class="btn-mini" aria-label="Retry check"
                                 @onclick="@(() => RetryCheck(selGroup))">
-                            <EggIncognito.Components.Shared.Icon Name="refresh" Class="icon-sm"/> Retry
+                            <Icon Name="refresh-cw" Class="icon-sm"/> Retry
                         </button>
                     } else if (selGroup?.Status is { Pending: true } or { Offered: true }) {
                         <span class="pwb-note-inline pwb-warn">pending review</span>
@@ -264,7 +263,7 @@
                     @if (selGroup is { } sg && CanOffer(sg)) {
                         <button type="button" class="btn-mini" disabled="@_offerBusy"
                                 @onclick="@(() => Offer(sg))">
-                            <EggIncognito.Components.Shared.Icon Name="arrow-up" Class="icon-sm"/> Offer
+                            <Icon Name="upload" Class="icon-sm"/> Offer
                         </button>
                     }
                 }
@@ -274,11 +273,11 @@
             <WorkbenchModes Modes="State.Modes" Current="@State.Mode" CurrentChanged="SetMode" Disabled="ModeDisabled"/>
             <button type="button" class="btn-mini" aria-label="Older version"
                     disabled="@(StepRef(1) is null)" @onclick="@(() => SetA(StepRef(1)))">
-                <EggIncognito.Components.Shared.Icon Name="chevronLeft" Class="icon-sm"/>
+                <Icon Name="chevron-left" Class="icon-sm"/>
             </button>
             <button type="button" class="btn-mini" aria-label="Newer version"
                     disabled="@(StepRef(-1) is null)" @onclick="@(() => SetA(StepRef(-1)))">
-                <EggIncognito.Components.Shared.Icon Name="chevronRight" Class="icon-sm"/>
+                <Icon Name="chevron-right" Class="icon-sm"/>
             </button>
             <div class="pwb-menu-wrap">
                 <button type="button" class="pwb-menu-btn" aria-haspopup="true" disabled="@(State.A is null)"
@@ -498,7 +497,7 @@
                                                                                <button type="button" class="wb-x" aria-label="Remove"
                                                                                        @onclick:stopPropagation="true" @onkeydown:stopPropagation="true"
                                                                                        @onclick="@(() => Remove(e))">
-                                                                                   <EggIncognito.Components.Shared.Icon Name="x" Class="icon-sm"/>
+                                                                                   <Icon Name="x" Class="icon-sm"/>
                                                                                </button>
                                                                            </Trail>
                                                                            <MetaLine>
@@ -519,10 +518,10 @@
                                                                                }
                                                                                @if (!grouped && g is { Conflict: false, Status.Offerable: true }) {
                                                                                    <span>
-                                                                                       <EggIncognito.Components.Shared.Icon Name="arrow-up" Class="icon-sm wb-st-offer"/>
+                                                                                       <Icon Name="upload" Class="icon-sm wb-st-offer"/>
                                                                                    </span>
                                                                                }
-                                                                               <EggIncognito.Components.Shared.Icon Name="clock" Class="icon-sm"/>
+                                                                               <Icon Name="clock" Class="icon-sm"/>
                                                                                <PlatformIcon Platform="@e.Platform"/>
                                                                            </Foot>
                                                                        </WorkbenchEntry>;

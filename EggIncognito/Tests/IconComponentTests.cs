@@ -1,12 +1,14 @@
 using Bunit;
-using EggIncognito.Components.Shared;
+using EggIdentity.Icons;
+using EggIdentity.UI;
+using EggIncognito.Core.Services.Devices;
 
 namespace EggIncognito.Tests;
 
 public class IconComponentTests : BunitContext {
     [Fact]
     public void KnownIcon_RendersNestedSvgInsideIconSpan() {
-        var cut = Render<Icon>(p => p.Add(c => c.Name, "gear"));
+        var cut = Render<Icon>(p => p.Add(c => c.Name, "settings"));
         var span = cut.Find("span");
         Assert.Contains("icon", span.ClassList);
         var svg = span.QuerySelector("svg");
@@ -29,5 +31,12 @@ public class IconComponentTests : BunitContext {
         var span = cut.Find("span");
         Assert.Contains("icon", span.ClassList);
         Assert.Null(span.QuerySelector("svg"));
+    }
+
+    [Fact]
+    public void PlatformIcons_ResolveToPackNames() {
+        Assert.Contains(PlatformIcons.For("ios"), IconPack.Names);
+        Assert.Contains(PlatformIcons.For("android"), IconPack.Names);
+        Assert.Contains(PlatformIcons.For(null), IconPack.Names);
     }
 }

@@ -48,7 +48,7 @@
                     </button>
                     <button type="button" class="icon-btn"
                             aria-label="Rotate proxy address" disabled="@_rotateBusy" @onclick="RotateAddress">
-                        <Icon Name="refresh"/>
+                        <Icon Name="refresh-cw"/>
                     </button>
                 }
             }
@@ -56,7 +56,7 @@
             <div class="settings-wrap">
                 <button type="button" class="icon-btn" aria-label="Settings"
                         aria-haspopup="true" aria-expanded="@(_open == "settings")" @onclick="@(() => Toggle("settings"))">
-                    <Icon Name="gear"/>
+                    <Icon Name="settings"/>
                 </button>
                 <div class="settings-menu settings-menu-lg @(_open == "settings" ? "open" : "")">
                     <div class="settings-title">Redaction</div>

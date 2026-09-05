@@ -22,7 +22,7 @@
     static string IconFor(StatusNoteKind k) {
         return k switch {
             StatusNoteKind.Ok => "check",
-            StatusNoteKind.Error => "alert",
+            StatusNoteKind.Error => "triangle-alert",
             StatusNoteKind.Busy => "clock",
             _ => "info"
         };

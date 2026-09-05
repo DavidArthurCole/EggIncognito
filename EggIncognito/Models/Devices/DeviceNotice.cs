@@ -1,4 +1,4 @@
-using EggIncognito.Models.Shared;
+using EggIdentity.UI;
 
 namespace EggIncognito.Models.Devices;
 

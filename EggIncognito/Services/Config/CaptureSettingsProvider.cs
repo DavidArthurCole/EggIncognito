@@ -38,6 +38,10 @@ public sealed class CaptureSettingsProvider : ISettingsProvider {
             SettingKind.StringList, ApplyTier.RestartRequired, Sensitivity.Plain) {
             Description = "Comma separated. The stack may also set indexed Capture__ExtraAllowedHosts__0 entries."
         },
+        new("capture.iface", "CAPTURE_IFACE", "Capture interface", Hosted,
+            SettingKind.External, ApplyTier.Bootstrap, Sensitivity.Plain) {
+            Description = "Read by docker-entrypoint.sh for the AnyIP route, not by the app."
+        },
 
         new("capture.path", "CapturePath", "Capture directory", Local,
             SettingKind.Path, ApplyTier.RestartRequired, Sensitivity.Plain),
