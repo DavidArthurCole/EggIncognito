@@ -1,9 +1,14 @@
+using System.IO.Compression;
+
 namespace EggIncognito.Core.Services.Devices;
 
 public sealed record MagiskModule(string Id, string State) {
     public const string Enabled = "on";
+    public const string Disabled = "disabled";
+    public const string Removing = "removing";
 
     public bool Ok => State == Enabled;
+    public bool Pending => State == Removing;
 }
 
 public static class MagiskModules {
@@ -29,6 +34,23 @@ public static class MagiskModules {
         return mods;
     }
 
+    public static List<MagiskModule> Live(IEnumerable<MagiskModule> mods) => [.. mods.Where(m => !m.Pending)];
+
     public static string Describe(IEnumerable<MagiskModule> mods) =>
         string.Join(", ", mods.Select(m => $"{m.Id} {m.State}"));
+
+    public static string? IdFromZip(byte[] zip) {
+        try {
+            using var archive = new ZipArchive(new MemoryStream(zip), ZipArchiveMode.Read);
+            if (archive.GetEntry("module.prop") is not { } entry) return null;
+            using var reader = new StreamReader(entry.Open());
+            while (reader.ReadLine() is { } line) {
+                if (line.StartsWith("id=", StringComparison.Ordinal)) return line["id=".Length..].Trim();
+            }
+
+            return null;
+        } catch (InvalidDataException) {
+            return null;
+        }
+    }
 }

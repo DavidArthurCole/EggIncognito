@@ -15,9 +15,30 @@ public static class DeviceForeground {
     private const string FocusCommand =
         "dumpsys window 2>/dev/null | grep -E \"mCurrentFocus|mFocusedApp\" | head -n 2";
 
+    public const string CloseForegroundCommand =
+        "p=$(" + FocusCommand + " | grep -oE \"[A-Za-z][A-Za-z0-9_.]*/\" | head -n 1 | tr -d /); "
+        + "h=$(cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME "
+        + "2>/dev/null | tail -n 1 | cut -d/ -f1); "
+        + "if [ -z \"$p\" ]; then echo \"no focused app\"; exit 1; fi; "
+        + "if [ \"$p\" = \"$h\" ] || [ \"$p\" = com.android.systemui ]; then echo \"$p is not an app\"; exit 1; fi; "
+        + "am force-stop \"$p\" && echo \"closed $p\"";
+
+    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(2);
+
     public static async Task<ForegroundWindow> ReadAsync(IDeviceConnection conn, CancellationToken ct) {
         var r = await conn.ShellAsync(FocusCommand, ct);
         return Parse(r.Stdout);
+    }
+
+    public static async Task<ForegroundWindow> WaitAsync(
+        IDeviceConnection conn, string package, string blocker, TimeSpan timeout, CancellationToken ct) {
+        var deadline = DateTimeOffset.UtcNow + timeout;
+        ForegroundWindow front;
+        while (true) {
+            front = await ReadAsync(conn, ct);
+            if (front.Is(package) || front.Is(blocker) || DateTimeOffset.UtcNow >= deadline) return front;
+            await Task.Delay(PollInterval, ct);
+        }
     }
 
     public static ForegroundWindow Parse(string stdout) {

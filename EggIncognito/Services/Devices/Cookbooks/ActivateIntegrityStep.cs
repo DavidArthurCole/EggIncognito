@@ -8,6 +8,9 @@ public sealed class ActivateIntegrityStep(
     IDeviceFleet fleet,
     IDeviceConnectionFactory connections) : CookbookStep {
     private static readonly TimeSpan ActionTimeout = TimeSpan.FromMinutes(6);
+    private static readonly TimeSpan CheckinWait = TimeSpan.FromMinutes(3);
+    private static readonly TimeSpan CheckinPoll = TimeSpan.FromSeconds(10);
+    private const string PifLogCommand = "logcat -d -s PIF/Native 2>/dev/null | tail -n 12";
 
     public override string Id => DeviceCookbookIds.ActivateIntegrity;
     public override string Title => "Activate integrity chain";
@@ -75,11 +78,24 @@ public sealed class ActivateIntegrityStep(
         bool virtualDevice = await IsVirtualAsync(target.Id, ct);
         var reset = await conn.ShellAsync(root.Wrap(IntegrityChain.ResetPlayCommand(virtualDevice)), ct);
         if (!reset.Stdout.Contains("reset=1", StringComparison.Ordinal))
-            Add($"play reset did not complete: {DeviceParsing.TrimNote(reset.Stderr + reset.Stdout)}");
-        else
-            Add(virtualDevice
-                ? "play store + gsf cleared; gms re-registers under the spoofed identity"
-                : "play store cleared; gms restarted under the spoofed identity");
+            return Failed(lines, $"play reset did not complete: {DeviceParsing.TrimNote(reset.Stderr + reset.Stdout)}");
+        Add(virtualDevice
+            ? "play store + gsf cleared; waiting for gms to check in under the spoofed identity"
+            : "play store cleared; gms restarted under the spoofed identity");
+
+        if (virtualDevice) {
+            string? gsf = await GsfIdentity.WaitAsync(conn, CheckinWait, CheckinPoll, ct);
+            if (gsf is null)
+                return Failed(lines, $"gms did not check in within {CheckinWait.TotalMinutes:F0} min; no gsf id (device offline?)");
+            Add($"gms checked in, gsf id {gsf}");
+        }
+
+        var pif = await conn.ShellAsync(PifLogCommand, ct);
+        var spoofed = pif.Stdout.Split('\n').Where(l => l.Contains("Spoofing", StringComparison.Ordinal))
+            .Select(l => l[(l.IndexOf("Spoofing", StringComparison.Ordinal) + "Spoofing ".Length)..].Trim()).ToList();
+        Add(spoofed.Count > 0
+            ? $"pif injected into gms: {string.Join("; ", spoofed.Distinct())}"
+            : "no PIF/Native lines in logcat yet; DroidGuard spawns on demand, re-check after launching the app");
 
         return Ok(lines, after.Describe());
     }

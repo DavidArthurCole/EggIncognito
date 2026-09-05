@@ -16,12 +16,14 @@ public sealed class DeviceCookbookRunner(
     CookbookExecutor executor,
     IServiceScopeFactory scopeFactory,
     ILogger<DeviceCookbookRunner> logger) {
-    private readonly ConcurrentDictionary<string, CancellationTokenSource> _cancellations =
+    private readonly ConcurrentDictionary<string, (long JobId, CancellationTokenSource Cts)> _cancellations =
         new(StringComparer.Ordinal);
 
-    public bool TryCancel(string deviceId) {
-        if (!_cancellations.TryGetValue(deviceId, out var cts)) return false;
-        cts.Cancel();
+    public bool TryCancel(string deviceId, out long jobId) {
+        jobId = 0;
+        if (!_cancellations.TryGetValue(deviceId, out var live)) return false;
+        jobId = live.JobId;
+        live.Cts.Cancel();
         return true;
     }
 
@@ -62,7 +64,7 @@ public sealed class DeviceCookbookRunner(
         }
 
         var cts = new CancellationTokenSource();
-        _cancellations[deviceId] = cts;
+        _cancellations[deviceId] = (job.Id, cts);
         _ = Task.Run(() => RunDetachedAsync(job, target, request with { CookbookId = cookbook.Id }, cts),
             CancellationToken.None);
         return new DeviceCookbookStart(DeviceCookbookStartOutcome.Started, job.Id);
@@ -121,7 +123,7 @@ public sealed class DeviceCookbookRunner(
             await scoped.ProgressAsync(job, ex.ToString(), DeviceJobLevels.Error, CancellationToken.None);
             await scoped.FailAsync(job, ex.Message, CancellationToken.None);
         } finally {
-            _cancellations.TryRemove(new KeyValuePair<string, CancellationTokenSource>(job.DeviceId, cts));
+            _cancellations.TryRemove(new KeyValuePair<string, (long, CancellationTokenSource)>(job.DeviceId, (job.Id, cts)));
             cts.Dispose();
         }
     }

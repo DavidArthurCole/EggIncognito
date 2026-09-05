@@ -116,6 +116,7 @@ public sealed class InstallIntegrityStep(
             root = after;
         }
 
+        var installedIds = new List<string>();
         foreach (var spec in config.IntegrityModules) {
             var fetched = await fetcher.ResolveAsync(spec, false, ct);
             if (!fetched.Ok || fetched.Bytes is not { } bytes)
@@ -129,7 +130,10 @@ public sealed class InstallIntegrityStep(
 
             string version = fetched.Version is { Length: > 0 } v ? $" ({v})" : "";
             string origin = fetched.FromCache ? "cache" : "upstream";
-            Add($"{spec.Name}{version}: {bytes.Length} bytes from {origin}");
+            if (MagiskModules.IdFromZip(bytes) is not { } moduleId)
+                return Failed(lines, $"'{spec.Name}' zip carries no module.prop id; not a Magisk module");
+            installedIds.Add(moduleId);
+            Add($"{spec.Name}{version} [{moduleId}]: {bytes.Length} bytes from {origin}");
 
             string remote = $"/data/local/tmp/{spec.Name}.zip";
             string? staged = await PushAsync(conn, bytes, $"-{spec.Name}.zip", remote, ct);
@@ -168,20 +172,18 @@ public sealed class InstallIntegrityStep(
                 + DeviceParsing.TrimNote(verify.Stderr + verify.Stdout));
         }
 
-        var mods = MagiskModules.Parse(verify.Stdout);
-        if (mods.Count == 0)
-            return Failed(lines, "no module under /data/adb/modules after install");
-
+        var mods = MagiskModules.Live(MagiskModules.Parse(verify.Stdout));
         string listing = MagiskModules.Describe(mods);
-        if (mods.Exists(m => !m.Ok))
-            return Failed(lines, $"modules landed but are not live: {listing}");
+        var missing = installedIds.Where(id => !mods.Exists(m => m.Id == id)).ToList();
+        if (missing.Count > 0)
+            return Failed(lines, $"not under /data/adb/modules after install: {string.Join(", ", missing)}; have {listing}");
 
-        int want = config.IntegrityModules.Count;
-        if (mods.Count < want)
-            return Failed(lines, $"only {mods.Count} of {want} chain modules are live: {listing}");
+        var dead = mods.Where(m => installedIds.Contains(m.Id) && !m.Ok).ToList();
+        if (dead.Count > 0)
+            return Failed(lines, $"chain modules landed but are disabled: {MagiskModules.Describe(dead)}");
 
         Add($"modules live: {listing}");
-        return Ok(lines, $"installed {want} module(s)");
+        return Ok(lines, $"installed {installedIds.Count} module(s): {string.Join(", ", installedIds)}");
     }
 
     private static async Task<string?> MagiskBinaryAsync(IDeviceConnection conn, RootAccess root, CancellationToken ct) {

@@ -9,10 +9,6 @@ public sealed class VirtualDeviceReadinessProbe(
     IConfiguration configuration) {
     private const string SystemCaCerts = "/system/etc/security/cacerts/";
 
-    private const string GsfAndroidIdQuery =
-        "content query --uri content://com.google.android.gsf.gservices "
-        + "--projection value --where \"name='android_id'\" 2>/dev/null";
-
     public async Task<DeviceReadiness> ProbeAsync(DeviceTarget target, CancellationToken ct) {
         if (!Platforms.Matches(target.Platform, Platforms.Android)) {
             var na = new ReadinessCheck(false, "android only");
@@ -55,22 +51,10 @@ public sealed class VirtualDeviceReadinessProbe(
         if (!r.Stdout.Contains("package:", StringComparison.Ordinal))
             return new ReadinessCheck(false, "no Play services, needs a gapps image");
 
-        var gsf = await conn.ShellAsync(GsfAndroidIdQuery, ct);
-        return GsfAndroidId(gsf.Stdout) is { Length: > 0 } id
+        return await GsfIdentity.ReadAsync(conn, ct) is { } id
             ? new ReadinessCheck(true, $"gsf id {id}")
             : new ReadinessCheck(false,
-                "Play services installed but never checked in; no gsf id, so Play treats the device as uncertified");
-    }
-
-    internal static string? GsfAndroidId(string stdout) {
-        foreach (string line in stdout.Split('\n')) {
-            int at = line.IndexOf("value=", StringComparison.Ordinal);
-            if (at < 0) continue;
-            string value = line[(at + "value=".Length)..].Trim();
-            if (value.Length > 0 && !value.Equals("NULL", StringComparison.OrdinalIgnoreCase)) return value;
-        }
-
-        return null;
+                "Play services installed but not checked in; no gsf id yet, so Play treats the device as uncertified");
     }
 
     private static ReadinessCheck RootedCheck(RootAccess root) =>
@@ -81,11 +65,11 @@ public sealed class VirtualDeviceReadinessProbe(
         if (!MagiskModules.Ran(r.Stdout))
             return new ReadinessCheck(false, $"module scan did not run: {DeviceParsing.TrimNote(r.Stderr + r.Stdout)}");
 
-        var mods = MagiskModules.Parse(r.Stdout);
+        var mods = MagiskModules.Live(MagiskModules.Parse(r.Stdout));
         if (mods.Count == 0) return new ReadinessCheck(false, "no module in /data/adb/modules");
 
         string listing = MagiskModules.Describe(mods);
-        if (mods.Exists(m => !m.Ok)) return new ReadinessCheck(false, listing);
+        if (mods.Exists(m => !m.Ok)) return new ReadinessCheck(false, $"disabled module: {listing}");
 
         int want = config.IntegrityModules.Count;
         if (mods.Count < want)
@@ -103,7 +87,7 @@ public sealed class VirtualDeviceReadinessProbe(
         var root = await DeviceRoot.ProbeAsync(conn, ct);
         var scan = await conn.ShellAsync(root.Wrap(MagiskModules.ScanCommand), ct);
         if (!MagiskModules.Ran(scan.Stdout)) return (false, null);
-        var mods = MagiskModules.Parse(scan.Stdout);
+        var mods = MagiskModules.Live(MagiskModules.Parse(scan.Stdout));
         bool live = mods.Count >= config.IntegrityModules.Count && mods.TrueForAll(m => m.Ok);
         return (live, await ChainStateAsync(conn, root, ct));
     }

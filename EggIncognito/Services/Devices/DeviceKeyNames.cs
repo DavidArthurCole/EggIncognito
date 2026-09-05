@@ -10,7 +10,8 @@ public static class DeviceKeyNames {
         ["enter"] = DeviceKey.Enter,
         ["wake"] = DeviceKey.Wake,
         ["sleep"] = DeviceKey.Sleep,
-        ["dismiss-keyguard"] = DeviceKey.DismissKeyguard
+        ["dismiss-keyguard"] = DeviceKey.DismissKeyguard,
+        ["close-app"] = DeviceKey.CloseApp
     };
 
     public static IReadOnlyCollection<string> All => ByName.Keys;

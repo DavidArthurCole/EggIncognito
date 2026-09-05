@@ -63,6 +63,7 @@
                     <button type="button" class="btn-mini" @onclick="@(() => KeyAsync("recents"))">Recents</button>
                     <button type="button" class="btn-mini" @onclick="@(() => KeyAsync("enter"))">Enter</button>
                     <button type="button" class="btn-mini" @onclick="@(() => KeyAsync("wake"))">Wake</button>
+                    <button type="button" class="btn-mini" @onclick="@(() => KeyAsync("close-app"))">Close app</button>
                 </div>
 
                 <div class="dcon-typing">
@@ -821,7 +822,8 @@
 
         var res = await Client().PostAsync($"/api/devices/{_deviceId}/cookbooks/stop", null);
         _stopBusy = false;
-        if (!res.IsSuccessStatusCode) await Fail(await ReadError(res));
+        if ((int)res.StatusCode == 409) await RefreshRunAsync();
+        else if (!res.IsSuccessStatusCode) await Fail(await ReadError(res));
         StateHasChanged();
     }
 

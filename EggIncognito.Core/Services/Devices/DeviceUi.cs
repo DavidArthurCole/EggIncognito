@@ -49,7 +49,7 @@ public sealed record UiSelector(UiSelectorBy By, string Value, bool Contains = f
         tree.Nodes().Where(sel.Matches).Skip(sel.Index).FirstOrDefault();
 }
 
-public enum DeviceKey { Home, Back, Wake, Sleep, Enter, DismissKeyguard, Recents }
+public enum DeviceKey { Home, Back, Wake, Sleep, Enter, DismissKeyguard, Recents, CloseApp }
 
 public interface IDeviceUiDriver {
     string Platform { get; }

@@ -3,7 +3,7 @@ using EggIncognito.Core.Services.Devices;
 namespace EggIncognito.Services.Devices.Cookbooks;
 
 public sealed class LaunchAppStep(IDeviceConnectionFactory connections) : CookbookStep {
-    private static readonly TimeSpan SettleDelay = TimeSpan.FromSeconds(4);
+    private static readonly TimeSpan ForegroundWait = TimeSpan.FromSeconds(25);
 
     public override string Id => DeviceCookbookIds.LaunchApp;
     public override string Title => "Launch app";
@@ -49,14 +49,17 @@ public sealed class LaunchAppStep(IDeviceConnectionFactory connections) : Cookbo
                 $"am start failed: {DeviceParsing.TrimNote(start.Stdout + start.Stderr)}");
         }
 
-        await Task.Delay(SettleDelay, ct);
-        var front = await DeviceForeground.ReadAsync(conn, ct);
+        var front = await DeviceForeground.WaitAsync(
+            conn, target.Package, DeviceForeground.PlayStorePackage, ForegroundWait, ct);
         if (front.Is(DeviceForeground.PlayStorePackage))
             return Failed(lines, $"{component} started but {DeviceForeground.PlayBlockNote}");
 
         Add($"foreground: {front.Component ?? DeviceParsing.TrimNote(front.Raw)}");
-        return front.Is(target.Package)
-            ? Ok(lines, $"launched {component}")
-            : Ok(lines, $"launched {component}, foreground is {front.Package ?? "unknown"}");
+        if (front.Is(target.Package)) return Ok(lines, $"launched {component}");
+
+        var alive = await conn.ShellAsync($"pidof {target.Package}", ct);
+        return alive.Stdout.Trim().Length > 0
+            ? Failed(lines, $"{component} is running but never took the foreground in {ForegroundWait.TotalSeconds:F0}s; front is {front.Package ?? "unknown"}")
+            : Failed(lines, $"{component} exited within {ForegroundWait.TotalSeconds:F0}s of starting; front is {front.Package ?? "unknown"}");
     }
 }

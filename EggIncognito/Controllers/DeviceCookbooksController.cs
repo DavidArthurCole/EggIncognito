@@ -79,16 +79,11 @@ public sealed class DeviceCookbooksController(
     public async Task<IActionResult> Stop(string id, CancellationToken ct) {
         if (RequireAdmin() is { } no) return no;
         if (Runner is not { } runner) return StatusCode(503, new { error = "no database configured" });
-        if (Timeline is not { } timeline) return StatusCode(503, new { error = "no database configured" });
-
         if (await runner.TargetAsync(id, ct) is null) return NotFound(new { error = "unknown device" });
 
-        var latest = await timeline.LatestAsync(id, DeviceJobKinds.Cookbook, ct);
-        if (latest is not { State: DeviceJobStates.Running })
+        if (!runner.TryCancel(id, out long jobId))
             return StatusCode(409, new { error = "no cookbook is running on this device" });
-
-        if (!runner.TryCancel(id)) return StatusCode(409, new { error = "no cookbook is running on this device" });
-        return Ok(new { ok = true, jobId = latest.Id });
+        return Ok(new { ok = true, jobId });
     }
 
     [HttpGet("{id}/cookbooks/run/{jobId:long}")]
