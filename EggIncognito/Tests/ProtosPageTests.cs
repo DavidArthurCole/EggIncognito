@@ -30,6 +30,15 @@ public class ProtosPageTests {
             Assert.Equal(HttpStatusCode.OK, (await _f.CreateClient().GetAsync("/protodata")).StatusCode);
 
         [Fact]
+        public async Task CaptureRoute_ServesTheShell() =>
+            Assert.Equal(HttpStatusCode.OK, (await _f.CreateClient().GetAsync("/capture")).StatusCode);
+
+        [Fact]
+        public async Task CaptureDeviceRoute_ServesTheShell() =>
+            Assert.Equal(HttpStatusCode.OK,
+                (await _f.CreateClient().GetAsync("/capture/device/frame-iphone")).StatusCode);
+
+        [Fact]
         public async Task SubscribeRoute_StillResponds() =>
             Assert.Equal(HttpStatusCode.OK, (await _f.CreateClient().GetAsync("/protos/subscribe")).StatusCode);
     }

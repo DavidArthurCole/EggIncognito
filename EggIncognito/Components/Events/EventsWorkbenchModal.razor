@@ -452,7 +452,9 @@
         var (nextStart, nextEnd) = EventCalendarLayout.Window(_center + span, _zoom);
         var prevRows = EventCalendarLayout.Rows(items, prevStart, prevEnd, _zoom, now);
         var nextRows = EventCalendarLayout.Rows(items, nextStart, nextEnd, _zoom, now);
-        _periods = [ToPeriod(prevRows), ToPeriod(_rows), ToPeriod(nextRows)];
+        _periods = [
+            ToPeriod(prevRows, prevStart), ToPeriod(_rows, _visibleStart), ToPeriod(nextRows, nextStart)
+        ];
     }
 
     async Task ResetGridScroll() {
@@ -464,8 +466,8 @@
         }
     }
 
-    PeriodSlot<EventCalendarBar> ToPeriod(IReadOnlyList<EventCalendarRow> rows) {
-        return new PeriodSlot<EventCalendarBar>(rows.Select(ToCalendarRow).ToList());
+    PeriodSlot<EventCalendarBar> ToPeriod(IReadOnlyList<EventCalendarRow> rows, DateTimeOffset start) {
+        return new PeriodSlot<EventCalendarBar>(rows.Select(ToCalendarRow).ToList(), start.UtcTicks);
     }
 
     CalendarRow<EventCalendarBar> ToCalendarRow(EventCalendarRow row) {
@@ -784,6 +786,10 @@
         await EnsurePredictions();
         _loading = false;
         Relayout();
+    }
+
+    async Task RefreshAndReset() {
+        await Refresh();
         await ResetGridScroll();
     }
 
@@ -857,7 +863,7 @@
         if (_zoom == zoom) return Task.CompletedTask;
         _zoom = zoom;
         ClearSelection();
-        return Refresh();
+        return RefreshAndReset();
     }
 
     Task Pan(int direction) {
@@ -869,7 +875,7 @@
     Task Today() {
         _center = DateTimeOffset.UtcNow;
         ClearSelection();
-        return Refresh();
+        return RefreshAndReset();
     }
 
     Task JumpToDate(ChangeEventArgs e) {
@@ -877,7 +883,7 @@
                 DateTimeStyles.None, out var picked)) return Task.CompletedTask;
         _center = EventCalendarLayout.ToOffset(picked.ToDateTime(new TimeOnly(12, 0)));
         ClearSelection();
-        return Refresh();
+        return RefreshAndReset();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender) {

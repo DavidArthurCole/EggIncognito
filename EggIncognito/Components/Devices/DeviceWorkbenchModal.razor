@@ -208,11 +208,12 @@
                     } else {
                         <div class="dwb-capture">
                             <div class="dwb-capture-bar">
+                                <CaptureControlsPanel View="State.Capture" ReadOnly="true"
+                                                      OnViewChanged="StateHasChanged"/>
                                 <StatsPanel Stats="_stats" FlowCount="_flows.Count" Running="_capturing" Port="_port"/>
-                                <a class="btn-mini no-underline" href="/capture/device/@dev.Id">Open full capture</a>
                             </div>
                             <div class="dwb-capture-body">
-                                <FlowList Flows="_flows" SelectedId="_selectedFlowId" Connected="true"
+                                <FlowList Flows="_flows" SelectedId="_selectedFlowId" Connected="_connected"
                                           View="State.Capture" OnSelect="SelectFlow"/>
                                 <DetailPane Flow="_selectedFlow" View="State.Capture" ClientFactory="Client"/>
                             </div>
@@ -302,6 +303,7 @@
     readonly Dictionary<long, int> _flowIndex = new();
     CaptureStats? _stats;
     bool _capturing;
+    bool _connected;
     int _port;
     long? _selectedFlowId;
     DashboardFlow? _selectedFlow;
@@ -402,6 +404,11 @@
         await Open(deviceId);
     }
 
+    public async Task OpenCapture(string? deviceId = null) {
+        State.Mode = DeviceWorkbenchState.TabCapture;
+        await Open(deviceId);
+    }
+
     public async Task OpenFleet() {
         State.SelectedId = DeviceWorkbenchState.FleetId;
         await Open(DeviceWorkbenchState.FleetId);
@@ -428,6 +435,7 @@
         _jobsMore = null;
         _jobLines.Clear();
         DetachCapture();
+        if (id != DeviceWorkbenchState.FleetId && _devices.All(d => d.Id != id)) await LoadAsync();
         await LoadForDeviceAsync();
     }
 
@@ -459,6 +467,7 @@
         _refreshing = true;
         try {
             await LoadLiveAsync();
+            if (_live.Any(j => _devices.All(d => d.Id != j.Device))) await LoadAsync();
             if (State.Mode == DeviceWorkbenchState.TabJobs && !State.FleetSelected) await RefreshJobsAsync();
             if (_subscription is null) ResolveHub();
             StateHasChanged();
@@ -742,6 +751,7 @@
         _selectedFlow = null;
         _stats = null;
         _capturing = false;
+        _connected = false;
         _port = 0;
     }
 
@@ -773,6 +783,7 @@
         _stats = stats;
         _capturing = stats.Running;
         _port = stats.Port;
+        _connected = stats.ActiveConnections > 0 || stats.DeviceCount > 0;
     }
 
     void SelectFlow(long id) {

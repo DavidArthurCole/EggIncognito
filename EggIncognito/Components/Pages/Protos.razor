@@ -3,6 +3,8 @@
 @page "/protos/{*Path}"
 @page "/data"
 @page "/periodicals"
+@page "/capture"
+@page "/capture/device/{DeviceId}"
 @rendermode @(RenderModes.InteractiveServer)
 @inherits SelfCallComponentBase
 @inject ICurrentUser User
@@ -381,6 +383,8 @@
 
     [Parameter] public string? Path { get; set; }
 
+    [Parameter] public string? DeviceId { get; set; }
+
     JsRouteSync? _routeSync;
 
     static string VersionHref(ProtoRegistryRow r) {
@@ -680,7 +684,16 @@
         });
         await _routeSync.StartAsync();
         ApplyPath();
+        await ApplyRouteAsync();
         await ApplyFragmentAsync();
+    }
+
+    Task ApplyRouteAsync() {
+        if (_deviceWorkbench is not { } devices) return Task.CompletedTask;
+        var route = Nav.ToBaseRelativePath(Nav.Uri).Split('?')[0].Split('#')[0].Trim('/');
+        return route.StartsWith("capture", StringComparison.OrdinalIgnoreCase)
+            ? devices.OpenCapture(DeviceId)
+            : Task.CompletedTask;
     }
 
     Task ApplyFragmentAsync() {
@@ -692,6 +705,8 @@
             return _deviceWorkbench?.Open() ?? Task.CompletedTask;
         if (string.Equals(fragment, "fleet", StringComparison.OrdinalIgnoreCase))
             return _deviceWorkbench?.OpenFleet() ?? Task.CompletedTask;
+        if (fragment.StartsWith("capture/", StringComparison.OrdinalIgnoreCase))
+            return _deviceWorkbench?.OpenCapture(fragment["capture/".Length..]) ?? Task.CompletedTask;
 
         if (_adminWorkbench is not { } admin) return Task.CompletedTask;
         if (string.Equals(fragment, "admin", StringComparison.OrdinalIgnoreCase)) admin.Open();

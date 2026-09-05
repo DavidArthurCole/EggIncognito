@@ -13,12 +13,12 @@
     <PackageVersion Include="EggIdentity.CodeStyle" Version="2.2.8" />
     <PackageVersion Include="EggIdentity.Fallback" Version="2.2.8" />
     <PackageVersion Include="EggIdentity.Metrics" Version="2.2.8" />
-    <PackageVersion Include="EggIdentity.Metrics.AdminUi" Version="2.2.15" />
-    <PackageVersion Include="EggIdentity.Settings" Version="2.2.15" />
-    <PackageVersion Include="EggIdentity.Settings.AdminUi" Version="2.2.15" />
-    <PackageVersion Include="EggIdentity.Settings.Store" Version="2.2.15" />
-    <PackageVersion Include="EggIdentity.Styles" Version="2.2.15" />
-    <PackageVersion Include="EggIdentity.UI" Version="2.2.15" />
+    <PackageVersion Include="EggIdentity.Metrics.AdminUi" Version="2.2.17" />
+    <PackageVersion Include="EggIdentity.Settings" Version="2.2.17" />
+    <PackageVersion Include="EggIdentity.Settings.AdminUi" Version="2.2.17" />
+    <PackageVersion Include="EggIdentity.Settings.Store" Version="2.2.17" />
+    <PackageVersion Include="EggIdentity.Styles" Version="2.2.17" />
+    <PackageVersion Include="EggIdentity.UI" Version="2.2.17" />
     <PackageVersion Include="Gee.External.Capstone" Version="2.3.0" />
     <PackageVersion Include="Google.Protobuf" Version="3.29.3" />
     <PackageVersion Include="Grpc.Tools" Version="2.71.0" />

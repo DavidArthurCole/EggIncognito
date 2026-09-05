@@ -67,18 +67,6 @@ public class HostedCapturePageTests {
         }
 
         [Fact]
-        public async Task CaptureRoute_HostedEnabled_Anonymous_IsWorkbenchStub() {
-            var r = await f.CreateClient().GetAsync("/capture");
-            Assert.Equal(HttpStatusCode.OK, r.StatusCode);
-            string html = await r.Content.ReadAsStringAsync();
-            Assert.DoesNotContain("id=\"hostedLogin\"", html);
-            Assert.DoesNotContain("id=\"statsPanel\"", html);
-            Assert.DoesNotContain("href=\"capture\"", html);
-            Assert.DoesNotContain("href=\"admin\"", html);
-            Assert.Contains("id=\"siteFooter\"", html);
-        }
-
-        [Fact]
         public async Task CaptureStart_HostedEnabled_Anonymous_Is401() {
             var r = await f.CreateClient().PostAsync("/api/capture/start", null);
             Assert.Equal(HttpStatusCode.Unauthorized, r.StatusCode);

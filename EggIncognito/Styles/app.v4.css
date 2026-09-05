@@ -697,12 +697,7 @@ html { color-scheme: dark; scrollbar-gutter: stable; }
 .panel.capture-topbar { @apply flex-row; }
 .capture-topbar-btns { @apply flex items-center gap-1.5; }
 .capture-topbar-spacer { @apply flex-1 min-w-[1rem]; }
-.capture-device { @apply flex flex-col leading-tight; }
-.capture-device-note { @apply text-[0.625rem] text-muted; }
-.capture-device-name { @apply text-sm font-medium truncate max-w-[16rem]; }
-body:has(.capture-main) .site-footer { display: none; }
 @media (min-width: 1024px) {
-  .capture-main { height: calc(100dvh - var(--nav-h, 0rem)); }
   .capture-body { grid-template-columns: 2fr 3fr; }
   .capture-body > .panel { min-height: 0; overflow: auto; }
 }

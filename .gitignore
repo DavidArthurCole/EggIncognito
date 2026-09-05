@@ -28,3 +28,5 @@ EggIncognito.LocalPlugins/
 EggIncognito/wwwroot/styles.css
 .sonarqube/
 scratch/
+EggIncognito/DeviceTools/ios/tweaks/*/.theos/
+EggIncognito/DeviceTools/ios/tweaks/*/packages/

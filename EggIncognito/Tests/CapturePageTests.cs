@@ -1,36 +1,14 @@
-using System.Net;
 using Bunit;
 using EggIncognito.Capture;
 using EggIncognito.Components.Capture;
 using EggIncognito.Components.Shared.Code;
 using EggIncognito.Core.Services.Syntax;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace EggIncognito.Tests;
 
 public class CapturePageTests {
-    [Collection(SharedAppCollection.Name)]
-    public class Integration(SharedAppFactory f) {
-        private readonly WebApplicationFactory<Program> _f = f;
-
-        [Fact]
-        public async Task Capture_BareRoute_IsWorkbenchStub() {
-            var c = _f.CreateClient();
-            var r = await c.GetAsync("/capture");
-            Assert.Equal(HttpStatusCode.OK, r.StatusCode);
-            string html = await r.Content.ReadAsStringAsync();
-            Assert.DoesNotContain(">Capture</a>", html);
-            Assert.DoesNotContain("id=\"statsPanel\"", html);
-            Assert.DoesNotContain("id=\"flowsPanel\"", html);
-            Assert.DoesNotContain("id=\"detailPanel\"", html);
-            Assert.DoesNotContain("href=\"capture\"", html);
-            Assert.DoesNotContain("href=\"admin\"", html);
-            Assert.Contains("id=\"siteFooter\"", html);
-        }
-    }
-
     public class Components : BunitContext {
         public Components() {
             Services.AddSingleton<IWebHostEnvironment>(new FakeWebHostEnvironment());
