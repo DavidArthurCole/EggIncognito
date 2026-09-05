@@ -138,12 +138,12 @@ public sealed class InstallIntegrityStep(
             var install = await conn.ShellAsync(root.Wrap($"{magisk} --install-module {remote}"), ct);
             await conn.ShellAsync(root.Wrap($"rm -f {remote}"), ct);
             if (install.ExitCode != 0) {
-                var listing = await conn.ShellAsync(root.Wrap($"ls -l {MagiskBinDir} 2>&1"), ct);
+                var binDir = await conn.ShellAsync(root.Wrap($"ls -l {MagiskBinDir} 2>&1"), ct);
                 var magiskVer = await conn.ShellAsync(root.Wrap($"{magisk} -V 2>&1"), ct);
                 return Failed(lines,
                     $"install of '{spec.Name}' failed: {DeviceParsing.TrimNote(install.Stderr + install.Stdout)}"
                     + $"; magisk -V: {DeviceParsing.TrimNote(magiskVer.Stdout + magiskVer.Stderr)}"
-                    + $"; {MagiskBinDir}: {DeviceParsing.TrimNote(listing.Stdout + listing.Stderr)}");
+                    + $"; {MagiskBinDir}: {DeviceParsing.TrimNote(binDir.Stdout + binDir.Stderr)}");
             }
 
             Add($"{spec.Name}: installed");

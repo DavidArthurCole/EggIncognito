@@ -88,9 +88,30 @@ public sealed class VirtualDeviceReadinessProbe(
         if (mods.Exists(m => !m.Ok)) return new ReadinessCheck(false, listing);
 
         int want = config.IntegrityModules.Count;
-        return mods.Count < want
-            ? new ReadinessCheck(false, $"{mods.Count} of {want} chain modules present: {listing}")
-            : new ReadinessCheck(true, listing);
+        if (mods.Count < want)
+            return new ReadinessCheck(false, $"{mods.Count} of {want} chain modules present: {listing}");
+
+        var chain = await ChainStateAsync(conn, root, ct);
+        if (chain is null) return new ReadinessCheck(false, $"{listing}; chain state probe did not run");
+        return chain.Activated
+            ? new ReadinessCheck(true, $"{listing}; {chain.Describe()}")
+            : new ReadinessCheck(false, $"installed but not activated ({chain.Describe()}); run activate-integrity");
+    }
+
+    public async Task<(bool ModulesLive, IntegrityChainState? Chain)> ChainAsync(DeviceTarget target, CancellationToken ct) {
+        if (connections.For(target) is not { } conn) return (false, null);
+        var root = await DeviceRoot.ProbeAsync(conn, ct);
+        var scan = await conn.ShellAsync(root.Wrap(MagiskModules.ScanCommand), ct);
+        if (!MagiskModules.Ran(scan.Stdout)) return (false, null);
+        var mods = MagiskModules.Parse(scan.Stdout);
+        bool live = mods.Count >= config.IntegrityModules.Count && mods.TrueForAll(m => m.Ok);
+        return (live, await ChainStateAsync(conn, root, ct));
+    }
+
+    private static async Task<IntegrityChainState?> ChainStateAsync(
+        IDeviceConnection conn, RootAccess root, CancellationToken ct) {
+        var r = await conn.ShellAsync(root.Wrap(IntegrityChain.StateCommand), ct);
+        return IntegrityChain.Ran(r.Stdout) ? IntegrityChain.Parse(r.Stdout) : null;
     }
 
     private static async Task<ReadinessCheck> LaunchedAsync(IDeviceConnection conn, string package, CancellationToken ct) {

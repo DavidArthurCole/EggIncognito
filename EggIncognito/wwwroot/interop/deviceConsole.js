@@ -323,7 +323,16 @@ function finish(s, reason) {
   closeFrame(s);
   s.pending.clear();
   if (videoSessions.get(s.canvas) === s) videoSessions.delete(s.canvas);
+  blank(s.canvas);
   safeInvoke(s, "OnVideoEnded", reason);
+}
+
+function blank(canvas) {
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 }
 
 function onFrame(s, frame) {

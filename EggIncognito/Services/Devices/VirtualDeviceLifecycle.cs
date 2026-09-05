@@ -309,8 +309,8 @@ public sealed class VirtualDeviceLifecycle(
             return;
 
         var target = new DeviceTarget(deviceId, Platforms.Android, serial, Package);
-        var probed = await readiness.ProbeAsync(target, ct);
-        if (probed.IntegrityModule.Ok) {
+        var (modulesLive, chain) = await readiness.ChainAsync(target, ct);
+        if (modulesLive && chain is { Activated: true }) {
             _lastIntegrity.Remove(instanceId);
             return;
         }
@@ -324,15 +324,16 @@ public sealed class VirtualDeviceLifecycle(
             return;
         }
 
+        string cookbook = modulesLive ? DeviceCookbookIds.ActivateIntegrity : DeviceCookbookIds.InstallIntegrity;
         var run = await cookbookRunner.RunNowAsync(
-            deviceId, new DeviceCookbookRequest(DeviceCookbookIds.InstallIntegrity, null), "auto:integrity", ct);
+            deviceId, new DeviceCookbookRequest(cookbook, null), "auto:integrity", ct);
         if (!run.Ok) {
-            logger.LogWarning("virtual devices: {Id} integrity install failed: {Note}", instanceId,
+            logger.LogWarning("virtual devices: {Id} {Cookbook} failed: {Note}", instanceId, cookbook,
                 run.Failure ?? "no detail");
             return;
         }
 
-        logger.LogInformation("virtual devices: {Id} installed the integrity chain on {Device}", instanceId, deviceId);
+        logger.LogInformation("virtual devices: {Id} ran {Cookbook} on {Device}", instanceId, cookbook, deviceId);
     }
 
     private async Task<bool> EnsureRootAsync(

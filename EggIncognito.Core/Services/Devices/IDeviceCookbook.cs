@@ -9,6 +9,7 @@ public static class DeviceCookbookIds {
     public const string Recert = "recert";
     public const string Readiness = "readiness";
     public const string InstallIntegrity = "install-integrity";
+    public const string ActivateIntegrity = "activate-integrity";
 }
 
 public sealed record DeviceCookbookOption(

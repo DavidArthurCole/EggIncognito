@@ -69,6 +69,7 @@ public static class DeviceServices {
         builder.Services.AddSingleton<RecertStep>();
         builder.Services.AddSingleton<ReadinessStep>();
         builder.Services.AddSingleton<InstallIntegrityStep>();
+        builder.Services.AddSingleton<ActivateIntegrityStep>();
 
         builder.Services.AddSingleton<InstallAppCookbook>();
         builder.Services.AddSingleton<InstallCaCookbook>();
@@ -78,6 +79,7 @@ public static class DeviceServices {
         builder.Services.AddSingleton<RecertCookbook>();
         builder.Services.AddSingleton<ReadinessCookbook>();
         builder.Services.AddSingleton<InstallIntegrityCookbook>();
+        builder.Services.AddSingleton<ActivateIntegrityCookbook>();
         builder.Services.AddSingleton<IDeviceCookbook>(sp => sp.GetRequiredService<InstallAppCookbook>());
         builder.Services.AddSingleton<IDeviceCookbook>(sp => sp.GetRequiredService<InstallCaCookbook>());
         builder.Services.AddSingleton<IDeviceCookbook>(sp => sp.GetRequiredService<LaunchAppCookbook>());
@@ -86,6 +88,7 @@ public static class DeviceServices {
         builder.Services.AddSingleton<IDeviceCookbook>(sp => sp.GetRequiredService<RecertCookbook>());
         builder.Services.AddSingleton<IDeviceCookbook>(sp => sp.GetRequiredService<ReadinessCookbook>());
         builder.Services.AddSingleton<IDeviceCookbook>(sp => sp.GetRequiredService<InstallIntegrityCookbook>());
+        builder.Services.AddSingleton<IDeviceCookbook>(sp => sp.GetRequiredService<ActivateIntegrityCookbook>());
         builder.Services.AddSingleton<IDeviceAppLauncher>(sp => sp.GetRequiredService<LaunchAppCookbook>());
 
         var extensions = DeviceExtensionLoader.Load(
