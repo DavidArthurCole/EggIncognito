@@ -70,6 +70,12 @@ public abstract class DevicePlatformBase : IDevicePlatform {
             ? DeviceResult.Unsupported($"no {Platform} ui driver")
             : await Ui.TapPointAsync(target, x, y, ct);
 
+    public virtual async Task<DeviceResult> SwipeAsync(DeviceTarget target, int x1, int y1, int x2, int y2,
+        int durationMs, CancellationToken ct) =>
+        Ui is null
+            ? DeviceResult.Unsupported($"no {Platform} ui driver")
+            : await Ui.SwipeAsync(target, x1, y1, x2, y2, durationMs, ct);
+
     public virtual async Task<DeviceResult> InputTextAsync(DeviceTarget target, string text, CancellationToken ct) =>
         Ui is null
             ? DeviceResult.Unsupported($"no {Platform} ui driver")

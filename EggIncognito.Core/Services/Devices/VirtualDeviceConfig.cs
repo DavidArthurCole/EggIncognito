@@ -31,6 +31,7 @@ public sealed record VirtualDeviceConfig {
     public bool IntegrityDisableMagiskZygisk { get; init; } = true;
     public bool IntegrityAllowUnpinned { get; init; }
     public int IntegrityBootTimeoutSeconds { get; init; } = 300;
+    public string? IntegrityKeyboxPath { get; init; }
     public IReadOnlyList<IntegrityModuleSpec> IntegrityModules { get; init; } = DefaultIntegrityModules;
 
     public ImageBuildConfig Build { get; init; } = new();
@@ -54,6 +55,7 @@ public sealed record VirtualDeviceConfig {
             IntegrityDisableMagiskZygisk = Flag(integrity, "DisableMagiskZygisk", true),
             IntegrityAllowUnpinned = Flag(integrity, "AllowUnpinned"),
             IntegrityBootTimeoutSeconds = Num(integrity, "BootTimeoutSeconds", 300),
+            IntegrityKeyboxPath = Nz(integrity["KeyboxPath"]),
             IntegrityModules = Modules(integrity),
             Build = ImageBuildConfig.Bind(v.GetSection("Build"))
         };

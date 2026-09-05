@@ -920,6 +920,20 @@ public sealed partial class DevicesController(
         return r.Ok ? Ok(new UiActionResult(true, DeviceOutcomes.Label(r), r.Note)) : UiFailure(r.Outcome, r.Note);
     }
 
+    [HttpPost("{id}/ui/swipe")]
+    [ApiAccess(ApiAccessLevel.Admin)]
+    [EnableRateLimiting("write")]
+    public async Task<IActionResult> UiSwipe(string id, [FromBody] UiSwipeRequest req, CancellationToken ct) {
+        if (RequireAdmin() is { } no) return no;
+        if (req.X1 < 0 || req.Y1 < 0 || req.X2 < 0 || req.Y2 < 0)
+            return BadRequest(new { error = "coordinates must be non-negative" });
+        (IActionResult? err, var platform, var target) = await ResolveUiAsync(id, ct);
+        if (err is not null) return err;
+
+        var r = await platform.SwipeAsync(target, req.X1, req.Y1, req.X2, req.Y2, req.DurationMs, ct);
+        return r.Ok ? Ok(new UiActionResult(true, DeviceOutcomes.Label(r), r.Note)) : UiFailure(r.Outcome, r.Note);
+    }
+
     [HttpPost("{id}/ui/text")]
     [ApiAccess(ApiAccessLevel.Admin)]
     [EnableRateLimiting("write")]

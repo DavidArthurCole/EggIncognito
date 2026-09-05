@@ -6,10 +6,14 @@ namespace EggIncognito.Services.Devices.Cookbooks;
 public sealed class ActivateIntegrityStep(
     VirtualDeviceConfig config,
     IDeviceFleet fleet,
-    IDeviceConnectionFactory connections) : CookbookStep {
+    IDeviceConnectionFactory connections,
+    IProcessRunner runner,
+    IHttpClientFactory httpClients) : CookbookStep {
     private static readonly TimeSpan ActionTimeout = TimeSpan.FromMinutes(6);
     private static readonly TimeSpan CheckinWait = TimeSpan.FromMinutes(3);
     private static readonly TimeSpan CheckinPoll = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan StatusListTimeout = TimeSpan.FromSeconds(30);
+    private const string StagedKeybox = "/data/local/tmp/egi-keybox.xml";
     private const string PifLogCommand = "logcat -d -s PIF/Native 2>/dev/null | tail -n 12";
 
     public override string Id => DeviceCookbookIds.ActivateIntegrity;
@@ -61,6 +65,9 @@ public sealed class ActivateIntegrityStep(
                 + DeviceParsing.TrimNote(keyLog.Stdout + action.Stderr));
         }
 
+        if (await InstallOperatorKeyboxAsync(conn, root, Add, ct) is { } keyboxError)
+            return Failed(lines, keyboxError);
+
         var adopt = await conn.ShellAsync(root.Wrap(IntegrityChain.AdoptKeyboxCommand), ct);
         if (!adopt.Stdout.Contains("adopted=1", StringComparison.Ordinal))
             return Failed(lines, "no keybox reached TEESimulator; action.sh did not fetch one (device offline?)");
@@ -75,18 +82,25 @@ public sealed class ActivateIntegrityStep(
             return Failed(lines, $"chain still inert after action.sh: {after?.Describe() ?? "probe did not run"}");
         Add($"after: {after.Describe()}");
 
+        if (await CheckKeyboxAsync(conn, root, Add, ct) is { } revoked)
+            return Failed(lines, revoked);
+
         bool virtualDevice = await IsVirtualAsync(target.Id, ct);
         var reset = await conn.ShellAsync(root.Wrap(IntegrityChain.ResetPlayCommand(virtualDevice)), ct);
         if (!reset.Stdout.Contains("reset=1", StringComparison.Ordinal))
             return Failed(lines, $"play reset did not complete: {DeviceParsing.TrimNote(reset.Stderr + reset.Stdout)}");
         Add(virtualDevice
-            ? "play store + gsf cleared; waiting for gms to check in under the spoofed identity"
+            ? "play store + gsf cleared; rebooting so gms checks in under the spoofed identity"
             : "play store cleared; gms restarted under the spoofed identity");
 
         if (virtualDevice) {
+            var bootTimeout = TimeSpan.FromSeconds(Math.Max(60, config.IntegrityBootTimeoutSeconds));
+            if (await DeviceReboot.RebootAsync(conn, runner, target.Target, bootTimeout, Add, ct) is not { Ok: true })
+                return Failed(lines, "device did not come back rooted after the activation reboot");
+
             string? gsf = await GsfIdentity.WaitAsync(conn, CheckinWait, CheckinPoll, ct);
             if (gsf is null)
-                return Failed(lines, $"gms did not check in within {CheckinWait.TotalMinutes:F0} min; no gsf id (device offline?)");
+                return Failed(lines, $"gms did not check in within {CheckinWait.TotalMinutes:F0} min of boot; no gsf id (device offline?)");
             Add($"gms checked in, gsf id {gsf}");
         }
 
@@ -98,6 +112,55 @@ public sealed class ActivateIntegrityStep(
             : "no PIF/Native lines in logcat yet; DroidGuard spawns on demand, re-check after launching the app");
 
         return Ok(lines, after.Describe());
+    }
+
+    private async Task<string?> InstallOperatorKeyboxAsync(
+        IDeviceConnection conn, RootAccess root, Action<string> add, CancellationToken ct) {
+        if (config.IntegrityKeyboxPath is not { Length: > 0 } path) return null;
+        if (!File.Exists(path)) return $"operator keybox not found at {path}";
+
+        byte[] bytes = await File.ReadAllBytesAsync(path, ct);
+        string local = DeviceShell.NewTempPath("-keybox.xml");
+        try {
+            await File.WriteAllBytesAsync(local, bytes, ct);
+            if (!await conn.PushFileAsync(local, StagedKeybox, ct)) return $"could not push the operator keybox to {StagedKeybox}";
+        } finally {
+            DeviceShell.TryDelete(local);
+        }
+
+        var install = await conn.ShellAsync(root.Wrap(IntegrityChain.InstallKeyboxCommand(StagedKeybox)), ct);
+        if (!install.Stdout.Contains("keybox=1", StringComparison.Ordinal))
+            return $"operator keybox install failed: {DeviceParsing.TrimNote(install.Stderr + install.Stdout)}";
+
+        add($"operator keybox installed over the shared one ({bytes.Length} bytes)");
+        return null;
+    }
+
+    private async Task<string?> CheckKeyboxAsync(
+        IDeviceConnection conn, RootAccess root, Action<string> add, CancellationToken ct) {
+        var read = await conn.ShellAsync(root.Wrap(IntegrityChain.ReadTeesimKeyboxCommand), ct);
+        var serials = KeyboxRevocation.Serials(read.Stdout);
+        if (serials.Count == 0) {
+            add("keybox check skipped: no certificate parsed out of the teesim keybox");
+            return null;
+        }
+
+        using var http = httpClients.CreateClient();
+        http.Timeout = StatusListTimeout;
+        var (revoked, error) = await KeyboxRevocation.RevokedAsync(http, serials, ct);
+        if (error is not null) {
+            add($"keybox check skipped: {error}");
+            return null;
+        }
+
+        if (revoked.Count > 0) {
+            return $"keybox is on Google's revocation list: {string.Join("; ", revoked)}. "
+                   + "A revoked keybox is what produces \"Reset device to fix issue\"; supply a clean one via "
+                   + "Devices:Virtual:Integrity:KeyboxPath";
+        }
+
+        add($"keybox chain ({serials.Count} certs) not on Google's revocation list");
+        return null;
     }
 
     private static async Task<IntegrityChainState?> StateAsync(

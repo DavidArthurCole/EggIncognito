@@ -61,6 +61,13 @@ public static class IntegrityChain {
         + "grep -q ^" + package + " " + Targets + " || echo " + package + " >> " + Targets + "; "
         + "sh " + TeesimSyncScript + " 2>/dev/null; echo targeted=1";
 
+    public static string InstallKeyboxCommand(string staged) =>
+        "mkdir -p " + TrickyStoreDir + " " + TeesimDir + "; "
+        + "cp -f " + staged + " " + TrickyKeybox + " && cp -f " + staged + " " + TeesimKeybox + " && "
+        + "chmod 600 " + TrickyKeybox + " " + TeesimKeybox + " && rm -f " + staged + " && echo keybox=1";
+
+    public const string ReadTeesimKeyboxCommand = "cat " + TeesimKeybox + " 2>/dev/null";
+
     public static string ResetPlayCommand(bool clearGsf) =>
         "am force-stop " + PlayStorePackage + "; am force-stop " + GmsPackage + "; "
         + "pm clear " + PlayStorePackage + " >/dev/null 2>&1; "

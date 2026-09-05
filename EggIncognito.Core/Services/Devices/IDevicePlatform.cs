@@ -28,6 +28,8 @@ public interface IDevicePlatform {
     Task<DeviceResult<byte[]>> ScreenshotAsync(DeviceTarget target, CancellationToken ct);
     Task<DeviceResult> TapUiAsync(DeviceTarget target, UiSelector selector, CancellationToken ct);
     Task<DeviceResult> TapPointAsync(DeviceTarget target, int x, int y, CancellationToken ct);
+    Task<DeviceResult> SwipeAsync(DeviceTarget target, int x1, int y1, int x2, int y2, int durationMs,
+        CancellationToken ct);
     Task<DeviceResult> InputTextAsync(DeviceTarget target, string text, CancellationToken ct);
     Task<DeviceResult> KeyAsync(DeviceTarget target, DeviceKey key, CancellationToken ct);
     Task<DeviceResult> LaunchAppAsync(DeviceTarget target, string appRef, CancellationToken ct);
@@ -108,6 +110,9 @@ public sealed class NullDevicePlatform : IDevicePlatform {
 
     public Task<DeviceResult> TapPointAsync(DeviceTarget target, int x, int y, CancellationToken ct) =>
         Task.FromResult(DeviceResult.Unsupported(Note(target)));
+
+    public Task<DeviceResult> SwipeAsync(DeviceTarget target, int x1, int y1, int x2, int y2, int durationMs,
+        CancellationToken ct) => Task.FromResult(DeviceResult.Unsupported(Note(target)));
 
     public Task<DeviceResult> InputTextAsync(DeviceTarget target, string text, CancellationToken ct) =>
         Task.FromResult(DeviceResult.Unsupported(Note(target)));

@@ -2,10 +2,12 @@
 (function () {
   const VERSION_URL = '/api/app/version';
   const POLL_MS = 2000;
-  const MAX_POLLS = 90;
+  const MAX_POLLS = 150;
+  const DEAD = /components-(reconnect-(failed|rejected)|resume-failed)/;
   let loadedVersion = null;
   let polling = false;
   let polls = 0;
+  let modal = null;
 
   async function fetchVersion() {
     try {
@@ -20,6 +22,10 @@
 
   async function captureLoadedVersion() {
     loadedVersion = await fetchVersion();
+  }
+
+  function circuitDead() {
+    return !!modal && DEAD.test(modal.className || '');
   }
 
   function startPolling() {
@@ -38,13 +44,14 @@
     polls += 1;
     const current = await fetchVersion();
     if (current) {
-     
       if (loadedVersion && current !== loadedVersion) {
         location.reload();
         return;
       }
-      stopPolling();
-      return;
+      if (circuitDead()) {
+        location.reload();
+        return;
+      }
     }
     if (polls >= MAX_POLLS) {
       stopPolling();
@@ -54,14 +61,14 @@
   }
 
   function observeDialog() {
-    const modal = document.getElementById('components-reconnect-modal');
+    modal = document.getElementById('components-reconnect-modal');
     if (!modal) {
       setTimeout(observeDialog, 200);
       return;
     }
     const obs = new MutationObserver(() => {
       const cls = modal.className || '';
-      if (/components-reconnect-(show|failed)/.test(cls) || modal.open) startPolling();
+      if (/components-reconnect-(show|failed|rejected)|components-resume-failed/.test(cls) || modal.open) startPolling();
       else stopPolling();
     });
     obs.observe(modal, { attributes: true, attributeFilter: ['class', 'open'] });

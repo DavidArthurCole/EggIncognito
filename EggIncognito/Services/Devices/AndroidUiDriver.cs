@@ -73,6 +73,10 @@ public sealed class AndroidUiDriver(IDeviceConnectionFactory connections) : IDev
     public Task<DeviceResult> TapPointAsync(DeviceTarget target, int x, int y, CancellationToken ct) =>
         RunAsync(target, $"input tap {x} {y}", ct);
 
+    public Task<DeviceResult> SwipeAsync(DeviceTarget target, int x1, int y1, int x2, int y2, int durationMs,
+        CancellationToken ct) =>
+        RunAsync(target, $"input swipe {x1} {y1} {x2} {y2} {Math.Clamp(durationMs, 50, 2000)}", ct);
+
     public Task<DeviceResult> InputTextAsync(DeviceTarget target, string text, CancellationToken ct) =>
         RunAsync(target, $"input text {EscapeInputText(text)}", ct);
 

@@ -43,7 +43,10 @@
         <div class="dcon-body">
             <div class="dcon-stage-col">
                 <div class="dcon-stage">
-                    <button type="button" class="dcon-shot" @onclick="StageClickAsync" aria-label="Device screen, click to tap">
+                    <button type="button" class="dcon-shot" @onclick="StageClickAsync"
+                            @onwheel="StageWheelAsync" @onwheel:preventDefault
+                            @onpointerdown="StagePointerDown" @onpointerup="StagePointerUpAsync"
+                            aria-label="Device screen: click to tap, drag or scroll to swipe">
                         @if (_useVideo) {
                             <canvas class="dcon-canvas" @ref="_canvas"></canvas>
                         } else {
@@ -505,31 +508,81 @@
         _wrap = !_wrap;
     }
 
+    const int DragThresholdPx = 8;
+    const int WheelTravelPercent = 35;
+
+    bool _swiping;
+    bool _dragging;
+    bool _swallowClick;
+    double _dragX;
+    double _dragY;
+
     async Task StageClickAsync(MouseEventArgs e) {
         if (_deviceId is null) return;
-        if (_useVideo) {
-            await StageClickVideoAsync(e);
+        if (_swallowClick) {
+            _swallowClick = false;
             return;
+        }
+
+        if (await StagePointAsync(e.OffsetX, e.OffsetY) is not { } p) {
+            await Fail("no frame measured yet");
+            return;
+        }
+
+        await TapAsync(p.X, p.Y);
+    }
+
+    void StagePointerDown(PointerEventArgs e) {
+        _dragging = true;
+        _dragX = e.OffsetX;
+        _dragY = e.OffsetY;
+    }
+
+    async Task StagePointerUpAsync(PointerEventArgs e) {
+        if (!_dragging) return;
+        _dragging = false;
+        if (Math.Abs(e.OffsetX - _dragX) < DragThresholdPx && Math.Abs(e.OffsetY - _dragY) < DragThresholdPx) return;
+
+        _swallowClick = true;
+        if (await StagePointAsync(_dragX, _dragY) is not { } from) return;
+        if (await StagePointAsync(e.OffsetX, e.OffsetY) is not { } to) return;
+        await SwipeAsync(from.X, from.Y, to.X, to.Y, 200);
+    }
+
+    async Task StageWheelAsync(WheelEventArgs e) {
+        if (_deviceId is null || _swiping || Math.Abs(e.DeltaY) < 1) return;
+        if (await StagePointAsync(e.OffsetX, e.OffsetY) is not { } p) return;
+        int travel = Math.Max(2, p.H * WheelTravelPercent / 100);
+        int dir = e.DeltaY > 0 ? -1 : 1;
+        int y1 = Math.Clamp(p.Y - dir * travel / 2, 0, p.H - 1);
+        int y2 = Math.Clamp(p.Y + dir * travel / 2, 0, p.H - 1);
+        await SwipeAsync(p.X, y1, p.X, y2, 150);
+    }
+
+    async Task<(int X, int Y, int W, int H)?> StagePointAsync(double offsetX, double offsetY) {
+        if (_useVideo) {
+            if (await ModuleAsync() is not { } module) return null;
+            var m = await SafeValueAsync(() => module.InvokeAsync<StageMeasure>("measureCanvas", _canvas).AsTask());
+            if (m is not { W: > 0, H: > 0, FrameW: > 0, FrameH: > 0 }) return null;
+            return (Scale(offsetX, m.W, m.FrameW), Scale(offsetY, m.H, m.FrameH), m.FrameW, m.FrameH);
         }
 
         await MeasureAsync();
-        if (TapWidth <= 0 || TapHeight <= 0 || _renderW <= 0 || _renderH <= 0) {
-            await Fail("no frame measured yet");
-            return;
-        }
-
-        await TapAsync(Scale(e.OffsetX, _renderW, TapWidth), Scale(e.OffsetY, _renderH, TapHeight));
+        if (TapWidth <= 0 || TapHeight <= 0 || _renderW <= 0 || _renderH <= 0) return null;
+        return (Scale(offsetX, _renderW, TapWidth), Scale(offsetY, _renderH, TapHeight), TapWidth, TapHeight);
     }
 
-    async Task StageClickVideoAsync(MouseEventArgs e) {
-        if (await ModuleAsync() is not { } module) return;
-        var m = await SafeValueAsync(() => module.InvokeAsync<StageMeasure>("measureCanvas", _canvas).AsTask());
-        if (m is not { W: > 0, H: > 0, FrameW: > 0, FrameH: > 0 }) {
-            await Fail("no frame measured yet");
-            return;
+    async Task SwipeAsync(int x1, int y1, int x2, int y2, int durationMs) {
+        if (_swiping) return;
+        _swiping = true;
+        try {
+            var res = await Client().PostAsJsonAsync($"/api/devices/{_deviceId}/ui/swipe",
+                new UiSwipeRequest(x1, y1, x2, y2, durationMs), SelfCallJson.Web);
+            if (!res.IsSuccessStatusCode) await Fail(await ReadError(res));
         }
-
-        await TapAsync(Scale(e.OffsetX, m.W, m.FrameW), Scale(e.OffsetY, m.H, m.FrameH));
+        finally {
+            _swiping = false;
+        }
     }
 
     static int Scale(double offset, int rendered, int device) {

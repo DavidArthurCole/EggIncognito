@@ -188,6 +188,17 @@ public class AndroidUiDriverTests {
     }
 
     [Fact]
+    public async Task SwipeAsync_IssuesInputSwipe_WithClampedDuration() {
+        var runner = new FakeRunner(_ => new ProcessResult(0, "", ""));
+        var driver = new AndroidUiDriver(new FakeConnections(runner));
+
+        var result = await driver.SwipeAsync(AndroidTarget, 10, 500, 10, 100, 5, default);
+
+        Assert.True(result.Ok);
+        Assert.Contains(runner.Commands, c => c == "input swipe 10 500 10 100 50");
+    }
+
+    [Fact]
     public async Task LaunchAppAsync_IssuesMonkeyCommand() {
         var runner = new FakeRunner(_ => new ProcessResult(0, "", ""));
         var driver = new AndroidUiDriver(new FakeConnections(runner));

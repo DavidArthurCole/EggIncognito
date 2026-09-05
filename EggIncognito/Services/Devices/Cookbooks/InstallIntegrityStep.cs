@@ -26,7 +26,7 @@ public sealed class InstallIntegrityStep(
         "no adb public key found at "
         + string.Join(", ", AdbHostKey.Candidates(config.AdbPublicKeyPath,
             Environment.GetEnvironmentVariable("ANDROID_USER_HOME"),
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)))
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)).Distinct(StringComparer.Ordinal))
         + "; the adb server that owns the key may run in another container on the same host network. "
         + "Mount one shared dir at /root/.android in every container with ADB_SERVER_SOCKET, or set "
         + "Devices:Virtual:AdbPublicKeyPath. After PlayIntegrityFix sets ro.adb.secure=1 adbd rejects unauthorized hosts";
@@ -55,11 +55,6 @@ public sealed class InstallIntegrityStep(
         + "chmod 755 " + MagiskBinDir + "/* 2>/dev/null; "
         + "chcon u:object_r:magisk_file:s0 " + MagiskBinDir + " " + MagiskBinDir + "/* 2>/dev/null; "
         + "true";
-    private static readonly TimeSpan AdbTimeout = TimeSpan.FromSeconds(30);
-    private static readonly TimeSpan BootPollInterval = TimeSpan.FromSeconds(5);
-    private static readonly TimeSpan BootProgressInterval = TimeSpan.FromSeconds(20);
-    private const int RootRetries = 6;
-
     public override string Id => DeviceCookbookIds.InstallIntegrity;
     public override string Title => "Install integrity chain";
 
@@ -272,43 +267,7 @@ public sealed class InstallIntegrityStep(
         }
     }
 
-    private async Task<RootAccess?> RebootAsync(IDeviceConnection conn, string serial, Action<string> add, CancellationToken ct) {
-        var bootTimeout = TimeSpan.FromSeconds(Math.Max(60, config.IntegrityBootTimeoutSeconds));
-        add($"rebooting, waiting up to {bootTimeout.TotalSeconds:F0}s for boot");
-        await Adb(["-s", serial, "reboot"], ct);
-
-        var started = DateTimeOffset.UtcNow;
-        var deadline = started + bootTimeout;
-        var nextProgress = started + BootProgressInterval;
-        while (DateTimeOffset.UtcNow < deadline) {
-            await Task.Delay(BootPollInterval, ct);
-            await Adb(["connect", serial], ct);
-            var boot = await Adb(["-s", serial, "shell", "getprop sys.boot_completed"], ct);
-            if (boot.Stdout.Trim() != "1") {
-                if (DateTimeOffset.UtcNow < nextProgress) continue;
-                nextProgress = DateTimeOffset.UtcNow + BootProgressInterval;
-                add($"still booting ({(DateTimeOffset.UtcNow - started).TotalSeconds:F0}s)");
-                continue;
-            }
-
-            add($"boot completed in {(DateTimeOffset.UtcNow - started).TotalSeconds:F0}s");
-            RootAccess root = RootAccess.None;
-            for (var attempt = 0; attempt < RootRetries; attempt++) {
-                root = await DeviceRoot.EnsureAsync(conn, runner, serial, ct);
-                if (root.Ok) break;
-                await Task.Delay(BootPollInterval, ct);
-            }
-
-            add($"root after reboot: {root.Detail}");
-            return root;
-        }
-
-        return null;
-    }
-
-    private async Task<ProcessResult> Adb(string[] args, CancellationToken ct) {
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        cts.CancelAfter(AdbTimeout);
-        return await runner.RunAsync("adb", args, cts.Token);
-    }
+    private Task<RootAccess?> RebootAsync(IDeviceConnection conn, string serial, Action<string> add, CancellationToken ct) =>
+        DeviceReboot.RebootAsync(conn, runner, serial,
+            TimeSpan.FromSeconds(Math.Max(60, config.IntegrityBootTimeoutSeconds)), add, ct);
 }

@@ -56,6 +56,12 @@ public sealed class VirtualDeviceSettingsProvider : ISettingsProvider {
         new("devices.virtual.integrity.allow_unpinned", "Devices__Virtual__Integrity__AllowUnpinned",
             "Allow unpinned modules", Category,
             SettingKind.Bool, ApplyTier.RestartRequired, Sensitivity.Plain) { Default = "false" },
+        new("devices.virtual.integrity.keybox_path", "Devices__Virtual__Integrity__KeyboxPath",
+            "Operator keybox path", Category,
+            SettingKind.Path, ApplyTier.RestartRequired, Sensitivity.Plain) {
+            Description = "keybox.xml pushed over Integrity-Box's shared keybox into tricky_store and teesim on every "
+                + "activation. Leave empty to use the shared keybox the module fetches."
+        },
         new("devices.virtual.build.enabled", "Devices__Virtual__Build__Enabled", "Image build enabled", Category,
             SettingKind.Bool, ApplyTier.RestartRequired, Sensitivity.Plain) { Default = "false" }
     ];
