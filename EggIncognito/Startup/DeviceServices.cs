@@ -56,6 +56,8 @@ public static class DeviceServices {
         builder.Services.AddSingleton<VirtualDeviceReadinessProbe>();
         builder.Services.AddSingleton<CookbookExecutor>();
         builder.Services.AddSingleton<ModuleFetcher>();
+        builder.Services.AddSingleton<PixelFingerprintFetcher>();
+        builder.Services.AddSingleton<IntegrityAssets>();
         builder.Services.AddHttpClient(ModuleFetcher.HttpClientName, c => {
             c.Timeout = TimeSpan.FromSeconds(60);
             c.MaxResponseContentBufferSize = 64 * 1024 * 1024;

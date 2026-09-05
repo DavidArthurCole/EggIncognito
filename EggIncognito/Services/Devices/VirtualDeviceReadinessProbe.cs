@@ -66,7 +66,12 @@ public sealed class VirtualDeviceReadinessProbe(
             return new ReadinessCheck(false, $"module scan did not run: {DeviceParsing.TrimNote(r.Stderr + r.Stdout)}");
 
         var mods = MagiskModules.Live(MagiskModules.Parse(r.Stdout));
-        if (mods.Count == 0) return new ReadinessCheck(false, "no module in /data/adb/modules");
+        if (mods.Count == 0) {
+            var seed = IntegritySeed.Parse((await conn.ShellAsync(IntegritySeed.ProbeCommand, ct)).Stdout);
+            return seed.SeededImage && seed.State != IntegritySeed.StateDone
+                ? new ReadinessCheck(false, "first-boot seed still installing the chain")
+                : new ReadinessCheck(false, "no module in /data/adb/modules");
+        }
 
         string listing = MagiskModules.Describe(mods);
         if (mods.Exists(m => !m.Ok)) return new ReadinessCheck(false, $"disabled module: {listing}");

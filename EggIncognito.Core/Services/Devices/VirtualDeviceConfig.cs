@@ -9,6 +9,8 @@ public sealed record VirtualDeviceConfig {
 
     public const string DefaultGmsPackage = "com.google.android.gms";
 
+    public const string DefaultKeyboxUrl = "https://raw.githubusercontent.com/MeowDump/MeowDump/refs/heads/main/Megatron";
+
     public static readonly IReadOnlyList<IntegrityModuleSpec> DefaultIntegrityModules = [
         new IntegrityModuleSpec("zygisk", "Dr-TSNG/ZygiskNext", null, "v1.5.0", null, true),
         new IntegrityModuleSpec("tee", "JingMatrix/TEESimulator", null, "v4.0", null, false),
@@ -32,6 +34,9 @@ public sealed record VirtualDeviceConfig {
     public bool IntegrityAllowUnpinned { get; init; }
     public int IntegrityBootTimeoutSeconds { get; init; } = 300;
     public string? IntegrityKeyboxPath { get; init; }
+    public string? IntegrityPixelProduct { get; init; }
+    public int IntegrityFingerprintRefreshDays { get; init; } = 7;
+    public string IntegrityKeyboxUrl { get; init; } = DefaultKeyboxUrl;
     public IReadOnlyList<IntegrityModuleSpec> IntegrityModules { get; init; } = DefaultIntegrityModules;
 
     public ImageBuildConfig Build { get; init; } = new();
@@ -56,6 +61,9 @@ public sealed record VirtualDeviceConfig {
             IntegrityAllowUnpinned = Flag(integrity, "AllowUnpinned"),
             IntegrityBootTimeoutSeconds = Num(integrity, "BootTimeoutSeconds", 300),
             IntegrityKeyboxPath = Nz(integrity["KeyboxPath"]),
+            IntegrityPixelProduct = Nz(integrity["PixelProduct"]),
+            IntegrityFingerprintRefreshDays = Num(integrity, "FingerprintRefreshDays", 7),
+            IntegrityKeyboxUrl = Nz(integrity["KeyboxUrl"]) ?? DefaultKeyboxUrl,
             IntegrityModules = Modules(integrity),
             Build = ImageBuildConfig.Bind(v.GetSection("Build"))
         };

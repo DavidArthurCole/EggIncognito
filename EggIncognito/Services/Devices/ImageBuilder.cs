@@ -1,6 +1,8 @@
 using System.Formats.Tar;
+using System.Globalization;
 using System.IO.Compression;
 using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using EggIncognito.Core;
 using EggIncognito.Core.Services.Devices;
@@ -16,6 +18,8 @@ public sealed class ImageBuilder(
     IImageBuildExecutor executor,
     IHttpClientFactory httpFactory,
     VirtualDeviceConfig config,
+    IntegrityAssets assets,
+    IConfiguration configuration,
     AdminNotifier notifier,
     ILogger<ImageBuilder> logger) {
     public const string HttpClientName = "image-build";
@@ -57,6 +61,11 @@ public sealed class ImageBuilder(
             if (spec.Magisk) {
                 await Log(buildId, "magisk: downloading + unpacking", ct);
                 await BuildMagiskAsync(contextDir, execPaths, buildId, ct);
+            }
+
+            if (spec.Integrity) {
+                await Log(buildId, "integrity: resolving identity, keybox and modules", ct);
+                await BuildIntegrityAsync(contextDir, execPaths, buildId, ct);
             }
 
             WriteDockerfile(contextDir, spec);
@@ -200,12 +209,59 @@ public sealed class ImageBuilder(
         }
     }
 
+    private async Task BuildIntegrityAsync(
+        string contextDir, HashSet<string> execPaths, long buildId, CancellationToken ct) {
+        var bundle = await assets.ResolveAsync(false, ct);
+        if (!bundle.Ok || bundle.Profile is not { } profile)
+            throw new InvalidOperationException("integrity: " + (bundle.Error ?? "assets did not resolve"));
+
+        foreach (var module in bundle.Modules)
+            await Log(buildId, $"integrity: module {module.Spec.Name} [{module.ModuleId}] {module.Version ?? "?"}, {module.Zip.Length} bytes", ct);
+        await Log(buildId,
+            $"integrity: identity {profile.Model} {profile.Fingerprint}, expires {profile.Expiry?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "unknown"}", ct);
+        await Log(buildId, $"integrity: keybox {bundle.KeyboxSource}, {bundle.KeyboxSerials.Count} certs, {bundle.KeyboxNote}", ct);
+        foreach (string warning in bundle.Warnings) await Log(buildId, "integrity: " + warning, ct);
+
+        string? adbKey = AdbHostKey.Resolve(config);
+        await Log(buildId, adbKey is null
+            ? "integrity: no host adb public key found; the image carries none and adbd will reject this host after the seed boot"
+            : "integrity: host adb public key baked into the seed", ct);
+
+        (string? caHash, string? caPem) = CaptureCa();
+        await Log(buildId, caHash is null
+            ? "integrity: no capture CA minted yet, the image trusts none"
+            : $"integrity: capture CA baked as {caHash}.0", ct);
+
+        string root = Path.Combine(contextDir, "integrity");
+        foreach (var file in IntegrityLayout.Plan(bundle, adbKey, caHash, caPem)) {
+            string dest = Path.Combine(root, file.RelativePath.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+            await File.WriteAllBytesAsync(dest, file.Bytes, ct);
+            if (file.Exec) execPaths.Add(RelKey(contextDir, dest));
+        }
+
+        await Log(buildId, $"integrity: staged {bundle.Modules.Count} module(s) + seed under {IntegritySeed.SeedDir}", ct);
+    }
+
+    private (string? Hash, string? Pem) CaptureCa() {
+        string path = CaptureCaPath.Resolve(configuration);
+        if (!File.Exists(path)) return (null, null);
+        try {
+            using var cert = X509CertificateLoader.LoadCertificateFromFile(path);
+            return (CaCertPrep.AndroidSubjectHashOld(cert), CaCertPrep.ToPem(cert));
+        } catch (CryptographicException ex) {
+            logger.LogWarning(ex, "image build: capture CA at {Path} is unreadable", path);
+            return (null, null);
+        }
+    }
+
     private static void WriteDockerfile(string contextDir, ImageBuildSpec spec) {
         var sb = new StringBuilder();
         sb.Append("FROM ").Append(spec.ResolvedBaseImage).Append('\n');
         if (spec.Gapps) sb.Append("COPY gapps /\n");
         if (spec.Ndk) sb.Append("COPY ndk /\n");
         if (spec.Magisk) sb.Append("COPY magisk /\n");
+        if (spec.Integrity) sb.Append("COPY integrity /\n");
         File.WriteAllText(Path.Combine(contextDir, "Dockerfile"), sb.ToString(), new UTF8Encoding(false));
     }
 

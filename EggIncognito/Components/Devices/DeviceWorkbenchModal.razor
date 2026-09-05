@@ -20,11 +20,6 @@
 
 <WorkbenchModal Open="@(_open && _isAdmin)" Title="Devices" TitleId="deviceWorkbenchTitle"
                 Size="WorkbenchSize.Wide" CardClass="dwb-card" BodyId="deviceWorkbench" OnClose="CloseModal">
-    <HeadTools>
-        <button type="button" class="btn-mini" disabled="@_bulkBusy" @onclick="ProbeAll">Probe all</button>
-        <button type="button" class="btn-mini" disabled="@_bulkBusy" @onclick="PokeAll">Poke all</button>
-        <button type="button" class="btn-mini @(State.FleetOpen ? "text-accent" : "")" @onclick="ToggleFleet">Fleet</button>
-    </HeadTools>
     <Rail>
         <WorkbenchRail>
             @if (Physical().Any()) {
@@ -34,13 +29,24 @@
                     }
                 </WorkbenchSection>
             }
-            @if (Virtual().Any()) {
-                <WorkbenchSection Label="Virtual">
-                    @foreach (var d in Virtual()) {
-                        @DeviceEntry(d)
-                    }
-                </WorkbenchSection>
-            }
+            <WorkbenchSection Label="Virtual">
+                <WorkbenchEntry Selected="@State.FleetOpen" OnClick="ShowFleet">
+                    <Lead>
+                        <span class="dwb-lead">
+                            <Icon Name="server" Class="icon-sm"/>
+                        </span>
+                    </Lead>
+                    <Name>Fleet</Name>
+                    <MetaLine>
+                        <span class="dwb-meta-vd">
+                            <span>@(Virtual().Count() == 0 ? "no instances" : $"{Virtual().Count()} instance{(Virtual().Count() == 1 ? "" : "s")}")</span>
+                        </span>
+                    </MetaLine>
+                </WorkbenchEntry>
+                @foreach (var d in Virtual()) {
+                    @DeviceEntry(d)
+                }
+            </WorkbenchSection>
         </WorkbenchRail>
     </Rail>
     <ChildContent>
@@ -247,7 +253,6 @@
 
     bool _open;
     bool _isAdmin;
-    bool _bulkBusy;
     bool _disposed;
     bool _jobsBusy;
     bool _refreshing;
@@ -443,10 +448,10 @@
         await LoadForDeviceAsync();
     }
 
-    void ToggleFleet() {
-        State.FleetOpen = !State.FleetOpen;
-        if (State.FleetOpen) DetachCapture();
-        else if (State.Mode == DeviceWorkbenchState.TabCapture) AttachCapture();
+    void ShowFleet() {
+        if (State.FleetOpen) return;
+        State.FleetOpen = true;
+        DetachCapture();
     }
 
     async Task SelectTab(string tab) {
@@ -757,22 +762,6 @@
 
     async Task<LiveProbe?> LiveProbeFor(string id) {
         return await Client().OneAsync<LiveProbe>($"/api/devices/{id}/live", Logger);
-    }
-
-    async Task ProbeAll() {
-        _bulkBusy = true;
-        var res = await Client().PostAsync("/api/devices/refresh-all", null);
-        Note(res.IsSuccessStatusCode ? "probed every device" : "probe all failed", res.IsSuccessStatusCode);
-        await LoadAsync();
-        _bulkBusy = false;
-    }
-
-    async Task PokeAll() {
-        _bulkBusy = true;
-        var res = await Client().PostAsync("/api/devices/poke-all", null);
-        var good = res.IsSuccessStatusCode || res.StatusCode == HttpStatusCode.Accepted;
-        Note(good ? "harvest queued on every device" : "poke all failed", good);
-        _bulkBusy = false;
     }
 
     void ResolveHub() {

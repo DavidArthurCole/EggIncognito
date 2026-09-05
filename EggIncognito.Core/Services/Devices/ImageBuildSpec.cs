@@ -16,7 +16,8 @@ public sealed record ImageBuildSpec(
     bool Magisk,
     bool Ndk,
     string? BaseImage = null,
-    string? Tag = null) {
+    string? Tag = null,
+    bool Integrity = false) {
     public string ResolvedBaseImage =>
         string.IsNullOrWhiteSpace(BaseImage) ? $"redroid/redroid:{AndroidVersion}-latest" : BaseImage;
 
@@ -27,6 +28,7 @@ public sealed record ImageBuildSpec(
         if (Gapps) tokens.Add("gapps");
         if (Ndk) tokens.Add("ndk");
         if (Magisk) tokens.Add("magisk");
+        if (Integrity) tokens.Add("integrity");
         return "redroid/redroid:" + string.Join('_', tokens);
     }
 }

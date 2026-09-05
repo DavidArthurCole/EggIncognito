@@ -22,10 +22,22 @@
                         <Icon Name="download"/>
                     </a>
                 </div>
+                @{
+                    var tierCount = Math.Max(1, c.Eggs.Select(e => e.TierValues.Count).DefaultIfEmpty(0).Max());
+                }
                 <table class="data-table cegg-table">
                     <thead>
                     <tr>
-                        <th class="w-8"></th><th>Name</th><th>Dimension</th><th>Tier values</th>
+                        <th class="w-8" rowspan="2"></th>
+                        <th rowspan="2">Name</th>
+                        <th rowspan="2">Dimension</th>
+                        <th rowspan="2"></th>
+                        <th class="cegg-tier-group cegg-tier-first" colspan="@tierCount">Tier</th>
+                    </tr>
+                    <tr>
+                        @for (var t = 1; t <= tierCount; t++) {
+                            <th class="@TierCellClass(t - 1)">@t</th>
+                        }
                     </tr>
                     </thead>
                     <tbody>
@@ -42,7 +54,14 @@
                             </td>
                             <td class="text-accent">@EggName(e)</td>
                             <td class="text-muted text-xs">@(e.TierValues.Count == 0 ? "-" : TitleCase(e.Dimension))</td>
-                            <td class="mono text-xs cegg-tier">@(e.TierValues.Count == 0 ? "buffs not yet published" : string.Join(" ", e.TierValues.Select(TierLabel)))</td>
+                            @if (e.TierValues.Count == 0) {
+                                <td class="text-muted text-xs" colspan="@(tierCount + 1)">buffs not yet published</td>
+                            } else {
+                                <td class="mono text-xs cegg-unit">@TierUnit(e.TierValues)</td>
+                                @for (var t = 0; t < tierCount; t++) {
+                                    <td class="mono text-xs @TierCellClass(t)">@(t < e.TierValues.Count ? TierMagnitude(e.TierValues[t]) : "")</td>
+                                }
+                            }
                         </tr>
                     }
                     </tbody>
@@ -413,10 +432,18 @@
         return TitleCase(string.IsNullOrWhiteSpace(e.Name) ? e.Identifier : e.Name);
     }
 
-    static string TierLabel(double value) {
+    static string TierMagnitude(double value) {
         var magnitude = Math.Abs(value - 1) * 100;
         var digits = magnitude >= 10 ? "0.#" : "0.##";
-        return $"{(value < 1 ? "-" : "")}{magnitude.ToString(digits, CultureInfo.InvariantCulture)}%";
+        return magnitude.ToString(digits, CultureInfo.InvariantCulture);
+    }
+
+    static string TierUnit(IReadOnlyList<double> values) {
+        return values.All(v => v < 1) ? "-%" : "+%";
+    }
+
+    static string TierCellClass(int tierIx) {
+        return tierIx == 0 ? "cegg-tier cegg-tier-first" : "cegg-tier";
     }
 
     static string Pretty(string raw) {

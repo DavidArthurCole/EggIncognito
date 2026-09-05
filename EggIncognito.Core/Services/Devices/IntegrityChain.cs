@@ -25,8 +25,10 @@ public sealed record IntegrityChainState(
 public static class IntegrityChain {
     public const string PifModuleDir = "/data/adb/modules/playintegrityfix";
     public const string ActionScript = PifModuleDir + "/action.sh";
-    public const string PifProp = PifModuleDir + "/custom.pif.prop";
-    public const string TeesimSyncScript = PifModuleDir + "/webroot/common_scripts/teesim.sh";
+    public const string PifPropFileName = "custom.pif.prop";
+    public const string PifProp = PifModuleDir + "/" + PifPropFileName;
+    public const string TeesimSyncScriptRelative = "webroot/common_scripts/teesim.sh";
+    public const string TeesimSyncScript = PifModuleDir + "/" + TeesimSyncScriptRelative;
     public const string TrickyStoreDir = "/data/adb/tricky_store";
     public const string TrickyKeybox = TrickyStoreDir + "/keybox.xml";
     public const string Targets = TrickyStoreDir + "/target.txt";
@@ -38,7 +40,16 @@ public static class IntegrityChain {
     public const string GmsPackage = "com.google.android.gms";
     public const string GsfPackage = "com.google.android.gsf";
     public const string PlayStorePackage = "com.android.vending";
+    public const string KeyAttestationPackage = "io.github.vvb2060.keyattestation";
     public const string ScanMarker = "egi-chain-done";
+    public const string StageDir = "/data/local/tmp/egi-integrity";
+    public const string TargetsFileName = "target.txt";
+    public const string KeyboxFileName = "keybox.xml";
+    public const string SecurityPatchFileName = "security_patch.txt";
+    public const string SecurityPatchFile = TrickyStoreDir + "/" + SecurityPatchFileName;
+
+    public const string FingerprintCommand =
+        "sha256sum " + PifProp + " " + TeesimKeybox + " " + Targets + " " + SecurityPatchFile + " 2>/dev/null";
 
     public const string StateCommand =
         "[ -f " + ActionScript + " ] && echo box=1; "
@@ -73,6 +84,37 @@ public static class IntegrityChain {
         + "pm clear " + PlayStorePackage + " >/dev/null 2>&1; "
         + (clearGsf ? "pm clear " + GsfPackage + " >/dev/null 2>&1; " : "")
         + "echo reset=1";
+
+    public static string TargetsText(string package) {
+        string[] packages = [GmsPackage, PlayStorePackage, GsfPackage, KeyAttestationPackage, package.Trim()];
+        return string.Concat(packages
+            .Where(p => p.Length > 0)
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .Select(p => p + "\n"));
+    }
+
+    public static string SecurityPatchText(string patchDate) => $"all={patchDate}\n";
+
+    public static string ApplyScript(string sourceDir, string moduleDir) {
+        string prop = sourceDir + "/" + PifPropFileName;
+        string keybox = sourceDir + "/" + KeyboxFileName;
+        string copies =
+            "cp -f " + prop + " " + PifProp
+            + (moduleDir == PifModuleDir ? "" : " && cp -f " + prop + " " + moduleDir + "/" + PifPropFileName)
+            + " && cp -f " + keybox + " " + TrickyKeybox
+            + " && cp -f " + keybox + " " + TeesimKeybox
+            + " && chmod 600 " + TrickyKeybox + " " + TeesimKeybox
+            + " && cp -f " + sourceDir + "/" + TargetsFileName + " " + Targets
+            + " && cp -f " + sourceDir + "/" + SecurityPatchFileName + " " + SecurityPatchFile;
+        return "mkdir -p " + PifModuleDir + " " + moduleDir + " " + TrickyStoreDir + " " + TeesimDir + "; "
+               + copies + " && { "
+               + "sh " + moduleDir + "/" + TeesimSyncScriptRelative + "; "
+               + "am force-stop " + GmsPackage + "; am force-stop " + PlayStorePackage + "; "
+               + "echo applied=1; }";
+    }
+
+    public static string ApplyCommand => ApplyScript(StageDir, PifModuleDir);
 
     public static bool Ran(string stdout) => stdout.Contains(ScanMarker, StringComparison.Ordinal);
 

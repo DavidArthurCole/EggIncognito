@@ -225,6 +225,8 @@ public sealed class VirtualDeviceLifecycle(
                 continue;
             }
 
+            if (await SeedPendingAsync(row, serial, store, changed, ct)) continue;
+
             if (row.State != ProvisionStates.Ready)
                 await SetStateAsync(store, changed, row, ProvisionStates.Ready, "android boot completed", ct);
 
@@ -351,6 +353,30 @@ public sealed class VirtualDeviceLifecycle(
         await SetStateAsync(store, changed, row, ProvisionStates.Failed,
             $"no root: {root.Detail} (needs adb root before the integrity chain, or Magisk su granted to uid 2000)", ct);
         return false;
+    }
+
+    private async Task<bool> SeedPendingAsync(
+        ProvisionedInstanceRow row, string serial, ProvisionedInstanceStore store, List<string> changed,
+        CancellationToken ct) {
+        var probe = await Adb(["-s", serial, "shell", IntegritySeed.ProbeCommand], AdbTimeout, ct);
+        var seed = IntegritySeed.Parse(probe.Stdout);
+        if (!seed.SeededImage || seed.State == IntegritySeed.StateDone) return false;
+
+        if (seed.State == IntegritySeed.StateFailed) {
+            if (row.State != ProvisionStates.Failed) {
+                await SetStateAsync(store, changed, row, ProvisionStates.Failed,
+                    $"first-boot seed failed; see {IntegritySeed.LogFile} on the device", ct);
+            }
+
+            return true;
+        }
+
+        if (row.State != ProvisionStates.Booting) {
+            await SetStateAsync(store, changed, row, ProvisionStates.Booting,
+                "first-boot seed installing the integrity chain, reboots when done", ct);
+        }
+
+        return true;
     }
 
     private async Task<bool> BootCompletedAsync(string serial, CancellationToken ct) {

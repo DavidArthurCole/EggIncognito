@@ -70,6 +70,7 @@
                     <label class="vd-check"><input type="checkbox" @bind="_gapps"/> gapps</label>
                     <label class="vd-check"><input type="checkbox" @bind="_magisk"/> magisk</label>
                     <label class="vd-check"><input type="checkbox" @bind="_ndk"/> ndk</label>
+                    <label class="vd-check"><input type="checkbox" @bind="_integrity"/> integrity</label>
                     <button type="button" class="btn-mini" disabled="@(_busy || !iv.BuildEnabled)" @onclick="BuildImage">
                         Build
                     </button>
@@ -163,6 +164,22 @@
             } else {
                 <div class="text-xs text-muted">no modules cached yet</div>
             }
+
+            @if (_assets is { } assets) {
+                @if (assets.Ok) {
+                    <div class="text-xs">
+                        identity @assets.Model <span class="font-mono">@assets.Fingerprint</span>
+                        <span class="text-muted">expires @(assets.Expiry ?? "unknown")</span>
+                    </div>
+                    <div class="text-xs">keybox @assets.KeyboxSource, @assets.KeyboxCerts certs, @assets.KeyboxNote</div>
+                } else {
+                    <div class="text-xs text-err">@assets.Error</div>
+                }
+
+                @foreach (var warning in assets.Warnings) {
+                    <div class="text-xs text-muted">@warning</div>
+                }
+            }
         </div>
     </div>
 </div>
@@ -179,12 +196,14 @@
     ImagesView? _images;
     string? _imagesErr;
     List<ModuleCacheRow>? _modules;
+    IntegrityAssetsView? _assets;
     ImageBuildStatusView? _build;
     long? _buildId;
     string _buildVer = "11.0.0";
     bool _gapps = true;
     bool _magisk = true;
     bool _ndk = true;
+    bool _integrity;
     bool _busy;
     bool _loaded;
     bool _loading;
@@ -282,6 +301,7 @@
         _status = res.Json<VirtualDevicesStatus>();
         await LoadImages();
         await LoadModules();
+        await LoadAssets();
     }
 
     async Task LoadFleet() {
@@ -324,6 +344,12 @@
         if (Api is null) return;
         var res = await Api.GetAsync("/api/devices/virtual/modules");
         if (res.Ok) _modules = res.Json<List<ModuleCacheRow>>();
+    }
+
+    async Task LoadAssets() {
+        if (Api is null) return;
+        var res = await Api.SendAsync("GET", "/api/devices/virtual/integrity", timeout: TimeSpan.FromMinutes(3));
+        if (res.Ok) _assets = res.Json<IntegrityAssetsView>();
     }
 
     async Task Create() {
@@ -369,7 +395,7 @@
         _build = null;
         _buildId = null;
         try {
-            var req = new ImageBuildRequest(_buildVer, _gapps, _magisk, _ndk, null);
+            var req = new ImageBuildRequest(_buildVer, _gapps, _magisk, _ndk, null, _integrity);
             var res = await Api.PostJsonAsync("/api/devices/virtual/images/build", req, TimeSpan.FromMinutes(2));
             var start = res.Json<ImageBuildStartResult>();
             if (!res.Ok || start is not { Ok: true, Id: { } sid }) {
@@ -425,12 +451,17 @@
         _busy = true;
         try {
             var res = await Api.PostAsync("/api/devices/virtual/modules/refresh", TimeSpan.FromMinutes(2));
-            if (res.Ok) {
-                _modules = res.Json<List<ModuleCacheRow>>();
-                await Say("module cache refreshed", StatusNoteKind.Ok);
-            } else {
+            if (!res.Ok) {
                 await Say($"refresh failed: {res.Describe()}", StatusNoteKind.Error);
+                return;
             }
+
+            _modules = res.Json<List<ModuleCacheRow>>();
+            var assets = await Api.PostAsync("/api/devices/virtual/integrity/refresh", TimeSpan.FromMinutes(3));
+            if (assets.Ok) _assets = assets.Json<IntegrityAssetsView>();
+            var problem = !assets.Ok ? assets.Describe() : _assets is { Ok: false } failed ? failed.Error : null;
+            await Say(problem is null ? "integrity cache refreshed" : $"modules refreshed, integrity assets: {problem}",
+                problem is null ? StatusNoteKind.Ok : StatusNoteKind.Error);
         }
         finally {
             _busy = false;

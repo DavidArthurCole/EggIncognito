@@ -1,3 +1,4 @@
+using System.Text;
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Models;
 
@@ -8,12 +9,9 @@ public sealed class ActivateIntegrityStep(
     IDeviceFleet fleet,
     IDeviceConnectionFactory connections,
     IProcessRunner runner,
-    IHttpClientFactory httpClients) : CookbookStep {
-    private static readonly TimeSpan ActionTimeout = TimeSpan.FromMinutes(6);
+    IntegrityAssets assets) : CookbookStep {
     private static readonly TimeSpan CheckinWait = TimeSpan.FromMinutes(3);
     private static readonly TimeSpan CheckinPoll = TimeSpan.FromSeconds(10);
-    private static readonly TimeSpan StatusListTimeout = TimeSpan.FromSeconds(30);
-    private const string StagedKeybox = "/data/local/tmp/egi-keybox.xml";
     private const string PifLogCommand = "logcat -d -s PIF/Native 2>/dev/null | tail -n 12";
 
     public override string Id => DeviceCookbookIds.ActivateIntegrity;
@@ -53,37 +51,37 @@ public sealed class ActivateIntegrityStep(
             return Failed(lines, "Integrity-Box is not installed under /data/adb/modules; run install-integrity first");
         Add($"before: {before.Describe()}");
 
-        Add("running Integrity-Box action.sh (keybox fetch, fingerprint, tricky-store targets, teesim sync)");
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        cts.CancelAfter(ActionTimeout);
-        var action = await conn.ShellAsync(root.Wrap($"sh {IntegrityChain.ActionScript} 2>&1"), cts.Token);
-        foreach (string line in IntegrityChain.ActionLines(action.Stdout)) Add(line);
-        if (action.ExitCode != 0) {
-            var keyLog = await conn.ShellAsync(root.Wrap($"tail -n 8 {IntegrityChain.KeyboxLog} 2>/dev/null"), ct);
-            return Failed(lines,
-                $"action.sh exited {action.ExitCode}; the keybox fetch needs the device online: "
-                + DeviceParsing.TrimNote(keyLog.Stdout + action.Stderr));
-        }
+        var bundle = await assets.ResolveAsync(false, ct);
+        if (!bundle.Ok || bundle.Profile is not { } profile || bundle.PifPropText is not { } pifProp
+            || bundle.KeyboxXml is not { } keybox || bundle.PatchDate is not { } patchDate)
+            return Failed(lines, bundle.Error ?? "integrity assets did not resolve");
+        Add($"identity {profile.Model} {profile.Fingerprint} (expires {profile.Expiry?.ToString("yyyy-MM-dd") ?? "unknown"})");
+        Add($"keybox {bundle.KeyboxSource}, {bundle.KeyboxSerials.Count} certs, {bundle.KeyboxNote}");
+        foreach (string warning in bundle.Warnings) Add(warning);
 
-        if (await InstallOperatorKeyboxAsync(conn, root, Add, ct) is { } keyboxError)
-            return Failed(lines, keyboxError);
+        string fingerprintBefore = await FingerprintAsync(conn, root, ct);
 
-        var adopt = await conn.ShellAsync(root.Wrap(IntegrityChain.AdoptKeyboxCommand), ct);
-        if (!adopt.Stdout.Contains("adopted=1", StringComparison.Ordinal))
-            return Failed(lines, "no keybox reached TEESimulator; action.sh did not fetch one (device offline?)");
+        var staged = await StageAsync(conn, pifProp, keybox,
+            IntegrityChain.TargetsText(target.Package), IntegrityChain.SecurityPatchText(patchDate), ct);
+        if (staged is not null) return Failed(lines, staged);
 
-        var targeted = await conn.ShellAsync(root.Wrap(IntegrityChain.EnsureTargetCommand(target.Package)), ct);
-        if (!targeted.Stdout.Contains("targeted=1", StringComparison.Ordinal))
-            return Failed(lines, $"could not add {target.Package} to {IntegrityChain.Targets}");
-        Add($"{target.Package} listed for attestation");
+        var apply = await conn.ShellAsync(root.Wrap(IntegrityChain.ApplyCommand), ct);
+        await conn.ShellAsync($"rm -rf {IntegrityChain.StageDir}", ct);
+        if (!apply.Stdout.Contains("applied=1", StringComparison.Ordinal))
+            return Failed(lines, $"identity files did not apply: {DeviceParsing.TrimNote(apply.Stderr + apply.Stdout)}");
+        Add($"identity, keybox, targets and patch level applied; {target.Package} listed for attestation");
 
         var after = await StateAsync(conn, root, ct);
         if (after is null || !after.Activated)
-            return Failed(lines, $"chain still inert after action.sh: {after?.Describe() ?? "probe did not run"}");
+            return Failed(lines, $"chain still inert after applying: {after?.Describe() ?? "probe did not run"}");
         Add($"after: {after.Describe()}");
 
-        if (await CheckKeyboxAsync(conn, root, Add, ct) is { } revoked)
-            return Failed(lines, revoked);
+        bool changed = !string.Equals(fingerprintBefore, await FingerprintAsync(conn, root, ct), StringComparison.Ordinal);
+        if (!changed && before.Activated && await GsfIdentity.ReadAsync(conn, ct) is { } existing) {
+            Add($"chain unchanged and gms already checked in (gsf id {existing}); no reset");
+            await ReportPifAsync(conn, Add, ct);
+            return Ok(lines, after.Describe());
+        }
 
         bool virtualDevice = await IsVirtualAsync(target.Id, ct);
         var reset = await conn.ShellAsync(root.Wrap(IntegrityChain.ResetPlayCommand(virtualDevice)), ct);
@@ -104,63 +102,45 @@ public sealed class ActivateIntegrityStep(
             Add($"gms checked in, gsf id {gsf}");
         }
 
-        var pif = await conn.ShellAsync(PifLogCommand, ct);
-        var spoofed = pif.Stdout.Split('\n').Where(l => l.Contains("Spoofing", StringComparison.Ordinal))
-            .Select(l => l[(l.IndexOf("Spoofing", StringComparison.Ordinal) + "Spoofing ".Length)..].Trim()).ToList();
-        Add(spoofed.Count > 0
-            ? $"pif injected into gms: {string.Join("; ", spoofed.Distinct())}"
-            : "no PIF/Native lines in logcat yet; DroidGuard spawns on demand, re-check after launching the app");
-
+        await ReportPifAsync(conn, Add, ct);
         return Ok(lines, after.Describe());
     }
 
-    private async Task<string?> InstallOperatorKeyboxAsync(
-        IDeviceConnection conn, RootAccess root, Action<string> add, CancellationToken ct) {
-        if (config.IntegrityKeyboxPath is not { Length: > 0 } path) return null;
-        if (!File.Exists(path)) return $"operator keybox not found at {path}";
-
-        byte[] bytes = await File.ReadAllBytesAsync(path, ct);
-        string local = DeviceShell.NewTempPath("-keybox.xml");
-        try {
-            await File.WriteAllBytesAsync(local, bytes, ct);
-            if (!await conn.PushFileAsync(local, StagedKeybox, ct)) return $"could not push the operator keybox to {StagedKeybox}";
-        } finally {
-            DeviceShell.TryDelete(local);
+    private static async Task<string?> StageAsync(
+        IDeviceConnection conn, string pifProp, string keybox, string targets, string patch, CancellationToken ct) {
+        await conn.ShellAsync($"rm -rf {IntegrityChain.StageDir}; mkdir -p {IntegrityChain.StageDir}", ct);
+        (string Name, string Text)[] files = [
+            (PifProp.FileName, pifProp),
+            (IntegrityChain.KeyboxFileName, keybox),
+            (IntegrityChain.TargetsFileName, targets),
+            (IntegrityChain.SecurityPatchFileName, patch)
+        ];
+        foreach ((string name, string text) in files) {
+            string local = DeviceShell.NewTempPath("-" + name);
+            try {
+                await File.WriteAllBytesAsync(local, new UTF8Encoding(false).GetBytes(text.Replace("\r\n", "\n")), ct);
+                if (!await conn.PushFileAsync(local, $"{IntegrityChain.StageDir}/{name}", ct))
+                    return $"could not push {name} to {IntegrityChain.StageDir}";
+            } finally {
+                DeviceShell.TryDelete(local);
+            }
         }
 
-        var install = await conn.ShellAsync(root.Wrap(IntegrityChain.InstallKeyboxCommand(StagedKeybox)), ct);
-        if (!install.Stdout.Contains("keybox=1", StringComparison.Ordinal))
-            return $"operator keybox install failed: {DeviceParsing.TrimNote(install.Stderr + install.Stdout)}";
-
-        add($"operator keybox installed over the shared one ({bytes.Length} bytes)");
         return null;
     }
 
-    private async Task<string?> CheckKeyboxAsync(
-        IDeviceConnection conn, RootAccess root, Action<string> add, CancellationToken ct) {
-        var read = await conn.ShellAsync(root.Wrap(IntegrityChain.ReadTeesimKeyboxCommand), ct);
-        var serials = KeyboxRevocation.Serials(read.Stdout);
-        if (serials.Count == 0) {
-            add("keybox check skipped: no certificate parsed out of the teesim keybox");
-            return null;
-        }
+    private static async Task<string> FingerprintAsync(IDeviceConnection conn, RootAccess root, CancellationToken ct) {
+        var r = await conn.ShellAsync(root.Wrap(IntegrityChain.FingerprintCommand), ct);
+        return r.Stdout.Trim();
+    }
 
-        using var http = httpClients.CreateClient();
-        http.Timeout = StatusListTimeout;
-        var (revoked, error) = await KeyboxRevocation.RevokedAsync(http, serials, ct);
-        if (error is not null) {
-            add($"keybox check skipped: {error}");
-            return null;
-        }
-
-        if (revoked.Count > 0) {
-            return $"keybox is on Google's revocation list: {string.Join("; ", revoked)}. "
-                   + "A revoked keybox is what produces \"Reset device to fix issue\"; supply a clean one via "
-                   + "Devices:Virtual:Integrity:KeyboxPath";
-        }
-
-        add($"keybox chain ({serials.Count} certs) not on Google's revocation list");
-        return null;
+    private static async Task ReportPifAsync(IDeviceConnection conn, Action<string> add, CancellationToken ct) {
+        var pif = await conn.ShellAsync(PifLogCommand, ct);
+        var spoofed = pif.Stdout.Split('\n').Where(l => l.Contains("Spoofing", StringComparison.Ordinal))
+            .Select(l => l[(l.IndexOf("Spoofing", StringComparison.Ordinal) + "Spoofing ".Length)..].Trim()).ToList();
+        add(spoofed.Count > 0
+            ? $"pif injected into gms: {string.Join("; ", spoofed.Distinct())}"
+            : "no PIF/Native lines in logcat yet; DroidGuard spawns on demand, re-check after launching the app");
     }
 
     private static async Task<IntegrityChainState?> StateAsync(

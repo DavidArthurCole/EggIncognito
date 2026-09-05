@@ -1,3 +1,4 @@
+using System.Globalization;
 using EggIdentity.Settings.Store;
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Models;
@@ -19,6 +20,7 @@ public sealed class VirtualDevicesController(
     IServiceProvider services,
     VirtualDeviceConfig config,
     ModuleFetcher moduleFetcher,
+    IntegrityAssets integrityAssets,
     VirtualDeviceLifecycle lifecycle) : ControllerBase {
     private ProvisionedInstanceStore? Store =>
         services.GetService(typeof(ProvisionedInstanceStore)) as ProvisionedInstanceStore;
@@ -131,13 +133,20 @@ public sealed class VirtualDevicesController(
         return Ok(rows);
     }
 
+    [HttpGet("integrity")]
+    [EnableRateLimiting("read")]
+    public async Task<IActionResult> Integrity(CancellationToken ct) =>
+        Ok(IntegrityView(await integrityAssets.ResolveAsync(false, ct)));
+
+    [HttpPost("integrity/refresh")]
+    public async Task<IActionResult> RefreshIntegrity(CancellationToken ct) =>
+        Ok(IntegrityView(await integrityAssets.ResolveAsync(true, ct)));
+
     [HttpGet("images")]
     [EnableRateLimiting("read")]
     public async Task<IActionResult> ListImages(CancellationToken ct) {
         if (Images is not { } images) return StatusCode(503, new { error = "image builds are not registered here" });
-        string? active = Settings is { } s
-            ? (await s.GetAsync(SettingKeys.VirtualImageOverride, ct))?.Value
-            : null;
+        string? active = await ActiveOverrideAsync(ct);
         var listed = await images.ListAsync("redroid/redroid:*", ct);
         var rows = new List<ImageRow>();
         foreach (var img in listed.Value ?? []) {
@@ -157,9 +166,13 @@ public sealed class VirtualDevicesController(
         if (BuildRunner is not { } runner) return StatusCode(503, new { error = "no database configured" });
         if (request is null) return BadRequest(new { error = "a build spec is required" });
 
+        string? baseImage = request.BaseImage;
+        if (request.Integrity && string.IsNullOrWhiteSpace(baseImage) && !request.Magisk)
+            baseImage = await ActiveOverrideAsync(ct) ?? config.Image;
+
         var spec = new ImageBuildSpec(
             string.IsNullOrWhiteSpace(request.AndroidVersion) ? "11.0.0" : request.AndroidVersion,
-            request.Gapps, request.Magisk, request.Ndk, request.BaseImage);
+            request.Gapps, request.Magisk, request.Ndk, baseImage, Integrity: request.Integrity);
         var started = await runner.StartAsync(spec, ct);
         return started.Ok ? Ok(started) : StatusCode(409, started);
     }
@@ -199,6 +212,21 @@ public sealed class VirtualDevicesController(
         var payload = new VirtualActionResult(removed.Ok, DeviceOutcomes.Label(removed.Outcome), tag, removed.Note);
         return removed.Ok ? Ok(payload) : StatusCode(removed.Outcome == DeviceOutcome.Unsupported ? 503 : 400, payload);
     }
+
+    private async Task<string?> ActiveOverrideAsync(CancellationToken ct) {
+        if (Settings is not { } settings) return null;
+        string? value = (await settings.GetAsync(SettingKeys.VirtualImageOverride, ct))?.Value;
+        return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+
+    private static IntegrityAssetsView IntegrityView(IntegrityBundle b) => new(
+        b.Ok, b.Error, b.Profile?.Model, b.Profile?.Product, b.Profile?.Fingerprint,
+        Day(b.Profile?.ReleasedOn), Day(b.Profile?.Expiry), b.PatchDate,
+        b.KeyboxSource, b.KeyboxSerials.Count, b.KeyboxNote,
+        [.. b.Modules.Select(m => $"{m.Spec.Name} {m.ModuleId} {m.Version ?? "?"}")],
+        b.Warnings);
+
+    private static string? Day(DateOnly? day) => day?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
     private static VirtualInstanceRow RemoteRow(ProvisionedInstance instance) => new(
         instance.InstanceId, instance.Kind, instance.Image, instance.State, instance.AdbSerial, instance.DeviceId,
