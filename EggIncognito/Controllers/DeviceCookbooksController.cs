@@ -1,6 +1,7 @@
 using EggIdentity.Contract;
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Models;
+using EggIncognito.Data.Services;
 using EggIncognito.Models.Devices;
 using EggIncognito.Services;
 using EggIncognito.Services.Auth;
@@ -16,7 +17,8 @@ namespace EggIncognito.Controllers;
 [EnableRateLimiting("read")]
 public sealed class DeviceCookbooksController(
     ICurrentUser currentUser,
-    IServiceProvider services) : ControllerBase {
+    IServiceProvider services,
+    CookbookCancellations cancellations) : ControllerBase {
     private DeviceCookbookRunner? Runner =>
         services.GetService(typeof(DeviceCookbookRunner)) as DeviceCookbookRunner;
 
@@ -81,9 +83,15 @@ public sealed class DeviceCookbooksController(
         if (Runner is not { } runner) return StatusCode(503, new { error = "no database configured" });
         if (await runner.TargetAsync(id, ct) is null) return NotFound(new { error = "unknown device" });
 
-        if (!runner.TryCancel(id, out long jobId))
-            return StatusCode(409, new { error = "no cookbook is running on this device" });
-        return Ok(new { ok = true, jobId });
+        if (cancellations.TryCancel(id, out long jobId)) return Ok(new { ok = true, jobId, live = true });
+
+        if (services.GetService(typeof(DeviceJobStore)) is not DeviceJobStore jobs)
+            return StatusCode(503, new { error = "no database configured" });
+        long? orphan = await jobs.CancelRunningAsync(id, DeviceJobKinds.Cookbook,
+            "stopped from the console; no live worker held this job", ct);
+        return orphan is { } orphanId
+            ? Ok(new { ok = true, jobId = orphanId, live = false })
+            : StatusCode(409, new { error = "no cookbook is running on this device" });
     }
 
     [HttpGet("{id}/cookbooks/run/{jobId:long}")]

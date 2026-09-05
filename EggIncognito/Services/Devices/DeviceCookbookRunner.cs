@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
@@ -15,17 +14,8 @@ public sealed class DeviceCookbookRunner(
     DeviceJobStore jobs,
     CookbookExecutor executor,
     IServiceScopeFactory scopeFactory,
+    CookbookCancellations cancellations,
     ILogger<DeviceCookbookRunner> logger) {
-    private readonly ConcurrentDictionary<string, (long JobId, CancellationTokenSource Cts)> _cancellations =
-        new(StringComparer.Ordinal);
-
-    public bool TryCancel(string deviceId, out long jobId) {
-        jobId = 0;
-        if (!_cancellations.TryGetValue(deviceId, out var live)) return false;
-        jobId = live.JobId;
-        live.Cts.Cancel();
-        return true;
-    }
 
     public async Task<DeviceTarget?> TargetAsync(string deviceId, CancellationToken ct) {
         var entry = (await fleet.EnabledAsync(ct)).FirstOrDefault(d =>
@@ -64,7 +54,7 @@ public sealed class DeviceCookbookRunner(
         }
 
         var cts = new CancellationTokenSource();
-        _cancellations[deviceId] = (job.Id, cts);
+        cancellations.Register(deviceId, job.Id, cts);
         _ = Task.Run(() => RunDetachedAsync(job, target, request with { CookbookId = cookbook.Id }, cts),
             CancellationToken.None);
         return new DeviceCookbookStart(DeviceCookbookStartOutcome.Started, job.Id);
@@ -88,7 +78,7 @@ public sealed class DeviceCookbookRunner(
         }
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        _cancellations[deviceId] = (job.Id, cts);
+        cancellations.Register(deviceId, job.Id, cts);
         try {
             var context = new DeviceCookbookContext(target, request.Argument,
                 line => jobs.ProgressAsync(job, line, ct: cts.Token).GetAwaiter().GetResult());
@@ -101,7 +91,7 @@ public sealed class DeviceCookbookRunner(
             await jobs.FailAsync(job, ex.Message, CancellationToken.None);
             return new DeviceCookbookRun(false, cookbook.Id, [ex.Message], "exception", ex.Message);
         } finally {
-            _cancellations.TryRemove(new KeyValuePair<string, (long, CancellationTokenSource)>(deviceId, (job.Id, cts)));
+            cancellations.Release(deviceId, job.Id, cts);
         }
     }
 
@@ -127,7 +117,7 @@ public sealed class DeviceCookbookRunner(
             await scoped.ProgressAsync(job, ex.ToString(), DeviceJobLevels.Error, CancellationToken.None);
             await scoped.FailAsync(job, ex.Message, CancellationToken.None);
         } finally {
-            _cancellations.TryRemove(new KeyValuePair<string, (long, CancellationTokenSource)>(job.DeviceId, (job.Id, cts)));
+            cancellations.Release(job.DeviceId, job.Id, cts);
             cts.Dispose();
         }
     }

@@ -158,6 +158,22 @@ public sealed class DeviceJobStore(EggIncognitoDbContext db, TimeProvider time, 
         await TouchedAsync(job.DeviceId, ct);
     }
 
+    public async Task<long?> CancelRunningAsync(string deviceId, string kind, string message,
+        CancellationToken ct = default) {
+        var row = await db.DeviceJobs
+            .Where(j => j.DeviceId == deviceId && j.Kind == kind && j.State == DeviceJobStates.Running)
+            .OrderByDescending(j => j.Id)
+            .FirstOrDefaultAsync(ct);
+        if (row is null) return null;
+        row.State = DeviceJobStates.Cancelled;
+        row.Outcome = "cancelled";
+        row.Message = message;
+        row.FinishedAt = time.GetUtcNow();
+        await db.SaveChangesAsync(ct);
+        await TouchedAsync(deviceId, ct);
+        return row.Id;
+    }
+
     public async Task CancelAsync(JobRef job, string message, CancellationToken ct = default) {
         var row = await db.DeviceJobs.FirstOrDefaultAsync(j => j.Id == job.Id, ct);
         if (row is null) return;

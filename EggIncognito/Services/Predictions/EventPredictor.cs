@@ -23,7 +23,7 @@ public sealed class EventPredictor(EggIncognitoDbContext db, EventDataVersion ve
     internal const double MinDue = 0.25;
     internal const double MaxDue = 2d;
     internal const double Smoothing = 0.5;
-    internal const double RepeatBlockSeconds = Day;
+    internal const int RepeatBlockDays = 1;
     internal const double SameWeekPenalty = 0.5;
     internal const double MinDayLength = 0.75 * Day;
     internal const double MaxDayLength = 1.5 * Day;
@@ -130,7 +130,7 @@ public sealed class EventPredictor(EggIncognitoDbContext db, EventDataVersion ve
                 var grid = GridDates(anchor, period, days[0], days[^1]);
                 if (grid.Count < MinLaneSamples) continue;
                 int observed = grid.Count(dates.Contains);
-                if (observed < MinLaneFill * grid.Count) continue;
+                if (observed < MinLaneFill * grid.Count && !HeldRecently(anchor, period, dates, days[^1])) continue;
                 if (dates.Count(d => !grid.Contains(d)) > MaxOffGrid) continue;
                 lanes.Add(new FixedLane(
                     group.Key.Type, group.Key.DayOfWeek, period, anchor, grid, observed, grid.Count,
@@ -139,6 +139,13 @@ public sealed class EventPredictor(EggIncognitoDbContext db, EventDataVersion ve
             }
         }
         return lanes;
+    }
+
+    private static bool HeldRecently(DateOnly anchor, int period, HashSet<DateOnly> dates, DateOnly last) {
+        if (anchor.AddDays(period) <= last) return false;
+        int run = 0;
+        for (var d = anchor; dates.Contains(d); d = d.AddDays(-period)) run++;
+        return run >= MinLaneSamples && run * period * 2 >= WindowDays;
     }
 
     private static HashSet<DateOnly> GridDates(DateOnly anchor, int period, DateOnly min, DateOnly max) {
@@ -238,7 +245,7 @@ public sealed class EventPredictor(EggIncognitoDbContext db, EventDataVersion ve
         double sum = 0;
         foreach (string type in types) {
             double score = 0;
-            if (!string.Equals(type, blocked, StringComparison.Ordinal) && !Repeats(history, type, ultra, at)) {
+            if (!string.Equals(type, blocked, StringComparison.Ordinal) && !Repeats(history, type, ultra, date)) {
                 double prior = (weights.GetValueOrDefault(type) + Smoothing) / (total + Smoothing * types.Count);
                 score = prior * Due(history, type, ultra, at);
                 if (history.WeekUsed.Contains(WeekKey(date, type, ultra))) score *= SameWeekPenalty;
@@ -257,8 +264,9 @@ public sealed class EventPredictor(EggIncognitoDbContext db, EventDataVersion ve
         ];
     }
 
-    private static bool Repeats(History history, string type, bool ultra, double at) =>
-        history.LastStart.TryGetValue((type, ultra), out double last) && at - last <= RepeatBlockSeconds;
+    private static bool Repeats(History history, string type, bool ultra, DateOnly date) =>
+        history.LastDate.TryGetValue((type, ultra), out var last)
+        && date.DayNumber - last.DayNumber <= RepeatBlockDays;
 
     private static double Due(History history, string type, bool ultra, double at) {
         if (!history.LastStart.TryGetValue((type, ultra), out double last)) return MaxDue;
@@ -268,6 +276,7 @@ public sealed class EventPredictor(EggIncognitoDbContext db, EventDataVersion ve
 
     private static void Touch(History history, string type, bool ultra, double start, DateOnly date) {
         history.LastStart[(type, ultra)] = start;
+        history.LastDate[(type, ultra)] = date;
         history.WeekUsed.Add(WeekKey(date, type, ultra));
     }
 
@@ -281,6 +290,7 @@ public sealed class EventPredictor(EggIncognitoDbContext db, EventDataVersion ve
         foreach (var group in window.GroupBy(o => (o.Type, o.Ultra))) {
             var ordered = group.OrderBy(o => o.Start).ToList();
             history.LastStart[group.Key] = ordered[^1].Start;
+            history.LastDate[group.Key] = ordered[^1].Date;
             var gaps = new List<double>(ordered.Count - 1);
             for (int i = 1; i < ordered.Count; i++)
                 gaps.Add(ordered[i].Date.DayNumber - ordered[i - 1].Date.DayNumber);
@@ -353,6 +363,7 @@ public sealed class EventPredictor(EggIncognitoDbContext db, EventDataVersion ve
 
     private sealed class History {
         public Dictionary<(string Type, bool Ultra), double> LastStart { get; } = [];
+        public Dictionary<(string Type, bool Ultra), DateOnly> LastDate { get; } = [];
         public Dictionary<(string Type, bool Ultra), double> GapDays { get; } = [];
         public HashSet<(int Year, int Week, string Type, bool Ultra)> WeekUsed { get; } = [];
         public string? LastUltraType { get; set; }

@@ -96,6 +96,7 @@ public static class DeviceServices {
         builder.Services.AddSingleton(extensions);
 
         builder.Services.AddSingleton<IDeviceCookbooks, DeviceCookbooks>();
+        builder.Services.AddSingleton<CookbookCancellations>();
         if (boot.DbEnabled) builder.Services.AddScoped<DeviceCookbookRunner>();
     }
 

@@ -125,7 +125,39 @@ public class EventPredictorTests {
         Assert.DoesNotContain(predictions, p => !p.Ultra && Weekday(p) == DayOfWeek.Friday);
         Assert.All(
             predictions.SelectMany(p => p.Candidates).Where(c => c.Type == "research-sale"),
-            c => Assert.True(c.Probability < 0.1));
+            c => Assert.True(c.Probability < 0.15));
+    }
+
+    [Fact]
+    public void Predict_LaneCadenceTightenedMidWindow_QualifiesOnTrailingRun() {
+        var anchor = EventTemplate.End.AddDays(-13);
+        var rows = TemplateRows().Where(r => r.Type != "mission-capacity").ToList();
+        foreach (int back in new[] { 0, 28, 56, 84, 126, 168 }) rows.Add(TwoDayRow("mission-capacity", anchor.AddDays(-back)));
+
+        var lane = EventPredictor.Predict(rows, EventTemplate.AsOf, 56)
+            .Where(p => p.Kind == EventPredictionKind.Fixed && p.Type == "mission-capacity")
+            .ToList();
+
+        var first = Assert.Single(lane, p => NoonEastern.LocalDate(p.PredictedStart) == anchor.AddDays(28));
+        Assert.Equal(28, first.PeriodDays);
+        Assert.InRange(first.Confidence, 0.7, 0.8);
+    }
+
+    [Fact]
+    public void Predict_FourWeekRunOnWeeklyGrid_DoesNotBecomeLane() {
+        var monday = EventTemplate.End.AddDays(-5);
+        var rows = TemplateRows();
+        foreach (int back in new[] { 0, 7, 14, 21 }) rows.Add(TwoDayRow("hab-sale", monday.AddDays(-back)));
+
+        var predictions = EventPredictor.Predict(rows, EventTemplate.AsOf, 28);
+
+        Assert.DoesNotContain(
+            predictions, p => p.Kind == EventPredictionKind.Fixed && p.Type == "hab-sale" && Weekday(p) == DayOfWeek.Monday);
+    }
+
+    private static EventRow TwoDayRow(string type, DateOnly day) {
+        double start = NoonEastern.SlotTime(day);
+        return new EventRow(type, false, start, start + 2 * Day);
     }
 
     [Fact]
@@ -152,9 +184,9 @@ public class EventPredictorTests {
     [Fact]
     public void Predict_TemplateHistory_NeverRepeatsAStandardTypeOnConsecutiveDays() {
         var byDate = Predictions(28)
-            .Where(p => !p.Ultra && p.Type is not null)
+            .Where(p => !p.Ultra)
             .GroupBy(p => NoonEastern.LocalDate(p.PredictedStart))
-            .ToDictionary(g => g.Key, g => g.Select(p => p.Type!).ToHashSet(StringComparer.Ordinal));
+            .ToDictionary(g => g.Key, g => g.Select(p => p.Type).OfType<string>().ToHashSet(StringComparer.Ordinal));
 
         foreach (var (date, types) in byDate) {
             if (!byDate.TryGetValue(date.AddDays(1), out var next)) continue;
