@@ -34,6 +34,16 @@ public sealed class VirtualDeviceSettingsProvider : ISettingsProvider {
             SettingKind.Text, ApplyTier.RestartRequired, Sensitivity.Plain) {
             Default = VirtualDeviceConfig.DefaultGmsPackage
         },
+        new("devices.virtual.adb_public_key_path", "Devices__Virtual__AdbPublicKeyPath",
+            "Host adb public key path", Category,
+            SettingKind.Path, ApplyTier.RestartRequired, Sensitivity.Plain) {
+            Description = "adbkey.pub of the adb server; the integrity cookbook appends it to /data/misc/adb/adb_keys. "
+                + "Falls back to $ANDROID_USER_HOME, ~/.android, then /root/.android."
+        },
+        new("devices.virtual.adb_public_key", "Devices__Virtual__AdbPublicKey", "Host adb public key", Category,
+            SettingKind.Text, ApplyTier.RestartRequired, Sensitivity.Plain) {
+            Description = "Literal adbkey.pub contents; wins over the path."
+        },
         new("devices.virtual.integrity.enabled", "Devices__Virtual__Integrity__Enabled",
             "Integrity modules enabled", Category,
             SettingKind.Bool, ApplyTier.RestartRequired, Sensitivity.Plain) { Default = "false" },

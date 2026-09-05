@@ -5,6 +5,14 @@ namespace EggIncognito.Core.Services.Devices;
 
 public sealed class AdbCaInstaller(IProcessRunner runner, string? installScriptTemplate = null) : IDeviceCaInstaller {
     private const string RemoteScript = "/data/local/tmp/eggincognito-ca-magisk.sh";
+    private const string NoSuNote =
+        "no working su (Magisk su denies the shell uid until its policy grants uid 2000; "
+        + "run the install-integrity cookbook or grant it) and adbd is not root";
+    private static readonly string[][] SuCandidates = [
+        ["/sbin/su", "-mm"], ["/sbin/su"],
+        ["/debug_ramdisk/su", "-mm"], ["/debug_ramdisk/su"],
+        ["su", "-mm"], ["su"]
+    ];
 
     private const string DefaultScript =
         """
@@ -110,17 +118,17 @@ public sealed class AdbCaInstaller(IProcessRunner runner, string? installScriptT
         var idProbe = await Adb(device.Target, ["shell", "id -u"], ct);
         bool alreadyRoot = idProbe.ExitCode == 0 && idProbe.Stdout.Trim() == "0";
 
-        var suProbe = await Adb(device.Target, ["shell", "command -v su"], ct);
-        bool hasSu = suProbe.ExitCode == 0 && suProbe.Stdout.Trim().Length > 0;
+        string[]? su = await ProbeSuAsync(device.Target, ct);
+        if (su is null && !alreadyRoot) return (false, NoSuNote);
 
-        var r = hasSu
-            ? await Adb(device.Target, ["shell", "su", "-mm", "-c", $"sh {RemoteScript} 2>&1"], ct)
+        var r = su is { } wrapper
+            ? await Adb(device.Target, ["shell", .. wrapper, "-c", $"sh {RemoteScript} 2>&1"], ct)
             : await Adb(device.Target, ["shell", $"sh {RemoteScript} 2>&1"], ct);
         string diag = DeviceParsing.TrimNote(r.Stdout + (r.Stderr.Length > 0 ? " | err: " + r.Stderr : ""));
         if (string.IsNullOrWhiteSpace(diag)) {
-            diag = hasSu ? "(no script output from su -mm)"
-                : alreadyRoot ? "(no script output - no su, ran as uid 0)"
-                : "(no script output - no su and adbd is not root)";
+            diag = su is { } w
+                ? $"(no script output from {string.Join(' ', w)})"
+                : "(no script output - no su, ran as uid 0)";
         }
         if (r.ExitCode != 0) return (false, $"install rc={r.ExitCode}: {diag}");
 
@@ -132,6 +140,15 @@ public sealed class AdbCaInstaller(IProcessRunner runner, string? installScriptT
         return (false,
             $"{hash}.0 ({(mod ? "module written but live mount FAILED" : "FAILED")}): "
             + (cause.Length > 0 ? DeviceParsing.TrimNote(cause) : diag));
+    }
+
+    private async Task<string[]?> ProbeSuAsync(string serial, CancellationToken ct) {
+        foreach (string[] candidate in SuCandidates) {
+            var probe = await Adb(serial, ["shell", .. candidate, "-c", "id"], ct);
+            if (probe.Stdout.Contains("uid=0", StringComparison.Ordinal)) return candidate;
+        }
+
+        return null;
     }
 
     private static string Failures(string stdout) =>

@@ -185,6 +185,8 @@ public class DevicesControllerTests {
         public Task<IReadOnlyList<DeviceEntry>> EnabledAsync(CancellationToken ct) =>
             Task.FromResult<IReadOnlyList<DeviceEntry>>(
                 [.. ids.Select(id => new DeviceEntry(id, "android", id, "serial", "com.auxbrain.egginc"))]);
+
+        public Task PersistCapturePortAsync(string deviceId, int port, CancellationToken ct) => Task.CompletedTask;
     }
 
     private sealed class FakeAgent(bool enabled = true) : IDeviceAgentClient {
@@ -210,6 +212,8 @@ public class DevicesControllerTests {
             Task.FromResult<Device?>(id == "frame-android" ? new Device { Id = id, Platform = "android", Label = id } : null);
 
         public Task RemoveAsync(string id, CancellationToken ct = default) => Task.CompletedTask;
+
+        public Task SetCapturePortAsync(string id, int port, CancellationToken ct = default) => Task.CompletedTask;
     }
 
     private sealed class FakeUser(UserRole role) : ICurrentUser {

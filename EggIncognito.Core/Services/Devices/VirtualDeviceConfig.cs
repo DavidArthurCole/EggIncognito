@@ -23,6 +23,8 @@ public sealed record VirtualDeviceConfig {
     public int ReconcileSeconds { get; init; } = 20;
     public bool RequireGooglePlay { get; init; } = true;
     public string GmsPackage { get; init; } = DefaultGmsPackage;
+    public string? AdbPublicKeyPath { get; init; }
+    public string? AdbPublicKey { get; init; }
 
     public bool IntegrityEnabled { get; init; }
     public int IntegrityRefreshHours { get; init; } = 24;
@@ -45,6 +47,8 @@ public sealed record VirtualDeviceConfig {
             ReconcileSeconds = Num(v, "ReconcileSeconds", 20),
             RequireGooglePlay = Flag(v, "RequireGooglePlay", true),
             GmsPackage = Nz(v["GmsPackage"]) ?? DefaultGmsPackage,
+            AdbPublicKeyPath = Nz(v["AdbPublicKeyPath"]),
+            AdbPublicKey = Nz(v["AdbPublicKey"]),
             IntegrityEnabled = Flag(integrity, "Enabled"),
             IntegrityRefreshHours = Num(integrity, "RefreshHours", 24),
             IntegrityDisableMagiskZygisk = Flag(integrity, "DisableMagiskZygisk", true),

@@ -1,3 +1,4 @@
+using System.Text;
 using EggIncognito.Core;
 using EggIncognito.Core.Services.Devices;
 
@@ -10,6 +11,20 @@ public sealed class InstallIntegrityStep(
     IProcessRunner runner) : CookbookStep {
     private const string ZygiskOffSql =
         "--sqlite \"REPLACE INTO settings (key,value) VALUES('zygisk',0)\"";
+    private const string ShellSuPolicySql =
+        "--sqlite \"REPLACE INTO policies (uid,policy,until,logging,notification) VALUES(2000,2,0,1,1)\"";
+    private const string RemoteAdbKey = "/data/local/tmp/egi-adbkey.pub";
+    private const string AdbKeysDir = "/data/misc/adb";
+    private const string AdbKeysFile = AdbKeysDir + "/adb_keys";
+    private const string AuthorizeAdbKey =
+        "mkdir -p " + AdbKeysDir + "; touch " + AdbKeysFile + "; "
+        + "grep -qxF -f " + RemoteAdbKey + " " + AdbKeysFile + " || cat " + RemoteAdbKey + " >> " + AdbKeysFile + "; "
+        + "chown system:shell " + AdbKeysDir + " " + AdbKeysFile + "; "
+        + "chmod 750 " + AdbKeysDir + "; chmod 640 " + AdbKeysFile + "; "
+        + "rm -f " + RemoteAdbKey;
+    private const string NoAdbKeyWarning =
+        "no adb public key available (set Devices:Virtual:AdbPublicKeyPath or mount the adb server's ~/.android "
+        + "into this container); after PlayIntegrityFix sets ro.adb.secure=1 adbd will reject this host";
     private static readonly string[] MagiskPaths = [
         "/sbin/magisk", "/debug_ramdisk/magisk",
         "/system/etc/init/magisk/magisk", "/data/adb/magisk/magisk"
@@ -84,6 +99,7 @@ public sealed class InstallIntegrityStep(
         }
 
         Add($"magisk binary: {magisk}");
+        await PersistAdbAccessAsync(conn, root, magisk, Add, ct);
 
         var magiskBin = await EnsureMagiskBinAsync(conn, root, Add, ct);
         if (!magiskBin.Ok) {
@@ -120,7 +136,7 @@ public sealed class InstallIntegrityStep(
             Add($"{spec.Name}{version}: {bytes.Length} bytes from {origin}");
 
             string remote = $"/data/local/tmp/{spec.Name}.zip";
-            string? staged = await PushAsync(conn, bytes, spec.Name, remote, ct);
+            string? staged = await PushAsync(conn, bytes, $"-{spec.Name}.zip", remote, ct);
             if (staged is null) return Failed(lines, $"could not push module '{spec.Name}' to {remote}");
 
             var install = await conn.ShellAsync(root.Wrap($"{magisk} --install-module {remote}"), ct);
@@ -208,9 +224,34 @@ public sealed class InstallIntegrityStep(
             .Select(l => l.Trim())
             .Where(l => l.Length > 0 && l != ScanMarker && l != BusyboxMarker && l != UtilMarker));
 
+    private async Task PersistAdbAccessAsync(
+        IDeviceConnection conn, RootAccess root, string magisk, Action<string> add, CancellationToken ct) {
+        var policy = await conn.ShellAsync(root.Wrap($"{magisk} {ShellSuPolicySql}"), ct);
+        add(policy.ExitCode == 0
+            ? "Magisk su granted to the shell uid (2000)"
+            : $"Magisk su policy write failed (exit {policy.ExitCode}): "
+              + DeviceParsing.TrimNote(policy.Stderr + policy.Stdout));
+
+        if (AdbHostKey.Resolve(config) is not { } key) {
+            add(NoAdbKeyWarning);
+            return;
+        }
+
+        if (await PushAsync(conn, Encoding.ASCII.GetBytes(key + "\n"), "-adbkey.pub", RemoteAdbKey, ct) is null) {
+            add($"adb key push to {RemoteAdbKey} failed; adbd will reject this host once ro.adb.secure=1");
+            return;
+        }
+
+        var authorize = await conn.ShellAsync(root.Wrap(AuthorizeAdbKey), ct);
+        add(authorize.ExitCode == 0
+            ? "adb key authorized"
+            : $"adb key authorize failed (exit {authorize.ExitCode}): "
+              + DeviceParsing.TrimNote(authorize.Stderr + authorize.Stdout));
+    }
+
     private static async Task<string?> PushAsync(
-        IDeviceConnection conn, byte[] bytes, string name, string remote, CancellationToken ct) {
-        string local = DeviceShell.NewTempPath($"-{name}.zip");
+        IDeviceConnection conn, byte[] bytes, string localSuffix, string remote, CancellationToken ct) {
+        string local = DeviceShell.NewTempPath(localSuffix);
         try {
             await File.WriteAllBytesAsync(local, bytes, ct);
             return await conn.PushFileAsync(local, remote, ct) ? remote : null;

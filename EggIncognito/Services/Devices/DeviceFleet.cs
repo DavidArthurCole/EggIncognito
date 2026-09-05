@@ -5,6 +5,7 @@ namespace EggIncognito.Services.Devices;
 
 public interface IDeviceFleet {
     Task<IReadOnlyList<DeviceEntry>> EnabledAsync(CancellationToken ct);
+    Task PersistCapturePortAsync(string deviceId, int port, CancellationToken ct);
 }
 
 public sealed class DeviceFleet(IServiceScopeFactory scopeFactory, DeviceConfig config, bool fromDb) : IDeviceFleet {
@@ -19,5 +20,15 @@ public sealed class DeviceFleet(IServiceScopeFactory scopeFactory, DeviceConfig 
         return [.. rows.Select(Entry)];
     }
 
-    private static DeviceEntry Entry(Device d) => new(d.Id, d.Platform, d.Label, d.Target, d.Package, d.Origin);
+    public async Task PersistCapturePortAsync(string deviceId, int port, CancellationToken ct) {
+        if (!fromDb) return;
+
+        using var scope = scopeFactory.CreateScope();
+        if (scope.ServiceProvider.GetService(typeof(IDeviceStatusStore)) is not IDeviceStatusStore store) return;
+
+        await store.SetCapturePortAsync(deviceId, port, ct);
+    }
+
+    private static DeviceEntry Entry(Device d) =>
+        new(d.Id, d.Platform, d.Label, d.Target, d.Package, d.Origin, d.CapturePort);
 }

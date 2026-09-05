@@ -584,6 +584,10 @@ namespace EggIncognito.Data.Migrations
                         .HasColumnType("text")
                         .HasColumnName("id");
 
+                    b.Property<int?>("CapturePort")
+                        .HasColumnType("integer")
+                        .HasColumnName("capture_port");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")

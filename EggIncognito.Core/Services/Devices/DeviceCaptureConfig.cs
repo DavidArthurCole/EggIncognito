@@ -17,6 +17,7 @@ public sealed record DeviceCaptureConfig {
     public string? IosNetworkServiceGuid { get; init; }
     public string? IosPlutilPath { get; init; }
     public string? IosPreferencesPlist { get; init; }
+    public string? IosProxyReloadCommand { get; init; }
 
     public string? AndroidCaInstallScript { get; init; }
     public string? IosCaInstallCommand { get; init; }
@@ -43,6 +44,7 @@ public sealed record DeviceCaptureConfig {
             IosNetworkServiceGuid = Nz(ios["NetworkServiceGuid"]),
             IosPlutilPath = Nz(ios["PlutilPath"]),
             IosPreferencesPlist = Nz(ios["PreferencesPlist"]),
+            IosProxyReloadCommand = Nz(ios["ProxyReloadCommand"]),
             AndroidCaInstallScript = Nz(android["CaInstallScript"]),
             IosCaInstallCommand = Nz(ios["CaInstallCommand"]),
             IosTrustStorePath = Nz(ios["TrustStorePath"]),

@@ -57,7 +57,7 @@ public class CaInstallerTests {
     }
 
     [Fact]
-    public async Task Adb_RootShellWithSu_StillUsesSuMinusMm() {
+    public async Task Adb_RootShellWithMagiskSu_StillRunsScriptThroughSuMinusMm() {
         (string path, var cert) = MakeCa();
         try {
             var shell = new AdbShell { Uid = "0" };
@@ -70,9 +70,9 @@ public class CaInstallerTests {
             var pushes = runner.Calls.Where(c => c.args.Contains("push")).ToList();
             Assert.Single(pushes);
             Assert.Contains("SERIAL", pushes[0].args);
-            (string exe, string[] args) = runner.Calls.Single(c => c.args.Contains("su"));
-            Assert.Contains("-mm", args);
-            Assert.Contains(args, a => a.Contains("/data/local/tmp/eggincognito-ca-magisk.sh"));
+            string[] args = ScriptRun(runner);
+            string[] expectedWrapper = ["/sbin/su", "-mm", "-c"];
+            Assert.Equal(expectedWrapper, args[(Array.IndexOf(args, "shell") + 1)..^1]);
             Assert.Contains(CaCertPrep.AndroidSubjectHashOld(cert), note!);
             Assert.Contains("trusted (live)", note!);
         } finally {
@@ -81,7 +81,7 @@ public class CaInstallerTests {
     }
 
     [Fact]
-    public async Task Adb_NonRootWithSu_UsesSuMinusMm() {
+    public async Task Adb_NonRootWithMagiskSu_UsesSuMinusMm() {
         (string path, _) = MakeCa();
         try {
             var shell = new AdbShell { Uid = "2000" };
@@ -90,7 +90,8 @@ public class CaInstallerTests {
                 .InstallAsync(new DeviceTarget("d", "android", "S", "com.auxbrain.egginc"), path, default);
 
             Assert.True(ok);
-            (string exe, string[] args) = runner.Calls.Single(c => c.args.Contains("su"));
+            string[] args = ScriptRun(runner);
+            Assert.Contains("/sbin/su", args);
             Assert.Contains("-mm", args);
         } finally {
             File.Delete(path);
@@ -98,7 +99,29 @@ public class CaInstallerTests {
     }
 
     [Fact]
-    public async Task Adb_NoSu_FallsBackToBareShell() {
+    public async Task Adb_SuWithoutMountMaster_ProbesInOrder_AndFallsBackToPlainSu() {
+        (string path, _) = MakeCa();
+        try {
+            var shell = new AdbShell { Uid = "2000", Su = "su", MountMaster = false };
+            var runner = new FakeRunner((_, args) => shell.Handle(args));
+            (bool ok, _) = await new AdbCaInstaller(runner)
+                .InstallAsync(new DeviceTarget("d", "android", "S", "com.auxbrain.egginc"), path, default);
+
+            Assert.True(ok);
+            var probes = runner.Calls.Where(c => c.args[^1] == "id")
+                .Select(c => string.Join(' ', c.args[(Array.IndexOf(c.args, "shell") + 1)..^2])).ToList();
+            string[] expectedOrder = ["/sbin/su -mm", "/sbin/su", "/debug_ramdisk/su -mm", "/debug_ramdisk/su", "su -mm", "su"];
+            Assert.Equal(expectedOrder, probes);
+            string[] args = ScriptRun(runner);
+            Assert.Contains("su", args);
+            Assert.DoesNotContain("-mm", args);
+        } finally {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task Adb_NoSu_RootShell_FallsBackToBareShell() {
         (string path, _) = MakeCa();
         try {
             var shell = new AdbShell { Uid = "0", Su = "" };
@@ -107,12 +130,34 @@ public class CaInstallerTests {
                 .InstallAsync(new DeviceTarget("d", "android", "S", "com.auxbrain.egginc"), path, default);
 
             Assert.True(ok);
-            Assert.DoesNotContain(runner.Calls, c => c.args.Contains("su"));
-            Assert.Contains(runner.Calls[^1].args, a => a.Contains("sh /data/local/tmp/eggincognito-ca-magisk.sh"));
+            string[] args = ScriptRun(runner);
+            Assert.DoesNotContain(args, a => a.EndsWith("su", StringComparison.Ordinal));
+            Assert.Contains(args, a => a.Contains("sh /data/local/tmp/eggincognito-ca-magisk.sh"));
         } finally {
             File.Delete(path);
         }
     }
+
+    [Fact]
+    public async Task Adb_NoSu_NonRootShell_FailsWithPolicyNote_AndSkipsScript() {
+        (string path, _) = MakeCa();
+        try {
+            var shell = new AdbShell { Uid = "2000", Su = "" };
+            var runner = new FakeRunner((_, args) => shell.Handle(args));
+            (bool ok, string? note) = await new AdbCaInstaller(runner)
+                .InstallAsync(new DeviceTarget("d", "android", "S", "com.auxbrain.egginc"), path, default);
+
+            Assert.False(ok);
+            Assert.Contains("no working su", note!);
+            Assert.Contains("uid 2000", note!);
+            Assert.DoesNotContain(runner.Calls, c => c.args.Any(a => a.Contains("sh /data/local/tmp/eggincognito-ca-magisk.sh")));
+        } finally {
+            File.Delete(path);
+        }
+    }
+
+    private static string[] ScriptRun(FakeRunner runner) =>
+        runner.Calls.Single(c => c.args.Any(a => a.Contains("sh /data/local/tmp/eggincognito-ca-magisk.sh"))).args;
 
     [Fact]
     public async Task Adb_Script_OverlaysTrustStoreWithTmpfs_AndVerifies() {
@@ -134,7 +179,7 @@ public class CaInstallerTests {
             Assert.Contains("chcon u:object_r:system_security_cacerts_file:s0 $CACERTS $CACERTS/*", script);
             Assert.Contains("BEGIN CERTIFICATE", script);
             Assert.DoesNotContain("2>/dev/null", script);
-            Assert.DoesNotContain("need su -mm global ns", script);
+            Assert.DoesNotContain("need su", script);
         } finally {
             File.Delete(path);
         }
@@ -172,7 +217,7 @@ public class CaInstallerTests {
             Assert.False(ok);
             Assert.Contains("module written but live mount FAILED", note!);
             Assert.Contains("Permission denied", note!);
-            Assert.DoesNotContain("need su -mm", note!);
+            Assert.DoesNotContain("no working su", note!);
         } finally {
             File.Delete(path);
         }
@@ -258,7 +303,8 @@ public class CaInstallerTests {
 
     private sealed class AdbShell {
         public string Uid { get; init; } = "0";
-        public string Su { get; init; } = "/system/bin/su";
+        public string Su { get; init; } = "/sbin/su";
+        public bool MountMaster { get; init; } = true;
         public string Out { get; init; } = LiveOk;
         public string? PushedScript { get; private set; }
 
@@ -270,8 +316,16 @@ public class CaInstallerTests {
 
             string cmd = string.Join(" ", args);
             if (cmd.Contains("id -u")) return new ProcessResult(0, Uid, "");
-            if (cmd.Contains("command -v su")) return new ProcessResult(Su.Length > 0 ? 0 : 1, Su, "");
+            if (args[^1] == "id" && args[^2] == "-c") return SuProbe(args[(Array.IndexOf(args, "shell") + 1)..^2]);
             return new ProcessResult(0, Out, "");
+        }
+
+        private ProcessResult SuProbe(string[] candidate) {
+            bool binaryMatches = Su.Length > 0 && candidate[0] == Su;
+            bool flagsAccepted = candidate.Length == 1 || MountMaster;
+            return binaryMatches && flagsAccepted
+                ? new ProcessResult(0, "uid=0(root) gid=0(root)", "")
+                : new ProcessResult(1, "", $"{candidate[0]}: permission denied");
         }
     }
 

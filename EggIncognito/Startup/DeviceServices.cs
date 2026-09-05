@@ -115,7 +115,7 @@ public static class DeviceServices {
                     capture.IosSshHost, capture.IosSshPort, capture.IosSshKeyPath,
                     capture.IosSetCommand, capture.IosClearCommand,
                     capture.IosNetworkServiceGuid, capture.IosPlutilPath,
-                    capture.IosPreferencesPlist)));
+                    capture.IosPreferencesPlist, capture.IosProxyReloadCommand)));
         builder.Services.AddSingleton<IDeviceCaInstaller>(sp =>
             new AdbCaInstaller(sp.GetRequiredService<IProcessRunner>(), capture.AndroidCaInstallScript));
         builder.Services.AddSingleton<IDeviceCaInstaller>(sp =>

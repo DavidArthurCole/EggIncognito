@@ -2,6 +2,7 @@ using EggIncognito.Capture;
 using EggIncognito.Core.Services;
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Services.Devices;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace EggIncognito.Tests.Devices;
 
@@ -161,6 +162,36 @@ public class DeviceCaptureTests {
     }
 
     [Fact]
+    public async Task CapturePorts_PersistedPort_SurvivesFleetReorder() {
+        using var tmp = new TempDir();
+        var fleet = new RecordingFleet("A", "B");
+
+        using (var first = Manager(fleet, tmp)) {
+            await first.EnsureAsync(CancellationToken.None);
+            Assert.Equal(9100, first.PortFor("A"));
+            Assert.Equal(9103, first.PortFor("B"));
+            await first.StopAsync(CancellationToken.None);
+        }
+
+        Assert.Equal(9100, fleet.Persisted["A"]);
+        Assert.Equal(9103, fleet.Persisted["B"]);
+
+        fleet.Ids = ["C", "A", "B"];
+        using var second = Manager(fleet, tmp);
+        await second.EnsureAsync(CancellationToken.None);
+        Assert.Equal(9103, second.PortFor("B"));
+        Assert.Equal(9100, second.PortFor("A"));
+        Assert.Equal(9106, second.PortFor("C"));
+        Assert.Equal(9106, fleet.Persisted["C"]);
+        await second.StopAsync(CancellationToken.None);
+    }
+
+    private static DeviceCaptureManager Manager(IDeviceFleet fleet, TempDir tmp) =>
+        new(new DeviceCaptureConfig { Enabled = true, BasePort = 9100 }, fleet, tmp.Path, tmp.Combine("ca.pem"),
+            _ => new FakeCaptureProxy(), tmp.Path, NullLogger<DeviceCaptureManager>.Instance,
+            catalog: new EmptyRoutes());
+
+    [Fact]
     public void Platform_Identifiers_AreStable() {
         Assert.Equal("android",
             new AdbProxyConfigurator(new CapturingRunner(_ => new ProcessResult(0, "", ""))).Platform);
@@ -176,15 +207,65 @@ public class DeviceCaptureTests {
         var proxy = new IosProxyConfigurator(new CapturingRunner(_ => new ProcessResult(0, "", "")), cfg);
 
         string set = proxy.BuildSet("192.168.1.5", 9100);
-        Assert.Contains("/cores/binpack/usr/bin/plutil", set);
-        Assert.Contains("-key NetworkServices -key GUID-123 -key Proxies", set);
-        Assert.Contains("-key HTTPProxy -value 192.168.1.5 -type string", set);
-        Assert.Contains("-key HTTPSPort -value 9100 -type int", set);
-        Assert.Equal(6, set.Split(';').Length);
+        Assert.StartsWith("/bin/sh -c '", set);
+        Assert.EndsWith("'", set);
+        Assert.Equal(2, set.Count(c => c == '\''));
+        Assert.Contains("CUR=$(/cores/binpack/usr/bin/plutil -key NetworkServices -key GUID-123 -key Proxies " +
+                        "/var/preferences/SystemConfiguration/preferences.plist 2>/dev/null)", set);
+        string[] probes = [
+            "HTTPEnable = 1;", "HTTPSEnable = 1;", "HTTPProxy = \\\"192.168.1.5\\\";",
+            "HTTPSProxy = \\\"192.168.1.5\\\";", "HTTPPort = 9100;", "HTTPSPort = 9100;"
+        ];
+        foreach (string probe in probes) Assert.Contains($"grep -qF \"{probe}\"", set);
+        Assert.Contains("then echo \"proxy unchanged 192.168.1.5:9100\"; exit 0; fi", set);
+        string[] writes = [
+            "-key HTTPEnable -value 1 -type int", "-key HTTPProxy -value 192.168.1.5 -type string",
+            "-key HTTPPort -value 9100 -type int", "-key HTTPSEnable -value 1 -type int",
+            "-key HTTPSProxy -value 192.168.1.5 -type string", "-key HTTPSPort -value 9100 -type int"
+        ];
+        const string prefix = "/cores/binpack/usr/bin/plutil -key NetworkServices -key GUID-123 -key Proxies ";
+        const string suffix = " /var/preferences/SystemConfiguration/preferences.plist";
+        foreach (string write in writes) Assert.Contains(prefix + write + suffix, set);
+        Assert.Contains("OUT=$(launchctl kickstart -k system/com.apple.configd 2>&1) || {", set);
+        Assert.Contains("echo \"proxy set 192.168.1.5:9100 (configd restarted)\"", set);
+        int guardAt = set.IndexOf("exit 0; fi", StringComparison.Ordinal);
+        int firstWriteAt = set.IndexOf("-key HTTPEnable -value 1", StringComparison.Ordinal);
+        int lastWriteAt = set.IndexOf("-key HTTPSPort -value 9100", StringComparison.Ordinal);
+        int reloadAt = set.IndexOf("launchctl kickstart", StringComparison.Ordinal);
+        Assert.True(guardAt < firstWriteAt && lastWriteAt < reloadAt);
 
         string clear = proxy.BuildClear();
+        Assert.StartsWith("/bin/sh -c '", clear);
+        Assert.Contains("grep -qF \"HTTPEnable = 0;\"", clear);
+        Assert.Contains("grep -qF \"HTTPSEnable = 0;\"", clear);
+        Assert.Contains("echo \"proxy already clear\"; exit 0; fi", clear);
         Assert.Contains("-key HTTPEnable -value 0 -type int", clear);
         Assert.Contains("-key HTTPSEnable -value 0 -type int", clear);
+        Assert.Contains("launchctl kickstart -k system/com.apple.configd", clear);
+    }
+
+    [Fact]
+    public void IosProxy_HonoursCustomReloadCommand() {
+        var cfg = new IosProxyConfigurator.SshConfig(
+            "10.0.0.1", "2222", "/k", null, null, "GUID-123", ReloadCommand: "killall -9 configd");
+        var proxy = new IosProxyConfigurator(new CapturingRunner(_ => new ProcessResult(0, "", "")), cfg);
+
+        string set = proxy.BuildSet("192.168.1.5", 9100);
+        Assert.Contains("OUT=$(killall -9 configd 2>&1)", set);
+        Assert.DoesNotContain("launchctl kickstart", set);
+        Assert.Contains("OUT=$(killall -9 configd 2>&1)", proxy.BuildClear());
+    }
+
+    [Fact]
+    public async Task IosProxy_SuccessNote_CarriesScriptStdout() {
+        var runner = new CapturingRunner(_ => new ProcessResult(0, "proxy unchanged 10.0.0.5:9101\n", ""));
+        var cfg = new IosProxyConfigurator.SshConfig("10.0.0.1", "2222", "/k", null, null, "GUID-123");
+        var proxy = new IosProxyConfigurator(runner, cfg);
+
+        (bool ok, string? note) =
+            await proxy.SetProxyAsync(new DeviceTarget("d", "ios", "udid", "com.auxbrain.egginc"), "10.0.0.5", 9101, default);
+        Assert.True(ok);
+        Assert.Equal("proxy unchanged 10.0.0.5:9101", note);
     }
 
     [Fact]
@@ -201,6 +282,27 @@ public class DeviceCaptureTests {
         (bool ok, _) = await proxy.SetProxyAsync(new DeviceTarget("d", "ios", "udid", "com.auxbrain.egginc"), "1.2.3.4", 80, default);
         Assert.True(ok);
         Assert.Equal("echo 1.2.3.4:80", seen);
+    }
+
+    private sealed class RecordingFleet(params string[] ids) : IDeviceFleet {
+        public string[] Ids { get; set; } = ids;
+        public Dictionary<string, int> Persisted { get; } = new(StringComparer.Ordinal);
+
+        public Task<IReadOnlyList<DeviceEntry>> EnabledAsync(CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<DeviceEntry>>([
+                .. Ids.Select(id => new DeviceEntry(id, "android", id, "serial", "com.auxbrain.egginc",
+                    CapturePort: Persisted.TryGetValue(id, out int port) ? port : null))
+            ]);
+
+        public Task PersistCapturePortAsync(string deviceId, int port, CancellationToken ct) {
+            Persisted[deviceId] = port;
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class EmptyRoutes : IRouteCatalog {
+        public IReadOnlyList<RouteInfo> All() => [];
+        public RouteInfo? Resolve(string path) => null;
     }
 
     private sealed class CapturingRunner(Func<string[], ProcessResult> fn) : IProcessRunner {

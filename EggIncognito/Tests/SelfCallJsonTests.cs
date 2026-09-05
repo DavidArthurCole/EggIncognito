@@ -45,6 +45,57 @@ public class SelfCallJsonTests {
     }
 
     [Fact]
+    public async Task TryListAsync_ReturnsOkAndTheList() {
+        var client = ClientFor(_ => StubHttpMessageHandler.Json(HttpStatusCode.OK, """[{"name":"a"},{"name":"b"}]"""));
+
+        (bool ok, var rows) = await client.TryListAsync<Thing>(Url);
+
+        Assert.True(ok);
+        Assert.Equal(2, rows.Count);
+        Assert.Equal("a", rows[0].Name);
+    }
+
+    [Fact]
+    public async Task TryListAsync_ReportsFailureOnNotFound() {
+        var client = ClientFor(_ => StubHttpMessageHandler.Json(HttpStatusCode.NotFound, """{"error":"nope"}"""));
+
+        (bool ok, var rows) = await client.TryListAsync<Thing>(Url);
+
+        Assert.False(ok);
+        Assert.Empty(rows);
+    }
+
+    [Fact]
+    public async Task TryListAsync_ReportsFailureOnMalformedJson() {
+        var client = ClientFor(_ => StubHttpMessageHandler.Json(HttpStatusCode.OK, "{not json"));
+
+        (bool ok, var rows) = await client.TryListAsync<Thing>(Url);
+
+        Assert.False(ok);
+        Assert.Empty(rows);
+    }
+
+    [Fact]
+    public async Task TryListAsync_ReportsFailureWhenTheTransportThrows() {
+        var client = ClientFor(_ => throw new HttpRequestException("boom"));
+
+        (bool ok, var rows) = await client.TryListAsync<Thing>(Url);
+
+        Assert.False(ok);
+        Assert.Empty(rows);
+    }
+
+    [Fact]
+    public async Task TryListAsync_JsonNullIsOkAndEmpty() {
+        var client = ClientFor(_ => StubHttpMessageHandler.Json(HttpStatusCode.OK, "null"));
+
+        (bool ok, var rows) = await client.TryListAsync<Thing>(Url);
+
+        Assert.True(ok);
+        Assert.Empty(rows);
+    }
+
+    [Fact]
     public async Task OneAsync_ReturnsTheObject() {
         var client = ClientFor(_ => StubHttpMessageHandler.Json(HttpStatusCode.OK, """{"name":"solo"}"""));
 

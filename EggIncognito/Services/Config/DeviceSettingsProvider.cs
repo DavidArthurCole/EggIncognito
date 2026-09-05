@@ -74,6 +74,11 @@ public sealed class DeviceSettingsProvider : ISettingsProvider {
         new("device_capture.ios.preferences_plist", "DeviceCapture__Ios__PreferencesPlist",
             "iOS preferences plist", Capture,
             SettingKind.Path, ApplyTier.RestartRequired, Sensitivity.Plain),
+        new("device_capture.ios.proxy_reload_command", "DeviceCapture__Ios__ProxyReloadCommand",
+            "iOS proxy reload command", Capture,
+            SettingKind.Text, ApplyTier.RestartRequired, Sensitivity.Plain) {
+            Description = "Run after the proxy plist changes so configd picks it up. Defaults to launchctl kickstart -k system/com.apple.configd when unset."
+        },
         new("device_capture.ios.ca_install_command", "DeviceCapture__Ios__CaInstallCommand",
             "iOS CA install command", Capture,
             SettingKind.Text, ApplyTier.RestartRequired, Sensitivity.Plain),

@@ -71,4 +71,4 @@ public sealed record DeviceConfig {
 
 public sealed record DeviceEntry(
     string Id, string Platform, string Label, string Target, string Package,
-    string Origin = DeviceOrigins.Runtime);
+    string Origin = DeviceOrigins.Runtime, int? CapturePort = null);

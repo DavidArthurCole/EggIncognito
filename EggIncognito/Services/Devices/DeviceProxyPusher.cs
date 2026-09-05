@@ -43,7 +43,9 @@ public sealed class DeviceProxyPusher(
         if (port == 0) return (false, "no capture listener for device");
 
         var res = await platforms.For(d.Platform).SetProxyAsync(TargetOf(d), host, port, ct);
-        if (res.Ok) logger.LogInformation("device capture: {Id} proxy -> {Host}:{Port}", d.Id, host, port);
+        if (res.Ok)
+            logger.LogInformation("device capture: {Id} proxy -> {Host}:{Port}{Note}", d.Id, host, port,
+                res.Note is null ? "" : $" ({res.Note})");
         else logger.LogWarning("device capture: {Id} proxy push failed: {Note}", d.Id, res.Note);
         return (res.Ok, res.Note);
     }

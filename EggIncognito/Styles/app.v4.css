@@ -2632,34 +2632,27 @@ body .modal-body .skm { color: var(--color-fg); }
 .dwb-dot-bad { @apply inline-block w-2 h-2 rounded-full bg-err mr-1.5; }
 .dwb-row-click { @apply cursor-pointer; }
 .dwb-row-click:hover { @apply bg-panel2; }
-.dwb-jobs {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(24rem, 1fr));
-  gap: 0 1.5rem;
-  align-items: start;
+.dwb-jobs-table { table-layout: auto; font-size: 0.75rem; }
+.dwb-jobs-table th, .dwb-jobs-table td { white-space: nowrap; }
+.dwb-jobs-table td.dwb-job-trigger {
+  max-width: 18rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--font-mono);
+  color: var(--color-muted);
 }
-.dwb-job { border-bottom: 1px solid var(--color-border); min-width: 0; }
-.dwb-job-open { grid-column: 1 / -1; }
-.dwb-job-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.625rem;
-  width: 100%;
-  min-width: 0;
-  padding: 0.3125rem 0;
-  border: 0;
-  background-color: transparent;
-  font-size: 0.75rem;
-  text-align: left;
-  cursor: pointer;
+.dwb-job-row { cursor: pointer; }
+.dwb-jobs-table tbody tr.dwb-job-row:hover { background-color: var(--color-panel2); }
+.dwb-jobs-table tbody tr.dwb-job-day { background-color: transparent; }
+.dwb-job-day td {
+  padding-top: 0.75rem;
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-muted);
 }
-.dwb-job-head:hover { background-color: var(--color-panel2); }
-.dwb-job-at { font-family: var(--font-mono); color: var(--color-muted); }
-.dwb-job-kind { font-weight: 500; }
-.dwb-job-dur { font-family: var(--font-mono); color: var(--color-muted); }
-.dwb-job-rep { font-family: var(--font-mono); color: var(--color-accent); }
-.dwb-job-trigger { color: var(--color-muted); margin-left: auto; }
+.dwb-job-open td { background-color: var(--color-panel2); }
+.dwb-job-detail td { padding-left: 1.5rem; background-color: var(--color-panel2); }
 .dwb-job-lines { @apply flex flex-col pl-4 pb-2; }
 .dwb-job-line { @apply flex items-center gap-2 text-xs min-w-0; }
 .dwb-capture {

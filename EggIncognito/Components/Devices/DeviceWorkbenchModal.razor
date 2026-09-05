@@ -56,7 +56,14 @@
         @if (State.FleetSelected) {
             <DeviceFleetPane Active="true" OnNotice="Notice" OnChanged="ReloadDevices" OnConsole="OpenScreenFor"/>
         } else if (Current is not { } dev) {
-            <div class="wb-note">@(_devices.Count == 0 ? "No devices declared on this host." : "Pick a device.")</div>
+            @if (_devicesFailed) {
+                <div class="wb-note">
+                    Device list unavailable, the status call failed.
+                    <button type="button" class="btn-mini" @onclick="ReloadDevices">Retry</button>
+                </div>
+            } else {
+                <div class="wb-note">@(_devices.Count == 0 ? "No devices declared on this host." : "Pick a device.")</div>
+            }
         } else {
             <div class="dwb-tabs">
                 <WorkbenchModes Modes="@Tabs()" Current="@State.Mode" CurrentChanged="SelectTab" Label="Device view"/>
@@ -158,41 +165,62 @@
 
                 @if (State.Mode == DeviceWorkbenchState.TabJobs) {
                     <WorkbenchLoad T="JobGroupRow" Items="_jobs" EmptyText="No jobs yet." Context="jobs">
-                        <div class="dwb-jobs">
-                            @foreach (var j in jobs) {
-                                var open = State.Expanded.Contains(j.Id);
-                                <div class="dwb-job @(open ? "dwb-job-open" : "")" @key="j.Id">
-                                    <button type="button" class="dwb-job-head" @onclick="@(() => ToggleJob(j))">
-                                        <span class="dwb-job-at">@Stamp(j.LastAt)</span>
-                                        <span class="dwb-job-kind">@j.Kind</span>
-                                        <span class="@StateClass(j.State)">@(j.Outcome ?? j.State)</span>
-                                        @if (j.Repeat > 1) {
-                                            <span class="dwb-job-rep">x@(j.Repeat), since @Stamp(j.StartedAt)</span>
-                                        }
-                                        <span class="dwb-job-dur">@Duration(j)</span>
-                                        <span class="dwb-job-trigger">@j.Trigger</span>
-                                    </button>
+                        <div class="reg-wrap">
+                            <table class="data-table dwb-jobs-table">
+                                <thead>
+                                <tr>
+                                    <th>when</th><th>kind</th><th>outcome</th><th>repeat</th><th>took</th><th>trigger</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                @{
+                                    DateOnly? lastDay = null;
+                                }
+                                @foreach (var j in jobs) {
+                                    var open = State.Expanded.Contains(j.Id);
+                                    var day = DateOnly.FromDateTime(j.LastAt.ToLocalTime().DateTime);
+                                    if (day != lastDay) {
+                                        lastDay = day;
+                                        <tr class="dwb-job-day">
+                                            <td colspan="6">@day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)</td>
+                                        </tr>
+                                    }
+                                    <tr class="dwb-job-row @(open ? "dwb-job-open" : "")" @key="j.Id" @onclick="@(() => ToggleJob(j))">
+                                        <td class="font-mono">@Stamp(j.LastAt)</td>
+                                        <td>@j.Kind</td>
+                                        <td class="@StateClass(j.State)">@(j.Outcome ?? j.State)</td>
+                                        <td class="font-mono text-accent" title="@(j.Repeat > 1 ? $"since {Stamp(j.StartedAt)}" : null)">
+                                            @(j.Repeat > 1 ? $"x{j.Repeat}" : "")
+                                        </td>
+                                        <td class="font-mono">@Duration(j)</td>
+                                        <td class="dwb-job-trigger" title="@j.Trigger">@j.Trigger</td>
+                                    </tr>
                                     @if (open) {
-                                        <div class="dwb-job-lines">
-                                            @if (!string.IsNullOrEmpty(j.Message)) {
-                                                <div class="dwb-job-line text-muted">@j.Message</div>
-                                            }
-                                            @foreach (var l in LinesFor(j.Id)) {
-                                                <div class="dwb-job-line">
-                                                    <span class="font-mono text-muted">@l.At.ToLocalTime().ToString("HH:mm:ss")</span>
-                                                    @if (l.Entry is not null) {
-                                                        <span class="font-mono">@l.Entry</span>
+                                        <tr class="dwb-job-detail">
+                                            <td colspan="6">
+                                                <div class="dwb-job-lines">
+                                                    @if (!string.IsNullOrEmpty(j.Message)) {
+                                                        <div class="dwb-job-line text-muted">@j.Message</div>
                                                     }
-                                                    <span class="@LevelClass(l.Level)">@l.Text</span>
-                                                    @if (l.Bytes is > 0) {
-                                                        <span class="text-muted font-mono">@ByteFormat.Mb(l.Bytes.Value, "F1")</span>
+                                                    @foreach (var l in LinesFor(j.Id)) {
+                                                        <div class="dwb-job-line">
+                                                            <span class="font-mono text-muted">@l.At.ToLocalTime().ToString("HH:mm:ss")</span>
+                                                            @if (l.Entry is not null) {
+                                                                <span class="font-mono">@l.Entry</span>
+                                                            }
+                                                            <span class="@LevelClass(l.Level)">@l.Text</span>
+                                                            @if (l.Bytes is > 0) {
+                                                                <span class="text-muted font-mono">@ByteFormat.Mb(l.Bytes.Value, "F1")</span>
+                                                            }
+                                                        </div>
                                                     }
                                                 </div>
-                                            }
-                                        </div>
+                                            </td>
+                                        </tr>
                                     }
-                                </div>
-                            }
+                                }
+                                </tbody>
+                            </table>
                         </div>
                         @if (_jobsMore is not null) {
                             <button type="button" class="btn-mini mt-2" disabled="@_jobsBusy" @onclick="LoadMoreJobsAsync">
@@ -284,6 +312,7 @@
     bool _disposed;
     bool _jobsBusy;
     bool _refreshing;
+    bool _devicesFailed;
     DeviceNotice? _notice;
     IDisposable? _topics;
 
@@ -467,7 +496,7 @@
         _refreshing = true;
         try {
             await LoadLiveAsync();
-            if (_live.Any(j => _devices.All(d => d.Id != j.Device))) await LoadAsync();
+            if (_devicesFailed || _live.Any(j => _devices.All(d => d.Id != j.Device))) await LoadAsync();
             if (State.Mode == DeviceWorkbenchState.TabJobs && !State.FleetSelected) await RefreshJobsAsync();
             if (_subscription is null) ResolveHub();
             StateHasChanged();
@@ -478,7 +507,9 @@
     }
 
     async Task LoadAsync() {
-        _devices = await Client().ListAsync<DeviceRow>("/api/devices/status", Logger);
+        var (ok, rows) = await Client().TryListAsync<DeviceRow>("/api/devices/status", Logger);
+        if (ok) _devices = rows;
+        _devicesFailed = !ok;
         await LoadLiveAsync();
     }
 
@@ -648,6 +679,7 @@
         if (Current is not { } dev) return;
         var id = dev.Id;
         _notice = null;
+        var before = (await LiveProbeFor(id))?.LastSeen;
         var res = await Client().PostAsync($"/api/devices/{id}/restart-app", null);
         if (!res.IsSuccessStatusCode) {
             Note(await ReadError(res), false);
@@ -658,14 +690,15 @@
         StateHasChanged();
         for (var i = 0; i < 8 && !_disposed; i++) {
             await Task.Delay(2000);
-            if (await LiveClientVersion(id) is not null) {
-                Note("clientVersion captured", true);
+            if (await LiveProbeFor(id) is { ClientVersion: { } n } probe && probe.LastSeen != before) {
+                Note($"clientVersion {n} captured (fresh)", true);
                 await LoadAsync();
                 return;
             }
         }
 
-        Note("no clientVersion captured (timed out)", false);
+        var proxyHint = _hub is not null && _port > 0 ? $" and its proxy points at :{_port}" : "";
+        Note($"no fresh traffic captured (timed out); check the device is unlocked{proxyHint}", false);
     }
 
     async Task Recert() {
@@ -685,9 +718,8 @@
         await LoadJobsAsync();
     }
 
-    async Task<int?> LiveClientVersion(string id) {
-        var probe = await Client().OneAsync<LiveProbe>($"/api/devices/{id}/live", Logger);
-        return probe?.ClientVersion;
+    async Task<LiveProbe?> LiveProbeFor(string id) {
+        return await Client().OneAsync<LiveProbe>($"/api/devices/{id}/live", Logger);
     }
 
     async Task ProbeAll() {

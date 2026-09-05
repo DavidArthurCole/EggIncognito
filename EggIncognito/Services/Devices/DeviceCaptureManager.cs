@@ -108,15 +108,57 @@ public sealed class DeviceCaptureManager(
         if (!config.Enabled) return;
         await _ensureGate.WaitAsync(ct);
         try {
+            var devices = await fleet.EnabledAsync(ct);
             var taken = _captures.Values.Select(c => c.Port).ToHashSet();
-            foreach (var d in await fleet.EnabledAsync(ct)) {
+            var reserved = ReservePersisted(devices, taken);
+            foreach (var d in devices) {
                 if (_captures.ContainsKey(d.Id)) continue;
-                await StartOneAsync(d, TakePort(taken), ct);
+                if (!reserved.TryGetValue(d.Id, out int port)) port = await AllocateAsync(d, taken, ct);
+                await StartOneAsync(d, port, ct);
             }
         } finally {
             _ensureGate.Release();
         }
     }
+
+    private Dictionary<string, int> ReservePersisted(IReadOnlyList<DeviceEntry> devices, HashSet<int> taken) {
+        var reserved = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var d in devices) {
+            if (_captures.ContainsKey(d.Id) || d.CapturePort is not { } port) continue;
+            if (!OnSlotGrid(port)) {
+                logger.LogWarning(
+                    "device capture: {Id} persisted port :{Port} is off the slot grid (base {Base}, stride {Stride}), reallocating",
+                    d.Id, port, config.BasePort, PortsPerDevice);
+                continue;
+            }
+
+            if (!taken.Add(port)) {
+                logger.LogWarning("device capture: {Id} persisted port :{Port} collides with another device, reallocating",
+                    d.Id, port);
+                continue;
+            }
+
+            reserved[d.Id] = port;
+        }
+
+        return reserved;
+    }
+
+    private async Task<int> AllocateAsync(DeviceEntry d, HashSet<int> taken, CancellationToken ct) {
+        int port = TakePort(taken);
+        try {
+            await fleet.PersistCapturePortAsync(d.Id, port, ct);
+            logger.LogInformation("device capture: {Id} assigned :{Port}", d.Id, port);
+        } catch (OperationCanceledException) {
+            throw;
+        } catch (Exception ex) {
+            logger.LogWarning(ex, "device capture: {Id} assigned :{Port} but persisting it failed", d.Id, port);
+        }
+
+        return port;
+    }
+
+    private bool OnSlotGrid(int port) => port >= config.BasePort && (port - config.BasePort) % PortsPerDevice == 0;
 
     private int TakePort(HashSet<int> taken) {
         int index = 0;

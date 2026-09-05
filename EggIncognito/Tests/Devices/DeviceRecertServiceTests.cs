@@ -253,6 +253,8 @@ public class DeviceRecertServiceTests {
             Task.FromResult(row is not null && row.Id == id ? row : null);
 
         public Task RemoveAsync(string id, CancellationToken ct = default) => Task.CompletedTask;
+
+        public Task SetCapturePortAsync(string id, int port, CancellationToken ct = default) => Task.CompletedTask;
     }
 
     private sealed class FakeUiDriver : IDeviceUiDriver {

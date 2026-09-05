@@ -32,7 +32,7 @@ public sealed class VirtualDeviceReadinessProbe(
         var rooted = RootedCheck(root);
         var integrity = await IntegrityAsync(conn, root, ct);
         var launched = await LaunchedAsync(conn, target.Package, ct);
-        var ca = await CaptureCaAsync(conn, ct);
+        var ca = await CaptureCaAsync(conn, root, ct);
         return new DeviceReadiness(installed, ca, play, rooted, integrity, launched);
     }
 
@@ -73,11 +73,11 @@ public sealed class VirtualDeviceReadinessProbe(
             : new ReadinessCheck(false, "not running");
     }
 
-    private async Task<ReadinessCheck> CaptureCaAsync(IDeviceConnection conn, CancellationToken ct) {
+    private async Task<ReadinessCheck> CaptureCaAsync(IDeviceConnection conn, RootAccess root, CancellationToken ct) {
         if (CaptureCaPath.AndroidTrustFile(configuration) is not { } file)
             return new ReadinessCheck(false, "no capture CA minted");
 
-        var r = await conn.ShellAsync($"[ -s {SystemCaCerts}{file} ] && echo present", ct);
+        var r = await conn.ShellAsync(root.WrapMountMaster($"[ -s {SystemCaCerts}{file} ] && echo present"), ct);
         return r.Stdout.Contains("present", StringComparison.Ordinal)
             ? new ReadinessCheck(true)
             : new ReadinessCheck(false, "not in the trust store");

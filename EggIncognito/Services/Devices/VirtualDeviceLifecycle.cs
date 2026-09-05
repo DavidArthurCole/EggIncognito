@@ -12,6 +12,7 @@ public sealed class VirtualDeviceLifecycle(
     IDeviceProvisioners provisioners,
     VirtualDeviceConfig config,
     VirtualDeviceReadinessProbe readiness,
+    IDeviceConnectionFactory connections,
     IProcessRunner runner,
     AdminNotifier notifier,
     TimeProvider time,
@@ -337,20 +338,18 @@ public sealed class VirtualDeviceLifecycle(
     private async Task<bool> EnsureRootAsync(
         ProvisionedInstanceRow row, string serial, ProvisionedInstanceStore store, List<string> changed,
         CancellationToken ct) {
-        if (await IsRootAsync(serial, ct)) return true;
+        var target = new DeviceTarget(row.DeviceId ?? row.InstanceId, Platforms.Android, serial, Package);
+        if (connections.For(target) is not { } conn) {
+            await SetStateAsync(store, changed, row, ProvisionStates.Failed, "no connection for this device", ct);
+            return false;
+        }
 
-        await Adb(["-s", serial, "root"], AdbTimeout, ct);
-        await Adb(["connect", serial], AdbTimeout, ct);
-        if (await IsRootAsync(serial, ct)) return true;
+        var root = await DeviceRoot.EnsureAsync(conn, runner, serial, ct);
+        if (root.Ok) return true;
 
         await SetStateAsync(store, changed, row, ProvisionStates.Failed,
-            "adb root did not reach uid=0; the image may not be rooted (use the magisk gapps image)", ct);
+            $"no root: {root.Detail} (needs adb root before the integrity chain, or Magisk su granted to uid 2000)", ct);
         return false;
-    }
-
-    private async Task<bool> IsRootAsync(string serial, CancellationToken ct) {
-        var id = await Adb(["-s", serial, "shell", "id"], AdbTimeout, ct);
-        return id.Stdout.Contains("uid=0", StringComparison.Ordinal);
     }
 
     private async Task<bool> BootCompletedAsync(string serial, CancellationToken ct) {
