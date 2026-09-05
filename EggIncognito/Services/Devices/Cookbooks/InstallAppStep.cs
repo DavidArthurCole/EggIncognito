@@ -7,11 +7,13 @@ namespace EggIncognito.Services.Devices.Cookbooks;
 public sealed class InstallAppStep(
     IServiceScopeFactory scopeFactory,
     IDeviceFleet fleet,
-    IProcessRunner runner) : CookbookStep {
+    IProcessRunner runner,
+    IDeviceConnectionFactory connections) : CookbookStep {
     public const string StorePrefix = "store:";
     public const string DevicePrefix = "device:";
     private static readonly TimeSpan AdbTimeout = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan InstallTimeout = TimeSpan.FromMinutes(5);
+    private static readonly string[] VerifierSettings = ["verifier_verify_adb_installs", "package_verifier_enable"];
 
     public override string Id => DeviceCookbookIds.InstallApp;
     public override string Title => "Install app";
@@ -81,6 +83,7 @@ public sealed class InstallAppStep(
                 staged.Add(path);
             }
 
+            await DisableVerificationAsync(target, add, ct);
             add($"installing {ordered.Count} split(s): {string.Join(", ", ordered.Select(s => s.Split))}");
             var install = await Adb(target.Target, ["install-multiple", "-r", .. staged], InstallTimeout, ct);
             if (install.ExitCode != 0) {
@@ -93,6 +96,17 @@ public sealed class InstallAppStep(
 
         add($"{target.Package} installed");
         return Ok(lines, $"installed {ordered.Count} split(s)");
+    }
+
+    private async Task DisableVerificationAsync(DeviceTarget target, Action<string> add, CancellationToken ct) {
+        var conn = connections.For(target);
+        foreach (string setting in VerifierSettings) {
+            string command = $"settings put global {setting} 0";
+            if (conn is not null) await conn.ShellAsync(command, ct);
+            else await Adb(target.Target, ["shell", command], AdbTimeout, ct);
+        }
+
+        add("adb install verification disabled");
     }
 
     private async Task<(IReadOnlyList<CookbookApkSplit>? Splits, string? Error)> PullAsync(

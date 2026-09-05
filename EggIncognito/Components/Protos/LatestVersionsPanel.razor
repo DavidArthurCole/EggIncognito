@@ -35,7 +35,7 @@
 
     bool IsBehind(ProtoRegistryRow r) {
         return _newest is { } n && !ReferenceEquals(n, r)
-                                && ProtoVersionOrdering.CompareRelease(r.Key(), n.Key()) > 0;
+                                && !string.Equals(n.ProtoSha, r.ProtoSha, StringComparison.OrdinalIgnoreCase);
     }
 
 }

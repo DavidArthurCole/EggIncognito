@@ -1,9 +1,13 @@
+using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Services;
 using EggIncognito.Models.Devices;
 
 namespace EggIncognito.Services.Devices;
 
-public sealed class DeviceJobFeed(IServiceScopeFactory scopes, DeviceTimelineCache cache) {
+public sealed class DeviceJobFeed(
+    IServiceScopeFactory scopes,
+    DeviceTimelineCache cache,
+    IDeviceCookbooks? cookbooks = null) {
     public async Task<IReadOnlyList<LiveJob>> LiveAsync(CancellationToken ct) {
         using var scope = scopes.CreateScope();
         if (scope.ServiceProvider.GetService<IDeviceStatusStore>() is not { } store) return [];
@@ -16,7 +20,7 @@ public sealed class DeviceJobFeed(IServiceScopeFactory scopes, DeviceTimelineCac
     public async Task<JobPage> PageAsync(string deviceId, int take, long? before, CancellationToken ct) {
         int size = JobGroupCollapser.ClampTake(take);
         int batch = JobGroupCollapser.BatchFor(size);
-        var collapser = new JobGroupCollapser(size);
+        var collapser = new JobGroupCollapser(size, id => cookbooks?.Find(id)?.Title);
         long? cursor = before;
         while (true) {
             var rows = await cache.PageAsync(deviceId, batch, cursor, ct);

@@ -42,7 +42,7 @@
                             </td>
                             <td class="text-accent">@EggName(e)</td>
                             <td class="text-muted text-xs">@(e.TierValues.Count == 0 ? "-" : TitleCase(e.Dimension))</td>
-                            <td class="mono text-xs cegg-tier">@(e.TierValues.Count == 0 ? "buffs not yet published" : string.Join(", ", e.TierValues.Select(TierLabel)))</td>
+                            <td class="mono text-xs cegg-tier">@(e.TierValues.Count == 0 ? "buffs not yet published" : string.Join(" ", e.TierValues.Select(TierLabel)))</td>
                         </tr>
                     }
                     </tbody>
@@ -416,7 +416,7 @@
     static string TierLabel(double value) {
         var magnitude = Math.Abs(value - 1) * 100;
         var digits = magnitude >= 10 ? "0.#" : "0.##";
-        return $"{(value < 1 ? "-" : "+")}{magnitude.ToString(digits, CultureInfo.InvariantCulture)}%";
+        return $"{(value < 1 ? "-" : "")}{magnitude.ToString(digits, CultureInfo.InvariantCulture)}%";
     }
 
     static string Pretty(string raw) {

@@ -22,9 +22,9 @@ public sealed class LaunchAppCookbook(LaunchAppStep step) : IStepCookbook, IDevi
 
     public async Task<DeviceCookbookRun> LaunchAsync(DeviceTarget target, Action<string> progress, CancellationToken ct) {
         var result = await step.RunAsync(new DeviceCookbookContext(target, null, progress), ct);
+        bool failed = result.Status == CookbookStepStatus.Failed;
         return new DeviceCookbookRun(
-            result.Status != CookbookStepStatus.Failed, Id, result.Lines,
-            result.Status == CookbookStepStatus.Failed ? result.StepId : null, result.Note) {
+            !failed, Id, result.Lines, failed ? result.StepId : null, result.Note, failed ? result.Title : null) {
             Steps = [result]
         };
     }

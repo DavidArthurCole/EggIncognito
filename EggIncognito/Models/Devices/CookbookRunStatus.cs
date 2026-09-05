@@ -23,9 +23,13 @@ public sealed record CookbookRunStatus(
 
     public bool Cancelled => string.Equals(State, "cancelled", StringComparison.OrdinalIgnoreCase);
 
-    public string? Note => Message;
+    public string? Note => Failure?.Note ?? Message;
 
-    public string? FailedStep => Succeeded || Cancelled
+    public string? FailedStep => Failure?.StepId;
+
+    public string? FailedStepTitle => Failure?.Title;
+
+    private CookbookStepResult? Failure => Succeeded || Cancelled
         ? null
-        : Steps?.LastOrDefault(s => s.Status == CookbookStepStatus.Failed)?.Title ?? Outcome;
+        : Steps?.LastOrDefault(s => s.Status == CookbookStepStatus.Failed);
 }

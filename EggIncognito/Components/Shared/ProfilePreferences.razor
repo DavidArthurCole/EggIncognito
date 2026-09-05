@@ -1,6 +1,7 @@
 @using EggIdentity.Client
 @using EggIdentity.UI
 @inject IServiceProvider Services
+@inject ToastService Toasts
 
 <div class="prof-prefs">
     <div class="sub-section-head">Preferences</div>
@@ -27,9 +28,6 @@
                 @(_busy ? "Saving..." : "Save preferences")
             </button>
         </div>
-        @if (_message is { } message) {
-            <StatusNote Severity="@_messageKind" OnDismiss="@(() => _message = null)">@message</StatusNote>
-        }
     }
 </div>
 
@@ -46,8 +44,6 @@
     string _savedTimezone = "";
     string _savedLanguage = "";
     bool _busy;
-    string? _message;
-    StatusNoteKind _messageKind = StatusNoteKind.Ok;
 
     bool Dirty => _timezone != _savedTimezone || _language != _savedLanguage;
 
@@ -75,7 +71,6 @@
     async Task Save() {
         if (_identity is null) return;
         _busy = true;
-        _message = null;
         bool ok;
         try {
             ok = await _identity.SetPreferencesAsync(SessionToken, _timezone, _language, null, CancellationToken.None);
@@ -97,8 +92,7 @@
     }
 
     void SetMessage(string message, StatusNoteKind kind) {
-        _message = message;
-        _messageKind = kind;
+        Toasts.Push(kind, message);
     }
 
 }

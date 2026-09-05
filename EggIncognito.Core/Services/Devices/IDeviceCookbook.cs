@@ -32,8 +32,18 @@ public sealed record DeviceCookbookRun(
     string CookbookId,
     IReadOnlyList<string> Log,
     string? FailedStep = null,
-    string? Note = null) {
+    string? Note = null,
+    string? FailedStepTitle = null) {
     public IReadOnlyList<CookbookStepResult> Steps { get; init; } = [];
+
+    public string? Failure {
+        get {
+            if (Ok) return null;
+            string? where = FailedStepTitle ?? FailedStep;
+            if (string.IsNullOrEmpty(where)) return Note;
+            return string.IsNullOrEmpty(Note) ? $"{where} failed" : $"{where}: {Note}";
+        }
+    }
 }
 
 public sealed record DeviceCookbookContext(

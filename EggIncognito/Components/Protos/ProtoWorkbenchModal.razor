@@ -5,6 +5,7 @@
 @inject ICurrentUser User
 @inject NavigationManager Nav
 @inject ProtoWorkbenchState State
+@inject ToastService Toasts
 @inject ILogger<ProtoWorkbenchModal> Logger
 @using System.Globalization
 @using System.Text
@@ -25,11 +26,6 @@
     var counterparts = CounterpartLinks();
     <WorkbenchModal Open="true" Title="Proto workbench" Size="WorkbenchSize.Wide" CardClass="pwb-card"
                     BodyId="wbDrop" OnClose="Close">
-    <Notice>
-        @if (_notice is { } n) {
-            <StatusNote Severity="@n.Severity" OnDismiss="DismissNotice">@n.Text</StatusNote>
-        }
-    </Notice>
     <HeadTools>
         @if (User.IsAtLeast(UserRole.Contributor)) {
             <button type="button" class="btn-mini @(_adminOpen ? "active" : "")"
@@ -69,6 +65,12 @@
                             </label>
                         </div>
                         <div class="pwb-filter-row">
+                            @if (User.IsAtLeast(UserRole.Admin)) {
+                                <label class="pwb-reg-selall">
+                                    <input type="checkbox" aria-label="Select all listed versions"
+                                           checked="@AllSelected(items)" @onchange="@(e => ToggleAll(items, e))"/>
+                                </label>
+                            }
                             <FilterInput Class="pwb-filter" AriaLabel="Filter stored versions"
                                          Value="@State.Query.Quick"
                                          ValueChanged="OnQuickChanged"/>
@@ -107,6 +109,11 @@
                                 <Virtualize Items="items" Context="row" ItemSize="RegRowHeight">
                                     <div class="pwb-reg-row @RowClass(row)" @onclick="@(args => RegistryRowClick(row, args))">
                                         <span class="pwb-reg-icon">
+                                            @if (User.IsAtLeast(UserRole.Admin)) {
+                                                <input type="checkbox" class="pwb-reg-sel" aria-label="Select version"
+                                                       checked="@IsSelected(row)" @onclick:stopPropagation="true"
+                                                       @onchange="@(() => ToggleRow(row))"/>
+                                            }
                                             <PlatformIcon Platform="@row.Platform"/>
                                         </span>
                                         <span class="pwb-reg-ver">
@@ -167,6 +174,9 @@
         </WorkbenchRail>
     </Rail>
     <ChildContent>
+        @if (_selected.Count > 0 && User.IsAtLeast(UserRole.Admin)) {
+            <ProtoSelectionBar Selected="_selected" Post="PostJson" OnChanged="OnSelectionMutated" OnClear="ClearSelection"/>
+        }
         @if (_adminOpen && User.IsAtLeast(UserRole.Contributor)) {
             <RegistryAdminPanel Rows="State.Registry" CanOrder="@User.IsAtLeast(UserRole.Admin)"
                                 IsAdmin="@User.IsAtLeast(UserRole.Admin)"
@@ -459,7 +469,6 @@
     bool _degraded;
     int _context = DefaultContext;
     int _hunk;
-    (string Text, StatusNoteKind Severity)? _notice;
     List<int> _unifiedHunks = [];
 
     StagedEntry? Selected => State.Find(State.SelectedId);
@@ -574,7 +583,6 @@
         State.Cached = null;
         State.CachedKey = null;
         _hunk = 0;
-        _notice = null;
         Open();
         _ = ResolvePair();
     }
@@ -606,10 +614,6 @@
         if (!was) return;
         StateHasChanged();
         if (OnClosed.HasDelegate) _ = OnClosed.InvokeAsync();
-    }
-
-    void DismissNotice() {
-        _notice = null;
     }
 
     void ToggleMenu(string name) {
@@ -1031,19 +1035,15 @@
         if (State.A is not { } a) return;
         var formA = FormOf(a);
         if (State.Mode == "text" || State.B is not { } b) {
-            if (formA == ProtoDisplayForm.Raw) {
-                _notice = ("Normalization failed, raw proto text is shown.", StatusNoteKind.Info);
-            }
-
+            if (formA == ProtoDisplayForm.Raw) Toasts.Push(StatusNoteKind.Info, "Normalization failed, raw proto text is shown.");
             return;
         }
 
         var formB = FormOf(b);
         if (formA != ProtoDisplayForm.Raw && formB != ProtoDisplayForm.Raw) return;
         var mixed = formA == ProtoDisplayForm.Canonical && RawFailed(a) || formB == ProtoDisplayForm.Canonical && RawFailed(b);
-        _notice = mixed
-            ? ("Raw text could not be fetched for one side, so the diff mixes canonical and raw forms.", StatusNoteKind.Error)
-            : ("Normalization failed, raw proto text is shown.", StatusNoteKind.Info);
+        if (mixed) Toasts.Push(StatusNoteKind.Error, "Raw text could not be fetched for one side, so the diff mixes canonical and raw forms.");
+        else Toasts.Push(StatusNoteKind.Info, "Normalization failed, raw proto text is shown.");
     }
 
     bool RawFailed(ProtoRef value) {
@@ -1139,6 +1139,45 @@
         return args.ShiftKey ? SetB(value) : SetA(value);
     }
 
+    readonly List<SelectionKey> _selected = [];
+
+    bool IsSelected(ProtoRegistryRow row) {
+        return _selected.Any(k => k.Platform == row.Platform && k.Build == row.Build);
+    }
+
+    bool AllSelected(IReadOnlyList<ProtoRegistryRow> rows) {
+        return rows.Count > 0 && rows.All(IsSelected);
+    }
+
+    void ToggleRow(ProtoRegistryRow row) {
+        var existing = _selected.FirstOrDefault(k => k.Platform == row.Platform && k.Build == row.Build);
+        if (existing is not null) _selected.Remove(existing);
+        else _selected.Add(new SelectionKey(row.Platform, row.Build));
+    }
+
+    void ToggleAll(IReadOnlyList<ProtoRegistryRow> rows, ChangeEventArgs e) {
+        _selected.Clear();
+        if (e.Value is true) _selected.AddRange(rows.Select(r => new SelectionKey(r.Platform, r.Build)));
+    }
+
+    void ClearSelection() {
+        _selected.Clear();
+    }
+
+    async Task OnSelectionMutated() {
+        ClearSelection();
+        await OnAdminChanged();
+    }
+
+    async Task<bool> PostJson(string url, object body) {
+        try {
+            return (await Client().PostAsJsonAsync(url, body, SelfCallJson.Web)).IsSuccessStatusCode;
+        }
+        catch (HttpRequestException) {
+            return false;
+        }
+    }
+
     async Task SetA(ProtoRef? value) {
         if (SameRef(State.A, value)) return;
         State.A = value;
@@ -1188,13 +1227,13 @@
 
     async Task FallbackMissing() {
         if (State.B is { } b && IsUnknown(b)) {
-            _notice = ($"{RefLabel(b)} is not available.", StatusNoteKind.Info);
+            Toasts.Push(StatusNoteKind.Info, $"{RefLabel(b)} is not available.");
             State.B = null;
             State.Mode = "text";
         }
 
         if (State.A is not { } a || !IsUnknown(a)) return;
-        _notice = ($"{RefLabel(a)} is not available.", StatusNoteKind.Info);
+        Toasts.Push(StatusNoteKind.Info, $"{RefLabel(a)} is not available.");
         State.A = FallbackFor(a);
         if (State.A is not null) await ResolveText(State.A);
     }
@@ -1541,13 +1580,11 @@
     async Task SetCounterpart(ProtoCounterpart? link) {
         if (link is null) return;
         if (link.Row is not { } row) {
-            _notice = ($"No {link.Platform} counterpart for {RefLabel(State.A)}. "
-                       + $"Nothing stored for {link.Platform} shares its release, proto sha, app version or client version.",
-                StatusNoteKind.Info);
+            Toasts.Push(StatusNoteKind.Info, $"No {link.Platform} counterpart for {RefLabel(State.A)}. "
+                                             + $"Nothing stored for {link.Platform} shares its release, proto sha, app version or client version.");
             return;
         }
 
-        _notice = null;
         await SetB(RegistryRef(row));
     }
 

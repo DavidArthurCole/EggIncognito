@@ -5,6 +5,7 @@ using EggIncognito.Services;
 using EggIncognito.Services.Admin;
 using EggIncognito.Services.Devices;
 using EggIncognito.Services.Notifications;
+using EggIncognito.Services.Shared;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,6 +23,7 @@ public class AdminPageTests {
             Services.AddScoped<DeviceWorkbenchState>();
             Services.AddScoped<NotificationsWorkbenchState>();
             Services.AddScoped<AdminWorkbenchState>();
+            Services.AddScoped<ToastService>();
             Services.AddSingleton<AdminNotifier>();
             Services.AddHttpClient();
         }

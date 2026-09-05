@@ -1,4 +1,5 @@
 @using EggIncognito.Models.Registry
+@inject ToastService Toasts
 @* Inline metadata editor for one registry release (contributor+). A release is one or more platform rows;
    the dialog shows an editable section per platform member and PATCHes each. *@
 
@@ -53,9 +54,6 @@
                             <button type="button" class="btn-primary" disabled="@f.ProtoBusy" @onclick="@(() => SaveProto(f))">@(f.ProtoBusy ? "Saving..." : "Save proto")</button>
                             <button type="button" class="btn-mini" @onclick="@(() => f.ProtoOpen = false)">Cancel</button>
                         </div>
-                        @if (f.ProtoMsg.Length > 0) {
-                            <StatusNote Severity="@(f.ProtoMsg == "saved" ? StatusNoteKind.Ok : StatusNoteKind.Error)" OnDismiss="@(() => f.ProtoMsg = string.Empty)">@f.ProtoMsg</StatusNote>
-                        }
                     }
                 </div>
             </div>
@@ -64,9 +62,6 @@
         <div class="flex items-center gap-2">
             <button type="button" class="btn-primary" disabled="@_busy" @onclick="Save">@(_busy ? "Saving..." : "Save")</button>
         </div>
-        @if (_msg.Length > 0) {
-            <StatusNote Severity="@(_msg == "saved" ? StatusNoteKind.Ok : StatusNoteKind.Error)" OnDismiss="@(() => _msg = string.Empty)">@_msg</StatusNote>
-        }
     </div>
 }
 
@@ -83,7 +78,6 @@
     [Parameter] public EventCallback OnClose { get; set; }
 
     bool _busy;
-    string _msg = "";
     string _appVersion = "";
     int _order;
     List<MemberField> _fields = [];
@@ -103,13 +97,11 @@
             ClientVersion = t.ClientVersion ?? "",
             Source = t.Source
         }).ToList();
-        _msg = "";
     }
 
     async Task Save() {
         if (_fields.Count == 0) return;
         _busy = true;
-        _msg = "";
         var allOk = true;
         foreach (var f in _fields) {
             var newBuild = string.IsNullOrWhiteSpace(f.Build) || f.Build == f.OriginalBuild ? null : f.Build.Trim();
@@ -128,14 +120,13 @@
         if (CanOrder && !string.IsNullOrEmpty(ProtoSha) && _order != ShaOrder)
             allOk &= await Post("/api/protos/versions/sha-order", new { protoSha = ProtoSha, order = _order });
 
-        _msg = allOk ? "saved" : "failed (build taken? contributor+?)";
+        Toasts.Push(allOk ? StatusNoteKind.Ok : StatusNoteKind.Error, allOk ? "saved" : "failed (build taken? contributor+?)");
         _busy = false;
         if (allOk) await OnChanged.InvokeAsync();
     }
 
     async Task OpenProto(MemberField f) {
         f.ProtoBusy = true;
-        f.ProtoMsg = "";
         f.Proto = await FetchText($"/api/protos/versions/{f.Platform}/{Uri.EscapeDataString(f.OriginalBuild)}/proto") ?? "";
         f.ProtoOpen = true;
         f.ProtoBusy = false;
@@ -143,15 +134,14 @@
 
     async Task SaveProto(MemberField f) {
         if (string.IsNullOrWhiteSpace(f.Proto)) {
-            f.ProtoMsg = "proto required";
+            Toasts.Push(StatusNoteKind.Error, "proto required");
             return;
         }
 
         f.ProtoBusy = true;
-        f.ProtoMsg = "";
         var ok = await Post($"/api/protos/versions/{f.Platform}/{Uri.EscapeDataString(f.OriginalBuild)}/proto",
             new { proto = f.Proto });
-        f.ProtoMsg = ok ? "saved" : "failed (contributor+?)";
+        Toasts.Push(ok ? StatusNoteKind.Ok : StatusNoteKind.Error, ok ? "proto saved" : "proto save failed (contributor+?)");
         f.ProtoBusy = false;
         if (ok) await OnChanged.InvokeAsync();
     }

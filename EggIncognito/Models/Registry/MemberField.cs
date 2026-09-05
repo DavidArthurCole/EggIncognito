@@ -9,5 +9,4 @@ public sealed class MemberField {
     public bool ProtoOpen { get; set; }
     public bool ProtoBusy { get; set; }
     public string Proto { get; set; } = "";
-    public string ProtoMsg { get; set; } = "";
 }

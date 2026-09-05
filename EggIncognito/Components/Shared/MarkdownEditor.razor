@@ -6,6 +6,7 @@
 @using System.Text.Json
 @inherits SelfCallComponentBase
 @inject ICurrentUser User
+@inject ToastService Toasts
 
 @if (_canEdit) {
     <div class="md-editor">
@@ -20,11 +21,6 @@
             <span class="md-editor-spacer"></span>
             <button type="button" class="btn-primary" disabled="@_busy" @onclick="Save">Save</button>
         </div>
-        @if (!string.IsNullOrEmpty(_status)) {
-            <div class="px-2 pb-2">
-                <StatusNote Severity="@_statusKind" OnDismiss="ClearStatus">@_status</StatusNote>
-            </div>
-        }
         <textarea class="md-source" spellcheck="false" value="@_value" @oninput="OnInput"></textarea>
         <div class="md-preview-wrap">
             <div class="md-preview-label">Preview</div>
@@ -56,8 +52,6 @@
     bool _canEdit;
     bool _busy;
     string _value = "";
-    string? _status;
-    StatusNoteKind _statusKind = StatusNoteKind.Info;
     string? _seeded;
     bool _dirty;
 
@@ -84,17 +78,11 @@
     }
 
     void SetStatus(string message, StatusNoteKind kind) {
-        _status = message;
-        _statusKind = kind;
-    }
-
-    void ClearStatus() {
-        _status = null;
+        Toasts.Push(kind, message);
     }
 
     async Task Save() {
         _busy = true;
-        SetStatus("Saving...", StatusNoteKind.Busy);
         try {
             var res = await Client().PostAsJsonAsync("/api/docs/doc",
                 new { subjectKind = Kind, subjectKey = Key, bodyMd = _value }, JsonOpts);

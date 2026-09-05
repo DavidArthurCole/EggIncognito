@@ -9,6 +9,7 @@
 @inject NavigationManager Nav
 @inject IHttpContextAccessor HttpContextAccessor
 @inject IServiceProvider Services
+@inject ToastService Toasts
 
 <button type="button" class="auth-name" @onclick="Open">
     @if (!string.IsNullOrEmpty(User.AvatarUrl)) {
@@ -20,9 +21,6 @@
 @if (_open) {
     <ModalShell Title="Account" TitleId="accountModalTitle" CardClass="account-modal" CloseOnEscape="true" OnClose="Close">
         <div class="modal-body">
-            @if (_linkMessage is not null) {
-                <StatusNote Severity="@(_linkOk ? StatusNoteKind.Ok : StatusNoteKind.Error)">@_linkMessage</StatusNote>
-            }
             @if (Auth.WidgetEnabled && !string.IsNullOrEmpty(_sessionToken)) {
                 <ProfilePanel SessionToken="@_sessionToken" ReturnUrl="@_returnUrl">
                     <AvatarTemplate Context="ctx">
@@ -115,8 +113,6 @@
 
     string _sessionToken = "";
     string _returnUrl = "";
-    string? _linkMessage;
-    bool _linkOk;
     bool _open;
     bool _stripQuery;
     IdentityApiClient? _identity;
@@ -128,18 +124,17 @@
         _returnUrl = uri.GetLeftPart(UriPartial.Path);
         var query = QueryHelpers.ParseQuery(uri.Query);
         if (query.ContainsKey("linked")) {
-            _linkMessage = "Login linked.";
-            _linkOk = true;
+            Toasts.Push(StatusNoteKind.Ok, "Login linked.");
         } else if (query.ContainsKey("linkConflict")) {
-            _linkMessage = "That login already belongs to a different account, so it was not linked. Account merges go through an admin.";
+            Toasts.Push(StatusNoteKind.Error, "That login already belongs to a different account, so it was not linked. Account merges go through an admin.");
         } else if (query.ContainsKey("linkError")) {
-            _linkMessage = "Linking failed. Try again.";
+            Toasts.Push(StatusNoteKind.Error, "Linking failed. Try again.");
+        } else {
+            return;
         }
 
-        if (_linkMessage is not null) {
-            _open = true;
-            _stripQuery = true;
-        }
+        _open = true;
+        _stripQuery = true;
     }
 
     protected override void OnAfterRender(bool firstRender) {
@@ -155,7 +150,6 @@
 
     void Close() {
         _open = false;
-        _linkMessage = null;
     }
 
     static string Cap(string s) {

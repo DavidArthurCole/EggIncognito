@@ -19,15 +19,11 @@
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env
 @inject ApiWorkbenchState State
+@inject ToastService Toasts
 @inject ILogger<ApiWorkbenchModal> Logger
 
 <WorkbenchModal Open="_open" Title="@("API & Data")" TitleId="apiWorkbenchTitle" Size="WorkbenchSize.Wide"
                 CardClass="awb-card" OnClose="CloseAsync">
-    <Notice>
-        @if (_wbNotice is { } n) {
-            <StatusNote Severity="@n.Severity" OnDismiss="ClearNotice">@n.Text</StatusNote>
-        }
-    </Notice>
     <HeadTools>
         <WorkbenchModes Modes="State.Modes" Current="@State.Mode" CurrentChanged="SetMode" Disabled="ModeDisabled"
                         Label="Workbench mode"/>
@@ -184,8 +180,7 @@
                             <TransactionView Build="State.BuildStages" Response="State.Response" Diagnosis="State.Diagnosis"
                                              RootType="@State.Selected?.Response" IsAdmin="State.IsAdmin"
                                              FixBusy="_fixWrappedBusy" OnFixWrapped="FixWrapped" ClientFactory="Client"
-                                             CanSaveDb="State.CanSaveDb" OnSaveToDb="SaveToDb"
-                                             SaveStatus="@State.SaveOut" SaveFailed="State.SaveFailed"/>
+                                             CanSaveDb="State.CanSaveDb" OnSaveToDb="SaveToDb"/>
                         </div>
                     </section>
                 </div>
@@ -217,7 +212,6 @@
     bool _fixWrappedBusy;
     string _statusOut = "";
     string _statusSummary = "";
-    (string Text, StatusNoteKind Severity)? _wbNotice;
 
     IJSObjectReference? _store;
     IJSObjectReference? _nav;
@@ -297,15 +291,11 @@
         StateHasChanged();
     }
 
-    void ClearNotice() {
-        _wbNotice = null;
-    }
-
     async Task LoadSources() {
         if (State.Sources is not null) return;
         var index = await Client().OneAsync<DataIndex>("/api/v1/data", Logger);
         State.Sources = index?.Sources ?? [];
-        if (State.Sources.Count == 0) _wbNotice = ("The source catalog could not be read.", StatusNoteKind.Error);
+        if (State.Sources.Count == 0) Toasts.Push(StatusNoteKind.Error, "The source catalog could not be read.");
     }
 
     async Task SelectDataset(DataSourceRow root, DataSourceRow? child) {
@@ -954,13 +944,10 @@
     async Task SaveToDb() {
         var e = State.Selected;
         if (e is null || State.Response?.Json is null) {
-            State.SaveOut = "Build and send a request first.";
-            State.SaveFailed = true;
+            Toasts.Push(StatusNoteKind.Error, "Build and send a request first.");
             return;
         }
 
-        State.SaveOut = "Saving...";
-        State.SaveFailed = false;
         try {
             using var doc = JsonDocument.Parse(State.Response.Json);
             var res = await Client().PostAsJsonAsync("/api/db/endpoint", new {
@@ -970,18 +957,16 @@
                 responseType = e.Response
             }, JsonOpts);
             if (res.IsSuccessStatusCode) {
-                State.SaveOut = $"Saved {e.Path}{(string.IsNullOrWhiteSpace(State.PathParam) ? "" : $" ({State.PathParam})")} to the shared DB.";
+                Toasts.Push(StatusNoteKind.Ok, $"Saved {e.Path}{(string.IsNullOrWhiteSpace(State.PathParam) ? "" : $" ({State.PathParam})")} to the shared DB.");
                 return;
             }
 
-            State.SaveFailed = true;
-            State.SaveOut = res.StatusCode == HttpStatusCode.Forbidden
+            Toasts.Push(StatusNoteKind.Error, res.StatusCode == HttpStatusCode.Forbidden
                 ? "Not authorized to write to the shared DB."
-                : $"Save failed: HTTP {(int)res.StatusCode}";
+                : $"Save failed: HTTP {(int)res.StatusCode}");
         }
         catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException) {
-            State.SaveFailed = true;
-            State.SaveOut = $"Request failed: {ex.Message}";
+            Toasts.Push(StatusNoteKind.Error, $"Request failed: {ex.Message}");
         }
     }
 

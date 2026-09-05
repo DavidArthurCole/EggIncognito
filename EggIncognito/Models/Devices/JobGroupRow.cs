@@ -13,4 +13,5 @@ public sealed record JobGroupRow(
     string? Build,
     string? Revision,
     int Repeat,
-    DateTimeOffset LastAt);
+    DateTimeOffset LastAt,
+    string? Cookbook = null);

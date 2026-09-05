@@ -23,9 +23,6 @@
         }
     </div>
     <div class="insp-disc-body">
-        @if (!string.IsNullOrEmpty(SaveStatus)) {
-            <StatusNote Severity="@(SaveFailed ? StatusNoteKind.Error : StatusNoteKind.Ok)">@SaveStatus</StatusNote>
-        }
         <ResponsePanel Response="Response" IsAdmin="IsAdmin" FixBusy="FixBusy" OnFixWrapped="OnFixWrapped"/>
     </div>
 </div>
@@ -52,8 +49,6 @@
     [Parameter] public Func<HttpClient> ClientFactory { get; set; } = default!;
     [Parameter] public bool CanSaveDb { get; set; }
     [Parameter] public EventCallback OnSaveToDb { get; set; }
-    [Parameter] public string SaveStatus { get; set; } = "";
-    [Parameter] public bool SaveFailed { get; set; }
 
     bool _sentOpen = true;
     bool _receivedOpen = true;

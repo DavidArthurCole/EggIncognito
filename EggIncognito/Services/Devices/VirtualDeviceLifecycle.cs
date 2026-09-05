@@ -292,7 +292,7 @@ public sealed class VirtualDeviceLifecycle(
             deviceId, new DeviceCookbookRequest(DeviceCookbookIds.BringUp, null), "auto:provision", ct);
         if (!run.Ok) {
             await SetStateAsync(store, changed, row, ProvisionStates.Failed,
-                run.Note ?? $"bring-up failed at {run.FailedStep ?? "?"}", ct);
+                run.Failure ?? "bring-up failed", ct);
             return false;
         }
 
@@ -328,7 +328,7 @@ public sealed class VirtualDeviceLifecycle(
             deviceId, new DeviceCookbookRequest(DeviceCookbookIds.InstallIntegrity, null), "auto:integrity", ct);
         if (!run.Ok) {
             logger.LogWarning("virtual devices: {Id} integrity install failed: {Note}", instanceId,
-                run.Note ?? run.FailedStep ?? "no detail");
+                run.Failure ?? "no detail");
             return;
         }
 

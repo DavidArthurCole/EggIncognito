@@ -3,6 +3,7 @@
 @inject ICurrentUser User
 @inject IServiceProvider Services
 @inject DeviceWorkbenchState State
+@inject ToastService Toasts
 @inject AdminNotifier Notifier
 @inject ILogger<DeviceWorkbenchModal> Logger
 @using System.Globalization
@@ -20,11 +21,6 @@
 
 <WorkbenchModal Open="@(_open && _isAdmin)" Title="Devices" TitleId="deviceWorkbenchTitle"
                 Size="WorkbenchSize.Wide" CardClass="dwb-card" BodyId="deviceWorkbench" OnClose="CloseModal">
-    <Notice>
-        @if (_notice is { } n) {
-            <StatusNote Severity="@n.Kind" OnDismiss="ClearNotice">@n.Text</StatusNote>
-        }
-    </Notice>
     <HeadTools>
         <button type="button" class="btn-mini" disabled="@_bulkBusy" @onclick="ProbeAll">Probe all</button>
         <button type="button" class="btn-mini" disabled="@_bulkBusy" @onclick="PokeAll">Poke all</button>
@@ -67,35 +63,38 @@
 
             <div class="dwb-pane">
                 @if (State.Mode == DeviceWorkbenchState.TabOverview) {
-                    <div class="dwb-actions">
-                        <button type="button" class="btn-mini" disabled="@Busy" @onclick="ProbeNow">Probe</button>
-                        <button type="button" class="btn-mini" disabled="@Busy" @onclick="CheckStore">Check store</button>
-                        <button type="button" class="btn-mini" disabled="@Busy" @onclick="RestartApp">Restart app</button>
-                        @if (dev.Platform == "android") {
-                            <button type="button" class="btn-mini" disabled="@Busy" @onclick="Recert">Recert</button>
-                        }
-                        @if (_harvest is { InRegistry: false }) {
-                            <button type="button" class="btn-mini" disabled="@Busy" @onclick="SaveToRegistry">
-                                Save to registry
-                            </button>
-                        }
-                        <button type="button" class="btn-mini" disabled="@Busy" @onclick="Poke">Poke harvest</button>
+                    <div class="dwb-bar">
+                        <span class="dwb-bar-k">Actions</span>
+                        <span class="dwb-bar-group">
+                            <button type="button" class="btn-mini" disabled="@Busy" @onclick="ProbeNow">Probe</button>
+                            <button type="button" class="btn-mini" disabled="@Busy" @onclick="CheckStore">Check store</button>
+                            <button type="button" class="btn-mini" disabled="@Busy" @onclick="RestartApp">Restart app</button>
+                            @if (dev.Platform == "android") {
+                                <button type="button" class="btn-mini" disabled="@Busy" @onclick="Recert">Recert</button>
+                            }
+                            @if (_harvest is { InRegistry: false }) {
+                                <button type="button" class="btn-mini" disabled="@Busy" @onclick="SaveToRegistry">
+                                    Save to registry
+                                </button>
+                            }
+                            <button type="button" class="btn-mini" disabled="@Busy" @onclick="Poke">Poke harvest</button>
+                        </span>
                     </div>
                     @ActionLines(dev)
                 }
 
                 @if (State.Mode == DeviceWorkbenchState.TabDevice) {
-                    <div class="dwb-actions dwb-actions-strip">
-                        <button type="button" class="btn-mini" disabled="@Busy" @onclick="Launch">Launch</button>
-                        <button type="button" class="btn-mini" disabled="@Busy" @onclick="RestartApp">Restart app</button>
-                        <button type="button" class="btn-mini" disabled="@Busy" @onclick="Recert">Recert</button>
-                        <button type="button" class="btn-mini btn-danger" disabled="@Busy" @onclick="Destroy">
-                            @(_destroyArmed ? "Destroy?" : "Destroy")
-                        </button>
-                    </div>
-                    @ActionLines(dev)
                     <DeviceConsolePane DeviceId="@dev.Id" Platform="@dev.Platform" Virtual="@dev.Virtual" Active="true"
-                                       OnNotice="Notice" OnChanged="ReloadDevices"/>
+                                       OnNotice="Notice" OnChanged="ReloadDevices">
+                        <Actions>
+                            <button type="button" class="btn-mini" disabled="@Busy" @onclick="Launch">Launch</button>
+                            <button type="button" class="btn-mini" disabled="@Busy" @onclick="RestartApp">Restart app</button>
+                            <button type="button" class="btn-mini" disabled="@Busy" @onclick="Recert">Recert</button>
+                            <button type="button" class="btn-mini btn-danger" disabled="@Busy" @onclick="Destroy">
+                                @(_destroyArmed ? "Destroy?" : "Destroy")
+                            </button>
+                        </Actions>
+                    </DeviceConsolePane>
                 }
 
                 @if (State.Mode == DeviceWorkbenchState.TabScreen) {
@@ -254,7 +253,6 @@
     bool _refreshing;
     bool _devicesFailed;
     bool _destroyArmed;
-    DeviceNotice? _notice;
     IDisposable? _topics;
     CancellationTokenSource? _destroyCts;
 
@@ -315,7 +313,7 @@
                                                            <span class="dwb-meta-vd">
                                                                <span>@(d.Target ?? "no address yet")</span>
                                                                @if (d.Up is { } up) {
-                                                                   <span>&middot;</span>
+                                                                   <span class="verline-sep">|</span>
                                                                    <span>up</span>
                                                                    <TimeAgo Value="@up" Hover="false"/>
                                                                }
@@ -435,7 +433,6 @@
         }
 
         State.SelectedId = id;
-        _notice = null;
         _recert = null;
         _jobs = null;
         _jobsMore = null;
@@ -448,7 +445,6 @@
 
     void ToggleFleet() {
         State.FleetOpen = !State.FleetOpen;
-        _notice = null;
         if (State.FleetOpen) DetachCapture();
         else if (State.Mode == DeviceWorkbenchState.TabCapture) AttachCapture();
     }
@@ -613,22 +609,16 @@
         return span.TotalSeconds < 1 ? "<1s" : $"{(int)span.TotalSeconds}s";
     }
 
-    void ClearNotice() {
-        _notice = null;
-    }
-
     void Notice(DeviceNotice notice) {
-        _notice = notice;
-        StateHasChanged();
+        Toasts.Push(notice.Kind, notice.Text);
     }
 
     void Note(string text, bool ok) {
-        _notice = new DeviceNotice(text, ok ? StatusNoteKind.Ok : StatusNoteKind.Error);
+        Toasts.Push(ok ? StatusNoteKind.Ok : StatusNoteKind.Error, text);
     }
 
     async Task Act(string url, string ok) {
         if (Current is null) return;
-        _notice = null;
         var res = await Client().PostAsync(url, null);
         var good = res.IsSuccessStatusCode || res.StatusCode == HttpStatusCode.Accepted;
         Note(good ? ok : await ReadError(res), good);
@@ -655,7 +645,6 @@
 
     async Task Launch() {
         if (Current is not { } dev) return;
-        _notice = null;
         var res = await Client().PostAsJsonAsync($"/api/devices/{dev.Id}/cookbooks",
             new DeviceCookbookRequest(DeviceCookbookIds.LaunchApp, null), SelfCallJson.Web);
         Note(res.IsSuccessStatusCode ? "launch started" : await ReadError(res), res.IsSuccessStatusCode);
@@ -671,7 +660,6 @@
         }
 
         DisarmDestroy();
-        _notice = null;
         if (InstanceFor(dev) is not { } instance) {
             await LoadFleetAsync();
             instance = InstanceFor(dev);
@@ -729,7 +717,6 @@
     async Task RestartApp() {
         if (Current is not { } dev) return;
         var id = dev.Id;
-        _notice = null;
         var before = (await LiveProbeFor(id))?.LastSeen;
         var res = await Client().PostAsync($"/api/devices/{id}/restart-app", null);
         if (!res.IsSuccessStatusCode) {
@@ -755,7 +742,6 @@
     async Task Recert() {
         if (Current is not { } dev) return;
         var id = dev.Id;
-        _notice = null;
         _recert = null;
         var res = await Client().PostAsync($"/api/devices/{id}/recert", null);
         if (!res.IsSuccessStatusCode) {

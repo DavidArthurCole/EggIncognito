@@ -14,8 +14,7 @@ public sealed class CookbookExecutor {
         var plan = await cookbook.PlanAsync(context.Target, context.Argument, ct);
         var steps = new List<CookbookStepResult>();
         var log = new List<string>();
-        string? failedStep = null;
-        bool ok = true;
+        CookbookStepResult? failed = null;
 
         foreach (var step in plan) {
             string marker = $"> {step.Title}";
@@ -25,18 +24,23 @@ public sealed class CookbookExecutor {
             var result = await step.RunAsync(context, ct);
             steps.Add(result);
             log.AddRange(result.Lines);
+            if (result.Status == CookbookStepStatus.Failed && result.Note is { Length: > 0 } note
+                && !result.Lines.Contains(note, StringComparer.Ordinal)) {
+                log.Add(note);
+                context.Progress(note);
+            }
 
             if (result.Status == CookbookStepStatus.Failed && !step.Soft) {
-                ok = false;
-                failedStep = result.StepId;
+                failed = result;
                 break;
             }
         }
 
-        string? note = ok
-            ? OkNote(cookbook.Id, steps)
-            : FailNote(steps, failedStep);
-        return new DeviceCookbookRun(ok, cookbook.Id, log, failedStep, note) { Steps = steps };
+        if (failed is null)
+            return new DeviceCookbookRun(true, cookbook.Id, log, null, OkNote(cookbook, steps)) { Steps = steps };
+        return new DeviceCookbookRun(false, cookbook.Id, log, failed.StepId, failed.Note, failed.Title) {
+            Steps = steps
+        };
     }
 
     private static async Task<DeviceCookbookRun> RunWholeAsync(
@@ -44,17 +48,15 @@ public sealed class CookbookExecutor {
         var run = await cookbook.RunAsync(context, ct);
         var status = run.Ok ? CookbookStepStatus.Ok : CookbookStepStatus.Failed;
         var result = new CookbookStepResult(cookbook.Id, cookbook.Title, status, run.Note, run.Log);
-        return run with { Steps = [result] };
+        return run with {
+            Steps = [result],
+            FailedStepTitle = run.Ok ? null : run.FailedStepTitle ?? cookbook.Title
+        };
     }
 
-    private static string OkNote(string cookbookId, List<CookbookStepResult> steps) {
-        var skipped = steps.Where(s => s.Status == CookbookStepStatus.Skipped).Select(s => s.StepId).ToList();
+    private static string OkNote(IDeviceCookbook cookbook, List<CookbookStepResult> steps) {
+        var skipped = steps.Where(s => s.Status == CookbookStepStatus.Skipped).Select(s => s.Title).ToList();
         if (skipped.Count > 0) return $"ok, skipped {string.Join(", ", skipped)}";
-        return steps.Count == 1 && steps[0].Note is { Length: > 0 } single ? single : $"{cookbookId} ok";
-    }
-
-    private static string FailNote(IReadOnlyList<CookbookStepResult> steps, string? failedStep) {
-        var failed = steps.FirstOrDefault(s => s.StepId == failedStep && s.Status == CookbookStepStatus.Failed);
-        return $"{failedStep ?? "?"} failed: {failed?.Note ?? "no detail"}";
+        return steps.Count == 1 && steps[0].Note is { Length: > 0 } single ? single : $"{cookbook.Title} ok";
     }
 }

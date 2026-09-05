@@ -4,9 +4,7 @@
 @* The detail pane: header (path + status), the known-endpoint card or save-as-endpoint bar + type
    lines, then the Request and Response panes carrying the body (CodeFormats), URL params, and optional headers. *@
 
-@if (Flow is null) {
-    <div class="muted">Select a request to inspect it.</div>
-} else {
+@if (Flow is not null) {
     <div class="detail-head">
         <span class="dpath">@Flow.Path</span>
         <span class="dstatus status-badge @CaptureHelpers.StatusClass(Flow.Status)">@Flow.Status</span>

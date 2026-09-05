@@ -18,20 +18,26 @@
     <div class="wb-note">Pick a device.</div>
 } else {
     <div class="dcon">
-        <div class="dcon-strip">
-            <span class="dcon-strip-state @(_streamError is null ? "text-muted" : "text-err")">@StripText()</span>
-            @if (!_useVideo) {
-                <select class="field-input dcon-rate" aria-label="Stream frame rate" value="@_fps" @onchange="FpsChanged">
-                    @foreach (var fps in Rates) {
-                        <option value="@fps">@fps fps</option>
-                    }
-                </select>
-            }
-            <button type="button" class="btn-mini" @onclick="ToggleStreamAsync">@(_live ? "Pause" : "Resume")</button>
-            <button type="button" class="btn-mini @(_mode == DeviceConsoleMode.Inspect ? "dcon-on" : "")"
-                    @onclick="ToggleInspect">
-                Inspect
-            </button>
+        <div class="dcon-bar">
+            <span class="dcon-bar-group">
+                <span class="dcon-bar-k">Stream</span>
+                <span class="dcon-bar-state @(_streamError is null ? "" : "text-err")">@StripText()</span>
+            </span>
+            <span class="dcon-bar-group">
+                @Actions
+                @if (!_useVideo) {
+                    <select class="field-input dcon-rate" aria-label="Stream frame rate" value="@_fps" @onchange="FpsChanged">
+                        @foreach (var fps in Rates) {
+                            <option value="@fps">@fps fps</option>
+                        }
+                    </select>
+                }
+                <button type="button" class="btn-mini" @onclick="ToggleStreamAsync">@(_live ? "Pause" : "Resume")</button>
+                <button type="button" class="btn-mini @(_mode == DeviceConsoleMode.Inspect ? "dcon-on" : "")"
+                        @onclick="ToggleInspect">
+                    Inspect
+                </button>
+            </span>
         </div>
 
         <div class="dcon-body">
@@ -69,181 +75,201 @@
             </div>
 
             <div class="dcon-activity">
-                @if (_mode == DeviceConsoleMode.Idle) {
-                    <div class="dcon-ready">
-                        @foreach (var (word, check) in ReadinessWords()) {
-                            <span class="@ReadyClass(check)" title="@(check?.Note)">@word</span>
-                        }
-                        <button type="button" class="dcon-textbtn" disabled="@_readinessBusy" @onclick="LoadReadinessAsync">
-                            refresh
-                        </button>
-                    </div>
-
-                    @if (_books.Count > 0) {
-                        <div class="dcon-run-row">
-                            <select class="field-input dcon-pick" aria-label="Cookbook" value="@_bookId"
-                                    disabled="@_runBusy" @onchange="BookChanged">
-                                @if (Workflows() is { Count: > 0 } workflows) {
-                                    <optgroup label="workflows">
-                                        @foreach (var book in workflows) {
-                                            <option value="@book.Id" disabled="@(!book.Available)" title="@book.Unavailable">
-                                                @book.Title
-                                            </option>
-                                        }
-                                    </optgroup>
-                                }
-                                @if (Steps() is { Count: > 0 } steps) {
-                                    <optgroup label="steps">
-                                        @foreach (var book in steps) {
-                                            <option value="@book.Id" disabled="@(!book.Available)" title="@book.Unavailable">
-                                                @book.Title
-                                            </option>
-                                        }
-                                    </optgroup>
-                                }
-                            </select>
-                            @if (Chosen() is { Options: { Count: > 0 } options } chosen) {
-                                <select class="field-input dcon-pick" aria-label="@(chosen.ArgumentLabel ?? "Option")"
-                                        value="@ArgFor(chosen)" disabled="@_runBusy" @onchange="@(e => SetArg(chosen.Id, e))">
-                                    @foreach (var option in options) {
-                                        <option value="@option.Value" title="@option.Detail">@option.Label</option>
-                                    }
-                                </select>
+                <div class="dcon-activity-head">
+                    @if (_mode == DeviceConsoleMode.Idle) {
+                        <span class="dcon-activity-title">
+                            <span class="dcon-bar-k">Ready</span>
+                            @foreach (var (word, check) in ReadinessWords()) {
+                                <span class="@ReadyClass(check)" title="@(check?.Note)">@word</span>
                             }
-                            <button type="button" class="btn-mini" disabled="@(!CanRun())" @onclick="RunChosenAsync">Run</button>
-                        </div>
-                    } else if (!_booksBusy) {
-                        <div class="text-xs text-muted">no cookbooks for this device</div>
-                    }
-
-                    @if (_lastRuns.Count > 0) {
-                        <div class="dcon-last">
-                            @foreach (var job in _lastRuns) {
-                                <button type="button" class="dcon-last-row" @key="job.Id" title="@job.Message"
-                                        @onclick="@(() => OpenRunAsync(job))">
-                                    <span class="font-mono text-muted">@Stamp(job.LastAt)</span>
-                                    <span class="dcon-last-msg">@RunTitle(job)</span>
-                                    <span class="@OutcomeClass(job.State)">@(job.Outcome ?? job.State)</span>
-                                </button>
-                            }
-                        </div>
-                    }
-                } else if (_mode == DeviceConsoleMode.Running) {
-                    <div class="dcon-run-head">
-                        <span class="dcon-run-title">@_runTitle</span>
-                        <span class="dcon-dot">&middot;</span>
-                        <span class="font-mono text-muted">@Elapsed()</span>
-                        <span class="dcon-dot">&middot;</span>
-                        <span class="@RunStateClass()">@RunStateLine()</span>
-                        <span class="dcon-run-tools">
+                        </span>
+                        <span class="dcon-activity-tools">
+                            <button type="button" class="btn-mini" disabled="@_readinessBusy" @onclick="LoadReadinessAsync">
+                                @(_readinessBusy ? "Refreshing..." : "Refresh")
+                            </button>
+                        </span>
+                    } else if (_mode == DeviceConsoleMode.Running) {
+                        <span class="dcon-activity-title">
+                            <span class="dcon-run-title">@_runTitle</span>
+                            <span class="dcon-dot">&middot;</span>
+                            <span class="font-mono text-muted">@Elapsed()</span>
+                            <span class="@RunStateClass()">@RunStateLine()</span>
+                        </span>
+                        <span class="dcon-activity-tools">
                             @if (!_runDone && !_runReadOnly && _runJobId is not null) {
                                 <button type="button" class="btn-mini" disabled="@_stopBusy" @onclick="StopRunAsync">
                                     @(_stopBusy ? "Stopping..." : "Stop")
                                 </button>
                             }
                             <CopyButton GetText="RunReport" Label="Copy" CopiedLabel="Copied" ShowIcon="false"/>
-                            <button type="button" class="dcon-textbtn" @onclick="ToggleWrap">@(_wrap ? "nowrap" : "wrap")</button>
+                            <button type="button" class="btn-mini" @onclick="ToggleWrap">@(_wrap ? "Nowrap" : "Wrap")</button>
+                            @if (_runDone) {
+                                <button type="button" class="btn-mini" @onclick="Done">Done</button>
+                            }
                         </span>
-                    </div>
+                    } else {
+                        <span class="dcon-activity-title">
+                            <span class="dcon-bar-k">Inspect</span>
+                        </span>
+                        <span class="dcon-activity-tools">
+                            <button type="button" class="btn-mini" @onclick="CloseInspect">Close</button>
+                        </span>
+                    }
+                </div>
 
-                    @if (_steps.Count > 0) {
-                        <div class="dcon-steps">
-                            @foreach (var step in _steps) {
-                                <div class="dcon-step">
-                                    <span class="dcon-step-title">@step.Title</span>
-                                    <span class="@StepClass(step.Status)">@StepStateWord(step.Status)</span>
-                                    @if (step.Note is { Length: > 0 } stepNote) {
-                                        <span class="dcon-step-note">@stepNote</span>
+                <div class="dcon-activity-body">
+                    @if (_mode == DeviceConsoleMode.Idle) {
+                        @if (_books.Count > 0) {
+                            <div class="dcon-run-row">
+                                <select class="field-input dcon-pick" aria-label="Cookbook" value="@_bookId"
+                                        disabled="@_runBusy" @onchange="BookChanged">
+                                    @if (Workflows() is { Count: > 0 } workflows) {
+                                        <optgroup label="workflows">
+                                            @foreach (var book in workflows) {
+                                                <option value="@book.Id" disabled="@(!book.Available)" title="@book.Unavailable">
+                                                    @book.Title
+                                                </option>
+                                            }
+                                        </optgroup>
                                     }
-                                </div>
-                            }
-                        </div>
-                    }
-
-                    <div class="dcon-log @(_wrap ? "" : "dcon-log-nowrap")">
-                        @for (int i = _runLog.Count - 1; i >= 0; i--) {
-                            <div class="dcon-log-line">@_runLog[i]</div>
-                        }
-                    </div>
-
-                    @if (_runDone) {
-                        <div class="dcon-run-end">
-                            <span class="@RunStateClass()">@RunStateLine()</span>
-                            <button type="button" class="btn-mini" @onclick="Done">Done</button>
-                        </div>
-                    }
-                } else {
-                    <div class="dcon-tree-bar">
-                        <input class="field-input" type="search" placeholder="filter nodes"
-                               aria-label="Filter ui nodes" value="@_filter" @oninput="FilterChanged"/>
-                        <label class="dcon-check">
-                            <input type="checkbox" checked="@_clickableOnly" @onchange="ClickableChanged"/>
-                            clickable only
-                        </label>
-                        <button type="button" class="btn-mini" disabled="@_dumpBusy" @onclick="LoadDumpAsync">
-                            @(_dumpBusy ? "Reading..." : "Read")
-                        </button>
-                        <button type="button" class="btn-mini" @onclick="CloseInspect">Close</button>
-                    </div>
-
-                    @if (_dumpError is { } de) {
-                        <div class="dcon-tree-note text-err">@de</div>
-                    } else if (_dump is { } dump) {
-                        <div class="dcon-tree-note">@_rows.Count of @dump.Count nodes</div>
-                        <div class="dcon-tree">
-                            @foreach (var node in _rows) {
-                                <button type="button" @key="node.Id"
-                                        class="dcon-node @(_selected?.Id == node.Id ? "dcon-node-on" : "")"
-                                        style="@IndentStyle(node)" @onclick="@(() => SelectNode(node))">
-                                    <span class="dcon-node-kind">@node.Kind</span>
-                                    <span class="dcon-node-label">@node.Label</span>
-                                    @if (node.Clickable) {
-                                        <span class="dcon-node-tap">tap</span>
+                                    @if (Steps() is { Count: > 0 } steps) {
+                                        <optgroup label="steps">
+                                            @foreach (var book in steps) {
+                                                <option value="@book.Id" disabled="@(!book.Available)" title="@book.Unavailable">
+                                                    @book.Title
+                                                </option>
+                                            }
+                                        </optgroup>
                                     }
-                                </button>
-                            }
-                        </div>
-                    }
-
-                    @if (_selected is { } sel) {
-                        <div class="dcon-sel">
-                            <div class="dcon-sel-head">
-                                <span class="font-mono text-xs">@(sel.ClassName ?? sel.Kind)</span>
-                                <span class="font-mono text-muted text-xs">@sel.Left,@sel.Top @sel.Width x @sel.Height</span>
-                                <button type="button" class="btn-mini" @onclick="TapSelectedAsync">Tap node</button>
+                                </select>
+                                @if (Chosen() is { Options: { Count: > 0 } options } chosen) {
+                                    <select class="field-input dcon-pick" aria-label="@(chosen.ArgumentLabel ?? "Option")"
+                                            value="@ArgFor(chosen)" disabled="@_runBusy" @onchange="@(e => SetArg(chosen.Id, e))">
+                                        @foreach (var option in options) {
+                                            <option value="@option.Value" title="@option.Detail">@option.Label</option>
+                                        }
+                                    </select>
+                                }
+                                <button type="button" class="btn-mini" disabled="@(!CanRun())" @onclick="RunChosenAsync">Run</button>
                             </div>
+                        } else if (!_booksBusy) {
+                            <div class="text-xs text-muted">no cookbooks for this device</div>
+                        }
 
-                            @if (sel.Selectors.Count == 0) {
-                                <div class="dcon-snip-row">
-                                    <span class="dcon-snip-by">point</span>
-                                    <code class="dcon-snip">@PointStep(sel)</code>
-                                    <CopyButton Text="@PointStep(sel)" AriaLabel="Copy tap-point step"/>
-                                </div>
-                            } else {
-                                @foreach (var hint in sel.Selectors) {
-                                    <div class="dcon-snip-row @(hint == sel.Selectors[0] ? "dcon-snip-best" : "")">
-                                        <span class="dcon-snip-by">@HintLabel(hint)</span>
-                                        <code class="dcon-snip">@hint.Snippet</code>
-                                        <CopyButton Text="@hint.Snippet" AriaLabel="Copy selector"/>
+                        @if (_lastRuns.Count > 0) {
+                            <div class="reg-wrap">
+                                <table class="data-table dcon-last">
+                                    <tbody>
+                                    @foreach (var job in _lastRuns) {
+                                        <tr class="dcon-last-row" @key="job.Id" title="@job.Message" @onclick="@(() => OpenRunAsync(job))">
+                                            <td class="font-mono text-muted">@Stamp(job.LastAt)</td>
+                                            <td class="dcon-last-title">@RunTitle(job)</td>
+                                            <td class="@OutcomeClass(job.State)">@(job.Outcome ?? job.State)</td>
+                                        </tr>
+                                    }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    } else if (_mode == DeviceConsoleMode.Running) {
+                        @if (_steps.Count > 0 || RunNote() is not null) {
+                            <div class="dcon-steps">
+                                @foreach (var step in _steps) {
+                                    <div class="dcon-step">
+                                        <span class="dcon-step-title">@step.Title</span>
+                                        <span class="@StepClass(step.Status)">@StepStateWord(step.Status)</span>
+                                        @if (step.Status != CookbookStepStatus.Ok && step.Note is { Length: > 0 } stepNote) {
+                                            <span class="dcon-step-note">@stepNote</span>
+                                        }
                                     </div>
                                 }
+                                @if (RunNote() is { } runNote) {
+                                    <div class="dcon-step">
+                                        <span class="dcon-step-title">@(_runTitle ?? "run")</span>
+                                        <span class="@RunStateClass()">@RunStateLine()</span>
+                                        <span class="dcon-step-note">@runNote</span>
+                                    </div>
+                                }
+                            </div>
+                        }
 
-                                <div class="dcon-sel-steps">
-                                    <div class="dcon-snip-row">
-                                        <span class="dcon-snip-by">tap step</span>
-                                        <code class="dcon-snip">@TapStep(sel)</code>
-                                        <CopyButton Text="@TapStep(sel)" AriaLabel="Copy tap step"/>
-                                    </div>
-                                    <div class="dcon-snip-row">
-                                        <span class="dcon-snip-by">wait step</span>
-                                        <code class="dcon-snip">@WaitStep(sel)</code>
-                                        <CopyButton Text="@WaitStep(sel)" AriaLabel="Copy wait step"/>
-                                    </div>
-                                </div>
+                        <div class="dcon-log @(_wrap ? "" : "dcon-log-nowrap")">
+                            @for (int i = _runLog.Count - 1; i >= 0; i--) {
+                                <div class="dcon-log-line">@_runLog[i]</div>
                             }
                         </div>
+                    } else {
+                        <div class="dcon-tree-bar">
+                            <input class="field-input" type="search" placeholder="filter nodes"
+                                   aria-label="Filter ui nodes" value="@_filter" @oninput="FilterChanged"/>
+                            <label class="dcon-check">
+                                <input type="checkbox" checked="@_clickableOnly" @onchange="ClickableChanged"/>
+                                clickable only
+                            </label>
+                            <button type="button" class="btn-mini" disabled="@_dumpBusy" @onclick="LoadDumpAsync">
+                                @(_dumpBusy ? "Reading..." : "Read")
+                            </button>
+                        </div>
+
+                        @if (_dumpError is { } de) {
+                            <div class="dcon-tree-note text-err">@de</div>
+                        } else if (_dump is { } dump) {
+                            <div class="dcon-tree-note">@_rows.Count of @dump.Count nodes</div>
+                            <div class="dcon-tree">
+                                @foreach (var node in _rows) {
+                                    <button type="button" @key="node.Id"
+                                            class="dcon-node @(_selected?.Id == node.Id ? "dcon-node-on" : "")"
+                                            style="@IndentStyle(node)" @onclick="@(() => SelectNode(node))">
+                                        <span class="dcon-node-kind">@node.Kind</span>
+                                        <span class="dcon-node-label">@node.Label</span>
+                                        @if (node.Clickable) {
+                                            <span class="dcon-node-tap">tap</span>
+                                        }
+                                    </button>
+                                }
+                            </div>
+                        }
+
+                        @if (_selected is { } sel) {
+                            <div class="dcon-sel">
+                                <div class="dcon-sel-head">
+                                    <span class="font-mono text-xs">@(sel.ClassName ?? sel.Kind)</span>
+                                    <span class="font-mono text-muted text-xs">@sel.Left,@sel.Top @sel.Width x @sel.Height</span>
+                                    <button type="button" class="btn-mini" @onclick="TapSelectedAsync">Tap node</button>
+                                </div>
+
+                                @if (sel.Selectors.Count == 0) {
+                                    <div class="dcon-snip-row">
+                                        <span class="dcon-snip-by">point</span>
+                                        <code class="dcon-snip">@PointStep(sel)</code>
+                                        <CopyButton Text="@PointStep(sel)" AriaLabel="Copy tap-point step"/>
+                                    </div>
+                                } else {
+                                    @foreach (var hint in sel.Selectors) {
+                                        <div class="dcon-snip-row @(hint == sel.Selectors[0] ? "dcon-snip-best" : "")">
+                                            <span class="dcon-snip-by">@HintLabel(hint)</span>
+                                            <code class="dcon-snip">@hint.Snippet</code>
+                                            <CopyButton Text="@hint.Snippet" AriaLabel="Copy selector"/>
+                                        </div>
+                                    }
+
+                                    <div class="dcon-sel-steps">
+                                        <div class="dcon-snip-row">
+                                            <span class="dcon-snip-by">tap step</span>
+                                            <code class="dcon-snip">@TapStep(sel)</code>
+                                            <CopyButton Text="@TapStep(sel)" AriaLabel="Copy tap step"/>
+                                        </div>
+                                        <div class="dcon-snip-row">
+                                            <span class="dcon-snip-by">wait step</span>
+                                            <code class="dcon-snip">@WaitStep(sel)</code>
+                                            <CopyButton Text="@WaitStep(sel)" AriaLabel="Copy wait step"/>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
                     }
-                }
+                </div>
             </div>
         </div>
     </div>
@@ -262,6 +288,8 @@
     [Parameter] public EventCallback<DeviceNotice> OnNotice { get; set; }
 
     [Parameter] public EventCallback OnChanged { get; set; }
+
+    [Parameter] public RenderFragment? Actions { get; set; }
 
     static readonly int[] Rates = [5, 4, 3, 2, 1];
     static readonly string[] JobIdNames = ["jobId", "JobId", "runId", "RunId", "id", "Id"];
@@ -305,7 +333,7 @@
     string? _dumpError;
     string? _runTitle;
     string? _runNote;
-    string? _runFailedStep;
+    string? _runFailedStepTitle;
     long? _runJobId;
     DateTimeOffset? _runStartedAt;
     DateTimeOffset? _runFinishedAt;
@@ -402,7 +430,7 @@
         _runTitle = null;
         _runJobId = null;
         _runNote = null;
-        _runFailedStep = null;
+        _runFailedStepTitle = null;
         _runStartedAt = null;
         _runFinishedAt = null;
         _runLog = [];
@@ -758,7 +786,7 @@
         StopRunWatch();
         ResetRun();
         _runBusy = true;
-        _runTitle = "cookbook";
+        _runTitle = await TitleForJobAsync(jobId) ?? "cookbook";
         _runJobId = jobId;
         _mode = DeviceConsoleMode.Running;
         StartTick();
@@ -825,10 +853,9 @@
             if (status.Log is { } log) _runLog = [.. log];
             if (status.Steps is { } steps) _steps = [.. steps];
             _runNote = status.Note ?? _runNote;
-            _runFailedStep = status.FailedStep ?? _runFailedStep;
+            _runFailedStepTitle = status.FailedStepTitle ?? _runFailedStepTitle;
             _runStartedAt = status.StartedAt ?? _runStartedAt;
             _runFinishedAt = status.FinishedAt ?? _runFinishedAt;
-            if (TitleFor(status.Message) is { } title) _runTitle = title;
             if (status.Finished) {
                 var wasLive = !_runDone && !_runReadOnly;
                 _runDone = true;
@@ -854,14 +881,19 @@
         if (OnChanged.HasDelegate) await OnChanged.InvokeAsync();
     }
 
-    string? TitleFor(string? message) {
-        if (string.IsNullOrEmpty(message)) return null;
-        return _books.FirstOrDefault(b => message.StartsWith(b.Id, StringComparison.OrdinalIgnoreCase)
-                                          && (message.Length == b.Id.Length || message[b.Id.Length] == ' '))?.Title;
+    async Task<string?> TitleForJobAsync(long jobId) {
+        if (_deviceId is null || !_isAdmin || JobFeed is not { } feed) return null;
+        var page = await feed.PageAsync(_deviceId, LastRunPage, null, CancellationToken.None);
+        return page.Rows.FirstOrDefault(j => j.Id == jobId)?.Cookbook;
     }
 
-    string RunTitle(JobGroupRow job) {
-        return TitleFor(job.Message) ?? job.Message ?? "cookbook";
+    static string RunTitle(JobGroupRow job) {
+        return job.Cookbook ?? job.Message ?? "cookbook";
+    }
+
+    string? RunNote() {
+        if (_steps.Count > 0 || !_runDone || _runOk || _runCancelled) return null;
+        return _runNote is { Length: > 0 } note ? note : null;
     }
 
     void StartRunWatch() {
@@ -909,16 +941,11 @@
     }
 
     string RunStateClass() {
-        return !_runDone ? "text-muted" : _runCancelled ? "text-muted" : _runOk ? "text-ok" : "text-err";
+        return !_runDone ? "text-accent" : _runCancelled ? "text-muted" : _runOk ? "text-ok" : "text-err";
     }
 
     string RunStateLine() {
-        if (!_runDone) return "running";
-        if (_runCancelled) return _runNote is { Length: > 0 } stopNote ? $"stopped, {stopNote}" : "stopped";
-        if (_runOk) return _runNote is { Length: > 0 } ok ? $"done, {ok}" : "done";
-        if (_runFailedStep is { Length: > 0 } step
-            && !string.Equals(step, _runTitle, StringComparison.OrdinalIgnoreCase)) return $"failed at {step}";
-        return _runNote is { Length: > 0 } note ? $"failed, {note}" : "failed";
+        return !_runDone ? "running" : _runCancelled ? "stopped" : _runOk ? "done" : "failed";
     }
 
     static string StepClass(CookbookStepStatus status) {
@@ -939,7 +966,10 @@
 
     string RunReport() {
         var sb = new System.Text.StringBuilder();
-        sb.Append(_runTitle ?? "run").Append(' ').AppendLine(RunStateLine());
+        sb.Append(_runTitle ?? "run").Append(' ').Append(RunStateLine());
+        if (_runDone && !_runOk && !_runCancelled && _runFailedStepTitle is { Length: > 0 } failedAt) sb.Append(" at ").Append(failedAt);
+        if (_runDone && !_runOk && _runNote is { Length: > 0 } runNote) sb.Append(", ").Append(runNote);
+        sb.AppendLine();
         foreach (var step in _steps) {
             sb.Append("- ").Append(step.Title).Append(": ").Append(StepStateWord(step.Status));
             if (step.Note is { Length: > 0 } note) sb.Append(" (").Append(note).Append(')');

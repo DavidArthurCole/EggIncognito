@@ -55,7 +55,7 @@ public sealed class DeviceCookbookRunner(
         }
 
         var job = await jobs.TryStartAsync(deviceId, DeviceJobKinds.Cookbook, trigger,
-            $"{cookbook.Id} starting...", ct);
+            $"{cookbook.Title} starting...", StartFacts(cookbook), ct);
         if (job is null) {
             return new DeviceCookbookStart(DeviceCookbookStartOutcome.Busy,
                 Error: "another job is already running on this device");
@@ -78,7 +78,8 @@ public sealed class DeviceCookbookRunner(
                 "cookbook", $"unknown cookbook '{request.CookbookId}'");
         }
 
-        var job = await jobs.TryStartAsync(deviceId, DeviceJobKinds.Cookbook, trigger, $"{cookbook.Id} starting...", ct);
+        var job = await jobs.TryStartAsync(deviceId, DeviceJobKinds.Cookbook, trigger,
+            $"{cookbook.Title} starting...", StartFacts(cookbook), ct);
         if (job is null) {
             return new DeviceCookbookRun(false, cookbook.Id, ["another job is already running on this device"],
                 "busy", "another job is already running on this device");
@@ -88,8 +89,8 @@ public sealed class DeviceCookbookRunner(
             var context = new DeviceCookbookContext(target, request.Argument,
                 line => jobs.ProgressAsync(job, line, ct: ct).GetAwaiter().GetResult());
             var run = await executor.RunAsync(cookbook, context, ct);
-            await jobs.FinishAsync(job, run.Ok ? DeviceOutcomes.Ok : DeviceOutcomes.Error, Summarize(run),
-                Facts(run, request), CancellationToken.None);
+            await jobs.FinishAsync(job, run.Ok ? DeviceOutcomes.Ok : DeviceOutcomes.Error, Summarize(cookbook, run),
+                Facts(cookbook, run, request), CancellationToken.None);
             return run;
         } catch (Exception ex) {
             logger.LogError(ex, "cookbook: {Cookbook} on {Device} threw", request.CookbookId, deviceId);
@@ -108,12 +109,13 @@ public sealed class DeviceCookbookRunner(
                 line => scoped.ProgressAsync(job, line).GetAwaiter().GetResult());
             var run = await executor.RunAsync(cookbook, context, cts.Token);
 
-            await scoped.FinishAsync(job, run.Ok ? DeviceOutcomes.Ok : DeviceOutcomes.Error, Summarize(run),
-                Facts(run, request), CancellationToken.None);
+            await scoped.FinishAsync(job, run.Ok ? DeviceOutcomes.Ok : DeviceOutcomes.Error, Summarize(cookbook, run),
+                Facts(cookbook, run, request), CancellationToken.None);
         } catch (OperationCanceledException) when (cts.IsCancellationRequested) {
             logger.LogInformation("cookbook: {Cookbook} on {Device} was stopped by an admin",
                 request.CookbookId, job.DeviceId);
-            await scoped.CancelAsync(job, $"{request.CookbookId} stopped by an admin", CancellationToken.None);
+            string title = cookbooks.Find(request.CookbookId)?.Title ?? request.CookbookId;
+            await scoped.CancelAsync(job, $"{title} stopped by an admin", CancellationToken.None);
         } catch (Exception ex) {
             logger.LogError(ex, "cookbook: {Cookbook} on {Device} threw", request.CookbookId, job.DeviceId);
             await scoped.ProgressAsync(job, ex.ToString(), DeviceJobLevels.Error, CancellationToken.None);
@@ -124,11 +126,17 @@ public sealed class DeviceCookbookRunner(
         }
     }
 
-    private static DeviceJobFacts Facts(DeviceCookbookRun run, DeviceCookbookRequest request) =>
+    private static DeviceJobFacts StartFacts(IDeviceCookbook cookbook) =>
+        new(Detail: new { cookbook = cookbook.Id, cookbookTitle = cookbook.Title });
+
+    private static DeviceJobFacts Facts(IDeviceCookbook cookbook, DeviceCookbookRun run,
+        DeviceCookbookRequest request) =>
         new(Detail: new {
             cookbook = run.CookbookId,
+            cookbookTitle = cookbook.Title,
             argument = request.Argument,
             failedStep = run.FailedStep,
+            failedStepTitle = run.FailedStepTitle,
             steps = run.Steps.Select(s => new {
                 id = s.StepId,
                 title = s.Title,
@@ -137,9 +145,8 @@ public sealed class DeviceCookbookRunner(
             })
         });
 
-    private static string Summarize(DeviceCookbookRun run) {
-        if (run.Ok) return run.Note is { Length: > 0 } ok ? ok : "ok";
-        string where = run.FailedStep is { Length: > 0 } step ? $" at {step}" : "";
-        return run.Note is { Length: > 0 } detail ? $"{detail}{where}" : $"failed{where}";
+    private static string Summarize(IDeviceCookbook cookbook, DeviceCookbookRun run) {
+        if (run.Ok) return run.Note is { Length: > 0 } ok ? ok : $"{cookbook.Title} ok";
+        return run.Failure ?? $"{cookbook.Title} failed";
     }
 }

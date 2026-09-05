@@ -13,14 +13,13 @@
 @inject ILogger<Protos> Logger
 @inject ProtoWorkbenchState State
 @inject NavigationManager Nav
+@inject ToastService Toasts
 @inject AdminNotifier Notifier
 @using System.Text.Json
-@using EggIdentity.UI
 @using EggIncognito.Components.Api
 @using EggIncognito.Components.Events
 @using EggIncognito.Components.Protos
 @using EggIncognito.Core.Services.ProtoExtract
-@using EggIncognito.Models.Registry
 @using EggIncognito.Services.Protos
 @implements IAsyncDisposable
 
@@ -28,14 +27,6 @@
 
 <main class="page page-wide pt-6 pb-8">
     <h1 class="sr-only">EggIncognito</h1>
-
-    @if (LoginError == 1 && !_loginErrorDismissed) {
-        <div class="mb-4">
-            <StatusNote Severity="StatusNoteKind.Error" OnDismiss="@(() => _loginErrorDismissed = true)">
-                Login failed. Please try again.
-            </StatusNote>
-        </div>
-    }
 
     <div class="pd-grid">
         <div class="pd-mod pd-identity">
@@ -70,30 +61,10 @@
                     }
                 </div>
             }
-            @if (_isAdmin && _selected.Count > 0) {
-                <ProtoSelectionBar Selected="_selected" Post="PostJson" OnChanged="OnMutated" OnClear="ClearSelection"/>
-            }
             <section class="reg-wrap">
                 <div class="reg-toolbar">
                     <BrandPanel Rows="_rows" OnOpenVersion="OpenVersion"/>
-                    <div class="reg-sort">
-                        <label class="reg-sort-label" for="regSort">Sort</label>
-                        <select id="regSort" class="reg-filter-input reg-sort-sel" value="@_sortCol" @onchange="OnSortSelect">
-                            <option value="platform">Platform</option>
-                            <option value="appVersion">App version</option>
-                            <option value="build">Build</option>
-                            <option value="client">Client</option>
-                            <option value="sha">Proto SHA</option>
-                            <option value="detected">Detected</option>
-                        </select>
-                        <button type="button" class="reg-sort-dir" aria-label="Toggle sort direction" @onclick="ToggleSortDir">
-                            @(_sortDesc ? "▾" : "▴")
-                        </button>
-                    </div>
                     <div class="reg-toolbar-end">
-                        @if (AnyFilter) {
-                            <button type="button" class="reg-filter-clear" aria-label="Clear filters" @onclick="ClearFilters">×</button>
-                        }
                         <label id="protoPageDrop" class="reg-drop" for="wbFile">
                             <EggIncognito.Components.Shared.Icon Name="arrow-up" Class="icon-sm"/>
                             <span>Drop a build</span>
@@ -128,14 +99,6 @@
                         <table class="data-table reg-table" style="--reg-gutter: @Gutter(ShaLanes.LaneCount(_laneLayout))">
                             <thead>
                             <tr>
-                                @if (_isAdmin) {
-                                    <th class="reg-c-sel">
-                                        <input type="checkbox" checked="@AllSelected" @onchange="ToggleAll"/>
-                                    </th>
-                                }
-                                <th class="reg-th-sort reg-c-plat" @onclick="@(() => Sort("platform"))">
-                                    <span>Platform</span>@Caret("platform")
-                                </th>
                                 <th class="reg-th-sort reg-c-app" @onclick="@(() => Sort("appVersion"))">
                                     <span>App version</span>@Caret("appVersion")
                                 </th>
@@ -152,97 +115,34 @@
                                     <span>Detected</span>@Caret("detected")
                                 </th>
                             </tr>
-                            <tr class="reg-filter-row">
-                                @if (_isAdmin) {
-                                    <th class="reg-c-sel"></th>
-                                }
-                                <th class="reg-c-plat">
-                                    <select class="reg-filter-input" aria-label="Filter by platform" value="@_fPlatform" @onchange="@(e => { _fPlatform = e.Value?.ToString() ?? ""; })">
-                                        <option value="">all</option>
-                                        <option value="android">android</option>
-                                        <option value="ios">ios</option>
-                                    </select>
-                                </th>
-                                <th class="reg-c-app">
-                                    <FilterInput Class="reg-filter-input" AriaLabel="Filter by app version"
-                                                 Value="@_fVersion" ValueChanged="@(v => _fVersion = v)"/>
-                                </th>
-                                <th class="reg-c-build">
-                                    <FilterInput Class="reg-filter-input" AriaLabel="Filter by build"
-                                                 Value="@_fBuild" ValueChanged="@(v => _fBuild = v)"/>
-                                </th>
-                                <th class="reg-c-client">
-                                    <FilterInput Class="reg-filter-input" AriaLabel="Filter by client version"
-                                                 Value="@_fClient" ValueChanged="@(v => _fClient = v)"/>
-                                </th>
-                                <th class="reg-c-sha">
-                                    <FilterInput Class="reg-filter-input" AriaLabel="Filter by proto sha"
-                                                 Value="@_fSha" ValueChanged="@(v => _fSha = v)"/>
-                                </th>
-                                <th class="reg-c-det"></th>
-                            </tr>
                             </thead>
                             <tbody>
-                            @if (releases.Count == 0) {
-                                <tr>
-                                    <td colspan="@EditColspan" class="reg-empty">No versions match this filter.</td>
-                                </tr>
-                            }
                             @foreach (var rel in releases) {
                                 var primary = rel.Primary;
                                 var lane = laneRows.GetValueOrDefault(rel.Key);
                                 <tr class="reg-row cursor-pointer" @onclick="@(() => OpenVersion(primary))">
-                                    @if (_isAdmin) {
-                                        <td class="reg-c-sel" @onclick:stopPropagation="true">
-                                            <input type="checkbox" checked="@IsSelected(primary)" @onchange="@(() => ToggleRelease(rel))"/>
-                                        </td>
-                                    }
-                                    <td class="reg-c-plat" data-label="Platform">
-                                        <span class="reg-plats">
-                                            @foreach (var m in rel.Platforms) {
-                                                <a class="reg-plat-link" href="@VersionHref(m)"
-                                                   @onclick:stopPropagation="true" @onclick:preventDefault="true"
-                                                   @onclick="@(() => OpenVersion(m))">
+                                    <td class="reg-version reg-c-app" data-label="App version">@primary.AppVersion</td>
+                                    <td class="reg-c-build" data-label="Build">
+                                        <span class="reg-builds">
+                                            @foreach (var m in rel.Members) {
+                                                <a class="reg-build-link" href="@VersionHref(m)" @onclick:stopPropagation="true"
+                                                   @onclick:preventDefault="true" @onclick="@(() => OpenVersion(m))">
                                                     <PlatformIcon Platform="@m.Platform"/>
+                                                    @if (m.BuildFlag is { } memberFlag) {
+                                                        <Tooltip>
+                                                            <ChildContent>
+                                                                <span class="reg-num reg-num-bad">@m.Build</span>
+                                                            </ChildContent>
+                                                            <Tip>
+                                                                <span class="tt-line tt-bad">@FlagLabel(memberFlag)</span>
+                                                            </Tip>
+                                                        </Tooltip>
+                                                    } else {
+                                                        <span class="reg-num">@m.Build</span>
+                                                    }
                                                 </a>
                                             }
                                         </span>
-                                    </td>
-                                    <td class="reg-version reg-c-app" data-label="App version">@primary.AppVersion</td>
-                                    <td class="reg-c-build" data-label="Build">
-                                        @if (rel.IsGrouped) {
-                                            <span class="reg-builds">
-                                                @foreach (var m in rel.Members) {
-                                                    <a class="reg-build-link" href="@VersionHref(m)" @onclick:stopPropagation="true"
-                                                       @onclick:preventDefault="true" @onclick="@(() => OpenVersion(m))">
-                                                        <PlatformIcon Platform="@m.Platform"/>
-                                                        @if (m.BuildFlag is { } memberFlag) {
-                                                            <Tooltip>
-                                                                <ChildContent>
-                                                                    <span class="reg-num reg-num-bad">@m.Build</span>
-                                                                </ChildContent>
-                                                                <Tip>
-                                                                    <span class="tt-line">@memberFlag</span>
-                                                                </Tip>
-                                                            </Tooltip>
-                                                        } else {
-                                                            <span class="reg-num">@m.Build</span>
-                                                        }
-                                                    </a>
-                                                }
-                                            </span>
-                                        } else if (primary.BuildFlag is { } primaryFlag) {
-                                            <Tooltip>
-                                                <ChildContent>
-                                                    <span class="reg-num reg-num-bad">@primary.Build</span>
-                                                </ChildContent>
-                                                <Tip>
-                                                    <span class="tt-line">@primaryFlag</span>
-                                                </Tip>
-                                            </Tooltip>
-                                        } else {
-                                            <span class="reg-num">@primary.Build</span>
-                                        }
                                         @if (ClientText(primary).Length > 0) {
                                             <span class="reg-fold">
                                                 <span class="reg-fold-k">client</span><span class="reg-num">@ClientText(primary)</span>
@@ -269,10 +169,7 @@
                                         <span class="inline-flex items-center gap-1"
                                               @onmouseenter="@(() => SetHotGroup(lane?.GroupId))"
                                               @onmouseleave="@(() => SetHotGroup(null))">
-                                            <span class="@ShaChipClass(lane)"
-                                                  @onclick:stopPropagation="true" @onclick="@(() => FilterBySha(primary))">
-                                                @Short(primary.ProtoSha)
-                                            </span>
+                                            <span class="@ShaChipClass(lane)">@Short(primary.ProtoSha)</span>
                                             @if (primary.SortOrder is { } so && so != 0) {
                                                 <span class="text-muted text-xs">@OrderLabel(so)</span>
                                             }
@@ -355,11 +252,6 @@
 
     List<ProtoRegistryRow> _rows = [];
 
-    string _fPlatform = "";
-    string _fVersion = "";
-    string _fBuild = "";
-    string _fClient = "";
-    string _fSha = "";
     bool _loading = true;
     bool _isAdmin;
     bool _isContributor;
@@ -367,7 +259,6 @@
     string _sortCol = "appVersion";
     bool _sortDesc = true;
 
-    readonly List<SelectionKey> _selected = [];
     List<Models.Registry.MergeSuggestion> _suggestions = [];
     StagedReviewPanel? _stagedPanel;
     NotificationsWorkbenchModal? _notificationsModal;
@@ -378,8 +269,6 @@
 
     [SupplyParameterFromQuery(Name = "login_error")]
     public int LoginError { get; set; }
-
-    bool _loginErrorDismissed;
 
     [Parameter] public string? Path { get; set; }
 
@@ -470,25 +359,6 @@
         ApplyRef(ProtoRefParser.Parse(tail));
     }
 
-    bool AnyFilter => _fPlatform.Length > 0 || _fVersion.Length > 0 || _fBuild.Length > 0
-                      || _fClient.Length > 0 || _fSha.Length > 0;
-
-    static bool Has(string field, string needle) {
-        return needle.Length == 0 || field.Contains(needle, StringComparison.OrdinalIgnoreCase);
-    }
-
-    List<ProtoRegistryRow> Filtered =>
-        _rows.Where(r =>
-            (_fPlatform.Length == 0 || string.Equals(r.Platform, _fPlatform, StringComparison.OrdinalIgnoreCase))
-            && Has(r.AppVersion ?? "", _fVersion)
-            && Has(r.Build, _fBuild)
-            && Has(r.ClientVersion ?? "", _fClient)
-            && Has(r.ProtoSha ?? "", _fSha)).ToList();
-
-    void ClearFilters() {
-        _fPlatform = _fVersion = _fBuild = _fClient = _fSha = "";
-    }
-
     static int ByVersion(ProtoRegistryRow a, ProtoRegistryRow b) {
         return ProtoVersionOrdering.Compare(b.Key(), a.Key());
     }
@@ -513,15 +383,6 @@
         }
     }
 
-    List<ProtoRegistryRow> Sorted {
-        get {
-            var sorted = Filtered;
-            sorted.Sort(RowComparison);
-            if (_sortDesc) sorted.Reverse();
-            return sorted;
-        }
-    }
-
     static List<Models.Registry.Release> ReleasesOf(IEnumerable<ProtoRegistryRow> rows) {
         var byKey = new Dictionary<long, List<ProtoRegistryRow>>();
         foreach (var r in rows) {
@@ -535,7 +396,7 @@
         }
 
         return byKey
-            .Select(kv => new Release(kv.Key, kv.Value.OrderBy(m => m.Platform, StringComparer.OrdinalIgnoreCase)
+            .Select(kv => new Models.Registry.Release(kv.Key, kv.Value.OrderBy(m => m.Platform, StringComparer.OrdinalIgnoreCase)
                 .ThenByDescending(m => m.Build, BuildComparer).ToList()))
             .ToList();
     }
@@ -544,7 +405,7 @@
 
     List<Models.Registry.Release> SortedReleases {
         get {
-            var releases = ReleasesOf(Filtered);
+            var releases = ReleasesOf(_rows);
             var cmp = RowComparison;
             releases.Sort((x, y) => cmp(x.Primary, y.Primary));
             if (_sortDesc) releases.Reverse();
@@ -560,18 +421,8 @@
         }
     }
 
-    void OnSortSelect(ChangeEventArgs e) {
-        var col = e.Value?.ToString() ?? "";
-        if (col.Length == 0 || col == _sortCol) return;
-        Sort(col);
-    }
-
-    void ToggleSortDir() {
-        _sortDesc = !_sortDesc;
-    }
-
-    void FilterBySha(ProtoRegistryRow r) {
-        _fSha = r.ProtoSha ?? "";
+    static string FlagLabel(string flag) {
+        return flag == "android_build_on_ios" ? "Android build number on an iOS version" : flag.Replace('_', ' ');
     }
 
     ShaLaneLayout _laneLayout = new(new Dictionary<long, ShaLaneRow>(), new Dictionary<int, string>());
@@ -661,9 +512,12 @@
 
         _isAdmin = User.IsAtLeast(UserRole.Admin);
         _isContributor = User.IsAtLeast(UserRole.Contributor);
+        if (LoginError == 1) Toasts.Push(StatusNoteKind.Error, "Login failed. Please try again.");
     }
 
-    protected override Task OnInitializedAsync() => Load();
+    protected override Task OnInitializedAsync() {
+        return Load();
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender) {
         if (!firstRender) return;
@@ -778,7 +632,7 @@
         }
 
         try {
-            _suggestions = await Client().GetFromJsonAsync<List<MergeSuggestion>>(
+            _suggestions = await Client().GetFromJsonAsync<List<Models.Registry.MergeSuggestion>>(
                 "/api/protos/versions/merge-suggestions", JsonOpts) ?? [];
         }
         catch {
@@ -786,7 +640,7 @@
         }
     }
 
-    async Task AcceptSuggestion(MergeSuggestion s) {
+    async Task AcceptSuggestion(Models.Registry.MergeSuggestion s) {
         if (s.Members.Count < 2) return;
         var canonical = new { s.Members[0].Platform, s.Members[0].Build };
         var aliases = s.Members.Skip(1).Select(m => new { m.Platform, m.Build }).ToList();
@@ -812,7 +666,6 @@
     async Task OnMutated() {
         _busyMutating = true;
         try {
-            ClearSelection();
             await Load();
             if (_stagedPanel is not null) await _stagedPanel.Load();
         }
@@ -820,35 +673,6 @@
             _busyMutating = false;
         }
     }
-
-    bool IsSelected(ProtoRegistryRow r) {
-        return _selected.Any(k => k.Platform == r.Platform && k.Build == r.Build);
-    }
-
-    bool AllSelected => Sorted.Count > 0 && Sorted.All(IsSelected);
-
-    void ToggleAll(ChangeEventArgs e) {
-        _selected.Clear();
-        if (e.Value is true)
-            foreach (var r in Sorted)
-                _selected.Add(new SelectionKey(r.Platform, r.Build));
-    }
-
-    void ToggleRelease(Release rel) {
-        var allSelected = rel.Members.All(IsSelected);
-        foreach (var m in rel.Members) {
-            var existing = _selected.FirstOrDefault(k => k.Platform == m.Platform && k.Build == m.Build);
-            if (allSelected) {
-                if (existing is not null) _selected.Remove(existing);
-            } else if (existing is null) _selected.Add(new SelectionKey(m.Platform, m.Build));
-        }
-    }
-
-    void ClearSelection() {
-        _selected.Clear();
-    }
-
-    int EditColspan => 6 + (_isAdmin ? 1 : 0);
 
     static string OrderLabel(int order) {
         return order > 0 ? $"+{order}" : $"{order}";

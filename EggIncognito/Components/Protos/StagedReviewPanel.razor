@@ -5,6 +5,7 @@
 @inherits SelfCallComponentBase
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env
+@inject ToastService Toasts
 @using System.Text
 @using System.Text.Json
 @using EggIncognito.Models.Staging
@@ -96,23 +97,6 @@
                 </tbody>
             </table>
         }
-
-        @if (_status is { } st) {
-            <StatusNote Severity="@st.Kind">
-                @if (st.Bulk is { } b) {
-                    <span class="status-chip status-chip-ok">@b.Approved approved</span>
-                    @if (b.Skipped > 0) {
-                        <span class="status-chip">@b.Skipped skipped</span>
-                    }
-
-                    @if (b.Failed > 0) {
-                        <span class="status-chip status-chip-err">@b.Failed failed</span>
-                    }
-                } else {
-                    @st.Text
-                }
-            </StatusNote>
-        }
     </section>
 }
 
@@ -122,7 +106,6 @@
     List<Models.Staging.StagedRow> _rows = [];
     readonly HashSet<int> _selected = [];
     bool _busy;
-    StagedReviewStatus? _status;
 
     [Parameter] public EventCallback OnChanged { get; set; }
     [Parameter] public bool IsAdmin { get; set; }
@@ -180,13 +163,13 @@
 
     async Task Approve(Models.Staging.StagedRow r) {
         _busy = true;
-        _status = null;
         try {
             var resp = await Client().PostAsJsonAsync($"/api/protos/staged/{r.Id}/approve", ApproveBody(r), JsonOpts);
-            _status = resp.IsSuccessStatusCode ? Ok("approved") : Err($"approve failed ({(int)resp.StatusCode})");
+            if (resp.IsSuccessStatusCode) Ok("approved");
+            else Err($"approve failed ({(int)resp.StatusCode})");
         }
         catch (Exception ex) {
-            _status = Err($"approve error: {ex.Message}");
+            Err($"approve error: {ex.Message}");
         }
         finally {
             _busy = false;
@@ -198,13 +181,13 @@
 
     async Task Reject(Models.Staging.StagedRow r) {
         _busy = true;
-        _status = null;
         try {
             var resp = await Client().PostAsJsonAsync($"/api/protos/staged/{r.Id}/reject", new { note = (string?)null }, JsonOpts);
-            _status = resp.IsSuccessStatusCode ? Ok("rejected") : Err($"reject failed ({(int)resp.StatusCode})");
+            if (resp.IsSuccessStatusCode) Ok("rejected");
+            else Err($"reject failed ({(int)resp.StatusCode})");
         }
         catch (Exception ex) {
-            _status = Err($"reject error: {ex.Message}");
+            Err($"reject error: {ex.Message}");
         }
         finally {
             _busy = false;
@@ -217,7 +200,6 @@
     async Task BulkApprove() {
         if (_selected.Count == 0) return;
         _busy = true;
-        _status = Busy("approving…");
         try {
             var items = _rows.Where(r => _selected.Contains(r.Id)).Select(r => new {
                 id = r.Id, platform = r.Platform, appVersion = r.AppVersion, build = r.Build, clientVersion = r.ClientVersion
@@ -225,13 +207,13 @@
             var resp = await Client().PostAsJsonAsync("/api/protos/staged/bulk-approve", new { items }, JsonOpts);
             if (resp.IsSuccessStatusCode) {
                 var r = await resp.Content.ReadFromJsonAsync<BulkApproveResp>(JsonOpts);
-                _status = r is null
-                    ? Ok("approved")
-                    : new StagedReviewStatus(r.Failed > 0 ? StatusNoteKind.Error : StatusNoteKind.Ok, "", r);
-            } else _status = Err($"bulk approve failed ({(int)resp.StatusCode})");
+                if (r is null) Ok("approved");
+                else if (r.Failed > 0) Err(BulkSummary(r));
+                else Ok(BulkSummary(r));
+            } else Err($"bulk approve failed ({(int)resp.StatusCode})");
         }
         catch (Exception ex) {
-            _status = Err($"bulk approve error: {ex.Message}");
+            Err($"bulk approve error: {ex.Message}");
         }
         finally {
             _busy = false;
@@ -245,17 +227,16 @@
     async Task BulkReject() {
         if (_selected.Count == 0) return;
         _busy = true;
-        _status = Busy("rejecting…");
         try {
             var resp = await Client().PostAsJsonAsync("/api/protos/staged/bulk-reject",
                 new { ids = _selected.ToList(), note = (string?)null }, JsonOpts);
             if (resp.IsSuccessStatusCode) {
                 var r = await resp.Content.ReadFromJsonAsync<BulkRejectResp>(JsonOpts);
-                _status = Ok(r is null ? "rejected" : $"rejected {r.Rejected}");
-            } else _status = Err($"bulk reject failed ({(int)resp.StatusCode})");
+                Ok(r is null ? "rejected" : $"rejected {r.Rejected}");
+            } else Err($"bulk reject failed ({(int)resp.StatusCode})");
         }
         catch (Exception ex) {
-            _status = Err($"bulk reject error: {ex.Message}");
+            Err($"bulk reject error: {ex.Message}");
         }
         finally {
             _busy = false;
@@ -291,13 +272,12 @@
     async Task CopyAndClear(IReadOnlyList<Models.Staging.StagedRow> rows) {
         if (rows.Count == 0) return;
         _busy = true;
-        _status = null;
         try {
             _copy ??= await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/copy.js"));
             await _copy.InvokeAsync<bool>("writeText", MissingReport(rows));
         }
         catch (Exception ex) {
-            _status = Err($"copy failed (rows kept): {ex.Message}");
+            Err($"copy failed (rows kept): {ex.Message}");
             _busy = false;
             StateHasChanged();
             return;
@@ -307,10 +287,10 @@
             var resp = await Client().PostAsJsonAsync("/api/protos/staged/bulk-reject",
                 new { ids = rows.Select(r => r.Id).ToList(), note = "set aside: missing version data (copied for audit)" }, JsonOpts);
             var n = resp.IsSuccessStatusCode ? (await resp.Content.ReadFromJsonAsync<BulkRejectResp>(JsonOpts))?.Rejected ?? 0 : 0;
-            _status = Ok($"copied {rows.Count} to clipboard, set aside {n} (returns if re-surfaced with more data)");
+            Ok($"copied {rows.Count} to clipboard, set aside {n} (returns if re-surfaced with more data)");
         }
         catch (Exception ex) {
-            _status = Err($"copied, but clear failed: {ex.Message}");
+            Err($"copied, but clear failed: {ex.Message}");
         }
         finally {
             _busy = false;
@@ -333,16 +313,20 @@
         return _copy.DisposeModuleQuietAsync();
     }
 
-    static StagedReviewStatus Ok(string t) {
-        return new StagedReviewStatus(StatusNoteKind.Ok, t);
+    void Ok(string t) {
+        Toasts.Push(StatusNoteKind.Ok, t);
     }
 
-    static StagedReviewStatus Err(string t) {
-        return new StagedReviewStatus(StatusNoteKind.Error, t);
+    void Err(string t) {
+        Toasts.Push(StatusNoteKind.Error, t);
     }
 
-    static StagedReviewStatus Busy(string t) {
-        return new StagedReviewStatus(StatusNoteKind.Busy, t);
+    static string BulkSummary(BulkApproveResp r) {
+        var sb = new StringBuilder();
+        sb.Append(r.Approved).Append(" approved");
+        if (r.Skipped > 0) sb.Append(", ").Append(r.Skipped).Append(" skipped");
+        if (r.Failed > 0) sb.Append(", ").Append(r.Failed).Append(" failed");
+        return sb.ToString();
     }
 
 }

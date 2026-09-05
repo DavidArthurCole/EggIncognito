@@ -1,4 +1,5 @@
 @using System.Text.Json
+@inject ToastService Toasts
 @* Capture controls side-column widget: start/stop, clear, HAR export, and view/redaction settings.
    View settings mutate the shared CaptureViewState and call OnViewChanged. One popover open at a time. *@
 
@@ -91,9 +92,6 @@
             </div>
         </div>
     </div>
-    @if (_actionMsg is not null) {
-        <StatusNote Severity="@(_actionOk ? StatusNoteKind.Ok : StatusNoteKind.Error)">@_actionMsg</StatusNote>
-    }
 </div>
 
 @code {
@@ -111,8 +109,6 @@
     string? _open;
     bool _dmBusy;
     bool _rotateBusy;
-    string? _actionMsg;
-    bool _actionOk;
 
     void Toggle(string which) {
         _open = _open == which ? null : which;
@@ -121,15 +117,13 @@
     async Task SendConfig() {
         if (ClientFactory is null) return;
         _dmBusy = true;
-        _actionMsg = null;
         try {
             var res = await ClientFactory().PostAsync("/api/capture/send-config", null);
-            _actionOk = res.IsSuccessStatusCode;
-            _actionMsg = _actionOk ? "Setup DM sent." : "Could not DM your setup (start a session + enable DMs).";
+            if (res.IsSuccessStatusCode) Toasts.Push(StatusNoteKind.Ok, "Setup DM sent.");
+            else Toasts.Push(StatusNoteKind.Error, "Could not DM your setup (start a session + enable DMs).");
         }
         catch (Exception ex) {
-            _actionOk = false;
-            _actionMsg = $"DM failed: {ex.Message}";
+            Toasts.Push(StatusNoteKind.Error, $"DM failed: {ex.Message}");
         }
 
         _dmBusy = false;
@@ -138,23 +132,19 @@
     async Task RotateAddress() {
         if (ClientFactory is null) return;
         _rotateBusy = true;
-        _actionMsg = null;
         try {
             var res = await ClientFactory().PostAsync("/api/capture/proxy-address/rotate", null);
             if (res.IsSuccessStatusCode) {
                 using var doc = JsonDocument.Parse(await res.Content.ReadAsStringAsync());
                 var host = doc.RootElement.GetProperty("host").GetString();
-                _actionOk = true;
-                _actionMsg = "New address issued. Update your device's proxy server.";
+                Toasts.Push(StatusNoteKind.Ok, "New address issued. Update your device's proxy server.");
                 if (host is not null) await OnAddressRotated.InvokeAsync(host);
             } else {
-                _actionOk = false;
-                _actionMsg = $"Rotate failed (HTTP {(int)res.StatusCode}).";
+                Toasts.Push(StatusNoteKind.Error, $"Rotate failed (HTTP {(int)res.StatusCode}).");
             }
         }
         catch (Exception ex) {
-            _actionOk = false;
-            _actionMsg = $"Rotate failed: {ex.Message}";
+            Toasts.Push(StatusNoteKind.Error, $"Rotate failed: {ex.Message}");
         }
 
         _rotateBusy = false;

@@ -12,6 +12,7 @@
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env
 @inject ICaptureContributionKinds Kinds
+@inject ToastService Toasts
 @inject ILogger<CapturePane> Logger
 
 @if (_hub is not null) {
@@ -65,17 +66,6 @@
             </section>
         </div>
     </div>
-
-    <div class="toast-container">
-        @foreach (var t in _toasts) {
-            <div class="toast toast-@t.Severity show" @onclick="@(() => RemoveToast(t.Id))">
-                <div class="toast-msg">@t.Message</div>
-                @if (!string.IsNullOrEmpty(t.Timestamp)) {
-                    <div class="toast-time">@t.Timestamp</div>
-                }
-            </div>
-        }
-    </div>
 } else if (AppMode.HostedCaptureEnabled) {
     <div class="awb-pane">
         <h4 class="awb-pane-title">Live capture</h4>
@@ -119,10 +109,8 @@
     readonly CaptureViewState _view = new();
 
     readonly List<NoticeItem> _notices = [];
-    readonly List<ToastItem> _toasts = [];
     int _unread;
     int _nextNoticeId = 1;
-    int _nextToastId = 1;
 
     IDisposable? _subscription;
     CancellationTokenSource? _loopCts;
@@ -331,10 +319,7 @@
         _notices.Insert(0, new NoticeItem(_nextNoticeId++, severity, ev.Message, ev.Timestamp));
         if (_notices.Count > 200) _notices.RemoveRange(200, _notices.Count - 200);
         _unread++;
-
-        var toast = new ToastItem(_nextToastId++, severity, ev.Message, ev.Timestamp);
-        _toasts.Add(toast);
-        _ = AutoDismissToast(toast.Id, _loopCts?.Token ?? CancellationToken.None);
+        Toasts.Push(ToastKind(severity), ev.Message);
     }
 
     static string NoticeSeverity(string kind) {
@@ -345,22 +330,12 @@
         };
     }
 
-    async Task AutoDismissToast(int id, CancellationToken ct) {
-        try {
-            await Task.Delay(5000, ct);
-        }
-        catch (OperationCanceledException) {
-            return;
-        }
-
-        await InvokeAsync(() => {
-            RemoveToast(id);
-            StateHasChanged();
-        });
-    }
-
-    void RemoveToast(int id) {
-        _toasts.RemoveAll(t => t.Id == id);
+    static StatusNoteKind ToastKind(string severity) {
+        return severity switch {
+            "err" => StatusNoteKind.Error,
+            "ok" => StatusNoteKind.Ok,
+            _ => StatusNoteKind.Info
+        };
     }
 
     void DismissNotice(int id) {

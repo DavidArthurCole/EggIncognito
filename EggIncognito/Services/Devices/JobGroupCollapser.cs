@@ -1,10 +1,11 @@
+using System.Text.Json;
 using EggIncognito.Data.Models;
 using EggIncognito.Data.Services;
 using EggIncognito.Models.Devices;
 
 namespace EggIncognito.Services.Devices;
 
-public sealed class JobGroupCollapser(int take) {
+public sealed class JobGroupCollapser(int take, Func<string, string?>? cookbookTitle = null) {
     public const int DefaultTake = 20;
 
     private readonly List<JobGroupRow> _groups = [];
@@ -65,10 +66,35 @@ public sealed class JobGroupCollapser(int take) {
             newest.Id, newest.Kind, newest.State, newest.Trigger,
             oldest.StartedAt, newest.FinishedAt,
             newest.Outcome, newest.Message, newest.AppVersion, newest.Build, newest.Revision,
-            _repeat, newest.StartedAt));
+            _repeat, newest.StartedAt, CookbookFor(newest)));
         _sealedOldestId = oldest.Id;
         _newest = null;
         _oldest = null;
         _repeat = 0;
     }
+
+    private string? CookbookFor(DeviceJobRow row) {
+        if (!string.Equals(row.Kind, DeviceJobKinds.Cookbook, StringComparison.Ordinal)) return null;
+        (string? id, string? title) = ReadCookbook(row.Detail);
+        if (title is { Length: > 0 }) return title;
+        if (id is not { Length: > 0 }) return null;
+        return cookbookTitle?.Invoke(id) ?? id;
+    }
+
+    private static (string? Id, string? Title) ReadCookbook(string? detail) {
+        if (string.IsNullOrWhiteSpace(detail)) return (null, null);
+        try {
+            using var doc = JsonDocument.Parse(detail);
+            return (Text(doc.RootElement, "cookbook"), Text(doc.RootElement, "cookbookTitle"));
+        } catch (JsonException) {
+            return (null, null);
+        }
+    }
+
+    private static string? Text(JsonElement element, string name) =>
+        element.ValueKind == JsonValueKind.Object
+        && element.TryGetProperty(name, out var value)
+        && value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : null;
 }

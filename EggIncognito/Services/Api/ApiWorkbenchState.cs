@@ -67,8 +67,6 @@ public sealed class ApiWorkbenchState : WorkbenchStateBase {
     public List<TransportStage>? BuildStages { get; set; }
     public SendResponse? Response { get; set; }
     public DiagnoseDto? Diagnosis { get; set; }
-    public string SaveOut { get; set; } = "";
-    public bool SaveFailed { get; set; }
 
     public bool HistoryEnabled { get; set; } = true;
     public List<InspectorHistoryEntry> History { get; set; } = [];
@@ -94,8 +92,6 @@ public sealed class ApiWorkbenchState : WorkbenchStateBase {
         BuildStages = null;
         Response = null;
         Diagnosis = null;
-        SaveOut = "";
-        SaveFailed = false;
     }
 
     public void SeedEnvRows() {

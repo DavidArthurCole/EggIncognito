@@ -73,8 +73,12 @@ public sealed class DeviceJobStore(EggIncognitoDbContext db, TimeProvider time, 
                 .ToDictionary(g => g.Key, g => g.Count()));
     }
 
+    public Task<JobRef?> TryStartAsync(string deviceId, string kind, string trigger, string message,
+        CancellationToken ct = default) =>
+        TryStartAsync(deviceId, kind, trigger, message, null, ct);
+
     public async Task<JobRef?> TryStartAsync(string deviceId, string kind, string trigger, string message,
-        CancellationToken ct = default) {
+        DeviceJobFacts? facts, CancellationToken ct = default) {
         var now = time.GetUtcNow();
         var running = await db.DeviceJobs
             .Where(j => j.DeviceId == deviceId && j.State == DeviceJobStates.Running)
@@ -97,6 +101,7 @@ public sealed class DeviceJobStore(EggIncognitoDbContext db, TimeProvider time, 
             StartedAt = now,
             Message = message
         };
+        Apply(job, facts);
         db.DeviceJobs.Add(job);
         await db.SaveChangesAsync(ct);
         await TouchedAsync(deviceId, ct);

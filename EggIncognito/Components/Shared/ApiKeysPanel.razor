@@ -3,6 +3,7 @@
 @using EggIncognito.Models.Admin
 @using EggIncognito.Models.ApiKeys
 @inherits SelfCallComponentBase
+@inject ToastService Toasts
 @inject ILogger<ApiKeysPanel> Logger
 
 <div class="flex flex-col gap-4">
@@ -43,8 +44,6 @@
                 </div>
                 @if (AtCap) {
                     <p class="text-muted text-sm mt-2 mb-0">Key limit reached - revoke a key to mint a new one.</p>
-                } else if (_error is not null) {
-                    <StatusNote Severity="StatusNoteKind.Error">@_error</StatusNote>
                 }
             </div>
         }
@@ -74,7 +73,6 @@
     bool _busy;
     private bool _busyRow { get; set; }
 
-    string? _error;
     Minted? _minted;
     bool _copied;
 
@@ -112,7 +110,6 @@
 
     async Task Create() {
         _busy = true;
-        _error = null;
         _copied = false;
         try {
             var res = await Client().PostAsJsonAsync("/api/v1/keys", new { name = _name }, JsonOpts);
@@ -131,13 +128,13 @@
                     Logger.LogDebug(ex, "key conflict body unreadable");
                 }
 
-                _error = string.IsNullOrWhiteSpace(msg) ? "Key limit reached." : msg;
+                Toasts.Push(StatusNoteKind.Error, string.IsNullOrWhiteSpace(msg) ? "Key limit reached." : msg);
             } else {
-                _error = $"Create failed ({(int)res.StatusCode}).";
+                Toasts.Push(StatusNoteKind.Error, $"Create failed ({(int)res.StatusCode}).");
             }
         }
         catch (Exception ex) {
-            _error = $"Create failed: {ex.Message}";
+            Toasts.Push(StatusNoteKind.Error, $"Create failed: {ex.Message}");
         }
 
         _busy = false;

@@ -1,4 +1,5 @@
 @using EggIncognito.Models.Registry
+@inject ToastService Toasts
 @* Admin bulk-action bar, shown when >=1 registry row is selected. Soft-delete the selection, or merge
    it into one grouped release; the canonical is picked automatically since members are the same version
    and all platforms stay visible on the grouped row. Server ACL is the real gate. *@
@@ -26,9 +27,6 @@
             </Actions>
         </StatusNote>
     }
-    @if (_msg.Length > 0) {
-        <StatusNote Severity="@(_ok ? StatusNoteKind.Ok : StatusNoteKind.Error)" OnDismiss="@(() => _msg = string.Empty)">@_msg</StatusNote>
-    }
 </div>
 
 @code {
@@ -38,10 +36,8 @@
     [Parameter] public EventCallback OnClear { get; set; }
 
     bool _busy;
-    bool _ok;
     bool _armed;
     int _armedCount;
-    string _msg = "";
 
     protected override void OnParametersSet() {
         if (_armed && Selected.Count != _armedCount) Disarm();
@@ -51,7 +47,6 @@
         if (Selected.Count == 0) return;
         _armed = true;
         _armedCount = Selected.Count;
-        _msg = "";
     }
 
     void Disarm() {
@@ -62,11 +57,9 @@
     async Task DeleteSelected() {
         Disarm();
         _busy = true;
-        _msg = "";
         var count = Selected.Count;
         var ok = await Post("/api/protos/versions/delete", new { versions = Selected });
-        _ok = ok;
-        _msg = ok ? $"deleted {count}, restore from Registry admin" : "delete failed (admin only?)";
+        Say(ok, ok ? $"deleted {count}, restore from Registry admin" : "delete failed (admin only?)");
         _busy = false;
         if (ok) await OnChanged.InvokeAsync();
     }
@@ -74,7 +67,6 @@
     async Task MergeSelected() {
         Disarm();
         _busy = true;
-        _msg = "";
         var ordered = Selected
             .OrderBy(k => k.Platform, StringComparer.OrdinalIgnoreCase)
             .ThenBy(k => k.Build, StringComparer.OrdinalIgnoreCase)
@@ -82,10 +74,13 @@
         var canonical = ordered[0];
         var aliases = ordered.Skip(1).ToList();
         var ok = await Post("/api/protos/versions/merge", new { canonical, aliases });
-        _ok = ok;
-        _msg = ok ? $"merged {Selected.Count} builds into one release" : "merge failed (admin only?)";
+        Say(ok, ok ? $"merged {Selected.Count} builds into one release" : "merge failed (admin only?)");
         _busy = false;
         if (ok) await OnChanged.InvokeAsync();
+    }
+
+    void Say(bool ok, string text) {
+        Toasts.Push(ok ? StatusNoteKind.Ok : StatusNoteKind.Error, text);
     }
 
 }

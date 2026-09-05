@@ -3,6 +3,7 @@
 @using EggIdentity.UI
 @using EggIncognito.Models.AdminUi
 @inherits SelfCallComponentBase
+@inject ToastService Toasts
 @inject ILogger<RouteCatalogPane> Logger
 
 <div class="awb-pane">
@@ -157,9 +158,6 @@
         </div>
     }
 
-    @if (_msg is not null) {
-        <StatusNote>@_msg</StatusNote>
-    }
 </div>
 
 @code {
@@ -173,7 +171,6 @@
     bool _busy;
     bool _refreshing;
     string _filter = "";
-    string? _msg;
     string? _expandedPath;
 
     string _draftRequest = "";
@@ -243,7 +240,6 @@
         }
 
         _expandedPath = row.Path;
-        _msg = null;
         SeedDrafts(row);
     }
 
@@ -286,24 +282,23 @@
 
     async Task RefreshBinary() {
         _refreshing = true;
-        _msg = null;
         StateHasChanged();
         try {
             var res = await Client().PostAsync("/api/admin/routes/binary/refresh", null);
             if (res.StatusCode == HttpStatusCode.ServiceUnavailable) {
-                _msg = "refresh unavailable (no database)";
+                Say(false, "refresh unavailable (no database)");
             } else if (res.IsSuccessStatusCode) {
                 var d = await res.Content.ReadFromJsonAsync<RouteBinaryRefreshResult>(JsonOpts);
-                _msg = d is null
+                Say(true, d is null
                     ? "refresh complete"
                     : $"refresh complete: {d.Discovered} discovered, {d.New} new, {d.DriftCount} drift" +
-                      (string.IsNullOrEmpty(d.Note) ? "" : $" ({d.Note})");
+                      (string.IsNullOrEmpty(d.Note) ? "" : $" ({d.Note})"));
             } else {
-                _msg = $"refresh failed: HTTP {(int)res.StatusCode}";
+                Say(false, $"refresh failed: HTTP {(int)res.StatusCode}");
             }
         }
         catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException) {
-            _msg = $"refresh failed: {ex.Message}";
+            Say(false, $"refresh failed: {ex.Message}");
         }
 
         await LoadBinary();
@@ -321,19 +316,18 @@
 
         if (body.Request is null && body.Response is null && body.RequestWrapped is null
             && body.ResponseWrapped is null && body.PathParam is null) {
-            _msg = "nothing to save; set at least one field or use Reset";
+            Say(false, "nothing to save; set at least one field or use Reset");
             return;
         }
 
         _busy = true;
-        _msg = null;
         try {
             var res = await Client().PutAsJsonAsync($"/api/admin/routes/{row.Path}", body, JsonOpts);
-            _msg = res.IsSuccessStatusCode ? $"saved {row.Path}" : $"save failed: HTTP {(int)res.StatusCode}";
+            Say(res.IsSuccessStatusCode, res.IsSuccessStatusCode ? $"saved {row.Path}" : $"save failed: HTTP {(int)res.StatusCode}");
             if (res.IsSuccessStatusCode) _expandedPath = null;
         }
         catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException) {
-            _msg = $"save failed: {ex.Message}";
+            Say(false, $"save failed: {ex.Message}");
         }
 
         await LoadRoutes();
@@ -343,14 +337,13 @@
 
     async Task Clear(string path) {
         _busy = true;
-        _msg = null;
         try {
             var res = await Client().DeleteAsync($"/api/admin/routes/{path}");
-            _msg = res.IsSuccessStatusCode ? $"cleared {path}" : $"clear failed: HTTP {(int)res.StatusCode}";
+            Say(res.IsSuccessStatusCode, res.IsSuccessStatusCode ? $"cleared {path}" : $"clear failed: HTTP {(int)res.StatusCode}");
             if (res.IsSuccessStatusCode) _expandedPath = null;
         }
         catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException) {
-            _msg = $"clear failed: {ex.Message}";
+            Say(false, $"clear failed: {ex.Message}");
         }
 
         await LoadRoutes();
@@ -361,7 +354,6 @@
     async Task ApplyDrift(RouteDriftRow d) {
         if (d.BinaryValue is null || !bool.TryParse(d.BinaryValue, out var value)) return;
         _busy = true;
-        _msg = null;
         var row = _rows.FirstOrDefault(r => r.Path == d.Path);
         var current = row?.Override;
         var eff = row?.Effective;
@@ -373,10 +365,10 @@
             current?.PathParam ?? eff?.PathParam);
         try {
             var res = await Client().PutAsJsonAsync($"/api/admin/routes/{d.Path}", body, JsonOpts);
-            _msg = res.IsSuccessStatusCode ? $"applied {d.Field} for {d.Path}" : $"apply failed: HTTP {(int)res.StatusCode}";
+            Say(res.IsSuccessStatusCode, res.IsSuccessStatusCode ? $"applied {d.Field} for {d.Path}" : $"apply failed: HTTP {(int)res.StatusCode}");
         }
         catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException) {
-            _msg = $"apply failed: {ex.Message}";
+            Say(false, $"apply failed: {ex.Message}");
         }
 
         await LoadRoutes();
@@ -386,6 +378,10 @@
         }
 
         _busy = false;
+    }
+
+    void Say(bool ok, string text) {
+        Toasts.Push(ok ? StatusNoteKind.Ok : StatusNoteKind.Error, text);
     }
 
 }

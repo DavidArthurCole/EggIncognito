@@ -13,6 +13,7 @@
 @inject ICurrentUser User
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env
+@inject ToastService Toasts
 @inject ILogger<PlaygroundWorkbenchModal> Logger
 
 <WorkbenchModal Open="@(_open && _isAdmin)" Title="Farm Playground" TitleId="playgroundWorkbenchTitle"
@@ -148,10 +149,6 @@
             </div>
         }
     </div>
-
-    @if (!string.IsNullOrEmpty(_status)) {
-        <StatusNote Severity="@(_error ? StatusNoteKind.Error : StatusNoteKind.Info)">@_status</StatusNote>
-    }
 </section>
 
 <section class="w-[340px] flex flex-col gap-2 self-start max-h-[85vh] overflow-auto">
@@ -560,7 +557,6 @@
     string _appVersion = "";
     CancellationTokenSource? _autosaveCts;
     CancellationTokenSource? _applyCts;
-    CancellationTokenSource? _statusCts;
     bool _suppressAutosave;
 
     FarmStateModel _state = new();
@@ -605,8 +601,6 @@
     string _bgColor = "#1a1a1f";
     bool _bgTransparent = true;
     bool _busy;
-    bool _error;
-    string _status = "";
     string _fatalError = "";
 
     bool SaveDisabled => _busy || (string.IsNullOrEmpty(_currentDesign) && string.IsNullOrWhiteSpace(_designName));
@@ -638,7 +632,6 @@
     async Task TeardownAsync() {
         _applyCts?.Cancel();
         _autosaveCts?.Cancel();
-        _statusCts?.Cancel();
         await _gifDragHandle.DisposeModuleQuietAsync("dispose", Logger);
         await _mod.DisposeModuleQuietAsync("dispose", Logger);
         await _autosave.DisposeModuleQuietAsync(logger: Logger);
@@ -1616,25 +1609,11 @@
     }
 
     void Status(string s) {
-        _error = false;
-        _status = s;
-        StateHasChanged();
-        _statusCts?.Cancel();
-        if (string.IsNullOrEmpty(s)) return;
-        var cts = new CancellationTokenSource();
-        _statusCts = cts;
-        _ = Task.Delay(3000, cts.Token).ContinueWith(t => {
-            if (t.IsCanceled) return;
-            _status = "";
-            InvokeAsync(StateHasChanged);
-        }, TaskScheduler.Default);
+        Toasts.Push(StatusNoteKind.Info, s);
     }
 
     void Fail(string s) {
-        _statusCts?.Cancel();
-        _error = true;
-        _status = s;
-        StateHasChanged();
+        Toasts.Push(StatusNoteKind.Error, s);
     }
 
     void FatalError(string s) {

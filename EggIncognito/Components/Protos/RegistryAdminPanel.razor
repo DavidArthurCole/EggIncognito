@@ -4,6 +4,7 @@
 @using EggIncognito.Models.Registry
 @using EggIncognito.Services.Protos
 @inherits SelfCallComponentBase
+@inject ToastService Toasts
 
 <div class="pwb-admin">
     <div class="pwb-admin-head">
@@ -128,13 +129,6 @@
                              OnChanged="OnChanged" OnClose="@(() => _editKey = string.Empty)"/>
         }
     }
-
-    @if (_msg.Length > 0) {
-        <StatusNote Severity="@(_ok ? StatusNoteKind.Ok : StatusNoteKind.Error)"
-                    OnDismiss="@(() => _msg = string.Empty)">
-            @_msg
-        </StatusNote>
-    }
 </div>
 
 @code {
@@ -156,8 +150,6 @@
 
     string _tab = TabAdd;
     bool _busy;
-    bool _ok;
-    string _msg = "";
     List<DeletedVersionRow> _deleted = [];
     string _platform = "android";
     string _appVersion = "";
@@ -182,7 +174,6 @@
 
     async Task SetTab(string tab) {
         _tab = tab;
-        _msg = "";
         if (tab == TabDeleted) await LoadDeleted();
     }
 
@@ -194,8 +185,7 @@
         }
         catch (Exception ex) when (ex is HttpRequestException or NotSupportedException or JsonException) {
             _deleted = [];
-            _ok = false;
-            _msg = "could not load deleted versions";
+            Toasts.Push(StatusNoteKind.Error, "could not load deleted versions");
         }
         finally {
             _busy = false;
@@ -204,13 +194,11 @@
 
     async Task Restore(DeletedVersionRow row) {
         _busy = true;
-        _msg = "";
         var ok = await PostJson(
             $"/api/protos/versions/{Uri.EscapeDataString(row.Platform)}/{Uri.EscapeDataString(row.Build)}/restore",
             new { });
         _busy = false;
-        _ok = ok;
-        _msg = ok ? $"restored {row.Platform} {row.Build}" : "restore failed (admin only?)";
+        Say(ok, ok ? $"restored {row.Platform} {row.Build}" : "restore failed (admin only?)");
         if (!ok) return;
         await LoadDeleted();
         await OnChanged.InvokeAsync();
@@ -227,13 +215,11 @@
     async Task Add() {
         if (string.IsNullOrWhiteSpace(_platform) || string.IsNullOrWhiteSpace(_appVersion) ||
             string.IsNullOrWhiteSpace(_build)) {
-            _ok = false;
-            _msg = "platform, app version, build required";
+            Say(false, "platform, app version, build required");
             return;
         }
 
         _busy = true;
-        _msg = "";
         var ok = await PostJson("/api/protos/versions", new {
             platform = _platform,
             appVersion = _appVersion,
@@ -243,15 +229,14 @@
             proto = string.IsNullOrWhiteSpace(_proto) ? null : _proto
         });
         _busy = false;
-        _ok = ok;
-        if (!ok) {
-            _msg = "failed (contributor+? build taken?)";
-            return;
-        }
-
-        _msg = "saved";
+        Say(ok, ok ? "saved" : "failed (contributor+? build taken?)");
+        if (!ok) return;
         _appVersion = _build = _client = _source = _proto = "";
         await OnChanged.InvokeAsync();
+    }
+
+    void Say(bool ok, string text) {
+        Toasts.Push(ok ? StatusNoteKind.Ok : StatusNoteKind.Error, text);
     }
 
     async Task<bool> PostJson(string url, object body) {

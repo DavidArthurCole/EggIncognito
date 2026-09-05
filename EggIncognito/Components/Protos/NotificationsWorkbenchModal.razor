@@ -4,6 +4,7 @@
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env
 @inject NotificationsWorkbenchState State
+@inject ToastService Toasts
 @inject ILogger<NotificationsWorkbenchModal> Logger
 @using System.Text.Json
 @using EggIdentity.UI
@@ -16,11 +17,6 @@
 
 <WorkbenchModal Open="_open" Title="Notifications" TitleId="notificationsWorkbenchTitle" CardClass="nwb-card"
                 OnClose="CloseAsync">
-    <Notice>
-        @if (_notice is { } n) {
-            <StatusNote Severity="@n.Severity" OnDismiss="DismissNotice">@n.Text</StatusNote>
-        }
-    </Notice>
     <HeadTools>
         @if (AdminScope) {
             @if (_admin is { } summary) {
@@ -123,7 +119,6 @@
     bool _armed;
     bool _json;
     bool _hashWired;
-    (string Text, StatusNoteKind Severity)? _notice;
 
     AdminFeedListResponse? _admin;
     int? _adminSelectedId;
@@ -517,12 +512,8 @@
         StateHasChanged();
     }
 
-    void DismissNotice() {
-        _notice = null;
-    }
-
     void Note(string text, bool ok) {
-        _notice = (text, ok ? StatusNoteKind.Ok : StatusNoteKind.Error);
+        Toasts.Push(ok ? StatusNoteKind.Ok : StatusNoteKind.Error, text);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender) {
@@ -743,7 +734,6 @@
     async Task SelectNew() {
         State.Creating = true;
         State.SelectedId = null;
-        _notice = null;
         _armed = false;
         ResetActivity();
         await LoadPreview();
@@ -753,7 +743,6 @@
     async Task Select(NotificationRow row) {
         State.Creating = false;
         State.SelectedId = row.Id;
-        _notice = null;
         _armed = false;
         ResetActivity();
         State.Edits.Remove(row.Id);
@@ -791,7 +780,6 @@
 
     async Task Create() {
         _busy = true;
-        _notice = null;
         try {
             var d = State.NewDraft;
             var body = new {
@@ -821,7 +809,6 @@
 
     async Task Save(int id) {
         _busy = true;
-        _notice = null;
         try {
             var d = State.Draft(id);
             var body = new {
@@ -843,7 +830,6 @@
 
     async Task SendTest(int id) {
         _busy = true;
-        _notice = null;
         _armed = false;
         var sample = PreviewKey() ?? "";
         try {
@@ -881,7 +867,6 @@
 
     void AdminSelect(AdminFeedRow row) {
         _adminSelectedId = row.Id;
-        _notice = null;
         _confirmDelete = false;
         _confirmTest = false;
         ResetActivity();
@@ -891,13 +876,11 @@
         if (!_confirmTest) {
             _confirmTest = true;
             _confirmDelete = false;
-            _notice = null;
-            return;
+                return;
         }
 
         _confirmTest = false;
         _busy = true;
-        _notice = null;
         try {
             var res = await Client().PostAsync($"/api/admin/feed/subscriptions/{id}/test", null);
             Note(res.IsSuccessStatusCode ? "Sent to the webhook." : "The webhook rejected it.", res.IsSuccessStatusCode);
@@ -912,7 +895,6 @@
 
     async Task AdminDeactivate(int id) {
         _busy = true;
-        _notice = null;
         _confirmDelete = false;
         _confirmTest = false;
         try {
@@ -932,13 +914,11 @@
         if (!_confirmDelete) {
             _confirmDelete = true;
             _confirmTest = false;
-            _notice = null;
-            return;
+                return;
         }
 
         _confirmDelete = false;
         _busy = true;
-        _notice = null;
         try {
             var res = await Client().DeleteAsync($"/api/admin/feed/subscriptions/{id}");
             Note(res.IsSuccessStatusCode ? "Deleted." : "Delete failed.", res.IsSuccessStatusCode);

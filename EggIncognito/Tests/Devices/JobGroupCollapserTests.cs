@@ -9,9 +9,50 @@ public class JobGroupCollapserTests {
 
     private static DeviceJobRow Row(long id, string? outcome = "no_change",
         string state = DeviceJobStates.Succeeded, string kind = DeviceJobKinds.Probe,
-        string trigger = "poll", string? message = null) =>
+        string trigger = "poll", string? message = null, string? detail = null) =>
         new(id, "dev", kind, state, trigger, At(id), At(id), outcome, message ?? $"msg{id}",
-            true, $"1.{id}", $"{id}", null, $"rev{id}", null);
+            true, $"1.{id}", $"{id}", null, $"rev{id}", detail);
+
+    [Fact]
+    public void CookbookRowsCarryTheTitleStoredInDetail() {
+        var c = new JobGroupCollapser(20, _ => "resolver should not be asked");
+        c.Feed([Row(1, "ok", kind: DeviceJobKinds.Cookbook,
+            detail: """{"cookbook":"install-app","cookbookTitle":"Install app"}""")]);
+
+        Assert.Equal("Install app", Assert.Single(c.Finish().Rows).Cookbook);
+    }
+
+    [Fact]
+    public void CookbookRowsWithOnlyAnIdResolveTheTitle() {
+        var c = new JobGroupCollapser(20, id => id == "install-app" ? "Install app" : null);
+        c.Feed([Row(1, "ok", kind: DeviceJobKinds.Cookbook, detail: """{"cookbook":"install-app"}""")]);
+
+        Assert.Equal("Install app", Assert.Single(c.Finish().Rows).Cookbook);
+    }
+
+    [Fact]
+    public void UnresolvableCookbookIdFallsBackToTheId() {
+        var c = new JobGroupCollapser(20);
+        c.Feed([Row(1, "ok", kind: DeviceJobKinds.Cookbook, detail: """{"cookbook":"custom-thing"}""")]);
+
+        Assert.Equal("custom-thing", Assert.Single(c.Finish().Rows).Cookbook);
+    }
+
+    [Fact]
+    public void CookbookRowsWithNoDetailHaveNoCookbook() {
+        var c = new JobGroupCollapser(20);
+        c.Feed([Row(1, "ok", kind: DeviceJobKinds.Cookbook), Row(2, "ok", kind: DeviceJobKinds.Cookbook, detail: "{")]);
+
+        Assert.All(c.Finish().Rows, r => Assert.Null(r.Cookbook));
+    }
+
+    [Fact]
+    public void NonCookbookRowsNeverGetACookbook() {
+        var c = new JobGroupCollapser(20, _ => "Probe");
+        c.Feed([Row(1, detail: """{"cookbook":"install-app"}""")]);
+
+        Assert.Null(Assert.Single(c.Finish().Rows).Cookbook);
+    }
 
     [Fact]
     public void IdenticalProbesFoldIntoOneGroup() {
