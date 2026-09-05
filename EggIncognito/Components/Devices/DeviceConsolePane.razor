@@ -100,7 +100,8 @@
                                     @(_stopBusy ? "Stopping..." : "Stop")
                                 </button>
                             }
-                            <CopyButton GetText="RunReport" Label="Copy" CopiedLabel="Copied" ShowIcon="false"/>
+                            <CopyButton GetText="RunReport" Label="Copy" CopiedLabel="Copied" ShowIcon="false"
+                                        ButtonClass="btn-mini"/>
                             <button type="button" class="btn-mini" @onclick="ToggleWrap">@(_wrap ? "Nowrap" : "Wrap")</button>
                             @if (_runDone) {
                                 <button type="button" class="btn-mini" @onclick="Done">Done</button>

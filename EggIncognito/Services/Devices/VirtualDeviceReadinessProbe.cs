@@ -7,10 +7,11 @@ public sealed class VirtualDeviceReadinessProbe(
     IDeviceConnectionFactory connections,
     VirtualDeviceConfig config,
     IConfiguration configuration) {
-    private const string IntegrityDetect =
-        "ls -d /data/adb/modules/*integrity* 2>/dev/null; "
-        + "grep -il integrity /data/adb/modules/*/module.prop 2>/dev/null";
     private const string SystemCaCerts = "/system/etc/security/cacerts/";
+
+    private const string GsfAndroidIdQuery =
+        "content query --uri content://com.google.android.gsf.gservices "
+        + "--projection value --where \"name='android_id'\" 2>/dev/null";
 
     public async Task<DeviceReadiness> ProbeAsync(DeviceTarget target, CancellationToken ct) {
         if (!Platforms.Matches(target.Platform, Platforms.Android)) {
@@ -51,26 +52,55 @@ public sealed class VirtualDeviceReadinessProbe(
 
     private async Task<ReadinessCheck> GooglePlayAsync(IDeviceConnection conn, CancellationToken ct) {
         var r = await conn.ShellAsync($"pm list packages {config.GmsPackage}", ct);
-        return r.Stdout.Contains("package:", StringComparison.Ordinal)
-            ? new ReadinessCheck(true)
-            : new ReadinessCheck(false, "no Play services, needs a gapps image");
+        if (!r.Stdout.Contains("package:", StringComparison.Ordinal))
+            return new ReadinessCheck(false, "no Play services, needs a gapps image");
+
+        var gsf = await conn.ShellAsync(GsfAndroidIdQuery, ct);
+        return GsfAndroidId(gsf.Stdout) is { Length: > 0 } id
+            ? new ReadinessCheck(true, $"gsf id {id}")
+            : new ReadinessCheck(false,
+                "Play services installed but never checked in; no gsf id, so Play treats the device as uncertified");
+    }
+
+    internal static string? GsfAndroidId(string stdout) {
+        foreach (string line in stdout.Split('\n')) {
+            int at = line.IndexOf("value=", StringComparison.Ordinal);
+            if (at < 0) continue;
+            string value = line[(at + "value=".Length)..].Trim();
+            if (value.Length > 0 && !value.Equals("NULL", StringComparison.OrdinalIgnoreCase)) return value;
+        }
+
+        return null;
     }
 
     private static ReadinessCheck RootedCheck(RootAccess root) =>
         root.Ok ? new ReadinessCheck(true) : new ReadinessCheck(false, root.Detail);
 
-    private static async Task<ReadinessCheck> IntegrityAsync(IDeviceConnection conn, RootAccess root, CancellationToken ct) {
-        var r = await conn.ShellAsync(root.Wrap(IntegrityDetect), ct);
-        return r.Stdout.Trim().Length > 0
-            ? new ReadinessCheck(true)
-            : new ReadinessCheck(false, "no module in /data/adb/modules");
+    private async Task<ReadinessCheck> IntegrityAsync(IDeviceConnection conn, RootAccess root, CancellationToken ct) {
+        var r = await conn.ShellAsync(root.Wrap(MagiskModules.ScanCommand), ct);
+        if (!MagiskModules.Ran(r.Stdout))
+            return new ReadinessCheck(false, $"module scan did not run: {DeviceParsing.TrimNote(r.Stderr + r.Stdout)}");
+
+        var mods = MagiskModules.Parse(r.Stdout);
+        if (mods.Count == 0) return new ReadinessCheck(false, "no module in /data/adb/modules");
+
+        string listing = MagiskModules.Describe(mods);
+        if (mods.Exists(m => !m.Ok)) return new ReadinessCheck(false, listing);
+
+        int want = config.IntegrityModules.Count;
+        return mods.Count < want
+            ? new ReadinessCheck(false, $"{mods.Count} of {want} chain modules present: {listing}")
+            : new ReadinessCheck(true, listing);
     }
 
     private static async Task<ReadinessCheck> LaunchedAsync(IDeviceConnection conn, string package, CancellationToken ct) {
         var r = await conn.ShellAsync($"pidof {package}", ct);
-        return r.Stdout.Trim().Length > 0
-            ? new ReadinessCheck(true)
-            : new ReadinessCheck(false, "not running");
+        if (r.Stdout.Trim().Length == 0) return new ReadinessCheck(false, "not running");
+
+        var front = await DeviceForeground.ReadAsync(conn, ct);
+        return front.Is(DeviceForeground.PlayStorePackage)
+            ? new ReadinessCheck(false, DeviceForeground.PlayBlockNote)
+            : new ReadinessCheck(true);
     }
 
     private async Task<ReadinessCheck> CaptureCaAsync(IDeviceConnection conn, RootAccess root, CancellationToken ct) {

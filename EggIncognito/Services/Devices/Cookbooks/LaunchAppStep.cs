@@ -3,6 +3,8 @@ using EggIncognito.Core.Services.Devices;
 namespace EggIncognito.Services.Devices.Cookbooks;
 
 public sealed class LaunchAppStep(IDeviceConnectionFactory connections) : CookbookStep {
+    private static readonly TimeSpan SettleDelay = TimeSpan.FromSeconds(4);
+
     public override string Id => DeviceCookbookIds.LaunchApp;
     public override string Title => "Launch app";
 
@@ -47,6 +49,14 @@ public sealed class LaunchAppStep(IDeviceConnectionFactory connections) : Cookbo
                 $"am start failed: {DeviceParsing.TrimNote(start.Stdout + start.Stderr)}");
         }
 
-        return Ok(lines, $"launched {component}");
+        await Task.Delay(SettleDelay, ct);
+        var front = await DeviceForeground.ReadAsync(conn, ct);
+        if (front.Is(DeviceForeground.PlayStorePackage))
+            return Failed(lines, $"{component} started but {DeviceForeground.PlayBlockNote}");
+
+        Add($"foreground: {front.Component ?? DeviceParsing.TrimNote(front.Raw)}");
+        return front.Is(target.Package)
+            ? Ok(lines, $"launched {component}")
+            : Ok(lines, $"launched {component}, foreground is {front.Package ?? "unknown"}");
     }
 }

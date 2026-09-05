@@ -1,0 +1,36 @@
+namespace EggIncognito.Core.Services.Devices;
+
+public sealed record ForegroundWindow(string? Package, string? Component, string Raw) {
+    public bool Is(string package) =>
+        Package is { Length: > 0 } p && p.Equals(package, StringComparison.OrdinalIgnoreCase);
+}
+
+public static class DeviceForeground {
+    public const string PlayStorePackage = "com.android.vending";
+
+    public const string PlayBlockNote =
+        "Google Play holds the foreground; the device is not Play Protect certified, "
+        + "so Play refuses to let the app run";
+
+    private const string FocusCommand =
+        "dumpsys window 2>/dev/null | grep -E \"mCurrentFocus|mFocusedApp\" | head -n 2";
+
+    public static async Task<ForegroundWindow> ReadAsync(IDeviceConnection conn, CancellationToken ct) {
+        var r = await conn.ShellAsync(FocusCommand, ct);
+        return Parse(r.Stdout);
+    }
+
+    public static ForegroundWindow Parse(string stdout) {
+        string raw = DeviceParsing.TrimNote(stdout);
+        foreach (string line in stdout.Split('\n')) {
+            foreach (string token in line.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries)) {
+                string t = token.Trim('{', '}', ',');
+                int slash = t.IndexOf('/', StringComparison.Ordinal);
+                if (slash <= 0 || !t[..slash].Contains('.', StringComparison.Ordinal)) continue;
+                return new ForegroundWindow(t[..slash], t, raw);
+            }
+        }
+
+        return new ForegroundWindow(null, null, raw);
+    }
+}

@@ -30,10 +30,6 @@ public sealed class InstallIntegrityStep(
         "/system/etc/init/magisk/magisk", "/data/adb/magisk/magisk"
     ];
     private const string ScanMarker = "egi-scan-done";
-    private const string IntegrityDetect =
-        "ls -d /data/adb/modules/*integrity* 2>/dev/null; "
-        + "grep -il integrity /data/adb/modules/*/module.prop 2>/dev/null; "
-        + "echo " + ScanMarker;
     private const string MagiskBinDir = "/data/adb/magisk";
     private const string MagiskSysDir = "/system/etc/init/magisk";
     private const string BusyboxMarker = "egi-busybox-ok";
@@ -165,18 +161,27 @@ public sealed class InstallIntegrityStep(
             root = after;
         }
 
-        var verify = await conn.ShellAsync(root.Wrap(IntegrityDetect), ct);
-        if (!verify.Stdout.Contains(ScanMarker, StringComparison.Ordinal)) {
+        var verify = await conn.ShellAsync(root.Wrap(MagiskModules.ScanCommand), ct);
+        if (!MagiskModules.Ran(verify.Stdout)) {
             return Failed(lines,
                 $"integrity verify did not run (exit {verify.ExitCode}): "
                 + DeviceParsing.TrimNote(verify.Stderr + verify.Stdout));
         }
 
-        if (WithoutMarkers(verify.Stdout).Length == 0)
-            return Failed(lines, "Integrity-Box module not found under /data/adb/modules after install");
+        var mods = MagiskModules.Parse(verify.Stdout);
+        if (mods.Count == 0)
+            return Failed(lines, "no module under /data/adb/modules after install");
 
-        Add("Integrity-Box module present");
-        return Ok(lines, $"installed {config.IntegrityModules.Count} module(s)");
+        string listing = MagiskModules.Describe(mods);
+        if (mods.Exists(m => !m.Ok))
+            return Failed(lines, $"modules landed but are not live: {listing}");
+
+        int want = config.IntegrityModules.Count;
+        if (mods.Count < want)
+            return Failed(lines, $"only {mods.Count} of {want} chain modules are live: {listing}");
+
+        Add($"modules live: {listing}");
+        return Ok(lines, $"installed {want} module(s)");
     }
 
     private static async Task<string?> MagiskBinaryAsync(IDeviceConnection conn, RootAccess root, CancellationToken ct) {
