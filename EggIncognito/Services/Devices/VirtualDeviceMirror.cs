@@ -6,7 +6,7 @@ namespace EggIncognito.Services.Devices;
 public static class VirtualDeviceMirror {
     private const string Package = "com.auxbrain.egginc";
 
-    public static async Task<IReadOnlyList<Device>> RemoteLiveDevicesAsync(
+    public static async Task<IReadOnlyList<ProvisionedInstance>> RemoteLiveInstancesAsync(
         IDeviceProvisioners provisioners, VirtualDeviceConfig config, CancellationToken ct) {
         if (!RemoteDeviceProvisioner.IsRemoteKind(config.Kind)) return [];
 
@@ -15,17 +15,22 @@ public static class VirtualDeviceMirror {
 
         return [.. instances
             .Where(i => i.DeviceId is { Length: > 0 } && i.AdbSerial is { Length: > 0 }
-                        && ProvisionStates.IsLive(i.State))
-            .Select(i => new Device {
-                Id = i.DeviceId!,
-                Platform = Platforms.Android,
-                Label = i.DeviceId!,
-                Target = i.AdbSerial!,
-                Package = Package,
-                Enabled = true,
-                Origin = DeviceOrigins.Virtual
-            })];
+                        && ProvisionStates.IsLive(i.State))];
     }
+
+    public static async Task<IReadOnlyList<Device>> RemoteLiveDevicesAsync(
+        IDeviceProvisioners provisioners, VirtualDeviceConfig config, CancellationToken ct) =>
+        [.. (await RemoteLiveInstancesAsync(provisioners, config, ct)).Select(ToDevice)];
+
+    public static Device ToDevice(ProvisionedInstance instance) => new() {
+        Id = instance.DeviceId!,
+        Platform = Platforms.Android,
+        Label = instance.DeviceId!,
+        Target = instance.AdbSerial!,
+        Package = Package,
+        Enabled = true,
+        Origin = DeviceOrigins.Virtual
+    };
 
     public static async Task<DeviceTarget?> ResolveTargetAsync(
         IDeviceProvisioners provisioners, VirtualDeviceConfig config, string deviceId, CancellationToken ct) {

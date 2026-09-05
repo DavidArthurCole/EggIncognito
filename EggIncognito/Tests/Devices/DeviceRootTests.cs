@@ -89,7 +89,7 @@ public class DeviceRootTests {
     }
 
     private sealed class ScriptedConnection : IDeviceConnection {
-        private readonly Dictionary<string, ProcessResult> _replies = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, ProcessResult> _replies = [with(StringComparer.Ordinal)];
         public readonly List<string> Commands = [];
 
         public ProcessResult this[string command] {

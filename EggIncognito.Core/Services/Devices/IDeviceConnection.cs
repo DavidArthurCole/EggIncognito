@@ -10,6 +10,9 @@ public interface IDeviceConnection {
 
     Task<ProcessBytesResult> ExecOutAsync(string command, CancellationToken ct) =>
         Task.FromResult(new ProcessBytesResult(-1, [], "exec-out is not supported by this connection"));
+
+    Task<ProcessHandle?> ExecOutStreamAsync(string command, CancellationToken ct) =>
+        Task.FromResult<ProcessHandle?>(null);
 }
 
 public sealed record SshEndpoint(string Host, string Port, string KeyPath) {

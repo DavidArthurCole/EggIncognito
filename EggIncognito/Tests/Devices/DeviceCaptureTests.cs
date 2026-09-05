@@ -286,7 +286,7 @@ public class DeviceCaptureTests {
 
     private sealed class RecordingFleet(params string[] ids) : IDeviceFleet {
         public string[] Ids { get; set; } = ids;
-        public Dictionary<string, int> Persisted { get; } = new(StringComparer.Ordinal);
+        public Dictionary<string, int> Persisted { get; } = [with(StringComparer.Ordinal)];
 
         public Task<IReadOnlyList<DeviceEntry>> EnabledAsync(CancellationToken ct) =>
             Task.FromResult<IReadOnlyList<DeviceEntry>>([

@@ -35,6 +35,19 @@ public sealed class AdbDeviceConnection(IProcessRunner runner, string serial) : 
     public Task<ProcessBytesResult> ExecOutAsync(string command, CancellationToken ct) =>
         RunBytesAsync(["-s", serial, "exec-out", command], ct);
 
+    public async Task<ProcessHandle?> ExecOutStreamAsync(string command, CancellationToken ct) {
+        if (IsNetworkSerial) {
+            var state = await runner.RunAsync("adb", ["-s", serial, "get-state"], ct);
+            if (state.ExitCode != 0) await runner.RunAsync("adb", ["connect", serial], ct);
+        }
+
+        try {
+            return await runner.StartAsync("adb", ["-s", serial, "exec-out", command], ct);
+        } catch (NotSupportedException) {
+            return null;
+        }
+    }
+
     public async Task<byte[]?> PullBytesAsync(string remotePath, CancellationToken ct) {
         string dest = DeviceShell.NewTempPath(".bin");
         try {

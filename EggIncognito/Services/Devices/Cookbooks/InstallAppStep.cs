@@ -22,7 +22,7 @@ public sealed class InstallAppStep(
 
         var options = new List<DeviceCookbookOption>();
         foreach (var set in await StoredSetsAsync(target.Package, ct))
-            options.Add(new DeviceCookbookOption(StorePrefix + set.Key, set.Label, options.Count == 0));
+            options.Add(new DeviceCookbookOption(StorePrefix + set.Key, set.Label, options.Count == 0, set.Detail));
         foreach (var source in await SourceDevicesAsync(target.Id, ct)) {
             options.Add(new DeviceCookbookOption(
                 DevicePrefix + source.Id, $"pull fresh from {source.Label}", options.Count == 0));

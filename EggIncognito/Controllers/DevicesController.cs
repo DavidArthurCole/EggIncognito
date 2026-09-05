@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using EggIdentity.Contract;
 using EggIncognito.Core.Services.Devices;
 using EggIncognito.Data.Models;
@@ -21,7 +22,7 @@ namespace EggIncognito.Controllers;
 [Route("api/devices")]
 [ApiAccess(ApiAccessLevel.Public)]
 [EnableRateLimiting("read")]
-public sealed class DevicesController(
+public sealed partial class DevicesController(
     ICurrentUser currentUser,
     IServiceProvider services,
     IServiceScopeFactory scopeFactory) : ControllerBase {
@@ -29,6 +30,11 @@ public sealed class DevicesController(
     private const string StreamBoundary = "egiframe";
     private const int MinStreamFps = 1;
     private const int MaxStreamFps = 5;
+    private const int MinVideoBitrate = 500_000;
+    private const int MaxVideoBitrate = 8_000_000;
+
+    [GeneratedRegex(@"^\d{2,4}x\d{2,4}$")]
+    private static partial Regex VideoSizeRegex();
 
     private static readonly byte[] PartTrailer = "\r\n"u8.ToArray();
     private static readonly byte[] StreamEnd = Encoding.ASCII.GetBytes($"--{StreamBoundary}--\r\n");
@@ -65,8 +71,9 @@ public sealed class DevicesController(
             .Where(d => isAdmin || !DeviceOrigins.IsVirtual(d.Origin));
 
         var devices = enabled.ToDictionary(d => d.Id);
+        var virtualUp = new Dictionary<string, DateTimeOffset>(StringComparer.Ordinal);
         HashSet<string> virtualLive = isAdmin
-            ? await MergeVirtualDevicesAsync(devices, ct)
+            ? await MergeVirtualDevicesAsync(devices, virtualUp, ct)
             : [with(StringComparer.Ordinal)];
 
         var ids = devices.Keys.ToList();
@@ -82,21 +89,34 @@ public sealed class DevicesController(
             : await DeviceVersionIndex.BuildAsync(db, platforms, ct);
         var storeLatest = await StoreLatestPerPlatformAsync(db, platforms, ct);
 
+        Func<string, int> capturePortFor =
+            services.GetService(typeof(DeviceCaptureManager)) is DeviceCaptureManager captures
+                ? captures.PortFor
+                : _ => 0;
         var inputs = new DeviceStatusInputs(
             isAdmin, probes, updates, storeLatest, virtualLive, versions,
             await CapturedClientVersionsAsync(ct),
-            services.GetService(typeof(GameBinaryProvider)) as GameBinaryProvider);
+            services.GetService(typeof(GameBinaryProvider)) as GameBinaryProvider,
+            virtualUp, capturePortFor);
 
         return Ok(devices.Values.Select(d => DeviceStatusProjector.Project(d, inputs)));
     }
 
     private async Task<HashSet<string>> MergeVirtualDevicesAsync(Dictionary<string, Device> devices,
-        CancellationToken ct) {
+        Dictionary<string, DateTimeOffset> up, CancellationToken ct) {
         var live = new HashSet<string>(StringComparer.Ordinal);
+        if (Instances is { } instances) {
+            foreach (var row in await instances.AllAsync(ct)) {
+                if (row.DeviceId is { Length: > 0 } deviceId) up[deviceId] = row.CreatedAt;
+            }
+        }
+
         if (Provisioners is not { } provisioners || VirtualConfig is not { } virtualConfig) return live;
 
-        foreach (var d in await VirtualDeviceMirror.RemoteLiveDevicesAsync(provisioners, virtualConfig, ct)) {
+        foreach (var i in await VirtualDeviceMirror.RemoteLiveInstancesAsync(provisioners, virtualConfig, ct)) {
+            var d = VirtualDeviceMirror.ToDevice(i);
             if (devices.TryAdd(d.Id, d)) live.Add(d.Id);
+            if (i.CreatedAt != default) up[d.Id] = i.CreatedAt;
         }
 
         return live;
@@ -823,6 +843,54 @@ public sealed class DevicesController(
 
     private static byte[] PartHeader(int length) => Encoding.ASCII.GetBytes(
         $"--{StreamBoundary}\r\nContent-Type: image/jpeg\r\nContent-Length: {length.ToString(CultureInfo.InvariantCulture)}\r\n\r\n");
+
+    [HttpGet("{id}/ui/video")]
+    [ApiAccess(ApiAccessLevel.Admin)]
+    [DisableRateLimiting]
+    public async Task<IActionResult> UiVideo(string id, [FromQuery] string size = "720x1280",
+        [FromQuery] int bitrate = 3_000_000, CancellationToken ct = default) {
+        if (RequireAdmin() is { } no) return no;
+        (IActionResult? err, var platform, var target) = await ResolveUiAsync(id, ct);
+        if (err is not null) return err;
+        if (!Platforms.Matches(platform.Platform, Platforms.Android))
+            return BadRequest(new { error = "video streaming is android only" });
+        if (!VideoSizeRegex().IsMatch(size))
+            return BadRequest(new { error = "size must look like WIDTHxHEIGHT, e.g. 720x1280" });
+
+        if (services.GetService(typeof(IDeviceConnectionFactory)) is not IDeviceConnectionFactory factory)
+            return StatusCode(503, new { error = "device transport not configured" });
+        var conn = factory.For(target);
+        if (conn is null) return StatusCode(502, new { error = "no connection for device" });
+        if (!conn.SupportsExecOut) return StatusCode(501, new { error = "this connection cannot stream exec-out" });
+
+        if (!DeviceStreamGate.TryEnter(target.Id))
+            return StatusCode(409, new { error = "a screen stream is already open for this device" });
+
+        string command = ScreenVideoPump.ScreenrecordCommand(size, Math.Clamp(bitrate, MinVideoBitrate, MaxVideoBitrate));
+        try {
+            Response.StatusCode = StatusCodes.Status200OK;
+            Response.ContentType = "application/octet-stream";
+            Response.Headers.CacheControl = "no-store";
+            Response.Headers.Pragma = "no-cache";
+            Response.Headers["X-Accel-Buffering"] = "no";
+            HttpContext.Features.Get<IHttpResponseBodyFeature>()?.DisableBuffering();
+
+            var pump = new ScreenVideoPump(token => conn.ExecOutStreamAsync(command, token));
+            string? note = await pump.RunAsync(Response.Body, ct);
+            if (note is null) return new EmptyResult();
+
+            (services.GetService(typeof(ILogger<DevicesController>)) as ILogger<DevicesController>)?
+                .LogWarning("video stream for {DeviceId} stopped: {Note}", target.Id, note);
+            if (Response.HasStarted) return new EmptyResult();
+            Response.Clear();
+            return StatusCode(502, new { error = note });
+        } catch (Exception ex) when (ex is OperationCanceledException or IOException
+                                        or ObjectDisposedException) {
+            return new EmptyResult();
+        } finally {
+            DeviceStreamGate.Exit(target.Id);
+        }
+    }
 
     [HttpGet("{id}/ui/dump")]
     [ApiAccess(ApiAccessLevel.Admin)]

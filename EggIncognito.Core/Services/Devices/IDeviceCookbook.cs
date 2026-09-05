@@ -11,7 +11,8 @@ public static class DeviceCookbookIds {
     public const string InstallIntegrity = "install-integrity";
 }
 
-public sealed record DeviceCookbookOption(string Value, string Label, bool Recommended = false);
+public sealed record DeviceCookbookOption(
+    string Value, string Label, bool Recommended = false, string? Detail = null);
 
 public sealed record DeviceCookbookInfo(
     string Id,

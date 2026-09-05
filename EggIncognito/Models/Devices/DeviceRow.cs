@@ -15,4 +15,6 @@ public sealed record DeviceRow(
     string? Note,
     DateTimeOffset ProbedAt,
     int? ClientVersion,
-    bool Virtual = false);
+    bool Virtual = false,
+    DateTimeOffset? Up = null,
+    int CapturePort = 0);

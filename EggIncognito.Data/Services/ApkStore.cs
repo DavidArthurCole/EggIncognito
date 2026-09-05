@@ -25,8 +25,17 @@ public sealed record ApkVersionSet(
         get {
             string version = string.IsNullOrEmpty(AppVersion) ? "unknown version" : AppVersion;
             string build = string.IsNullOrEmpty(Build) ? "" : $" ({Build})";
+            return $"{version}{build}";
+        }
+    }
+
+    public string Detail {
+        get {
             string splits = string.Join("+", Splits.Select(s => s.Split).Order(StringComparer.Ordinal));
-            return $"{version}{build} - {splits}, captured {CapturedAt:yyyy-MM-dd}";
+            var sources = Splits.Select(s => s.SourceDeviceId).OfType<string>()
+                .Where(s => s.Length > 0).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList();
+            string from = sources.Count == 0 ? "" : $", from {string.Join("+", sources)}";
+            return $"{splits}, captured {CapturedAt:yyyy-MM-dd}{from}";
         }
     }
 }
