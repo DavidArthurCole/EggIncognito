@@ -5,8 +5,13 @@ public static class GsfIdentity {
         "content query --uri content://com.google.android.gsf.gservices "
         + "--projection value --where \"name='android_id'\" 2>/dev/null";
 
+    private static readonly TimeSpan QueryTimeout = TimeSpan.FromSeconds(20);
+
     public static async Task<string?> ReadAsync(IDeviceConnection conn, CancellationToken ct) {
-        var r = await conn.ShellAsync(AndroidIdQuery, ct);
+        using var bounded = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        bounded.CancelAfter(QueryTimeout);
+        var r = await conn.ShellAsync(AndroidIdQuery, bounded.Token);
+        ct.ThrowIfCancellationRequested();
         return Parse(r.Stdout);
     }
 

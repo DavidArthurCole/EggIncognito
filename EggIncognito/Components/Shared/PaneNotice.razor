@@ -6,11 +6,17 @@
         if (!string.IsNullOrEmpty(text)) Toasts.Push(kind, text);
     }
 
-    public void Ok(string? text) => Say(text, StatusNoteKind.Ok);
+    public void Ok(string? text) {
+        Say(text, StatusNoteKind.Ok);
+    }
 
-    public void Fail(string? text) => Say(text, StatusNoteKind.Error);
+    public void Fail(string? text) {
+        Say(text, StatusNoteKind.Error);
+    }
 
-    public void Result(bool ok, string? text) => Say(text, ok ? StatusNoteKind.Ok : StatusNoteKind.Error);
+    public void Result(bool ok, string? text) {
+        Say(text, ok ? StatusNoteKind.Ok : StatusNoteKind.Error);
+    }
 
     public void Clear() {
     }

@@ -22,9 +22,14 @@ public sealed class InstallIntegrityStep(
         + "chown system:shell " + AdbKeysDir + " " + AdbKeysFile + "; "
         + "chmod 750 " + AdbKeysDir + "; chmod 640 " + AdbKeysFile + "; "
         + "rm -f " + RemoteAdbKey;
-    private const string NoAdbKeyWarning =
-        "no adb public key available (set Devices:Virtual:AdbPublicKeyPath or mount the adb server's ~/.android "
-        + "into this container); after PlayIntegrityFix sets ro.adb.secure=1 adbd will reject this host";
+    private static string NoAdbKeyWarning(VirtualDeviceConfig config) =>
+        "no adb public key found at "
+        + string.Join(", ", AdbHostKey.Candidates(config.AdbPublicKeyPath,
+            Environment.GetEnvironmentVariable("ANDROID_USER_HOME"),
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)))
+        + "; the adb server that owns the key may run in another container on the same host network. "
+        + "Mount one shared dir at /root/.android in every container with ADB_SERVER_SOCKET, or set "
+        + "Devices:Virtual:AdbPublicKeyPath. After PlayIntegrityFix sets ro.adb.secure=1 adbd rejects unauthorized hosts";
     private static readonly string[] MagiskPaths = [
         "/sbin/magisk", "/debug_ramdisk/magisk",
         "/system/etc/init/magisk/magisk", "/data/adb/magisk/magisk"
@@ -240,7 +245,7 @@ public sealed class InstallIntegrityStep(
               + DeviceParsing.TrimNote(policy.Stderr + policy.Stdout));
 
         if (AdbHostKey.Resolve(config) is not { } key) {
-            add(NoAdbKeyWarning);
+            add(NoAdbKeyWarning(config));
             return;
         }
 

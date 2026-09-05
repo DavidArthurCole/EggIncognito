@@ -7,6 +7,8 @@
 @implements IAsyncDisposable
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env
+@inject ICurrentUser User
+@inject IServiceProvider Services
 @inject ILogger<EventsMiniCalendar> Logger
 
 @if (_note.Length > 0) {
@@ -77,8 +79,12 @@
 
     ElementReference _scroller;
     IJSObjectReference? _scroll;
+    IJSObjectReference? _tz;
     IReadOnlyList<EventCalendarRow> _rows = [];
     IReadOnlyList<EventCalendarCell> _days = [];
+    IReadOnlyList<CalendarItem> _items = [];
+    TimeZoneInfo _zone = ViewerZone.Fallback;
+    bool _zoneFromProfile;
     DateTimeOffset _start;
     DateTimeOffset _end;
     string _note = "";
@@ -90,15 +96,25 @@
         $"--evcal-days:{DayCount};--evcal-gap:{EventCalendarLayout.GapPercent(_start, _end):0.###}%;");
 
     protected override async Task OnInitializedAsync() {
-        var now = DateTimeOffset.Now;
-        (_, _end) = EventCalendarLayout.Window(now, EventCalendarZoom.Week);
-        _start = _end.AddDays(-HistoryDays);
+        var profileId = await ViewerZone.ProfileIdAsync(Services, User, CancellationToken.None);
+        if (ViewerZone.Parse(profileId) is { } profileZone) {
+            _zone = profileZone;
+            _zoneFromProfile = true;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        SetWindow(now);
         await Load(now);
+    }
+
+    void SetWindow(DateTimeOffset now) {
+        (_, _end) = EventCalendarLayout.Window(now, EventCalendarZoom.Week, _zone);
+        _start = _end.AddDays(-HistoryDays);
     }
 
     async Task Load(DateTimeOffset now) {
         var url = FormattableString.Invariant(
-            $"/api/v1/events?after={UnixSeconds.FromTime(_start):0}&before={UnixSeconds.FromTime(_end):0}&limit={FetchLimit}");
+            $"/api/v1/events?after={UnixSeconds.FromTime(_start):0}&before={UnixSeconds.FromTime(_end.AddDays(1)):0}&limit={FetchLimit}");
         IReadOnlyList<GameEventDto> events;
         try {
             var res = await Client().GetAsync(url);
@@ -121,12 +137,18 @@
             return;
         }
 
-        _rows = EventCalendarLayout.Rows([.. events.Select(Item)], _start, _end, EventCalendarZoom.Week, now);
-        _days = _rows.Count > 0 ? _rows[0].Cells : [];
+        _items = [.. events.Select(Item)];
+        Relayout(now);
         if (_rows.All(r => r.Lanes.Count == 0)) _note = "No events in the last three weeks.";
     }
 
+    void Relayout(DateTimeOffset now) {
+        _rows = EventCalendarLayout.Rows(_items, _start, _end, EventCalendarZoom.Week, now, _zone);
+        _days = _rows.Count > 0 ? _rows[0].Cells : [];
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender) {
+        if (firstRender) await ResolveBrowserZone();
         if (_scrolled || _rows.Count == 0 || _note.Length > 0) return;
         _scrolled = true;
         try {
@@ -138,6 +160,26 @@
         }
         catch (JSException) {
         }
+    }
+
+    async Task ResolveBrowserZone() {
+        if (_zoneFromProfile || _note.Length > 0) return;
+        string? id;
+        try {
+            _tz = await JS.InvokeAsync<IJSObjectReference>("import", InteropAsset.Url(Env, "./interop/timezone.js"));
+            id = await _tz.InvokeAsync<string>("read");
+        }
+        catch (Exception ex) when (ex is JSDisconnectedException or JSException) {
+            Logger.LogDebug(ex, "the browser time zone could not be read");
+            return;
+        }
+
+        if (ViewerZone.Parse(id) is not { } zone || zone.Id == _zone.Id) return;
+        _zone = zone;
+        var now = DateTimeOffset.UtcNow;
+        SetWindow(now);
+        Relayout(now);
+        StateHasChanged();
     }
 
     double NowFraction => _rows.Count > 0 && _rows[0].NowPercent is { } percent ? percent / 100 : 1;
@@ -193,12 +235,8 @@
     }
 
     public async ValueTask DisposeAsync() {
-        if (_scroll is null) return;
-        try {
-            await _scroll.DisposeAsync();
-        }
-        catch (JSDisconnectedException) {
-        }
+        await _scroll.DisposeModuleAsync(logger: Logger);
+        await _tz.DisposeModuleAsync(logger: Logger);
     }
 
 }

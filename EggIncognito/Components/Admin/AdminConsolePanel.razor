@@ -84,7 +84,7 @@
         var res = await Api.GetAsync("/api/console/endpoints");
         _endpoints = res.Ok ? res.Json<ConsoleEndpointList>()?.Endpoints?.ToList() ?? [] : [];
         if (_selected is null) return;
-        string key = Key(_selected);
+        var key = Key(_selected);
         _selected = _endpoints.FirstOrDefault(x => Key(x) == key);
     }
 
@@ -158,7 +158,7 @@
                 _selected.HasBody && !string.IsNullOrWhiteSpace(_body) ? _body : null);
 
         _status = res.Status;
-        string? line = res.Status == 0 ? res.Body : $"HTTP {res.Status} ({res.ContentType})";
+        var line = res.Status == 0 ? res.Body : $"HTTP {res.Status} ({res.ContentType})";
         if (res.Ok) _notice?.Say(line);
         else _notice?.Fail(line);
 

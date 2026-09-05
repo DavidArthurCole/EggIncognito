@@ -1,5 +1,5 @@
 using EggIncognito.Data.Services;
-using EggIncognito.Services.Events;
+using EggIncognito.Models.Events;
 using EggIncognito.Services.Predictions;
 using Microsoft.EntityFrameworkCore;
 
@@ -7,180 +7,177 @@ namespace EggIncognito.Tests.Predictions;
 
 public class EventPredictorTests {
     private const double Day = 86400d;
-    private const double Week = 7 * 86400d;
 
-    private static EventOccurrence Occ(double start, double duration = 3600) => new(start, start + duration);
+    private static List<EventRow> TemplateRows(string? stopped = null, DateOnly? stoppedFrom = null) =>
+        EventTemplate.Build(EventTemplate.End.AddDays(-364), EventTemplate.End.AddDays(120), stopped, stoppedFrom);
 
-    private static EventOccurrence[] WeeklyStarts(int count) =>
-        [.. Enumerable.Range(0, count).Select(i => Occ(i * Week))];
+    private static IReadOnlyList<EventPrediction> Predictions(int horizon) =>
+        EventPredictor.Predict(TemplateRows(), EventTemplate.AsOf, horizon);
 
-    private static EventOccurrence[] FromStartsInDays(params double[] days) =>
-        [.. days.Select(d => Occ(d * Day))];
+    private static DayOfWeek Weekday(EventPrediction prediction) =>
+        NoonEastern.LocalDate(prediction.PredictedStart).DayOfWeek;
 
-    [Fact]
-    public void StatsFor_FiveCollapsedStarts_ReturnsNull() =>
-        Assert.Null(EventPredictor.StatsFor("piggy-boost", false, WeeklyStarts(5)));
+    [Theory]
+    [InlineData("prestige-boost", DayOfWeek.Saturday, 7)]
+    [InlineData("piggy-boost", DayOfWeek.Saturday, 7)]
+    [InlineData("piggy-boost", DayOfWeek.Wednesday, 7)]
+    [InlineData("earnings-boost", DayOfWeek.Monday, 7)]
+    [InlineData("research-sale", DayOfWeek.Friday, 7)]
+    [InlineData("epic-research-sale", DayOfWeek.Sunday, 14)]
+    [InlineData("crafting-sale", DayOfWeek.Sunday, 14)]
+    [InlineData("mission-capacity", DayOfWeek.Sunday, 28)]
+    public void Predict_TemplateHistory_DerivesFixedLanePeriod(string type, DayOfWeek weekday, int period) {
+        var lane = Predictions(56)
+            .Where(p => p.Kind == EventPredictionKind.Fixed && p.Type == type && Weekday(p) == weekday)
+            .ToList();
 
-    [Fact]
-    public void StatsFor_SixCollapsedStarts_ReturnsStats() {
-        var stats = EventPredictor.StatsFor("piggy-boost", true, WeeklyStarts(6));
-
-        Assert.NotNull(stats);
-        Assert.Equal(5 * Week, stats.LastStart);
-        Assert.Equal(Week, stats.MedianIntervalSeconds);
-        Assert.Equal(3600, stats.DurationSeconds);
-        Assert.Equal(0, stats.WindowSeconds);
-        Assert.Equal(6, stats.Samples);
+        Assert.NotEmpty(lane);
+        Assert.All(lane, p => {
+            Assert.Equal(period, p.PeriodDays);
+            Assert.False(p.Ultra);
+            Assert.True(p.Confidence >= 0.8);
+            Assert.Equal(type, Assert.Single(p.Candidates).Type);
+        });
     }
 
     [Fact]
-    public void StatsFor_GarbageCadence_ReturnsNull() {
-        var occurrences = FromStartsInDays(0, 20, 70, 98, 406, 800);
-        Assert.Null(EventPredictor.StatsFor("piggy-boost", false, occurrences));
+    public void Predict_TemplateHistory_EpicAndCraftingSundaysAlternate() {
+        var sundays = Predictions(56)
+            .Where(p => p.Kind == EventPredictionKind.Fixed && p.Type is "epic-research-sale" or "crafting-sale")
+            .OrderBy(p => p.PredictedStart)
+            .ToList();
+
+        Assert.True(sundays.Count >= 4);
+        for (int i = 1; i < sundays.Count; i++) {
+            Assert.NotEqual(sundays[i - 1].Type, sundays[i].Type);
+            Assert.Equal(7, Days(sundays[i - 1], sundays[i]));
+        }
     }
 
     [Fact]
-    public void StatsFor_SpreadJustUnderRatio_ReturnsStats() {
-        var occurrences = FromStartsInDays(0, 66, 132, 232, 366, 500);
+    public void Predict_TemplateHistory_PoolSlotsOnlyOnMidweekDays() {
+        var pool = Predictions(28).Where(p => p.Kind == EventPredictionKind.Pool).ToList();
 
-        var stats = EventPredictor.StatsFor("piggy-boost", false, occurrences);
-
-        Assert.NotNull(stats);
-        Assert.Equal(100 * Day, stats.MedianIntervalSeconds);
-        Assert.Equal(34 * Day, stats.WindowSeconds);
+        Assert.Equal(12, pool.Count);
+        Assert.All(pool.GroupBy(p => NoonEastern.LocalDate(p.PredictedStart)), g => Assert.Single(g));
+        Assert.Equal(
+            [DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday],
+            pool.Select(Weekday).Distinct().Order().ToList());
+        Assert.All(pool, p => {
+            Assert.Equal(1, p.PeriodDays);
+            Assert.NotNull(p.Type);
+            Assert.Equal(Day, p.PredictedEnd - p.PredictedStart);
+        });
     }
 
     [Fact]
-    public void StatsFor_SpreadJustOverRatio_ReturnsNull() {
-        var occurrences = FromStartsInDays(0, 64, 128, 228, 364, 500);
-        Assert.Null(EventPredictor.StatsFor("piggy-boost", false, occurrences));
+    public void Predict_TemplateHistory_PoolCandidatesAreNormalisedAndCapped() {
+        var pool = Predictions(28).First(p => p.Kind == EventPredictionKind.Pool);
+
+        Assert.InRange(pool.Candidates.Count, 1, 5);
+        Assert.True(pool.Candidates.Sum(c => c.Probability) <= 1.0000001);
+        Assert.Equal(pool.Candidates[0].Type, pool.Type);
+        Assert.Equal(pool.Candidates[0].Probability, pool.Confidence);
     }
 
     [Fact]
-    public void StatsFor_SixStartsPlusNearDuplicate_CollapsesToSixAndKeepsEarlier() {
-        EventOccurrence[] occurrences = [.. WeeklyStarts(6), Occ(5 * Week + 7200)];
+    public void Predict_TemplateHistory_SaturdayCarriesPrestigeAndFortyEightHourPiggy() {
+        var standard = Predictions(28).Where(p => !p.Ultra && Weekday(p) == DayOfWeek.Saturday).ToList();
+        var first = NoonEastern.LocalDate(standard.Min(p => p.PredictedStart));
+        var day = standard.Where(p => NoonEastern.LocalDate(p.PredictedStart) == first).ToList();
 
-        var stats = EventPredictor.StatsFor("piggy-boost", false, occurrences);
-
-        Assert.NotNull(stats);
-        Assert.Equal(6, stats.Samples);
-        Assert.Equal(5 * Week, stats.LastStart);
-        Assert.Equal(Week, stats.MedianIntervalSeconds);
+        Assert.Equal(2, day.Count);
+        Assert.Contains(day, p => p.Type == "prestige-boost" && p.PredictedEnd - p.PredictedStart == Day);
+        Assert.Contains(day, p => p.Type == "piggy-boost" && p.PredictedEnd - p.PredictedStart == 2 * Day);
     }
 
     [Fact]
-    public void StatsFor_FiveStartsPlusNearDuplicate_ReturnsNull() {
-        EventOccurrence[] occurrences = [.. WeeklyStarts(5), Occ(4 * Week + 7200)];
-        Assert.Null(EventPredictor.StatsFor("piggy-boost", false, occurrences));
+    public void Predict_TemplateHistory_UltraRunsEveryTwoDaysWithoutRepeatingLastActual() {
+        var rows = TemplateRows();
+        double asOf = EventTemplate.AsOf;
+        var ultra = EventPredictor.Predict(rows, asOf, 28)
+            .Where(p => p.Kind == EventPredictionKind.Ultra)
+            .OrderBy(p => p.PredictedStart)
+            .ToList();
+        var lastActual = rows.Where(r => r.Ultra && r.Start < asOf).OrderBy(r => r.Start).ToList()[^1];
+
+        Assert.Equal(14, ultra.Count);
+        Assert.All(ultra, p => {
+            Assert.True(p.Ultra);
+            Assert.Equal(2, p.PeriodDays);
+            Assert.NotNull(p.Type);
+        });
+        for (int i = 1; i < ultra.Count; i++) Assert.Equal(2, Days(ultra[i - 1], ultra[i]));
+        Assert.Equal(
+            2,
+            NoonEastern.LocalDate(ultra[0].PredictedStart).DayNumber
+            - NoonEastern.LocalDate(lastActual.Start).DayNumber);
+        Assert.NotEqual(lastActual.Type, ultra[0].Type);
     }
 
     [Fact]
-    public void StatsFor_DuplicateStartWithDifferentEnd_DoesNotSkewDurationMedian() {
-        EventOccurrence[] occurrences = [.. WeeklyStarts(6), Occ(5 * Week, 999999)];
+    public void Predict_LaneStoppedTenWeeksAgo_DropsLaneAndScoresTypeLow() {
+        var rows = TemplateRows("research-sale", EventTemplate.End.AddDays(-70));
 
-        var stats = EventPredictor.StatsFor("piggy-boost", false, occurrences);
+        var predictions = EventPredictor.Predict(rows, EventTemplate.AsOf, 28);
 
-        Assert.NotNull(stats);
-        Assert.Equal(6, stats.Samples);
-        Assert.Equal(3600, stats.DurationSeconds);
+        Assert.DoesNotContain(predictions, p => p.Type == "research-sale");
+        Assert.DoesNotContain(predictions, p => !p.Ultra && Weekday(p) == DayOfWeek.Friday);
+        Assert.All(
+            predictions.SelectMany(p => p.Candidates).Where(c => c.Type == "research-sale"),
+            c => Assert.True(c.Probability < 0.1));
     }
 
     [Fact]
-    public void IsUnstable_SpreadJustOverRatio_ReturnsTrue() => Assert.True(EventPredictor.IsUnstable(100 * Day, 36 * Day));
+    public void Predict_NoRowsInWindow_ReturnsNothing() {
+        var rows = EventTemplate.Build(EventTemplate.End.AddDays(-500), EventTemplate.End.AddDays(-200));
 
-    [Fact]
-    public void IsUnstable_SpreadJustUnderRatio_ReturnsFalse() => Assert.False(EventPredictor.IsUnstable(100 * Day, 34 * Day));
-
-    [Fact]
-    public void IsUnstable_NonPositiveMedian_ReturnsTrue() {
-        Assert.True(EventPredictor.IsUnstable(0, 0));
-        Assert.True(EventPredictor.IsUnstable(-5, 1));
+        Assert.Empty(EventPredictor.Predict(rows, EventTemplate.AsOf, 28));
     }
 
     [Fact]
-    public void Project_NowBeyondStalenessBound_ReturnsNull() {
-        var stats = new EventStreamStats("piggy-boost", false, 5 * Week, Week, 3600, 0, 6);
-        Assert.Null(EventPredictor.Project(stats, 5 * Week + 3 * Week));
+    public void Predict_HorizonOutOfRange_ClampsToOneAndNinetyDays() {
+        var rows = TemplateRows();
+        double asOf = EventTemplate.AsOf;
+
+        var low = EventPredictor.Predict(rows, asOf, 0);
+        var high = EventPredictor.Predict(rows, asOf, 500);
+
+        Assert.NotEmpty(low);
+        Assert.All(low, p => Assert.InRange(p.PredictedStart, asOf, asOf + Day));
+        Assert.Equal(EventPredictor.Predict(rows, asOf, 90).Count, high.Count);
+        Assert.All(high, p => Assert.InRange(p.PredictedStart, asOf, asOf + 90 * Day));
     }
 
     [Fact]
-    public void Project_NowInsideStalenessBound_SkipsOnePeriodAndWidensWindow() {
-        var stats = new EventStreamStats("piggy-boost", false, 5 * Week, Week, 3600, 50000, 6);
-        double now = 5 * Week + 1.5 * Week;
+    public void Predict_TemplateHistory_NeverRepeatsAStandardTypeOnConsecutiveDays() {
+        var byDate = Predictions(28)
+            .Where(p => !p.Ultra && p.Type is not null)
+            .GroupBy(p => NoonEastern.LocalDate(p.PredictedStart))
+            .ToDictionary(g => g.Key, g => g.Select(p => p.Type!).ToHashSet(StringComparer.Ordinal));
 
-        var prediction = EventPredictor.Project(stats, now);
-
-        Assert.NotNull(prediction);
-        Assert.Equal(5 * Week + 2 * Week, prediction.PredictedStart);
-        Assert.Equal(1, prediction.SkippedPeriods);
-        Assert.Equal(1.4826 * 50000 * Math.Sqrt(2), prediction.WindowSeconds);
-        Assert.True(prediction.PredictedStart >= now);
+        foreach (var (date, types) in byDate) {
+            if (!byDate.TryGetValue(date.AddDays(1), out var next)) continue;
+            Assert.DoesNotContain(next, types.Contains);
+        }
     }
 
     [Fact]
-    public void Project_ZeroMadStream_WindowFlooredAtRatioOfMedian() {
-        var stats = new EventStreamStats("piggy-boost", false, 5 * Week, Week, 3600, 0, 6);
-
-        var prediction = EventPredictor.Project(stats, 5 * Week + 0.5 * Week);
-
-        Assert.NotNull(prediction);
-        Assert.Equal(6 * Week, prediction.PredictedStart);
-        Assert.Equal(0, prediction.SkippedPeriods);
-        Assert.Equal(0.05 * Week, prediction.WindowSeconds);
-    }
-
-    [Fact]
-    public void PredictGroup_RegularWeeklyCadence_RollsForwardWithFlooredWidenedWindow() {
-        var occurrences = WeeklyStarts(6);
-        double lastStart = 5 * Week;
-        double now = lastStart + 1.5 * Week;
-
-        var prediction = EventPredictor.PredictGroup("piggy-boost", true, occurrences, now);
-
-        Assert.NotNull(prediction);
-        Assert.Equal("piggy-boost", prediction.Type);
-        Assert.True(prediction.Ultra);
-        Assert.Equal(lastStart, prediction.LastStart);
-        Assert.Equal(Week, prediction.MedianIntervalSeconds);
-        Assert.Equal(lastStart + 2 * Week, prediction.PredictedStart);
-        Assert.Equal(prediction.PredictedStart + 3600, prediction.PredictedEnd);
-        Assert.Equal(0.05 * Week * Math.Sqrt(2), prediction.WindowSeconds);
-        Assert.Equal(6, prediction.Samples);
-        Assert.Equal(1, prediction.SkippedPeriods);
-    }
-
-    [Fact]
-    public void PredictGroup_DeadStream_ReturnsNull() {
-        var occurrences = WeeklyStarts(6);
-        Assert.Null(EventPredictor.PredictGroup("piggy-boost", false, occurrences, 5 * Week + 3 * Week));
-    }
-
-    [Fact]
-    public void PredictGroup_GarbageCadence_ReturnsNull() {
-        var occurrences = FromStartsInDays(0, 20, 70, 98, 406, 800);
-        Assert.Null(EventPredictor.PredictGroup("piggy-boost", false, occurrences, 801 * Day));
-    }
-
-    [Fact]
-    public async Task GetAsync_CacheVersionMatchesCurrent_ProjectsCachedStatsWithoutQuerying() {
+    public async Task GetAsync_CacheVersionMatchesCurrent_PredictsFromCachedRowsWithoutQuerying() {
         var opts = new DbContextOptionsBuilder<EggIncognitoDbContext>()
             .UseNpgsql("Host=127.0.0.1;Port=1;Database=x;Username=x;Password=x;Timeout=1").Options;
         var db = new EggIncognitoDbContext(opts);
         var version = new EventDataVersion();
-        double lastStart = UnixSeconds.FromTime(DateTimeOffset.UtcNow) - 3600;
-        var cached = new EventStreamStats("piggy-boost", false, lastStart, Week, 3600, 0, 6);
-        var cache = new EventPredictionCache { Version = version.Version, Value = [cached] };
+        var cache = new EventPredictionCache { Version = version.Version, Value = TemplateRows() };
         var predictor = new EventPredictor(db, version, cache);
 
-        var result = await predictor.GetAsync();
+        var result = await predictor.GetAsync(28, EventTemplate.AsOf);
 
-        var prediction = Assert.Single(result.Predictions);
-        Assert.Equal("piggy-boost", prediction.Type);
-        Assert.Equal(lastStart, prediction.LastStart);
-        Assert.Equal(lastStart + Week, prediction.PredictedStart);
-        Assert.Equal(0, prediction.SkippedPeriods);
-        Assert.Equal(0.05 * Week, prediction.WindowSeconds);
-        Assert.True(result.GeneratedAt > 0);
-        Assert.True(prediction.PredictedStart >= result.GeneratedAt);
+        Assert.Equal(EventTemplate.AsOf, result.GeneratedAt);
+        Assert.NotEmpty(result.Predictions);
+        Assert.All(result.Predictions, p => Assert.True(p.PredictedStart >= result.GeneratedAt));
     }
+
+    private static int Days(EventPrediction a, EventPrediction b) =>
+        NoonEastern.LocalDate(b.PredictedStart).DayNumber - NoonEastern.LocalDate(a.PredictedStart).DayNumber;
 }

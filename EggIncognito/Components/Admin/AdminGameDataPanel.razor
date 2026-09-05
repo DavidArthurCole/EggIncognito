@@ -74,7 +74,9 @@
 
     protected override IReadOnlyList<string> Topics => [AdminTopics.GameData];
 
-    protected override Task LoadAsync() => Load();
+    protected override Task LoadAsync() {
+        return Load();
+    }
 
     async Task Load() {
         if (Api is null) return;

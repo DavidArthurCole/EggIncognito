@@ -54,7 +54,9 @@
 
     protected override IReadOnlyList<string> Topics => [AdminTopics.Sessions, AdminTopics.DeviceStatus];
 
-    protected override Task LoadAsync() => Load();
+    protected override Task LoadAsync() {
+        return Load();
+    }
 
     protected override async Task OnParametersSetAsync() {
         if (_stale && State.SelectedPane == AdminPanes.Sessions) await Load();

@@ -26,7 +26,9 @@
                             <span class="text-muted text-xs">none</span>
                         } else {
                             @foreach (var p in provs) {
-                                <span class="oidc-icon"><Icon Name="@ProviderIcon(p)" Class="icon-sm" Icons="@ProviderGlyphs.Overrides"/></span>
+                                <span class="oidc-icon">
+                                    <Icon Name="@ProviderIcon(p)" Class="icon-sm" Icons="@ProviderGlyphs.Overrides"/>
+                                </span>
                             }
                         }
                     </div>
@@ -53,7 +55,9 @@
 
     protected override IReadOnlyList<string> Topics => [AdminTopics.Users];
 
-    protected override Task LoadAsync() => LoadUsers();
+    protected override Task LoadAsync() {
+        return LoadUsers();
+    }
 
     string RoleBreakdown() {
         var counts = _users.GroupBy(u => u.Role).ToDictionary(g => g.Key, g => g.Count());
@@ -87,6 +91,8 @@
         Notifier.Publish(AdminTopics.Users);
     }
 
-    static string ProviderIcon(string provider) => provider is "microsoft" ? "brand-microsoft" : provider is "discord" or "google" or "github" ? $"brand-{provider}" : "circle";
+    static string ProviderIcon(string provider) {
+        return provider is "microsoft" ? "brand-microsoft" : provider is "discord" or "google" or "github" ? $"brand-{provider}" : "circle";
+    }
 
 }

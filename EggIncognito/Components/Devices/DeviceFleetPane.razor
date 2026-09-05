@@ -237,8 +237,8 @@
         _loading = true;
         try {
             while (_pendingFleet || _pendingBuild) {
-                bool fleet = _pendingFleet;
-                bool build = _pendingBuild;
+                var fleet = _pendingFleet;
+                var build = _pendingBuild;
                 _pendingFleet = false;
                 _pendingBuild = false;
                 if (fleet) await LoadFleet();
@@ -299,7 +299,7 @@
                 _build = b;
                 if (ImageBuildStates.IsTerminal(b.State)) {
                     _buildId = null;
-                    bool ok = b.State == ImageBuildStates.Ready;
+                    var ok = b.State == ImageBuildStates.Ready;
                     await Say(ok ? $"image {b.Tag} built" : $"build failed: {b.Note ?? "see log"}",
                         ok ? StatusNoteKind.Ok : StatusNoteKind.Error);
                 }

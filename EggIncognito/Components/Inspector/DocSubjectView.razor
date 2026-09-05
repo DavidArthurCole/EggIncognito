@@ -101,7 +101,7 @@
     }
 
     Task Attach(ChangeEventArgs e) {
-        if (!long.TryParse(e.Value?.ToString(), out long id)) return Task.CompletedTask;
+        if (!long.TryParse(e.Value?.ToString(), out var id)) return Task.CompletedTask;
         return SetTags([.. _tags.Select(t => t.Id), id]);
     }
 

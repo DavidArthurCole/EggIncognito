@@ -123,6 +123,7 @@
                                             <td colspan="6">@day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)</td>
                                         </tr>
                                     }
+
                                     <tr class="dwb-job-row @(open ? "dwb-job-open" : "")" @key="j.Id" @onclick="@(() => ToggleJob(j))">
                                         <td class="font-mono">@Stamp(j.LastAt)</td>
                                         <td>@j.Kind</td>
@@ -327,26 +328,26 @@
     }
 
     RenderFragment ActionLines(DeviceRow dev) => @<text>
-                                                     @if (!string.IsNullOrEmpty(dev.Note)) {
-                                                         <div class="font-mono text-xs text-muted mt-2">@dev.Note</div>
-                                                     }
-                                                     @if (RunningFor(dev.Id) is { } run) {
-                                                         <div class="wb-st-run text-xs mt-2">@run.Kind: @run.Message</div>
-                                                     }
-                                                     @if (_recert is { } rc) {
-                                                         <div class="dwb-job-lines mt-2">
-                                                             <div class="dwb-job-line @(rc.Ok ? "text-ok" : "text-err")">
-                                                                 @(rc.Ok ? "recert ok" : $"recert failed at {rc.FailedStep ?? "?"}")
-                                                             </div>
-                                                             @if (rc.Fields.TryGetValue("expiry", out var expiry)) {
-                                                                 <div class="dwb-job-line text-muted">expiry @expiry</div>
-                                                             }
-                                                             @foreach (var line in rc.Log) {
-                                                                 <div class="dwb-job-line font-mono text-xs text-muted">@line</div>
-                                                             }
-                                                         </div>
-                                                     }
-                                                 </text>;
+                                                      @if (!string.IsNullOrEmpty(dev.Note)) {
+                                                          <div class="font-mono text-xs text-muted mt-2">@dev.Note</div>
+                                                      }
+                                                      @if (RunningFor(dev.Id) is { } run) {
+                                                          <div class="wb-st-run text-xs mt-2">@run.Kind: @run.Message</div>
+                                                      }
+                                                      @if (_recert is { } rc) {
+                                                          <div class="dwb-job-lines mt-2">
+                                                              <div class="dwb-job-line @(rc.Ok ? "text-ok" : "text-err")">
+                                                                  @(rc.Ok ? "recert ok" : $"recert failed at {rc.FailedStep ?? "?"}")
+                                                              </div>
+                                                              @if (rc.Fields.TryGetValue("expiry", out var expiry)) {
+                                                                  <div class="dwb-job-line text-muted">expiry @expiry</div>
+                                                              }
+                                                              @foreach (var line in rc.Log) {
+                                                                  <div class="dwb-job-line font-mono text-xs text-muted">@line</div>
+                                                              }
+                                                          </div>
+                                                      }
+                                                  </text>;
 
     IReadOnlyList<(string Key, string Label, int? Count)> Tabs(DeviceRow dev) {
         return [.. DeviceWorkbenchState.ModesFor(dev.Virtual).Select(m => (m.Key, m.Label, TabCount(m.Key)))];
@@ -523,7 +524,7 @@
             _jobs = [];
             _jobsMore = null;
         } else {
-            long oldest = page.Rows[^1].Id;
+            var oldest = page.Rows[^1].Id;
             _jobs = [.. page.Rows, .. loaded.Where(g => g.Id < oldest)];
         }
 
@@ -535,7 +536,7 @@
         if (_jobs is not { } jobs) return;
         var ids = jobs.Select(j => j.Id).ToHashSet();
         State.Expanded.RemoveWhere(id => !ids.Contains(id));
-        foreach (long id in _jobLines.Keys.Where(id => !ids.Contains(id)).ToList()) _jobLines.Remove(id);
+        foreach (var id in _jobLines.Keys.Where(id => !ids.Contains(id)).ToList()) _jobLines.Remove(id);
     }
 
     async Task RefreshOpenLinesAsync(string deviceId, DeviceJobFeed feed) {
@@ -645,7 +646,7 @@
     async Task Launch() {
         if (Current is not { } dev) return;
         var res = await Client().PostAsJsonAsync($"/api/devices/{dev.Id}/cookbooks",
-            new DeviceCookbookRequest(DeviceCookbookIds.LaunchApp, null), SelfCallJson.Web);
+            new DeviceCookbookRequest(DeviceCookbookIds.LaunchApp), SelfCallJson.Web);
         Note(res.IsSuccessStatusCode ? "launch started" : await ReadError(res), res.IsSuccessStatusCode);
         await LoadLiveAsync();
         await LoadJobsAsync();

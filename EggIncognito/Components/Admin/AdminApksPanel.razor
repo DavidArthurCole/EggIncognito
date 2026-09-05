@@ -65,7 +65,9 @@
 
     protected override IReadOnlyList<string> Topics => [AdminTopics.Apks];
 
-    protected override Task LoadAsync() => Load();
+    protected override Task LoadAsync() {
+        return Load();
+    }
 
     int SplitCount => _rows.Sum(r => r.Splits.Count);
 
@@ -86,10 +88,10 @@
         if (Api is null) return;
         _busy = true;
         _notice?.Clear();
-        string url = $"/api/apks?platform={Uri.EscapeDataString(v.Platform)}"
-                     + $"&package={Uri.EscapeDataString(v.Package)}"
-                     + $"&appVersion={Uri.EscapeDataString(v.AppVersion)}"
-                     + $"&build={Uri.EscapeDataString(v.Build)}";
+        var url = $"/api/apks?platform={Uri.EscapeDataString(v.Platform)}"
+                  + $"&package={Uri.EscapeDataString(v.Package)}"
+                  + $"&appVersion={Uri.EscapeDataString(v.AppVersion)}"
+                  + $"&build={Uri.EscapeDataString(v.Build)}";
         var res = await Api.DeleteAsync(url);
         _notice?.Result(res.Ok, res.Ok
             ? $"deleted {v.AppVersion} ({v.Build}), {v.Splits.Count} split(s)"

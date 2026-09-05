@@ -11,20 +11,21 @@ public static class EventCalendarLayout {
     public static double GapPercent(DateTimeOffset start, DateTimeOffset end) =>
         100.0 / Math.Max(1, (end - start).TotalDays) * DayGapFraction;
 
-    public static (DateTimeOffset Start, DateTimeOffset End) Window(DateTimeOffset center, EventCalendarZoom zoom) {
-        var local = center.ToLocalTime().DateTime;
+    public static (DateTimeOffset Start, DateTimeOffset End) Window(
+        DateTimeOffset center, EventCalendarZoom zoom, TimeZoneInfo zone) {
+        var local = TimeZoneInfo.ConvertTime(center, zone).DateTime;
         if (zoom == EventCalendarZoom.Week) {
             var weekStart = WeekStart(local);
-            return (ToOffset(weekStart), ToOffset(weekStart.AddDays(7)));
+            return (ToOffset(weekStart, zone), ToOffset(weekStart.AddDays(7), zone));
         }
 
         var monthStart = new DateTime(local.Year, local.Month, 1, 0, 0, 0, DateTimeKind.Unspecified);
-        return (ToOffset(monthStart), ToOffset(monthStart.AddMonths(1)));
+        return (ToOffset(monthStart, zone), ToOffset(monthStart.AddMonths(1), zone));
     }
 
-    public static DateTimeOffset ToOffset(DateTime local) {
+    public static DateTimeOffset ToOffset(DateTime local, TimeZoneInfo zone) {
         var unspecified = DateTime.SpecifyKind(local, DateTimeKind.Unspecified);
-        return new DateTimeOffset(unspecified, TimeZoneInfo.Local.GetUtcOffset(unspecified));
+        return new DateTimeOffset(unspecified, zone.GetUtcOffset(unspecified));
     }
 
     public static IReadOnlyList<EventCalendarRow> Rows(
@@ -32,21 +33,24 @@ public static class EventCalendarLayout {
         DateTimeOffset visibleStart,
         DateTimeOffset visibleEnd,
         EventCalendarZoom zoom,
-        DateTimeOffset now) {
-        int? primaryMonth = zoom == EventCalendarZoom.Month ? visibleStart.ToLocalTime().Month : null;
-        return RowSpans(visibleStart, visibleEnd, zoom)
-            .Select(span => BuildRow(items, span.Start, span.End, now, primaryMonth))
+        DateTimeOffset now,
+        TimeZoneInfo zone) {
+        int? primaryMonth = zoom == EventCalendarZoom.Month
+            ? TimeZoneInfo.ConvertTime(visibleStart, zone).Month
+            : null;
+        return RowSpans(visibleStart, visibleEnd, zoom, zone)
+            .Select(span => BuildRow(items, span.Start, span.End, now, primaryMonth, zone))
             .ToList();
     }
 
     private static List<(DateTimeOffset Start, DateTimeOffset End)> RowSpans(
-        DateTimeOffset visibleStart, DateTimeOffset visibleEnd, EventCalendarZoom zoom) {
+        DateTimeOffset visibleStart, DateTimeOffset visibleEnd, EventCalendarZoom zoom, TimeZoneInfo zone) {
         if (zoom == EventCalendarZoom.Week) return [(visibleStart, visibleEnd)];
         var spans = new List<(DateTimeOffset Start, DateTimeOffset End)>();
-        for (var day = WeekStart(visibleStart.ToLocalTime().DateTime);
-             ToOffset(day) < visibleEnd;
+        for (var day = WeekStart(TimeZoneInfo.ConvertTime(visibleStart, zone).DateTime);
+             ToOffset(day, zone) < visibleEnd;
              day = day.AddDays(7)) {
-            spans.Add((ToOffset(day), ToOffset(day.AddDays(7))));
+            spans.Add((ToOffset(day, zone), ToOffset(day.AddDays(7), zone)));
         }
 
         return spans;
@@ -57,19 +61,22 @@ public static class EventCalendarLayout {
         DateTimeOffset start,
         DateTimeOffset end,
         DateTimeOffset now,
-        int? primaryMonth) {
+        int? primaryMonth,
+        TimeZoneInfo zone) {
         double? nowPercent = now > start && now < end
             ? (now - start).TotalSeconds / (end - start).TotalSeconds * 100
             : null;
-        return new EventCalendarRow(start, end, DayCells(start, end, primaryMonth), Lanes(Bars(items, start, end, now)), nowPercent);
+        return new EventCalendarRow(
+            start, end, DayCells(start, end, primaryMonth, zone), Lanes(Bars(items, start, end, now)), nowPercent);
     }
 
-    private static List<EventCalendarCell> DayCells(DateTimeOffset start, DateTimeOffset end, int? primaryMonth) {
+    private static List<EventCalendarCell> DayCells(
+        DateTimeOffset start, DateTimeOffset end, int? primaryMonth, TimeZoneInfo zone) {
         var cells = new List<EventCalendarCell>();
         double span = (end - start).TotalSeconds;
         if (span <= 0) return cells;
-        for (var day = start.ToLocalTime().DateTime.Date; ToOffset(day) < end; day = day.AddDays(1)) {
-            double left = Math.Max(0, (ToOffset(day) - start).TotalSeconds / span * 100);
+        for (var day = TimeZoneInfo.ConvertTime(start, zone).DateTime.Date; ToOffset(day, zone) < end; day = day.AddDays(1)) {
+            double left = Math.Max(0, (ToOffset(day, zone) - start).TotalSeconds / span * 100);
             cells.Add(new EventCalendarCell(left, day, primaryMonth is { } month && day.Month != month));
         }
 

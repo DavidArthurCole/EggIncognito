@@ -1,12 +1,14 @@
 namespace EggIncognito.Models.Events;
 
 public sealed record EventPrediction(
-    string Type,
+    string? Type,
     bool Ultra,
-    double LastStart,
-    double MedianIntervalSeconds,
+    EventPredictionKind Kind,
     double PredictedStart,
     double PredictedEnd,
-    double WindowSeconds,
-    int Samples,
-    int SkippedPeriods);
+    double Confidence,
+    IReadOnlyList<EventCandidate> Candidates,
+    int Observed,
+    int Expected,
+    int PeriodDays,
+    double LastStart);

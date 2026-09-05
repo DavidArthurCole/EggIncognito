@@ -160,7 +160,7 @@
         if (Api is null || !CanCreate()) return;
         _busy = true;
         _notice?.Clear();
-        string color = _newColor.Trim();
+        var color = _newColor.Trim();
         var res = await Api.PostJsonAsync("/api/admin/tag", new {
             slug = _newSlug.Trim(),
             label = _newLabel.Trim(),

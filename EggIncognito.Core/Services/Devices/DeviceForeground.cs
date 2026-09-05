@@ -24,9 +24,13 @@ public static class DeviceForeground {
         + "am force-stop \"$p\" && echo \"closed $p\"";
 
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan QueryTimeout = TimeSpan.FromSeconds(20);
 
     public static async Task<ForegroundWindow> ReadAsync(IDeviceConnection conn, CancellationToken ct) {
-        var r = await conn.ShellAsync(FocusCommand, ct);
+        using var bounded = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        bounded.CancelAfter(QueryTimeout);
+        var r = await conn.ShellAsync(FocusCommand, bounded.Token);
+        ct.ThrowIfCancellationRequested();
         return Parse(r.Stdout);
     }
 

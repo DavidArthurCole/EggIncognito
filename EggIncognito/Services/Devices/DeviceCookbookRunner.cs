@@ -87,10 +87,12 @@ public sealed class DeviceCookbookRunner(
                 "busy", "another job is already running on this device");
         }
 
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        _cancellations[deviceId] = (job.Id, cts);
         try {
             var context = new DeviceCookbookContext(target, request.Argument,
-                line => jobs.ProgressAsync(job, line, ct: ct).GetAwaiter().GetResult());
-            var run = await executor.RunAsync(cookbook, context, ct);
+                line => jobs.ProgressAsync(job, line, ct: cts.Token).GetAwaiter().GetResult());
+            var run = await executor.RunAsync(cookbook, context, cts.Token);
             await jobs.FinishAsync(job, run.Ok ? DeviceOutcomes.Ok : DeviceOutcomes.Error, Summarize(cookbook, run),
                 Facts(cookbook, run, request), CancellationToken.None);
             return run;
@@ -98,6 +100,8 @@ public sealed class DeviceCookbookRunner(
             logger.LogError(ex, "cookbook: {Cookbook} on {Device} threw", request.CookbookId, deviceId);
             await jobs.FailAsync(job, ex.Message, CancellationToken.None);
             return new DeviceCookbookRun(false, cookbook.Id, [ex.Message], "exception", ex.Message);
+        } finally {
+            _cancellations.TryRemove(new KeyValuePair<string, (long, CancellationTokenSource)>(deviceId, (job.Id, cts)));
         }
     }
 

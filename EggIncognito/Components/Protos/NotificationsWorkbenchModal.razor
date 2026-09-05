@@ -690,7 +690,7 @@
     async Task LoadActivity(int id) {
         _activity.Remove(id);
         StateHasChanged();
-        string url = AdminScope
+        var url = AdminScope
             ? $"/api/protos/feed/admin/{id}/activity"
             : $"/api/protos/feed/{id}/activity";
         try {
@@ -875,7 +875,7 @@
         if (!_confirmTest) {
             _confirmTest = true;
             _confirmDelete = false;
-                return;
+            return;
         }
 
         _confirmTest = false;
@@ -913,7 +913,7 @@
         if (!_confirmDelete) {
             _confirmDelete = true;
             _confirmTest = false;
-                return;
+            return;
         }
 
         _confirmDelete = false;

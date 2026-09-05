@@ -166,7 +166,9 @@
 
     protected override IReadOnlyList<string> Topics => [AdminTopics.Maintenance];
 
-    protected override Task LoadAsync() => LoadIcons();
+    protected override Task LoadAsync() {
+        return LoadIcons();
+    }
 
     string Result(string key) {
         return _results.GetValueOrDefault(key, "");
@@ -217,7 +219,7 @@
     }
 
     async Task RefreshEndpoints() {
-        bool ok = await Run("refresh-endpoints",
+        var ok = await Run("refresh-endpoints",
             () => Api!.PostAsync("/api/config/refresh-endpoints", TimeSpan.FromMinutes(2)));
         if (ok) Notifier.Publish(AdminTopics.Console);
     }
@@ -274,7 +276,7 @@
             return;
         }
 
-        bool ok = await Run("icon-import", () => Api!.SendFileAsync(
+        var ok = await Run("icon-import", () => Api!.SendFileAsync(
             "POST", $"/api/admin/icons/{Uri.EscapeDataString(_iconName.Trim())}", "file", _iconFileName ?? "icon.png",
             _iconBytes));
         if (!ok) return;

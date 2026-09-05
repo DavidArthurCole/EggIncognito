@@ -7,6 +7,7 @@
 @inject AdminNotifier Notifier
 @inject ILogger<DeviceConsolePane> Logger
 @using System.Globalization
+@using System.Text
 @using System.Text.Json
 @using EggIncognito.Core.Services.Devices
 @using EggIncognito.Models.Devices
@@ -195,7 +196,7 @@
                         }
 
                         <div class="dcon-log @(_wrap ? "" : "dcon-log-nowrap")">
-                            @for (int i = _runLog.Count - 1; i >= 0; i--) {
+                            @for (var i = _runLog.Count - 1; i >= 0; i--) {
                                 <div class="dcon-log-line">@_runLog[i]</div>
                             }
                         </div>
@@ -967,7 +968,7 @@
     }
 
     string RunReport() {
-        var sb = new System.Text.StringBuilder();
+        var sb = new StringBuilder();
         sb.Append(_runTitle ?? "run").Append(' ').Append(RunStateLine());
         if (_runDone && !_runOk && !_runCancelled && _runFailedStepTitle is { Length: > 0 } failedAt) sb.Append(" at ").Append(failedAt);
         if (_runDone && !_runOk && _runNote is { Length: > 0 } runNote) sb.Append(", ").Append(runNote);
@@ -1001,7 +1002,7 @@
                     JsonValueKind.Number => value.GetRawText(),
                     _ => null
                 };
-                if (long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out long id)) return id;
+                if (long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var id)) return id;
             }
         }
         catch (Exception ex) when (ex is JsonException or HttpRequestException or NotSupportedException) {

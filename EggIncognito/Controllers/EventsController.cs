@@ -64,10 +64,24 @@ public sealed class EventsController(IServiceProvider services) : ControllerBase
     [HttpGet("predictions")]
     [EnableRateLimiting("read")]
     [ApiAccess(ApiAccessLevel.Admin)]
-    public async Task<IActionResult> Predictions(CancellationToken ct) {
+    public async Task<IActionResult> Predictions(
+        [FromQuery] int horizon = 28, [FromQuery] double? asOf = null, CancellationToken ct = default) {
         var predictor = Predictor;
         if (predictor is null) return StatusCode(503, new { error = "no database configured" });
-        return Ok(await predictor.GetAsync(ct));
+        if (asOf is { } at && !UnixSeconds.IsValid(at)) return BadRequest(new { error = "asOf is out of range" });
+        return Ok(await predictor.GetAsync(horizon, asOf, ct));
+    }
+
+    [HttpGet("predictions/backtest")]
+    [EnableRateLimiting("read")]
+    [ApiAccess(ApiAccessLevel.Admin)]
+    public async Task<IActionResult> PredictionsBacktest(
+        [FromQuery] double? asOf, [FromQuery] int horizon = 28, CancellationToken ct = default) {
+        var predictor = Predictor;
+        if (predictor is null) return StatusCode(503, new { error = "no database configured" });
+        if (asOf is not { } at) return BadRequest(new { error = "asOf is required" });
+        if (!UnixSeconds.IsValid(at)) return BadRequest(new { error = "asOf is out of range" });
+        return Ok(EventBacktest.Run(await predictor.RowsAsync(ct), at, horizon));
     }
 
     internal static GameEventDto ToDto(GameEvent e) => new(

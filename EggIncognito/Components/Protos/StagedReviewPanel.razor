@@ -8,7 +8,6 @@
 @inject ToastService Toasts
 @using System.Text
 @using System.Text.Json
-@using EggIncognito.Models.Staging
 @implements IAsyncDisposable
 
 @* Only render when there is something to review. *@
@@ -206,7 +205,7 @@
             }).ToList();
             var resp = await Client().PostAsJsonAsync("/api/protos/staged/bulk-approve", new { items }, JsonOpts);
             if (resp.IsSuccessStatusCode) {
-                var r = await resp.Content.ReadFromJsonAsync<BulkApproveResp>(JsonOpts);
+                var r = await resp.Content.ReadFromJsonAsync<Models.Staging.BulkApproveResp>(JsonOpts);
                 if (r is null) Ok("approved");
                 else if (r.Failed > 0) Err(BulkSummary(r));
                 else Ok(BulkSummary(r));
@@ -231,7 +230,7 @@
             var resp = await Client().PostAsJsonAsync("/api/protos/staged/bulk-reject",
                 new { ids = _selected.ToList(), note = (string?)null }, JsonOpts);
             if (resp.IsSuccessStatusCode) {
-                var r = await resp.Content.ReadFromJsonAsync<BulkRejectResp>(JsonOpts);
+                var r = await resp.Content.ReadFromJsonAsync<Models.Staging.BulkRejectResp>(JsonOpts);
                 Ok(r is null ? "rejected" : $"rejected {r.Rejected}");
             } else Err($"bulk reject failed ({(int)resp.StatusCode})");
         }
@@ -286,7 +285,7 @@
         try {
             var resp = await Client().PostAsJsonAsync("/api/protos/staged/bulk-reject",
                 new { ids = rows.Select(r => r.Id).ToList(), note = "set aside: missing version data (copied for audit)" }, JsonOpts);
-            var n = resp.IsSuccessStatusCode ? (await resp.Content.ReadFromJsonAsync<BulkRejectResp>(JsonOpts))?.Rejected ?? 0 : 0;
+            var n = resp.IsSuccessStatusCode ? (await resp.Content.ReadFromJsonAsync<Models.Staging.BulkRejectResp>(JsonOpts))?.Rejected ?? 0 : 0;
             Ok($"copied {rows.Count} to clipboard, set aside {n} (returns if re-surfaced with more data)");
         }
         catch (Exception ex) {
@@ -321,7 +320,7 @@
         Toasts.Push(StatusNoteKind.Error, t);
     }
 
-    static string BulkSummary(BulkApproveResp r) {
+    static string BulkSummary(Models.Staging.BulkApproveResp r) {
         var sb = new StringBuilder();
         sb.Append(r.Approved).Append(" approved");
         if (r.Skipped > 0) sb.Append(", ").Append(r.Skipped).Append(" skipped");
