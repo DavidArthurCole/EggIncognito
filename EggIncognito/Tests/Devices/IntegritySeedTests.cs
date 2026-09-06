@@ -10,7 +10,7 @@ public class IntegritySeedTests {
         string script = IntegritySeed.Script(Modules);
 
         int zygisk = script.IndexOf("VALUES('zygisk',0)", StringComparison.Ordinal);
-        int install = script.IndexOf("--install-module", StringComparison.Ordinal);
+        int install = script.IndexOf("\"$MAGISK\" --install-module ", StringComparison.Ordinal);
         Assert.True(zygisk >= 0);
         Assert.True(install > zygisk);
     }
@@ -65,7 +65,7 @@ public class IntegritySeedTests {
         string script = IntegritySeed.Script(Modules);
 
         int seed = script.IndexOf("cp -f /system/etc/init/magisk/* /data/adb/magisk/", StringComparison.Ordinal);
-        int install = script.IndexOf("--install-module", StringComparison.Ordinal);
+        int install = script.IndexOf("\"$MAGISK\" --install-module ", StringComparison.Ordinal);
         Assert.True(seed >= 0);
         Assert.True(install > seed);
     }
