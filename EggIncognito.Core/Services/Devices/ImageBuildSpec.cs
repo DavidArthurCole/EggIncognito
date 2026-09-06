@@ -18,6 +18,11 @@ public sealed record ImageBuildSpec(
     string? BaseImage = null,
     string? Tag = null,
     bool Integrity = false) {
+    public const string IntegrityToken = "integrity";
+
+    public static bool LooksSeeded(string? image) =>
+        image is { Length: > 0 } && image.Split(':')[^1].Split('_').Contains(IntegrityToken, StringComparer.Ordinal);
+
     public string ResolvedBaseImage =>
         string.IsNullOrWhiteSpace(BaseImage) ? $"redroid/redroid:{AndroidVersion}-latest" : BaseImage;
 
@@ -28,7 +33,7 @@ public sealed record ImageBuildSpec(
         if (Gapps) tokens.Add("gapps");
         if (Ndk) tokens.Add("ndk");
         if (Magisk) tokens.Add("magisk");
-        if (Integrity) tokens.Add("integrity");
+        if (Integrity) tokens.Add(IntegrityToken);
         return "redroid/redroid:" + string.Join('_', tokens);
     }
 }

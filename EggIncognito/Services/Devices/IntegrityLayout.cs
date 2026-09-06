@@ -30,8 +30,10 @@ public static class IntegrityLayout {
         files.Add(Text($"{seedDir}/{IntegrityChain.KeyboxFileName}", keybox));
         files.Add(Text($"{seedDir}/{IntegrityChain.TargetsFileName}", IntegrityChain.TargetsText(Package)));
         files.Add(Text($"{seedDir}/{IntegrityChain.SecurityPatchFileName}", IntegrityChain.SecurityPatchText(patchDate)));
-        if (adbKey is { Length: > 0 } key)
+        if (adbKey is { Length: > 0 } key) {
             files.Add(Text(IntegritySeed.AdbKeysFile.TrimStart('/'), key.Trim() + "\n"));
+            files.Add(Text(IntegritySeed.RootAdbKeysFile.TrimStart('/'), key.Trim() + "\n"));
+        }
 
         files.Add(new IntegrityFile(IntegritySeed.SeedScript.TrimStart('/'),
             Utf8.GetBytes(IntegritySeed.Script(moduleNames)), true));

@@ -222,10 +222,12 @@ public sealed class ImageBuilder(
         await Log(buildId, $"integrity: keybox {bundle.KeyboxSource}, {bundle.KeyboxSerials.Count} certs, {bundle.KeyboxNote}", ct);
         foreach (string warning in bundle.Warnings) await Log(buildId, "integrity: " + warning, ct);
 
-        string? adbKey = AdbHostKey.Resolve(config);
-        await Log(buildId, adbKey is null
-            ? "integrity: no host adb public key found; the image carries none and adbd will reject this host after the seed boot"
-            : "integrity: host adb public key baked into the seed", ct);
+        var resolvedKey = AdbHostKey.ResolveWithSource(config);
+        string? adbKey = resolvedKey?.Key;
+        await Log(buildId, resolvedKey is { } rk
+            ? $"integrity: host adb public key {AdbHostKey.Label(rk.Key)} from {rk.Source} baked as {IntegritySeed.RootAdbKeysFile} and into the seed; "
+              + "it must be the key of the adb server this app talks to, so an adb server started elsewhere rejects it"
+            : "integrity: no host adb public key found; the image carries none and adbd will reject this host after the seed boot", ct);
 
         (string? caHash, string? caPem) = CaptureCa();
         await Log(buildId, caHash is null

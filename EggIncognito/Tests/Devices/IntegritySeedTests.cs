@@ -80,12 +80,22 @@ public class IntegritySeedTests {
     }
 
     [Fact]
+    public void Rc_AlsoStartsTheServiceOnBootCompleted() {
+        Assert.Contains("on property:sys.boot_completed=1\n    start " + IntegritySeed.ServiceName + "\n", IntegritySeed.Rc, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Parse_ReadsStateImageMarkerServiceAndLastLogLine() {
-        Assert.Equal(new SeedProbe(true, "installing", "running", "step: installing 02-tee.zip"),
+        Assert.Equal(new SeedProbe(true, true, "installing", "running", "step: installing 02-tee.zip"),
             IntegritySeed.Parse("installing\nseeded-image\nsvc=running\nlog=step: installing 02-tee.zip\n"));
-        Assert.Equal(new SeedProbe(true, "done", "stopped", null),
+        Assert.Equal(new SeedProbe(true, true, "done", "stopped", null),
             IntegritySeed.Parse("done\r\nseeded-image\r\nsvc=stopped\r\nlog=\r\n"));
-        Assert.Equal(new SeedProbe(false, "failed", null, null), IntegritySeed.Parse("failed\nsvc=\nlog=\n"));
-        Assert.Equal(new SeedProbe(false, null, null, null), IntegritySeed.Parse(""));
+        Assert.Equal(new SeedProbe(true, false, "failed", null, null), IntegritySeed.Parse("failed\nsvc=\nlog=\n"));
+    }
+
+    [Fact]
+    public void Parse_FlagsAProbeThatNeverRan() {
+        Assert.Equal(new SeedProbe(false, false, null, null, null), IntegritySeed.Parse(""));
+        Assert.Equal(new SeedProbe(false, false, null, null, null), IntegritySeed.Parse("error: device offline\n"));
     }
 }

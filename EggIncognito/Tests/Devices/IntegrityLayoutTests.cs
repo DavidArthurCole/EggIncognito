@@ -28,6 +28,7 @@ public class IntegrityLayoutTests {
         Assert.True(seed.Exec);
         Assert.Contains(files, f => f.RelativePath == "system/etc/init/egi-seed.rc" && !f.Exec);
         Assert.Contains(files, f => f.RelativePath == "system/etc/init/egi/adb_keys");
+        Assert.Contains(files, f => f.RelativePath == "adb_keys");
         Assert.Contains(files, f => f.RelativePath == "system/etc/security/cacerts/1a2b3c4d.0");
         Assert.Contains(files, f => f.RelativePath == "system/etc/init/egi/custom.pif.prop");
         Assert.Contains(files, f => f.RelativePath == "system/etc/init/egi/keybox.xml");
@@ -40,7 +41,7 @@ public class IntegrityLayoutTests {
     public void Plan_OmitsAdbKeyAndCa_WhenAbsent() {
         var files = IntegrityLayout.Plan(Bundle(), null, null, null);
 
-        Assert.DoesNotContain(files, f => f.RelativePath.EndsWith("/adb_keys", StringComparison.Ordinal));
+        Assert.DoesNotContain(files, f => f.RelativePath.EndsWith("adb_keys", StringComparison.Ordinal));
         Assert.DoesNotContain(files, f => f.RelativePath.StartsWith("system/etc/security/", StringComparison.Ordinal));
     }
 

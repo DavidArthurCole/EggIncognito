@@ -8,13 +8,29 @@ public static class AdbHostKey {
         Resolve(config, Environment.GetEnvironmentVariable("ANDROID_USER_HOME"),
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
 
-    public static string? Resolve(VirtualDeviceConfig config, string? androidUserHome, string? userProfile) {
-        if (Nz(config.AdbPublicKey) is { } literal) return literal;
+    public static string? Resolve(VirtualDeviceConfig config, string? androidUserHome, string? userProfile) =>
+        ResolveWithSource(config, androidUserHome, userProfile)?.Key;
+
+    public static (string Key, string Source)? ResolveWithSource(VirtualDeviceConfig config) =>
+        ResolveWithSource(config, Environment.GetEnvironmentVariable("ANDROID_USER_HOME"),
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+
+    public static (string Key, string Source)? ResolveWithSource(
+        VirtualDeviceConfig config, string? androidUserHome, string? userProfile) {
+        if (Nz(config.AdbPublicKey) is { } literal) return (literal, "Devices:Virtual:AdbPublicKey");
         foreach (string path in Candidates(config.AdbPublicKeyPath, androidUserHome, userProfile)) {
-            if (ReadKey(path) is { } key) return key;
+            if (ReadKey(path) is { } key) return (key, path);
         }
 
         return null;
+    }
+
+    public static string Label(string key) {
+        string[] parts = key.Trim().Split(' ', 2);
+        string body = parts[0];
+        string comment = parts.Length > 1 ? parts[1].Trim() : "";
+        string head = body.Length > 16 ? body[..16] : body;
+        return comment.Length > 0 ? $"{head}... ({comment})" : $"{head}...";
     }
 
     public static IEnumerable<string> Candidates(string? configuredPath, string? androidUserHome, string? userProfile) {

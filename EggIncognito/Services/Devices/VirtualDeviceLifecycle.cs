@@ -27,6 +27,7 @@ public sealed class VirtualDeviceLifecycle(
     private readonly Dictionary<string, DateTimeOffset> _lastBootstrap = new(StringComparer.Ordinal);
     private readonly Dictionary<string, DateTimeOffset> _lastIntegrity = new(StringComparer.Ordinal);
     private readonly Dictionary<string, DateTimeOffset> _seedSeen = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _adbServerRestarted = new(StringComparer.Ordinal);
 #pragma warning restore IDE0028
 
     public bool Supported { get; private set; }
@@ -223,12 +224,7 @@ public sealed class VirtualDeviceLifecycle(
 
             if (await BootCompletedAsync(serial, ct) is { Ok: false } boot) {
                 if (boot.Detail is { } detail && AdbTcp.LooksUnauthorized(detail)) {
-                    if (row.State != ProvisionStates.Failed) {
-                        await SetStateAsync(store, changed, row, ProvisionStates.Failed,
-                            $"adbd rejects this host ({detail}); the image carries no adb key for this host, "
-                            + "or the key changed since the image was built", ct);
-                    }
-
+                    await UnauthorizedAsync(row, serial, store, changed, detail, ct);
                     continue;
                 }
 
@@ -375,7 +371,26 @@ public sealed class VirtualDeviceLifecycle(
         CancellationToken ct) {
         var probe = await Adb(["-s", serial, "shell", IntegritySeed.ProbeCommand], AdbTimeout, ct);
         var seed = IntegritySeed.Parse(probe.Stdout);
-        if (!seed.SeededImage || seed.State == IntegritySeed.StateDone) {
+        if (!seed.Ran) {
+            string why = DeviceParsing.TrimNote(probe.Stderr + probe.Stdout);
+            await SetStateAsync(store, changed, row, ProvisionStates.Booting,
+                $"seed probe did not run over adb (exit {probe.ExitCode}): {(why.Length > 0 ? why : "no output")}", ct);
+            return true;
+        }
+
+        if (!seed.SeededImage) {
+            _seedSeen.Remove(row.InstanceId);
+            if (!ImageBuildSpec.LooksSeeded(row.Image)) return false;
+            if (row.State != ProvisionStates.Failed) {
+                await SetStateAsync(store, changed, row, ProvisionStates.Failed,
+                    $"image {row.Image} is tagged {ImageBuildSpec.IntegrityToken} but {IntegritySeed.SeedScript} is absent; "
+                    + "the seed layer did not land in the image", ct);
+            }
+
+            return true;
+        }
+
+        if (seed.State == IntegritySeed.StateDone) {
             _seedSeen.Remove(row.InstanceId);
             return false;
         }
@@ -414,6 +429,30 @@ public sealed class VirtualDeviceLifecycle(
         if (row.State != ProvisionStates.Booting || !string.Equals(row.Note, note, StringComparison.Ordinal))
             await SetStateAsync(store, changed, row, ProvisionStates.Booting, note, ct);
         return true;
+    }
+
+    private async Task UnauthorizedAsync(
+        ProvisionedInstanceRow row, string serial, ProvisionedInstanceStore store, List<string> changed,
+        string detail, CancellationToken ct) {
+        var key = AdbHostKey.ResolveWithSource(config);
+        string held = key is { } k ? $"this app holds {AdbHostKey.Label(k.Key)} from {k.Source}" : "this app found no adb public key at all";
+        if (_adbServerRestarted.Add(row.InstanceId)) {
+            logger.LogWarning(
+                "virtual devices: {Id} adbd rejected the adb server's key ({Detail}); restarting the adb server from this "
+                + "process so its key is the one this app bakes ({Held})", row.InstanceId, detail, held);
+            await Adb(["kill-server"], AdbTimeout, ct);
+            await Adb(["start-server"], AdbTimeout, ct);
+            await AdbTcp.ReviveAsync(runner, serial, ct);
+            await SetStateAsync(store, changed, row, ProvisionStates.Booting,
+                $"adbd rejected the adb server's key; restarted the adb server from this app ({held}) and retrying", ct);
+            return;
+        }
+
+        if (row.State != ProvisionStates.Failed) {
+            await SetStateAsync(store, changed, row, ProvisionStates.Failed,
+                $"adbd rejects this host ({detail}) even after the adb server was restarted from this app; {held}. "
+                + "The image was built with a different key, or with none; rebuild it", ct);
+        }
     }
 
     private async Task<(bool Ok, string? Detail)> BootCompletedAsync(string serial, CancellationToken ct) {

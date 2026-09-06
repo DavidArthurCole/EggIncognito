@@ -42,12 +42,18 @@ public static class IntegritySeed {
         + "    oneshot\n"
         + "\n"
         + "on boot\n"
+        + "    start " + ServiceName + "\n"
+        + "\n"
+        + "on property:sys.boot_completed=1\n"
         + "    start " + ServiceName + "\n";
+
+    public const string RootAdbKeysFile = "/adb_keys";
 
     private const string DeviceAdbDir = "/data/misc/adb";
     private const string DeviceAdbKeys = DeviceAdbDir + "/adb_keys";
 
     public static SeedProbe Parse(string stdout) {
+        bool ran = false;
         bool seededImage = false;
         string? state = null;
         string? service = null;
@@ -55,12 +61,14 @@ public static class IntegritySeed {
         foreach (string raw in stdout.Split('\n')) {
             string line = raw.Trim();
             if (line == ImageMarker) seededImage = true;
-            else if (line.StartsWith(ServicePrefix, StringComparison.Ordinal)) service = Blank(line[ServicePrefix.Length..]);
-            else if (line.StartsWith(LogPrefix, StringComparison.Ordinal)) lastLog = Blank(line[LogPrefix.Length..]);
+            else if (line.StartsWith(ServicePrefix, StringComparison.Ordinal)) {
+                ran = true;
+                service = Blank(line[ServicePrefix.Length..]);
+            } else if (line.StartsWith(LogPrefix, StringComparison.Ordinal)) lastLog = Blank(line[LogPrefix.Length..]);
             else if (state is null && line is StateInstalling or StateDone or StateFailed) state = line;
         }
 
-        return new SeedProbe(seededImage, state, service, lastLog);
+        return new SeedProbe(ran, seededImage, state, service, lastLog);
     }
 
     private static string? Blank(string value) => value.Trim().Length == 0 ? null : value.Trim();
