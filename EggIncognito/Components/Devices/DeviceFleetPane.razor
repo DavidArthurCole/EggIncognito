@@ -184,8 +184,8 @@
             @if (_assets is { } assets) {
                 @if (assets.Ok) {
                     <div class="text-xs">
-                        identity @assets.Model <span class="font-mono">@assets.Fingerprint</span>
-                        <span class="text-muted">expires @(assets.Expiry ?? "unknown")</span>
+                        @assets.Model <span class="font-mono">@assets.Fingerprint</span>
+                        <span class="text-muted">until @(assets.Expiry ?? "?")</span>
                     </div>
                     <div class="text-xs">keybox @assets.KeyboxSource, @assets.KeyboxCerts certs, @assets.KeyboxNote</div>
                 } else {

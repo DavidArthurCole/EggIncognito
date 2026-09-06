@@ -16,6 +16,10 @@ public sealed class IntegrityAssets(
     public const string IntegrityBoxModuleId = "playintegrityfix";
     public const string ProfileEntry = "pif-profile";
     public const string KeyboxEntry = "keybox";
+    public const string OperatorSource = "operator";
+    public const string SharedSource = "shared";
+    public const string KeyboxClean = "clean";
+    public const string KeyboxUnchecked = "unchecked";
 
     public Task<IntegrityBundle> DescribeAsync(CancellationToken ct) => ResolveAsync(false, ct);
 
@@ -54,17 +58,17 @@ public sealed class IntegrityAssets(
             var operatorKeybox = await KeyboxAsync(store, false, warnings, ct);
             if (operatorKeybox.Error is not null) return IntegrityBundle.Fail(operatorKeybox.Error);
             xml = operatorKeybox.Xml;
-            source = operatorKeybox.Source ?? "operator:" + path;
+            source = operatorKeybox.Source ?? OperatorSource;
         } else if (await store.LatestAsync(KeyboxEntry, ct) is { } cachedKeybox) {
             xml = Encoding.UTF8.GetString(cachedKeybox.Bytes);
-            source = "shared:" + cachedKeybox.Source;
+            source = SharedSource;
         } else {
             return IntegrityBundle.Fail("no keybox cached yet; press Refresh cache");
         }
 
         var serials = KeyboxRevocation.Serials(xml!);
         return new IntegrityBundle(true, null, profile, PifProp.Render(profile), xml, source, serials,
-            "revocation checked on refresh and before every activation", patchDate, modules, warnings);
+            KeyboxUnchecked, patchDate, modules, warnings);
     }
 
     public async Task<IntegrityBundle> ResolveAsync(bool forceRefresh, CancellationToken ct) {
@@ -103,12 +107,10 @@ public sealed class IntegrityAssets(
                 + "supply a clean one via Devices:Virtual:Integrity:KeyboxPath");
         }
 
-        string keyboxNote;
+        string keyboxNote = KeyboxClean;
         if (revocationError is not null) {
             warnings.Add($"revocation check skipped: {revocationError}");
-            keyboxNote = $"revocation check skipped: {revocationError}";
-        } else {
-            keyboxNote = "not on the revocation list";
+            keyboxNote = KeyboxUnchecked;
         }
 
         return new IntegrityBundle(true, null, profile, PifProp.Render(profile), keybox.Xml, keybox.Source,
@@ -161,11 +163,11 @@ public sealed class IntegrityAssets(
             }
 
             if (!KeyboxCodec.LooksLikeKeybox(xml)) return (null, null, $"operator keybox {path} does not look like a keybox.xml");
-            return (xml, "operator:" + path, null);
+            return (xml, OperatorSource, null);
         }
 
         string url = config.IntegrityKeyboxUrl;
-        string source = "shared:" + url;
+        string source = SharedSource;
         var row = await store.LatestAsync(KeyboxEntry, ct);
         var maxAge = TimeSpan.FromHours(Math.Max(1, config.IntegrityRefreshHours));
         if (row is { } stored && !forceRefresh && time.GetUtcNow() - stored.FetchedAt < maxAge)

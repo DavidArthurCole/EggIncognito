@@ -10,12 +10,14 @@ public sealed class ImageBuildRunner(
     AdminNotifier notifier,
     ILogger<ImageBuildRunner> logger) {
     private int _running;
+    private string? _runningTag;
 
     public bool IsRunning => Volatile.Read(ref _running) != 0;
 
     public async Task<ImageBuildStartResult> StartAsync(ImageBuildSpec spec, CancellationToken ct) {
         if (Interlocked.CompareExchange(ref _running, 1, 0) != 0)
-            return new ImageBuildStartResult(false, null, spec.ResolvedTag, "another image build is already running");
+            return new ImageBuildStartResult(false, null, spec.ResolvedTag, $"build of {_runningTag ?? "another image"} is still running; wait for it to finish");
+        _runningTag = spec.ResolvedTag;
 
         long id;
         try {
@@ -45,6 +47,7 @@ public sealed class ImageBuildRunner(
             logger.LogError(ex, "image build {Id} for {Tag} threw", id, spec.ResolvedTag);
             await store.FinishAsync(id, ImageBuildStates.Failed, spec.ResolvedTag, ex.Message, CancellationToken.None);
         } finally {
+            _runningTag = null;
             Interlocked.Exchange(ref _running, 0);
             notifier.Publish(AdminTopics.ImageBuilds);
         }

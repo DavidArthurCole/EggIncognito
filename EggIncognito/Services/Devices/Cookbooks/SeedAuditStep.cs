@@ -75,10 +75,9 @@ public sealed class SeedAuditStep(IDeviceConnectionFactory connections) : Cookbo
     private static async Task ReportAsync(
         IDeviceConnection conn, string label, string command, Action<string> add, CancellationToken ct) {
         var r = await conn.ShellAsync(command, ct);
-        string[] output = (r.Stdout + "\n" + r.Stderr).Split('\n')
+        string[] output = [.. (r.Stdout + "\n" + r.Stderr).Split('\n')
             .Select(l => l.TrimEnd('\r').TrimEnd())
-            .Where(l => l.Length > 0)
-            .ToArray();
+            .Where(l => l.Length > 0)];
         if (output.Length == 0) {
             add($"{label}: (no output, exit {r.ExitCode})");
             return;

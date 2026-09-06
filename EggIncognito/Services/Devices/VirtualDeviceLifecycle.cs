@@ -14,6 +14,7 @@ public sealed class VirtualDeviceLifecycle(
     VirtualDeviceReadinessProbe readiness,
     IDeviceConnectionFactory connections,
     IProcessRunner runner,
+    AdbServerHost adbServer,
     AdminNotifier notifier,
     TimeProvider time,
     ILogger<VirtualDeviceLifecycle> logger) : BackgroundService {
@@ -440,17 +441,16 @@ public sealed class VirtualDeviceLifecycle(
             logger.LogWarning(
                 "virtual devices: {Id} adbd rejected the adb server's key ({Detail}); restarting the adb server from this "
                 + "process so its key is the one this app bakes ({Held})", row.InstanceId, detail, held);
-            await Adb(["kill-server"], AdbTimeout, ct);
-            await Adb(["start-server"], AdbTimeout, ct);
+            await adbServer.RestartAsync(ct);
             await AdbTcp.ReviveAsync(runner, serial, ct);
             await SetStateAsync(store, changed, row, ProvisionStates.Booting,
-                $"adbd rejected the adb server's key; restarted the adb server from this app ({held}) and retrying", ct);
+                $"adbd rejected the adb server's key; {adbServer.Describe()}, {held}; retrying", ct);
             return;
         }
 
         if (row.State != ProvisionStates.Failed) {
             await SetStateAsync(store, changed, row, ProvisionStates.Failed,
-                $"adbd rejects this host ({detail}) even after the adb server was restarted from this app; {held}. "
+                $"adbd rejects this host ({detail}); {adbServer.Describe()}, {held}. "
                 + "The image was built with a different key, or with none; rebuild it", ct);
         }
     }

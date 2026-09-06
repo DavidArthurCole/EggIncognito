@@ -143,16 +143,6 @@
                                                 </a>
                                             }
                                         </span>
-                                        @if (ClientText(primary).Length > 0) {
-                                            <span class="reg-fold">
-                                                <span class="reg-fold-k">client</span><span class="reg-num">@ClientText(primary)</span>
-                                            </span>
-                                        }
-                                        @if (DetectedText(primary).Length > 0) {
-                                            <span class="reg-fold">
-                                                <span class="reg-fold-k">detected</span>@DetectedText(primary)
-                                            </span>
-                                        }
                                     </td>
                                     <td class="reg-num reg-c-client" data-label="Client">@ClientText(primary)</td>
                                     <td class="reg-c-sha reg-sha-cell" data-label="Proto SHA">
@@ -468,10 +458,6 @@
 
     static string ClientText(ProtoRegistryRow r) {
         return r.ClientVersion ?? "";
-    }
-
-    static string DetectedText(ProtoRegistryRow r) {
-        return r.DetectedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "";
     }
 
     MarkupString Caret(string col) {

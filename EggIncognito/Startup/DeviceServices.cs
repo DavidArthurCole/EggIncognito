@@ -38,7 +38,10 @@ public static class DeviceServices {
         } else {
             builder.Services.AddSingleton<IProcessRunner, ProcessRunner>();
             builder.Services.AddHttpClient<IDeviceAgentClient, DeviceAgentClient>();
+            builder.Services.AddHostedService(sp => sp.GetRequiredService<AdbServerHost>());
         }
+
+        builder.Services.AddSingleton<AdbServerHost>();
 
         if (boot.DeviceConfig.Enabled) builder.Services.AddHostedService<DeviceMaintenanceService>();
 
