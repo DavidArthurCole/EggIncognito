@@ -155,13 +155,13 @@ public sealed class NativeCaptureProxy(bool verbose = false) : ICaptureProxy {
         client.NoDelay = true;
         var net = client.GetStream();
         try {
-            (string? head, byte[] rest) = await ReadHeadAsync(net, ct);
+            (string? head, byte[] leftover) = await ReadHeadAsync(net, ct);
             if (head is null) return;
             (string method, string target) = ParseRequestLine(head);
             if (!method.Equals("CONNECT", StringComparison.OrdinalIgnoreCase)) {
                 if (Uri.TryCreate(target, UriKind.Absolute, out var plain)
                     && plain.Scheme.Equals("http", StringComparison.OrdinalIgnoreCase)) {
-                    await RelayPlainAsync(net, plain, head, rest, ct);
+                    await RelayPlainAsync(net, plain, head, leftover, ct);
                     return;
                 }
 
@@ -287,7 +287,7 @@ public sealed class NativeCaptureProxy(bool verbose = false) : ICaptureProxy {
     }
 
     private static async Task RelayPlainAsync(
-        NetworkStream deviceNet, Uri target, string head, byte[] rest, CancellationToken ct) {
+        NetworkStream deviceNet, Uri target, string head, byte[] leftover, CancellationToken ct) {
         using var upstream = new TcpClient { NoDelay = true };
         try {
             await upstream.ConnectAsync(target.Host, target.Port, ct);
@@ -298,7 +298,7 @@ public sealed class NativeCaptureProxy(bool verbose = false) : ICaptureProxy {
 
         var up = upstream.GetStream();
         await WriteAsciiAsync(up, head + "\r\n\r\n", ct);
-        if (rest.Length > 0) await up.WriteAsync(rest, ct);
+        if (leftover.Length > 0) await up.WriteAsync(leftover, ct);
         var a = PumpAsync(deviceNet, up, ct);
         var b = PumpAsync(up, deviceNet, ct);
         await Task.WhenAll(a, b);
@@ -466,7 +466,7 @@ public sealed class NativeCaptureProxy(bool verbose = false) : ICaptureProxy {
             $"No decrypted traffic after connecting to {host} - is the CA installed and trusted on the device?");
     }
 
-    private static async Task<(string? Head, byte[] Rest)> ReadHeadAsync(NetworkStream net, CancellationToken ct) {
+    private static async Task<(string? Head, byte[] Leftover)> ReadHeadAsync(NetworkStream net, CancellationToken ct) {
         byte[] buf = new byte[8192];
         int len = 0, end = -1;
         while (end < 0) {
