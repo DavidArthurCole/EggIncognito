@@ -24,12 +24,20 @@ public sealed class InstallAppStep(
         if (!Platforms.Matches(target.Platform, Platforms.Android))
             return CookbookStepAvailability.No("installing the app is android-only");
 
+        var sets = await StoredSetsAsync(target.Package, ct);
+        var sources = await SourceDevicesAsync(target.Id, ct);
+        bool anyComplete = sets.Any(s => s.Complete);
         var options = new List<DeviceCookbookOption>();
-        foreach (var set in await StoredSetsAsync(target.Package, ct))
-            options.Add(new DeviceCookbookOption(StorePrefix + set.Key, set.Label, options.Count == 0, set.Detail));
-        foreach (var source in await SourceDevicesAsync(target.Id, ct)) {
+        foreach (var set in sets) {
+            bool recommended = options.Count == 0 && (set.Complete || sources.Count == 0);
+            options.Add(new DeviceCookbookOption(StorePrefix + set.Key, set.Label, recommended, set.Detail));
+        }
+
+        foreach (var source in sources) {
+            bool recommended = !anyComplete && !options.Exists(o => o.Recommended);
             options.Add(new DeviceCookbookOption(
-                DevicePrefix + source.Id, $"pull fresh from {source.Label}", options.Count == 0));
+                DevicePrefix + source.Id, $"pull fresh from {source.Label}", recommended,
+                anyComplete ? null : "the stored sets lack config splits; a fresh pull stores all of them"));
         }
 
         if (options.Count == 0) {
@@ -76,6 +84,8 @@ public sealed class InstallAppStep(
             .OrderByDescending(s => string.Equals(s.Split, ApkSplitNames.Base, StringComparison.OrdinalIgnoreCase))
             .ThenBy(s => s.Split, StringComparer.Ordinal)
             .ToList();
+        if (!ordered.Exists(s => ApkSplitNames.IsConfig(s.Split)))
+            add("no config splits (density, locale) in this set; the app installs but renders broken, pull a fresh set from a physical device");
 
         var staged = new List<string>();
         try {

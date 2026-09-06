@@ -23,12 +23,14 @@ public sealed class VirtualDeviceLifecycle(
     private static readonly TimeSpan BootstrapBackoff = TimeSpan.FromMinutes(15);
     private static readonly TimeSpan SeedStartTimeout = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan SeedInstallTimeout = TimeSpan.FromMinutes(25);
+    private static readonly TimeSpan CheckinBackoff = TimeSpan.FromMinutes(5);
     private readonly SemaphoreSlim _gate = new(1, 1);
 #pragma warning disable IDE0028
     private readonly Dictionary<string, DateTimeOffset> _lastBootstrap = new(StringComparer.Ordinal);
     private readonly Dictionary<string, DateTimeOffset> _lastIntegrity = new(StringComparer.Ordinal);
     private readonly Dictionary<string, DateTimeOffset> _seedSeen = new(StringComparer.Ordinal);
     private readonly HashSet<string> _adbServerRestarted = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, DateTimeOffset> _lastCheckin = new(StringComparer.Ordinal);
 #pragma warning restore IDE0028
 
     public bool Supported { get; private set; }
@@ -326,6 +328,7 @@ public sealed class VirtualDeviceLifecycle(
         var (modulesLive, chain) = await readiness.ChainAsync(target, ct);
         if (modulesLive && chain is { Activated: true }) {
             _lastIntegrity.Remove(instanceId);
+            await EnsureCheckinAsync(instanceId, target, ct);
             return;
         }
 
@@ -348,6 +351,21 @@ public sealed class VirtualDeviceLifecycle(
         }
 
         logger.LogInformation("virtual devices: {Id} ran {Cookbook} on {Device}", instanceId, cookbook, deviceId);
+    }
+
+    private async Task EnsureCheckinAsync(string instanceId, DeviceTarget target, CancellationToken ct) {
+        if (connections.For(target) is not { } conn) return;
+        if (await GsfIdentity.ReadAsync(conn, ct) is not null) {
+            _lastCheckin.Remove(instanceId);
+            return;
+        }
+
+        if (_lastCheckin.TryGetValue(instanceId, out var last) && time.GetUtcNow() - last < CheckinBackoff) return;
+        _lastCheckin[instanceId] = time.GetUtcNow();
+        var root = await DeviceRoot.ProbeAsync(conn, ct);
+        bool kicked = await GsfIdentity.KickAsync(conn, root, ct);
+        logger.LogInformation("virtual devices: {Id} chain live but gms has no gsf id yet; checkin broadcast {Outcome}",
+            instanceId, kicked ? "sent" : "did not run");
     }
 
     private async Task<bool> EnsureRootAsync(

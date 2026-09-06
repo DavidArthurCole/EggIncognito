@@ -21,6 +21,8 @@ public sealed record ApkVersionSet(
 
     public bool Installable => HasSplit(ApkSplitNames.Base);
 
+    public bool Complete => Installable && Splits.Any(s => ApkSplitNames.IsConfig(s.Split));
+
     public string Label {
         get {
             string version = string.IsNullOrEmpty(AppVersion) ? "unknown version" : AppVersion;
@@ -35,7 +37,8 @@ public sealed record ApkVersionSet(
             var sources = Splits.Select(s => s.SourceDeviceId).OfType<string>()
                 .Where(s => s.Length > 0).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList();
             string from = sources.Count == 0 ? "" : $", from {string.Join("+", sources)}";
-            return $"{splits}, captured {CapturedAt:yyyy-MM-dd}{from}";
+            string incomplete = Complete ? "" : "; no config splits, renders broken";
+            return $"{splits}, captured {CapturedAt:yyyy-MM-dd}{from}{incomplete}";
         }
     }
 }

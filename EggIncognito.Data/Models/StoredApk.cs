@@ -6,6 +6,10 @@ namespace EggIncognito.Data.Models;
 public static class ApkSplitNames {
     public const string Base = "base";
     public const string Arm64 = "arm64";
+    public const string ConfigPrefix = "config.";
+
+    public static bool IsConfig(string split) =>
+        split.StartsWith(ConfigPrefix, StringComparison.OrdinalIgnoreCase);
 }
 
 [Table("stored_apks")]
