@@ -155,10 +155,16 @@ public sealed class NativeCaptureProxy(bool verbose = false) : ICaptureProxy {
         client.NoDelay = true;
         var net = client.GetStream();
         try {
-            string? head = await ReadHeadAsync(net, ct);
+            (string? head, byte[] rest) = await ReadHeadAsync(net, ct);
             if (head is null) return;
             (string method, string target) = ParseRequestLine(head);
             if (!method.Equals("CONNECT", StringComparison.OrdinalIgnoreCase)) {
+                if (Uri.TryCreate(target, UriKind.Absolute, out var plain)
+                    && plain.Scheme.Equals("http", StringComparison.OrdinalIgnoreCase)) {
+                    await RelayPlainAsync(net, plain, head, rest, ct);
+                    return;
+                }
+
                 await WriteAsciiAsync(net, "HTTP/1.1 405 Method Not Allowed\r\nConnection: close\r\n\r\n", ct);
                 return;
             }
@@ -278,6 +284,24 @@ public sealed class NativeCaptureProxy(bool verbose = false) : ICaptureProxy {
         } catch (Exception ex) {
             Log($"emit flow error: {ex.Message}");
         }
+    }
+
+    private static async Task RelayPlainAsync(
+        NetworkStream deviceNet, Uri target, string head, byte[] rest, CancellationToken ct) {
+        using var upstream = new TcpClient { NoDelay = true };
+        try {
+            await upstream.ConnectAsync(target.Host, target.Port, ct);
+        } catch {
+            await WriteAsciiAsync(deviceNet, "HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n", ct);
+            return;
+        }
+
+        var up = upstream.GetStream();
+        await WriteAsciiAsync(up, head + "\r\n\r\n", ct);
+        if (rest.Length > 0) await up.WriteAsync(rest, ct);
+        var a = PumpAsync(deviceNet, up, ct);
+        var b = PumpAsync(up, deviceNet, ct);
+        await Task.WhenAll(a, b);
     }
 
     private static async Task RawTunnelAsync(NetworkStream deviceNet, string host, int port, CancellationToken ct) {
@@ -442,13 +466,13 @@ public sealed class NativeCaptureProxy(bool verbose = false) : ICaptureProxy {
             $"No decrypted traffic after connecting to {host} - is the CA installed and trusted on the device?");
     }
 
-    private static async Task<string?> ReadHeadAsync(NetworkStream net, CancellationToken ct) {
+    private static async Task<(string? Head, byte[] Rest)> ReadHeadAsync(NetworkStream net, CancellationToken ct) {
         byte[] buf = new byte[8192];
         int len = 0, end = -1;
         while (end < 0) {
-            if (len == buf.Length) return null;
+            if (len == buf.Length) return (null, []);
             int n = await net.ReadAsync(buf.AsMemory(len), ct);
-            if (n == 0) return len > 0 ? Encoding.ASCII.GetString(buf, 0, len) : null;
+            if (n == 0) return (len > 0 ? Encoding.ASCII.GetString(buf, 0, len) : null, []);
             len += n;
             for (int i = 0; i + 3 < len; i++) {
                 if (buf[i] == 13 && buf[i + 1] == 10 && buf[i + 2] == 13 && buf[i + 3] == 10) {
@@ -458,7 +482,8 @@ public sealed class NativeCaptureProxy(bool verbose = false) : ICaptureProxy {
             }
         }
 
-        return Encoding.ASCII.GetString(buf, 0, end);
+        int bodyStart = end + 4;
+        return (Encoding.ASCII.GetString(buf, 0, end), bodyStart < len ? buf[bodyStart..len] : []);
     }
 
     private static (string Method, string Target) ParseRequestLine(string head) {

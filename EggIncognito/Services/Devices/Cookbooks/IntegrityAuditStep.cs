@@ -12,10 +12,18 @@ public sealed class IntegrityAuditStep(IDeviceConnectionFactory connections) : C
         ("gms", "dumpsys package " + IntegrityChain.GmsPackage + " 2>/dev/null | grep -m1 versionName; dumpsys package " + IntegrityChain.PlayStorePackage + " 2>/dev/null | grep -m1 versionName"),
         ("gsf id", GsfIdentity.AndroidIdQuery),
         ("proxy", "settings get global http_proxy"),
+        ("network", "dumpsys connectivity 2>/dev/null | grep -i -E 'validated|captive|NetworkAgentInfo' | head -n 6"),
+        ("reach via proxy", "p=$(settings get global http_proxy); "
+                            + "echo \"https $(curl -sS -m 10 -x \"http://$p\" -o /dev/null -w '%{http_code}' https://www.google.com/generate_204 2>&1)\"; "
+                            + "echo \"http $(curl -sS -m 10 -x \"http://$p\" -o /dev/null -w '%{http_code}' http://connectivitycheck.gstatic.com/generate_204 2>&1)\""),
+        ("reach direct", "echo \"https $(curl -sS -m 10 --noproxy '*' -o /dev/null -w '%{http_code}' https://www.google.com/generate_204 2>&1)\""),
+        ("checkin log", "logcat -d 2>/dev/null | grep -i -E 'checkin' | tail -n 12"),
         ("pif log", "logcat -d -s PIF/Native PIF/Java PIF:* 2>/dev/null | tail -n 20"),
         ("droidguard log", "logcat -d 2>/dev/null | grep -i -E 'droidguard|snet|attest' | tail -n 15"),
         ("zygisk processes", "ps -A 2>/dev/null | grep -i -E 'zygisk|magisk' | grep -v grep")
     ];
+
+    private const string CompanionProbe = "ps -A 2>/dev/null | grep -c 'zn-zygisk-companion.*playintegrityfix'";
 
     private static readonly (string Label, string Command)[] RootProbes = [
         ("magisk settings", "/sbin/magisk --sqlite \"SELECT key,value FROM settings\" 2>&1"),
@@ -53,12 +61,19 @@ public sealed class IntegrityAuditStep(IDeviceConnectionFactory connections) : C
         }
 
         var pif = await conn.ShellAsync("logcat -d -s PIF/Native 2>/dev/null | grep -c Spoofing", ct);
-        bool injected = int.TryParse(pif.Stdout.Trim(), out int n) && n > 0;
+        bool logged = int.TryParse(pif.Stdout.Trim(), out int n) && n > 0;
+        var companion = await conn.ShellAsync(CompanionProbe, ct);
+        bool companionLive = int.TryParse(companion.Stdout.Trim(), out int c) && c > 0;
         string? gsf = await GsfIdentity.ReadAsync(conn, ct);
-        string verdict = (injected, gsf) switch {
-            (false, _) => "pif never injected into gms: Zygisk is not hooking, so DroidGuard sees the real build",
-            (true, null) => "pif injects but gms has no gsf id: check-in has not completed, Play cannot certify yet",
-            (true, _) => $"pif injects and gms is checked in (gsf id {gsf}); a failing verdict is DroidGuard rejecting this device profile"
+        string injection = logged
+            ? "pif logs spoofing into gms"
+            : companionLive
+                ? "pif companion is running (logs are off, verboseLogs=0), so Zygisk loaded it"
+                : "no pif log line and no pif companion process: Zygisk is not loading it";
+        string verdict = (logged || companionLive, gsf) switch {
+            (false, _) => $"{injection}; DroidGuard sees the real build",
+            (true, null) => $"{injection}; gms has no gsf id, check-in has not completed, so Play cannot certify yet. Read 'reach via proxy' and 'checkin log' above",
+            (true, _) => $"{injection}; gms is checked in (gsf id {gsf}); a failing verdict is DroidGuard rejecting this device profile"
         };
         Add($"verdict: {verdict}");
         return Ok(lines, verdict);
