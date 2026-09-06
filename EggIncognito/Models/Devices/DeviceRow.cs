@@ -13,7 +13,7 @@ public sealed record DeviceRow(
     bool StoreAhead,
     string Result,
     string? Note,
-    DateTimeOffset ProbedAt,
+    DateTimeOffset? ProbedAt,
     int? ClientVersion,
     bool Virtual = false,
     DateTimeOffset? Up = null,
