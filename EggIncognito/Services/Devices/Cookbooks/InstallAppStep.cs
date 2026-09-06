@@ -14,6 +14,8 @@ public sealed class InstallAppStep(
     private static readonly TimeSpan AdbTimeout = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan InstallTimeout = TimeSpan.FromMinutes(5);
     private static readonly string[] VerifierSettings = ["verifier_verify_adb_installs", "package_verifier_enable"];
+    private const string PackageLogCommand =
+        "logcat -d -s PackageManager:* PackageInstaller:* PackageInstallerSession:* 2>/dev/null | tail -n 12";
 
     public override string Id => DeviceCookbookIds.InstallApp;
     public override string Title => "Install app";
@@ -87,8 +89,11 @@ public sealed class InstallAppStep(
             add($"installing {ordered.Count} split(s): {string.Join(", ", ordered.Select(s => s.Split))}");
             var install = await Adb(target.Target, ["install-multiple", "-r", .. staged], InstallTimeout, ct);
             if (install.ExitCode != 0) {
-                return Failed(lines,
-                    $"install-multiple failed: {DeviceParsing.TrimNote(install.Stderr + install.Stdout)}");
+                string output = install.Stderr + "\n" + install.Stdout;
+                foreach (string line in output.Split('\n').Select(l => l.Trim()).Where(l => l.Length > 0)) add($"adb: {line}");
+                await DiagnoseAsync(target, add, ct);
+                string reason = FailureLine(output) ?? DeviceParsing.TrimNote(output);
+                return Failed(lines, $"install-multiple failed: {reason}");
             }
         } finally {
             foreach (string path in staged) DeviceShell.TryDelete(path);
@@ -96,6 +101,23 @@ public sealed class InstallAppStep(
 
         add($"{target.Package} installed");
         return Ok(lines, $"installed {ordered.Count} split(s)");
+    }
+
+    private static string? FailureLine(string output) =>
+        output.Split('\n').Select(l => l.Trim())
+            .FirstOrDefault(l => l.StartsWith("Failure [", StringComparison.Ordinal)
+                                 || l.Contains("INSTALL_FAILED", StringComparison.Ordinal)
+                                 || l.Contains("INSTALL_PARSE_FAILED", StringComparison.Ordinal));
+
+    private async Task DiagnoseAsync(DeviceTarget target, Action<string> add, CancellationToken ct) {
+        if (connections.For(target) is not { } conn) return;
+        var abi = await conn.ShellAsync("getprop ro.product.cpu.abilist", ct);
+        add($"device abis: {DeviceParsing.TrimNote(abi.Stdout)}");
+        var df = await conn.ShellAsync("df -h /data 2>/dev/null | tail -n 1", ct);
+        add($"/data: {DeviceParsing.TrimNote(df.Stdout)}");
+        var log = await conn.ShellAsync(PackageLogCommand, ct);
+        foreach (string line in log.Stdout.Split('\n').Select(l => l.Trim()).Where(l => l.Length > 0))
+            add($"logcat: {DeviceParsing.TrimNote(line)}");
     }
 
     private async Task DisableVerificationAsync(DeviceTarget target, Action<string> add, CancellationToken ct) {

@@ -31,7 +31,7 @@
             <table class="data-table">
                 <thead>
                 <tr>
-                    <th>instance</th><th>state</th><th>activity</th><th>target</th><th>up</th>
+                    <th>instance</th><th>state</th><th>activity</th><th>target</th><th>up</th><th></th>
                 </tr>
                 </thead>
                 <tbody>
@@ -43,6 +43,20 @@
                         <td class="font-mono text-xs">@i.Target</td>
                         <td class="text-xs text-muted">
                             <TimeAgo Value="@i.CreatedAt" Hover="false"/>
+                        </td>
+                        <td class="vd-row-actions">
+                            @if (_armedDestroy == i.InstanceId) {
+                                <button type="button" class="btn-mini btn-danger" disabled="@_busy"
+                                        @onclick="() => Destroy(i.InstanceId)">
+                                    confirm destroy
+                                </button>
+                                <button type="button" class="btn-mini" disabled="@_busy" @onclick="DisarmDestroy">keep</button>
+                            } else {
+                                <button type="button" class="btn-mini btn-danger" disabled="@_busy"
+                                        @onclick="() => ArmDestroy(i.InstanceId)">
+                                    destroy
+                                </button>
+                            }
                         </td>
                     </tr>
                 }
@@ -199,6 +213,7 @@
     string? _imagesErr;
     List<ModuleCacheRow>? _modules;
     IntegrityAssetsView? _assets;
+    string? _armedDestroy;
     ImageBuildStatusView? _build;
     long? _buildId;
     string _buildVer = "11.0.0";
@@ -366,6 +381,35 @@
             await Say(res.Ok
                     ? $"provisioned {body?.InstanceId ?? "instance"}"
                     : $"provision failed: {body?.Note ?? res.Describe()}",
+                res.Ok ? StatusNoteKind.Ok : StatusNoteKind.Error);
+        }
+        finally {
+            _busy = false;
+        }
+
+        await Load();
+        await Changed();
+    }
+
+    void ArmDestroy(string instanceId) {
+        _armedDestroy = instanceId;
+    }
+
+    void DisarmDestroy() {
+        _armedDestroy = null;
+    }
+
+    async Task Destroy(string instanceId) {
+        if (Api is null || _busy) return;
+        _busy = true;
+        _armedDestroy = null;
+        try {
+            var res = await Api.SendAsync("DELETE", $"/api/devices/virtual/{Uri.EscapeDataString(instanceId)}",
+                timeout: TimeSpan.FromMinutes(2));
+            var body = res.Json<VirtualActionResult>();
+            await Say(res.Ok
+                    ? $"destroyed {instanceId}"
+                    : $"destroy refused: {body?.Note ?? res.Describe()}",
                 res.Ok ? StatusNoteKind.Ok : StatusNoteKind.Error);
         }
         finally {
