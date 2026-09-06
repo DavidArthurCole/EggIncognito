@@ -3,7 +3,7 @@ namespace EggIncognito.Core.Services.Devices;
 public static class GsfIdentity {
     public const string AndroidIdQuery =
         "content query --uri content://com.google.android.gsf.gservices "
-        + "--projection value --where \"name='android_id'\" 2>/dev/null";
+        + "--projection value --where \"name='android_id'\" 2>&1";
 
     public const string CheckinCommand =
         "am broadcast -a android.server.checkin.CHECKIN -n com.google.android.gms/.checkin.CheckinService >/dev/null 2>&1; "
@@ -11,27 +11,30 @@ public static class GsfIdentity {
 
     private static readonly TimeSpan QueryTimeout = TimeSpan.FromSeconds(20);
 
-    public static async Task<bool> KickAsync(IDeviceConnection conn, RootAccess root, CancellationToken ct) {
-        var r = await conn.ShellAsync(root.Wrap(CheckinCommand), ct);
-        return r.Stdout.Contains("kicked=1", StringComparison.Ordinal);
-    }
-
-    public static async Task<string?> ReadAsync(IDeviceConnection conn, CancellationToken ct) {
+    public static async Task<string?> ReadAsync(IDeviceConnection conn, RootAccess root, CancellationToken ct) {
         using var bounded = CancellationTokenSource.CreateLinkedTokenSource(ct);
         bounded.CancelAfter(QueryTimeout);
-        var r = await conn.ShellAsync(AndroidIdQuery, bounded.Token);
+        var r = await conn.ShellAsync(root.Wrap(AndroidIdQuery), bounded.Token);
         ct.ThrowIfCancellationRequested();
         return Parse(r.Stdout);
     }
 
     public static async Task<string?> WaitAsync(
-        IDeviceConnection conn, TimeSpan timeout, TimeSpan interval, CancellationToken ct) {
-        var deadline = DateTimeOffset.UtcNow + timeout;
+        IDeviceConnection conn, RootAccess root, TimeSpan timeout, TimeSpan interval, Action<string>? progress,
+        CancellationToken ct) {
+        var started = DateTimeOffset.UtcNow;
+        var deadline = started + timeout;
         while (true) {
-            if (await ReadAsync(conn, ct) is { } id) return id;
+            if (await ReadAsync(conn, root, ct) is { } id) return id;
             if (DateTimeOffset.UtcNow >= deadline) return null;
+            progress?.Invoke($"waiting for gms check-in ({(DateTimeOffset.UtcNow - started).TotalSeconds:F0}s)");
             await Task.Delay(interval, ct);
         }
+    }
+
+    public static async Task<bool> KickAsync(IDeviceConnection conn, RootAccess root, CancellationToken ct) {
+        var r = await conn.ShellAsync(root.Wrap(CheckinCommand), ct);
+        return r.Stdout.Contains("kicked=1", StringComparison.Ordinal);
     }
 
     public static string? Parse(string stdout) {

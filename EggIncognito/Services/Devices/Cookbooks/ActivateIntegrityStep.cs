@@ -77,7 +77,7 @@ public sealed class ActivateIntegrityStep(
         Add($"after: {after.Describe()}");
 
         bool changed = !string.Equals(fingerprintBefore, await FingerprintAsync(conn, root, ct), StringComparison.Ordinal);
-        if (!changed && before.Activated && await GsfIdentity.ReadAsync(conn, ct) is { } existing) {
+        if (!changed && before.Activated && await GsfIdentity.ReadAsync(conn, root, ct) is { } existing) {
             Add($"chain unchanged and gms already checked in (gsf id {existing}); no reset");
             await ReportPifAsync(conn, Add, ct);
             return Ok(lines, after.Describe());
@@ -93,12 +93,17 @@ public sealed class ActivateIntegrityStep(
 
         if (virtualDevice) {
             var bootTimeout = TimeSpan.FromSeconds(Math.Max(60, config.IntegrityBootTimeoutSeconds));
-            if (await DeviceReboot.RebootAsync(conn, runner, target.Target, bootTimeout, Add, ct) is not { Ok: true })
+            if (await DeviceReboot.RebootAsync(conn, runner, target.Target, bootTimeout, Add, ct) is not { Ok: true } rebooted)
                 return Failed(lines, "device did not come back rooted after the activation reboot");
+            root = rebooted;
 
-            string? gsf = await GsfIdentity.WaitAsync(conn, CheckinWait, CheckinPoll, ct);
-            if (gsf is null)
-                return Failed(lines, $"gms did not check in within {CheckinWait.TotalMinutes:F0} min of boot; no gsf id (device offline?)");
+            string? gsf = await GsfIdentity.WaitAsync(conn, root, CheckinWait, CheckinPoll, Add, ct);
+            if (gsf is null) {
+                return Failed(lines,
+                    $"gms did not check in within {CheckinWait.TotalMinutes:F0} min of boot; no android_id in gservices. "
+                    + "Run integrity-audit and read its checkin log");
+            }
+
             Add($"gms checked in, gsf id {gsf}");
         }
 

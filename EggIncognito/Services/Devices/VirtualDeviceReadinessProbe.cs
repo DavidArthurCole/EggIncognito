@@ -25,7 +25,7 @@ public sealed class VirtualDeviceReadinessProbe(
 
         var root = await DeviceRoot.ProbeAsync(conn, ct);
         var installed = await InstalledAsync(conn, target.Package, ct);
-        var play = await GooglePlayAsync(conn, ct);
+        var play = await GooglePlayAsync(conn, root, ct);
         var rooted = RootedCheck(root);
         var integrity = await IntegrityAsync(conn, root, ct);
         var launched = await LaunchedAsync(conn, target.Package, ct);
@@ -46,15 +46,15 @@ public sealed class VirtualDeviceReadinessProbe(
             : new ReadinessCheck(false, "not installed");
     }
 
-    private async Task<ReadinessCheck> GooglePlayAsync(IDeviceConnection conn, CancellationToken ct) {
+    private async Task<ReadinessCheck> GooglePlayAsync(IDeviceConnection conn, RootAccess root, CancellationToken ct) {
         var r = await conn.ShellAsync($"pm list packages {config.GmsPackage}", ct);
         if (!r.Stdout.Contains("package:", StringComparison.Ordinal))
             return new ReadinessCheck(false, "no Play services, needs a gapps image");
 
-        return await GsfIdentity.ReadAsync(conn, ct) is { } id
-            ? new ReadinessCheck(true, $"gsf id {id}")
-            : new ReadinessCheck(false,
-                "Play services installed but not checked in; no gsf id yet, so Play treats the device as uncertified");
+        if (await GsfIdentity.ReadAsync(conn, root, ct) is { } id) return new ReadinessCheck(true, $"gsf id {id}");
+        return new ReadinessCheck(false, root.Ok
+            ? "Play services installed but no android_id in gservices yet; check-in has not completed"
+            : "no root, so the gservices android_id cannot be read from the shell uid");
     }
 
     private static ReadinessCheck RootedCheck(RootAccess root) =>

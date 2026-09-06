@@ -355,14 +355,14 @@ public sealed class VirtualDeviceLifecycle(
 
     private async Task EnsureCheckinAsync(string instanceId, DeviceTarget target, CancellationToken ct) {
         if (connections.For(target) is not { } conn) return;
-        if (await GsfIdentity.ReadAsync(conn, ct) is not null) {
+        var root = await DeviceRoot.ProbeAsync(conn, ct);
+        if (await GsfIdentity.ReadAsync(conn, root, ct) is not null) {
             _lastCheckin.Remove(instanceId);
             return;
         }
 
         if (_lastCheckin.TryGetValue(instanceId, out var last) && time.GetUtcNow() - last < CheckinBackoff) return;
         _lastCheckin[instanceId] = time.GetUtcNow();
-        var root = await DeviceRoot.ProbeAsync(conn, ct);
         bool kicked = await GsfIdentity.KickAsync(conn, root, ct);
         logger.LogInformation("virtual devices: {Id} chain live but gms has no gsf id yet; checkin broadcast {Outcome}",
             instanceId, kicked ? "sent" : "did not run");
