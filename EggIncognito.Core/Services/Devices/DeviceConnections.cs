@@ -6,26 +6,19 @@ public sealed class AdbDeviceConnection(IProcessRunner runner, string serial) : 
 
     public bool SupportsExecOut => true;
 
-    private bool IsNetworkSerial => serial.Contains(':');
-
-    private static bool LooksDisconnected(string stderr) {
-        string s = stderr.ToLowerInvariant();
-        return s.Contains("not found") || s.Contains("device offline")
-            || s.Contains("no devices/emulators found") || s.Contains("device still authorizing")
-            || s.Contains("device still connecting") || s.Contains("closed");
-    }
+    private bool IsNetworkSerial => AdbTcp.IsNetworkSerial(serial);
 
     private async Task<ProcessResult> RunAsync(string[] args, CancellationToken ct) {
         var r = await runner.RunAsync("adb", args, ct);
-        if (r.ExitCode == 0 || !IsNetworkSerial || !LooksDisconnected(r.Stderr)) return r;
-        await runner.RunAsync("adb", ["connect", serial], ct);
+        if (r.ExitCode == 0 || !IsNetworkSerial || !AdbTcp.LooksDisconnected(r.Stderr)) return r;
+        await AdbTcp.ReviveAsync(runner, serial, ct);
         return await runner.RunAsync("adb", args, ct);
     }
 
     private async Task<ProcessBytesResult> RunBytesAsync(string[] args, CancellationToken ct) {
         var r = await runner.RunBytesAsync("adb", args, ct);
-        if (r.ExitCode == 0 || !IsNetworkSerial || !LooksDisconnected(r.Stderr)) return r;
-        await runner.RunAsync("adb", ["connect", serial], ct);
+        if (r.ExitCode == 0 || !IsNetworkSerial || !AdbTcp.LooksDisconnected(r.Stderr)) return r;
+        await AdbTcp.ReviveAsync(runner, serial, ct);
         return await runner.RunBytesAsync("adb", args, ct);
     }
 

@@ -28,13 +28,18 @@ public class IntegritySeedTests {
     }
 
     [Fact]
-    public void Script_WritesBothStateMarkersAndTouchesSeededMarker() {
+    public void Script_WritesStateBeforeAnyWait_AndLogsReadably() {
         string script = IntegritySeed.Script(Modules);
 
-        Assert.Contains("echo " + IntegritySeed.StateInstalling + " > " + IntegritySeed.StateFile, script, StringComparison.Ordinal);
+        int installing = script.IndexOf("echo " + IntegritySeed.StateInstalling + " > " + IntegritySeed.StateFile, StringComparison.Ordinal);
+        int bootWait = script.IndexOf("sys.boot_completed", StringComparison.Ordinal);
+        Assert.True(installing >= 0);
+        Assert.True(bootWait > installing);
         Assert.Contains("echo " + IntegritySeed.StateDone + " > " + IntegritySeed.StateFile, script, StringComparison.Ordinal);
         Assert.Contains("echo " + IntegritySeed.StateFailed + " > " + IntegritySeed.StateFile, script, StringComparison.Ordinal);
+        Assert.Contains("chmod 644 " + IntegritySeed.LogFile, script, StringComparison.Ordinal);
         Assert.Contains("touch " + IntegritySeed.Marker + "\n", script, StringComparison.Ordinal);
+        Assert.StartsWith("/data/local/tmp/", IntegritySeed.LogFile, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -56,16 +61,31 @@ public class IntegritySeedTests {
     }
 
     [Fact]
-    public void Rc_RunsSeedScriptOnBootCompleted() {
-        Assert.StartsWith("on property:sys.boot_completed=1\n", IntegritySeed.Rc, StringComparison.Ordinal);
-        Assert.Contains("/system/bin/sh " + IntegritySeed.SeedScript, IntegritySeed.Rc, StringComparison.Ordinal);
+    public void Script_SeedsMagiskBinDirWhenTheBaseHookHasNot() {
+        string script = IntegritySeed.Script(Modules);
+
+        int seed = script.IndexOf("cp -f /system/etc/init/magisk/* /data/adb/magisk/", StringComparison.Ordinal);
+        int install = script.IndexOf("--install-module", StringComparison.Ordinal);
+        Assert.True(seed >= 0);
+        Assert.True(install > seed);
     }
 
     [Fact]
-    public void Parse_ReadsStateAndImageMarker() {
-        Assert.Equal(new SeedProbe(true, "installing"), IntegritySeed.Parse("installing\nseeded-image\n"));
-        Assert.Equal(new SeedProbe(true, "done"), IntegritySeed.Parse("done\r\nseeded-image\r\n"));
-        Assert.Equal(new SeedProbe(false, "failed"), IntegritySeed.Parse("failed\n"));
-        Assert.Equal(new SeedProbe(false, null), IntegritySeed.Parse(""));
+    public void Rc_DefinesNamedServiceStartedOnBoot() {
+        Assert.StartsWith("service " + IntegritySeed.ServiceName + " /system/bin/sh " + IntegritySeed.SeedScript + "\n", IntegritySeed.Rc, StringComparison.Ordinal);
+        Assert.Contains("    seclabel u:r:su:s0\n", IntegritySeed.Rc, StringComparison.Ordinal);
+        Assert.Contains("    oneshot\n", IntegritySeed.Rc, StringComparison.Ordinal);
+        Assert.Contains("on boot\n    start " + IntegritySeed.ServiceName + "\n", IntegritySeed.Rc, StringComparison.Ordinal);
+        Assert.Equal("init.svc.egi-seed", IntegritySeed.ServiceProp);
+    }
+
+    [Fact]
+    public void Parse_ReadsStateImageMarkerServiceAndLastLogLine() {
+        Assert.Equal(new SeedProbe(true, "installing", "running", "step: installing 02-tee.zip"),
+            IntegritySeed.Parse("installing\nseeded-image\nsvc=running\nlog=step: installing 02-tee.zip\n"));
+        Assert.Equal(new SeedProbe(true, "done", "stopped", null),
+            IntegritySeed.Parse("done\r\nseeded-image\r\nsvc=stopped\r\nlog=\r\n"));
+        Assert.Equal(new SeedProbe(false, "failed", null, null), IntegritySeed.Parse("failed\nsvc=\nlog=\n"));
+        Assert.Equal(new SeedProbe(false, null, null, null), IntegritySeed.Parse(""));
     }
 }

@@ -221,10 +221,20 @@ public sealed class VirtualDeviceLifecycle(
                 continue;
             }
 
-            if (!await BootCompletedAsync(serial, ct)) {
-                if (row.State == ProvisionStates.Creating)
-                    await SetStateAsync(store, changed, row, ProvisionStates.Booting,
-                        "waiting for sys.boot_completed", ct);
+            if (await BootCompletedAsync(serial, ct) is { Ok: false } boot) {
+                if (boot.Detail is { } detail && AdbTcp.LooksUnauthorized(detail)) {
+                    if (row.State != ProvisionStates.Failed) {
+                        await SetStateAsync(store, changed, row, ProvisionStates.Failed,
+                            $"adbd rejects this host ({detail}); the image carries no adb key for this host, "
+                            + "or the key changed since the image was built", ct);
+                    }
+
+                    continue;
+                }
+
+                string note = boot.Detail is { } d ? $"waiting for sys.boot_completed: {d}" : "waiting for sys.boot_completed";
+                if (row.State is ProvisionStates.Creating or ProvisionStates.Booting)
+                    await SetStateAsync(store, changed, row, ProvisionStates.Booting, note, ct);
                 continue;
             }
 
@@ -377,13 +387,18 @@ public sealed class VirtualDeviceLifecycle(
         }
 
         var waited = now - firstSeen;
+        string log = seed.LastLog is { } last ? $"; last log line: {DeviceParsing.TrimNote(last)}" : "";
         string? failure = seed.State switch {
-            IntegritySeed.StateFailed => $"first-boot seed failed; see {IntegritySeed.LogFile} on the device",
+            IntegritySeed.StateFailed => $"first-boot seed failed{log}; full log at {IntegritySeed.LogFile}",
+            null when seed.Service == IntegritySeed.ServiceStopped =>
+                $"first-boot seed exited without writing {IntegritySeed.StateFile}; "
+                + $"init started {IntegritySeed.ServiceName} but the script died at once{log}",
             null when waited > SeedStartTimeout =>
                 $"first-boot seed never wrote {IntegritySeed.StateFile} within {SeedStartTimeout.TotalMinutes:F0} min; "
-                + $"{IntegritySeed.RcFile} did not run on this image",
+                + $"{IntegritySeed.ServiceProp} is {seed.Service ?? "unset"}, "
+                + (seed.Service is null ? $"init never loaded {IntegritySeed.RcFile}" : "the script is not writing state"),
             _ when waited > SeedInstallTimeout =>
-                $"first-boot seed still {seed.State} after {SeedInstallTimeout.TotalMinutes:F0} min; see {IntegritySeed.LogFile}",
+                $"first-boot seed still {seed.State} after {SeedInstallTimeout.TotalMinutes:F0} min{log}",
             _ => null
         };
 
@@ -392,18 +407,26 @@ public sealed class VirtualDeviceLifecycle(
             return true;
         }
 
-        string note = seed.State is null
-            ? $"first-boot seed starting ({waited.TotalSeconds:F0}s)"
+        string phase = seed.State is null
+            ? $"first-boot seed starting ({waited.TotalSeconds:F0}s, {IntegritySeed.ServiceProp}={seed.Service ?? "unset"})"
             : $"first-boot seed installing the integrity chain ({waited.TotalSeconds:F0}s), reboots when done";
+        string note = seed.LastLog is { } line ? $"{phase}: {DeviceParsing.TrimNote(line)}" : phase;
         if (row.State != ProvisionStates.Booting || !string.Equals(row.Note, note, StringComparison.Ordinal))
             await SetStateAsync(store, changed, row, ProvisionStates.Booting, note, ct);
         return true;
     }
 
-    private async Task<bool> BootCompletedAsync(string serial, CancellationToken ct) {
+    private async Task<(bool Ok, string? Detail)> BootCompletedAsync(string serial, CancellationToken ct) {
         await Adb(["connect", serial], AdbTimeout, ct);
         var boot = await Adb(["-s", serial, "shell", "getprop sys.boot_completed"], AdbTimeout, ct);
-        return boot.ExitCode == 0 && boot.Stdout.Trim() == "1";
+        if (boot.ExitCode != 0 && AdbTcp.LooksDisconnected(boot.Stderr)) {
+            await AdbTcp.ReviveAsync(runner, serial, ct);
+            boot = await Adb(["-s", serial, "shell", "getprop sys.boot_completed"], AdbTimeout, ct);
+        }
+
+        if (boot.ExitCode == 0 && boot.Stdout.Trim() == "1") return (true, null);
+        string detail = DeviceParsing.TrimNote(boot.Stderr + boot.Stdout);
+        return (false, detail.Length > 0 ? detail : null);
     }
 
     private async Task<ProcessResult> Adb(string[] args, TimeSpan timeout, CancellationToken ct) {

@@ -21,6 +21,11 @@ public static class DeviceReboot {
             await Task.Delay(BootPollInterval, ct);
             await Adb(runner, ["connect", serial], ct);
             var boot = await Adb(runner, ["-s", serial, "shell", "getprop sys.boot_completed"], ct);
+            if (boot.ExitCode != 0 && AdbTcp.LooksDisconnected(boot.Stderr)) {
+                await AdbTcp.ReviveAsync(runner, serial, ct);
+                boot = await Adb(runner, ["-s", serial, "shell", "getprop sys.boot_completed"], ct);
+            }
+
             if (boot.Stdout.Trim() != "1") {
                 if (DateTimeOffset.UtcNow < nextProgress) continue;
                 nextProgress = DateTimeOffset.UtcNow + BootProgressInterval;
